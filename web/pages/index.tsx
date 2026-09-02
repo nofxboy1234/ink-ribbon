@@ -27,6 +27,28 @@ export default function HomePage({ messages }: Props) {
           ))}
         </ul>
       )}
+
+      <section style={{ marginTop: "2rem" }}>
+        <h2>Sokol Cube (Zig + WASM)</h2>
+        <p>A rotating cube rendered by Sokol graphics, compiled from Zig to WebAssembly.</p>
+          <canvas
+            id="cube-canvas"
+            suppressHydrationWarning
+            style={{
+            width: "100%",
+            height: "400px",
+            display: "block",
+            border: "1px solid #ccc",
+            borderRadius: "4px",
+          }}
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `var Module = { canvas: document.getElementById('cube-canvas') };`,
+          }}
+        />
+        <script src="/cube.js" />
+      </section>
     </main>
   );
 }
