@@ -12,8 +12,4 @@ export default defineConfig({
     voidPlugin(),
     voidReact(),
   ],
-  test: {
-    globals: true,
-    environment: "jsdom",
-  },
 });
