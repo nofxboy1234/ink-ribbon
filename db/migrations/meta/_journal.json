@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1788350116190,
+      "tag": "20260902115516_swift_star_brand",
+      "breakpoints": true
+    }
+  ]
+}
