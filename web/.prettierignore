@@ -1,1 +1,5 @@
 public/
+db/migrations/
+AGENTS.md
+package.json
+tsconfig.json

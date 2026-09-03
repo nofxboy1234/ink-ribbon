@@ -4,9 +4,10 @@
   "scripts": {
     "dev": "cd web && npm run dev",
     "build": "cd web && npm run build",
+    "preview": "cd web && npm run preview",
     "test": "cd web && npm run test",
     "lint": "cd web && npm run lint",
-    "fmt": "oxfmt --write .",
+    "fmt": "cd web && npm run fmt",
     "typecheck": "cd web && npm run typecheck",
     "build:native": "cd native && cargo build",
     "run:native": "cd native && cargo run --example cube",
