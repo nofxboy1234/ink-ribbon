@@ -8,10 +8,11 @@
     "lint": "cd web && npm run lint",
     "fmt": "oxfmt --write .",
     "typecheck": "cd web && npm run typecheck",
-    "build:wasm": "cd native && zig build -Dtarget=wasm32-emscripten",
-    "build:native": "cd native && zig build",
-    "run:native": "cd native && zig build run",
-    "copy:wasm": "cp native/zig-out/web/cube.js native/zig-out/web/cube.wasm web/public/",
+    "build:native": "cd native && cargo build",
+    "run:native": "cd native && cargo run --example cube",
+    "build:wasm": "cd native && ./build-wasm.sh",
+    "copy:wasm": "cp native/target/wasm32-unknown-emscripten/debug/examples/cube.js native/target/wasm32-unknown-emscripten/debug/examples/cube.wasm web/public/",
+    "compile:shaders": "cd native && ./compile-shaders.sh",
     "build:all": "npm run build:wasm && npm run copy:wasm"
   }
 }

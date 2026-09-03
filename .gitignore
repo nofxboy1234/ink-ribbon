@@ -4,6 +4,4 @@ dist
 .wrangler
 *.tsbuildinfo
 .DS_Store
-native/.zig-cache/
-native/zig-pkg/
-native/zig-out/
+native/target/

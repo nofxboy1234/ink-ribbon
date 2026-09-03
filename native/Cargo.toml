@@ -1,0 +1,14 @@
+[package]
+name = "ink-ribbon-native"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sokol = { git = "https://github.com/floooh/sokol-rust.git" }
+
+[build-dependencies]
+cc = { version = "1", features = ["parallel"] }
+
+[[example]]
+name = "cube"
+path = "examples/cube/cube.rs"

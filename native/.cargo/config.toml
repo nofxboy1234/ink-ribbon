@@ -1,0 +1,6 @@
+[target.wasm32-unknown-emscripten]
+linker = "emcc"
+# sokol-rust's build.rs emits `cargo:rustc-link-arg=-sUSE_WEBGL2`, but Cargo does not
+# forward a dependency's link-args to the final binary link. We must pass it here so
+# the WebGL2 GL functions are available and sokol's Gles3 backend links cleanly.
+rustflags = ["-C", "link-arg=-sUSE_WEBGL2"]

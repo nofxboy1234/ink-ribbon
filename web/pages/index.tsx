@@ -29,12 +29,12 @@ export default function HomePage({ messages }: Props) {
       )}
 
       <section style={{ marginTop: "2rem" }}>
-        <h2>Sokol Cube (Zig + WASM)</h2>
-        <p>A rotating cube rendered by Sokol graphics, compiled from Zig to WebAssembly.</p>
-          <canvas
-            id="cube-canvas"
-            suppressHydrationWarning
-            style={{
+        <h2>Sokol Cube (Rust + WASM)</h2>
+        <p>A rotating cube rendered by Sokol graphics, compiled from Rust to WebAssembly.</p>
+        <canvas
+          id="cube-canvas"
+          suppressHydrationWarning
+          style={{
             width: "100%",
             height: "400px",
             display: "block",
