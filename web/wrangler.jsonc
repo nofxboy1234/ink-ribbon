@@ -1,14 +1,6 @@
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
-	"name": "ink-ribbon",
-	"account_id": "76f99fa3e4928247aa1b9c1e09cd39cb",
-	"compatibility_date": "2026-09-02",
-	"d1_databases": [
-		{
-			"binding": "DB",
-			"database_name": "ink-ribbon-db",
-			"database_id": "0ea8cb09-c93c-4c1d-be93-41dc69835b91",
-			"migrations_dir": "./db/migrations"
-		}
-	]
+  "name": "ink-ribbon",
+  "account_id": "76f99fa3e4928247aa1b9c1e09cd39cb",
+  "compatibility_date": "2026-09-02"
 }
