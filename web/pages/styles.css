@@ -53,7 +53,7 @@ a:hover {
 
 code {
   padding: 0.15rem 0.35rem;
-  border-radius: 0.35rem;
+  border-radius: 0;
   color: #ff79c6;
   background: #44475a;
 }
@@ -61,7 +61,7 @@ code {
 ul {
   padding: 1rem 1.25rem;
   border-left: 3px solid #50fa7b;
-  border-radius: 0.5rem;
+  border-radius: 0;
   background: rgb(68 71 90 / 55%);
 }
 
