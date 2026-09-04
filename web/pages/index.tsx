@@ -1,4 +1,5 @@
 import type { Props } from "./index.server";
+import "./styles.css";
 
 export default function HomePage({ messages }: Props) {
   return (
@@ -28,20 +29,10 @@ export default function HomePage({ messages }: Props) {
         </ul>
       )}
 
-      <section style={{ marginTop: "2rem" }}>
+      <section>
         <h2>Sokol Cube (Rust + WASM)</h2>
         <p>A rotating cube rendered by Sokol graphics, compiled from Rust to WebAssembly.</p>
-        <canvas
-          id="cube-canvas"
-          suppressHydrationWarning
-          style={{
-            width: "100%",
-            height: "400px",
-            display: "block",
-            border: "1px solid #ccc",
-            borderRadius: "4px",
-          }}
-        />
+        <canvas id="cube-canvas" suppressHydrationWarning />
         <script
           dangerouslySetInnerHTML={{
             __html: `var Module = { canvas: document.getElementById('cube-canvas') };`,
