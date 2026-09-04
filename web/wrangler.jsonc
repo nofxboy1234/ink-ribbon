@@ -1,6 +1,7 @@
 {
-	"$schema": "./node_modules/wrangler/config-schema.json",
+  "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "ink-ribbon",
   "account_id": "76f99fa3e4928247aa1b9c1e09cd39cb",
-		"compatibility_date": "2026-09-02"
+  "compatibility_date": "2026-09-02"
+
 }
