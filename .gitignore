@@ -2,6 +2,8 @@ node_modules
 dist
 .void
 .wrangler
+web/wrangler.jsonc.void-provision.lock
+web/wrangler.jsonc.void-provision.lock.recovery
 *.tsbuildinfo
 .DS_Store
 native/target/
