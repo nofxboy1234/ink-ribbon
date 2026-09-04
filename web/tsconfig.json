@@ -19,6 +19,8 @@
     "middleware",
     "crons",
     "queues",
-    "db"
+    "db",
+    "vite.config.ts",
+    "vitest.config.ts"
   ]
 }
