@@ -30,6 +30,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "deploy:cloudflare": "void deploy --backend cloudflare --provision",
     "preview": "vite preview",
     "test": "vitest",
     "lint": "oxlint",
