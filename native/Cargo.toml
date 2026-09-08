@@ -9,3 +9,7 @@ sokol = { version = "*", git = "https://github.com/floooh/sokol-rust.git" }
 [[example]]
 name = "cube"
 path = "examples/cube/cube.rs"
+
+[[example]]
+name = "map"
+path = "examples/map/map.rs"

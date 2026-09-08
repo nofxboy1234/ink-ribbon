@@ -7,3 +7,12 @@ web/wrangler.jsonc.void-provision.lock.recovery
 *.tsbuildinfo
 .DS_Store
 native/target/
+
+# Generated/build outputs and large local-only map references.
+target/
+artifacts/interactive-map.mp4
+artifacts/care-center/*.png
+artifacts/care-center/originals/*.png
+native/assets/*.rgba
+web/public/*.wasm
+web/public/maps/**/*.png

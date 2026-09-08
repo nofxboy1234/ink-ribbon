@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the sokol-rust cube example for WASM (Emscripten).
+# Build the sokol-rust map example for WASM (Emscripten).
 #
 # Prerequisites:
 #   1. Rust toolchain with the wasm32-unknown-emscripten target:
@@ -39,17 +39,15 @@ emsdk activate "$EMSCRIPTEN_VERSION" >/dev/null
 # shellcheck disable=SC1090
 source "$EMSDK_DIR/emsdk_env.sh"
 
-cd "$(dirname "$0")"
+NATIVE_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$(cd "$NATIVE_DIR/.." && pwd)"
+cd "$NATIVE_DIR"
 
-# Clean previous build (the sokol-rust README warns to delete target/ when the
-# C bindings change, otherwise struct layout mismatches cause subtle runtime
-# errors).
-cargo clean
+# Build the release wasm map. The generated room/HUD textures are embedded in
+# the Rust binary, so native and wasm always use the same bytes.
+cargo build --release --target wasm32-unknown-emscripten --example map
 
-# Build for WASM.
-cargo build --target wasm32-unknown-emscripten --example cube
-
-BUILD_DIR="target/wasm32-unknown-emscripten/debug/examples"
+BUILD_DIR="$ROOT_DIR/target/wasm32-unknown-emscripten/release/examples"
 echo ""
-echo "Build complete: $BUILD_DIR/cube.js"
-ls -lh "$BUILD_DIR"/cube.{js,wasm}
+echo "Build complete: target/wasm32-unknown-emscripten/release/examples/map.js"
+ls -lh "$BUILD_DIR"/map.{js,wasm}

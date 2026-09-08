@@ -1,6 +1,14 @@
 [target.wasm32-unknown-emscripten]
 linker = "emcc"
-# sokol-rust's build.rs emits `cargo:rustc-link-arg=-sUSE_WEBGL2`, but Cargo does not
-# forward a dependency's link-args to the final binary link. We must pass it here so
-# the WebGL2 GL functions are available and sokol's Gles3 backend links cleanly.
-rustflags = ["-C", "link-arg=-sUSE_WEBGL2"]
+# sokol-rust's build.rs emits these link args, but Cargo does not forward a
+# dependency's link args to the final binary link. Keep them here so the map
+# uses WebGL2 and has enough heap for its shared RGBA textures.
+rustflags = [
+    "-C", "link-arg=-sUSE_WEBGL2",
+    "-C", "link-arg=-sALLOW_MEMORY_GROWTH=1",
+    "-C", "link-arg=-sINITIAL_MEMORY=67108864",
+    # Rust's release stdlib reaches these Emscripten stack helpers through
+    # the generated JS glue. The extra leading underscore is intentional:
+    # emcc converts its C-style export names to the wasm symbol names.
+    "-C", "link-arg=-sEXPORTED_FUNCTIONS=['_main','__emscripten_stack_restore','_emscripten_stack_get_current']",
+]

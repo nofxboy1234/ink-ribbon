@@ -25,7 +25,10 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
 
     sg::setup(&sg::Desc {
         environment: sglue::environment(),
-        logger: sg::Logger { func: Some(sokol::log::slog_func), ..Default::default() },
+        logger: sg::Logger {
+            func: Some(sokol::log::slog_func),
+            ..Default::default()
+        },
         ..Default::default()
     });
 
@@ -62,8 +65,10 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
          1.0,  1.0,  1.0,   1.0, 0.0, 0.5, 1.0,
          1.0,  1.0, -1.0,   1.0, 0.0, 0.5, 1.0,
     ];
-    state.bind.vertex_buffers[0] =
-        sg::make_buffer(&sg::BufferDesc { data: sg::slice_as_range(VERTICES), ..Default::default() });
+    state.bind.vertex_buffers[0] = sg::make_buffer(&sg::BufferDesc {
+        data: sg::slice_as_range(VERTICES),
+        ..Default::default()
+    });
 
     // create an index buffer for the cube
     #[rustfmt::skip]
@@ -78,7 +83,10 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
 
     state.bind.index_buffer = sg::make_buffer(&sg::BufferDesc {
         data: sg::slice_as_range(INDICES),
-        usage: sg::BufferUsage { index_buffer: true, ..Default::default() },
+        usage: sg::BufferUsage {
+            index_buffer: true,
+            ..Default::default()
+        },
         ..Default::default()
     });
 
@@ -116,16 +124,27 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     state.ry += 2.0 * t;
 
     // vertex shader uniform with model-view-projection matrix
-    let vs_params = shader::VsParams { mvp: compute_mvp(state.rx, state.ry) };
+    let vs_params = shader::VsParams {
+        mvp: compute_mvp(state.rx, state.ry),
+    };
 
     let mut pass_action = sg::PassAction::new();
     pass_action.colors[0] = sg::ColorAttachmentAction {
         load_action: sg::LoadAction::Clear,
-        clear_value: sg::Color { r: 0.25, g: 0.5, b: 0.75, a: 1.0 },
+        clear_value: sg::Color {
+            r: 0.25,
+            g: 0.5,
+            b: 0.75,
+            a: 1.0,
+        },
         ..Default::default()
     };
 
-    sg::begin_pass(&sg::Pass { action: pass_action, swapchain: sglue::swapchain(), ..Default::default() });
+    sg::begin_pass(&sg::Pass {
+        action: pass_action,
+        swapchain: sglue::swapchain(),
+        ..Default::default()
+    });
     sg::apply_pipeline(state.pip);
     sg::apply_bindings(&state.bind);
     sg::apply_uniforms(shader::UB_VS_PARAMS, &sg::value_as_range(&vs_params));
@@ -154,7 +173,12 @@ extern "C" fn cleanup(user_data: *mut ffi::c_void) {
 
 fn main() {
     // Heap allocated state struct, passed to app callbacks via user_data
-    let state = Box::new(State { rx: 0.0, ry: 0.0, pip: sg::Pipeline::new(), bind: sg::Bindings::new() });
+    let state = Box::new(State {
+        rx: 0.0,
+        ry: 0.0,
+        pip: sg::Pipeline::new(),
+        bind: sg::Bindings::new(),
+    });
 
     // Forget the ownership so we can pass as a user_data pointer
     let user_data = Box::into_raw(state) as *mut ffi::c_void;
@@ -168,8 +192,14 @@ fn main() {
         height: 600,
         sample_count: 4,
         window_title: c"cube.rs".as_ptr(),
-        logger: sapp::Logger { func: Some(sokol::log::slog_func), ..Default::default() },
-        icon: sapp::IconDesc { sokol_default: true, ..Default::default() },
+        logger: sapp::Logger {
+            func: Some(sokol::log::slog_func),
+            ..Default::default()
+        },
+        icon: sapp::IconDesc {
+            sokol_default: true,
+            ..Default::default()
+        },
         ..Default::default()
     });
 }

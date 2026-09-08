@@ -62,23 +62,10 @@ for polygon in [
 ]:
     draw.polygon(polygon, fill=255)
 
-# Floor headings and dashed inter-floor routes are foreground too.
+# Floor headings are part of the room artwork. Dashed inter-floor routes are
+# deliberately excluded: the game map draws a clean grid beneath the rooms,
+# and the reference view does not show the source-image arrow routes.
 for box in [(336,133,425,159),(336,480,425,506),(336,903,425,930),(336,1402,451,1430), (767,509,810,520), (912,986,946,1015)]:
-    draw.rectangle(tuple(round(v*scale) for v in box), fill=255)
-paths = [
-    [(514,28),(514,19),(456,19),(456,263),(511,263),(511,296)],
-    [(535,324),(570,324),(570,726),(531,726)],
-    [(552,601),(564,601),(564,654),(480,654),(480,1029),(502,1029)],
-    [(1130,521),(1140,521),(1140,740)],
-    [(933,697),(943,697),(943,738),(886,738),(886,1105),(906,1105)],
-    [(1139,853),(1139,995),(1111,995),(1111,981)],
-    [(929,1026),(929,1096)],[(929,1187),(929,1257)],
-    [(1198,918),(1198,1319),(970,1319)],[(930,1339),(930,1357)],
-]
-for path in paths:
-    draw.line([(round(x*scale), round(y*scale)) for x,y in path], fill=255, width=round(7*scale), joint='curve')
-# Arrowheads extend beyond their path centerlines.
-for box in [(503,16,521,32),(528,314,548,335),(543,591,562,613),(1124,513,1143,530),(926,688,947,708),(917,1018,940,1041),(963,1307,986,1333)]:
     draw.rectangle(tuple(round(v*scale) for v in box), fill=255)
 
 # Supplement the hand-traced room envelopes with every high-contrast or
@@ -110,6 +97,60 @@ interiors = exterior.point(lambda value: 0 if value == 128 else 255)
 mask = ImageChops.lighter(mask, interiors).filter(ImageFilter.MaxFilter(5))
 mask = mask.resize(source.size, Image.Resampling.NEAREST)
 mask = ImageChops.lighter(mask, details)
+
+# The source artwork also contains the inter-floor navigation routes. They
+# are intentionally not part of a room: remove their centerlines and arrow
+# heads after the detail-safety pass so they cannot be reintroduced by the
+# high-contrast safeguard above.
+source_scale = source.width / 1600
+arrow_exclusions = Image.new('L', source.size, 0)
+arrow_draw = ImageDraw.Draw(arrow_exclusions)
+arrow_heads = Image.new('L', source.size, 0)
+head_draw = ImageDraw.Draw(arrow_heads)
+arrow_paths = [
+    [(514, 28), (514, 19), (456, 19), (456, 263), (511, 263), (511, 296)],
+    [(535, 324), (570, 324), (570, 726), (531, 726)],
+    [(552, 601), (564, 601), (564, 654), (480, 654), (480, 1029), (502, 1029)],
+    [(1130, 521), (1140, 521), (1140, 740)],
+    [(933, 697), (943, 697), (943, 738), (886, 738), (886, 1105), (906, 1105)],
+    [(1139, 853), (1139, 995), (1111, 995), (1111, 981)],
+    [(929, 1026), (929, 1096)],
+    [(929, 1187), (929, 1257)],
+    [(1198, 918), (1198, 1319), (970, 1319)],
+    [(930, 1339), (930, 1357)],
+]
+for path in arrow_paths:
+    arrow_draw.line(
+        [(round(x * source_scale), round(y * source_scale)) for x, y in path],
+        fill=255,
+        width=round(13 * source_scale),
+        joint='curve',
+    )
+for box in [
+    (503, 16, 521, 32),
+    (528, 314, 548, 335),
+    (543, 591, 562, 613),
+    (1124, 513, 1143, 530),
+    (926, 688, 947, 708),
+    (917, 1018, 940, 1041),
+    (963, 1307, 986, 1333),
+]:
+    rect = tuple(round(v * source_scale) for v in box)
+    arrow_draw.rectangle(rect, fill=255)
+    head_draw.rectangle(rect, fill=255)
+# Inpaint the route pixels from their immediate map surroundings rather than
+# clearing a whole corridor (some routes cross room artwork). Doing the small
+# median pass at inspection resolution removes the bright dashed strokes and
+# arrowheads while retaining the room walls and floor texture beneath them.
+source_small = source.resize((1600, 1600), Image.Resampling.LANCZOS)
+repaired_small = source_small.filter(ImageFilter.MedianFilter(15))
+repaired = repaired_small.resize(source.size, Image.Resampling.LANCZOS)
+route_pixels = ImageChops.multiply(
+    arrow_exclusions,
+    source.convert('L').point(lambda value: 255 if value > 70 else 0),
+)
+source = Image.composite(repaired, source, route_pixels)
+mask = ImageChops.subtract(mask, arrow_heads)
 output = Image.composite(source, Image.new('RGB', source.size, (24,24,24)), mask)
 assert ImageChops.multiply(ImageChops.difference(source, output), mask.convert('RGB')).getbbox() is None
 output.save(ROOT / 'care-center-full.png')

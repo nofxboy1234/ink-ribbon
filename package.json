@@ -2,7 +2,6 @@
   "name": "ink-ribbon",
   "private": true,
   "scripts": {
-    "dev": "cd web && npm run dev",
     "build": "cd web && npm run build",
     "deploy:cloudflare": "cd web && npm run deploy:cloudflare",
     "preview": "cd web && npm run preview",
@@ -10,11 +9,16 @@
     "lint": "cd web && npm run lint",
     "fmt": "cd web && npm run fmt",
     "typecheck": "cd web && npm run typecheck",
-    "build:native": "cd native && cargo build",
-    "run:native": "cd native && cargo run --example cube",
+    "assets:clean": "/usr/bin/python3 artifacts/care-center/remove-grid.py",
+    "assets:runtime": "/usr/bin/python3 native/prepare-assets.py",
+    "build:assets": "npm run assets:runtime",
+    "build:native": "cd native && cargo build --release --example map",
+    "run:native": "cd native && cargo run --release --example map",
     "build:wasm": "cd native && ./build-wasm.sh",
-    "copy:wasm": "cp native/target/wasm32-unknown-emscripten/debug/examples/cube.js native/target/wasm32-unknown-emscripten/debug/examples/cube.wasm web/public/",
+    "copy:wasm": "cp target/wasm32-unknown-emscripten/release/examples/map.js target/wasm32-unknown-emscripten/release/examples/map.wasm web/public/",
     "compile:shaders": "cd native && ./compile-shaders.sh",
-    "build:all": "npm run build:wasm && npm run copy:wasm"
+    "build:all": "npm run build:assets && npm run build:wasm && npm run copy:wasm && npm run build",
+    "check:map": "cd native && cargo fmt --check && cargo check --example map && cd ../web && npm run typecheck && npm run build",
+    "dev": "npm run build:assets && npm run build:wasm && npm run copy:wasm && cd web && npm run dev"
   }
 }

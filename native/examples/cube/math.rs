@@ -45,11 +45,19 @@ pub fn len_vec3(v: Vec3) -> f32 {
 pub fn norm_vec3(v: Vec3) -> Vec3 {
     let l = len_vec3(v);
 
-    if l != 0.0 { vec3(v.x / l, v.y / l, v.z / l) } else { Vec3::ZERO }
+    if l != 0.0 {
+        vec3(v.x / l, v.y / l, v.z / l)
+    } else {
+        Vec3::ZERO
+    }
 }
 
 pub fn cross_vec3(v0: Vec3, v1: Vec3) -> Vec3 {
-    vec3((v0.y * v1.z) - (v0.z * v1.y), (v0.z * v1.x) - (v0.x * v1.z), (v0.x * v1.y) - (v0.y * v1.x))
+    vec3(
+        (v0.y * v1.z) - (v0.z * v1.y),
+        (v0.z * v1.x) - (v0.x * v1.z),
+        (v0.x * v1.y) - (v0.y * v1.x),
+    )
 }
 
 pub const fn identity_mat4() -> Mat4 {
