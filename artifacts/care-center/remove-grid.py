@@ -62,11 +62,9 @@ for polygon in [
 ]:
     draw.polygon(polygon, fill=255)
 
-# Floor headings are part of the room artwork. Dashed inter-floor routes are
-# deliberately excluded: the game map draws a clean grid beneath the rooms,
-# and the reference view does not show the source-image arrow routes.
-for box in [(336,133,425,159),(336,480,425,506),(336,903,425,930),(336,1402,451,1430), (767,509,810,520), (912,986,946,1015)]:
-    draw.rectangle(tuple(round(v*scale) for v in box), fill=255)
+# Floor headings and dashed inter-floor routes are deliberately excluded:
+# the Sokol map draws a clean grid beneath the rooms, and the reference view
+# does not show the source-image floor labels or arrow routes.
 
 # Supplement the hand-traced room envelopes with every high-contrast or
 # non-grey detail, including subtle colored anti-aliasing at room boundaries.

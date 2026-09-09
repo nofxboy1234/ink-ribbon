@@ -6,6 +6,7 @@ web/wrangler.jsonc.void-provision.lock
 web/wrangler.jsonc.void-provision.lock.recovery
 *.tsbuildinfo
 .DS_Store
+notes/
 native/target/
 
 # Generated/build outputs and large local-only map references.

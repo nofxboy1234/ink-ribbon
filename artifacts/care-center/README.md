@@ -6,7 +6,7 @@ Original image: https://static0.gamerantimages.com/wordpress/wp-content/uploads/
 
 Downloaded on 2026-09-08. `originals/care-center-full.png` is the original 8192 × 8192 PNG, saved unchanged. Original floor crops are also retained in `originals/`. The viewer's interactive markers are not part of this image; built-in labels, door markings, and dashed connections remain.
 
-`care-center-full.png` and the four floor images have their exterior background replaced with solid RGB (24, 24, 24). `foreground-mask.png` records protected regions in white. Room interiors, labels, and connections are copied directly from the original, without resampling, enhancement, or AI reconstruction. A conservative border around the foreground avoids clipping anti-aliased edges; the original textures inside protected regions remain.
+`care-center-full.png` and the four floor images have their exterior background replaced with solid RGB (24, 24, 24). `foreground-mask.png` records protected regions in white. Room interiors and room labels are copied directly from the original, without resampling, enhancement, or AI reconstruction; the source floor headings and inter-floor routes are excluded. A conservative border around the foreground avoids clipping anti-aliased edges; the original textures inside protected regions remain.
 
 The mask explicitly clears exterior pockets enclosed by dashed connections and empty spaces between basement passages and other rooms. Detail detection is limited to the vicinity of traced foreground, so isolated grid specks are not mistaken for room features. Brightened inspection previews are used only for checking; saved maps retain their original foreground brightness.
 
@@ -21,6 +21,6 @@ The floor images are lossless rectangular crops without resizing, enhancement, o
 | floor-1.png | 1600 | 3420 | 4750 | 2730 |
 | basement.png | 1600 | 6200 | 4750 | 1992 |
 
-All crops use the same horizontal bounds and retain floor labels. Vertical bounds preserve each floor's rooms and stairs. Floor 1 and Floor 2 overlap because their stair connections occupy the same vertical band; small portions of adjacent connections remain. Consult the full image for continuous connections between floors.
+All crops use the same horizontal bounds and omit the source floor headings. Vertical bounds preserve each floor's rooms and stairs. Floor 1 and Floor 2 overlap because their stair connections occupy the same vertical band; small portions of adjacent connections remain. Consult the full image for continuous connections between floors.
 
 Map artwork belongs to its respective rights holders; downloading it does not grant a new license.
