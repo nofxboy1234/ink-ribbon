@@ -8,7 +8,16 @@ const MAP_X: f32 = 266.0;
 const MAP_Y: f32 = 228.0;
 const MAP_W: f32 = 1387.0;
 const MAP_H: f32 = 720.0;
+const FLOOR_PANEL_X: f32 = 220.0;
+const ZOOM_PANEL_X: f32 = MAP_X + MAP_W;
+const PANEL_W: f32 = 46.0;
+const ZOOM_MIN: f32 = 0.72;
+const ZOOM_MAX: f32 = 2.4;
 const DEBUG_FONT: usize = 0;
+
+const GRID_RGB: (f32, f32, f32) = (0.44, 0.44, 0.42);
+const GOLD_RGB: (f32, f32, f32) = (0.42, 0.38, 0.24);
+const FRAME_RGB: (f32, f32, f32) = (0.48, 0.50, 0.47);
 
 const MAPS: [(&[u8], i32, i32); 4] = [
     (include_bytes!("../../assets/floor-3.rgba"), 2048, 662),
@@ -137,6 +146,14 @@ fn change_floor(state: &mut State, floor: usize) {
     });
 }
 
+fn floor_slot(floor: usize) -> usize {
+    match floor {
+        0 => 0,
+        1 => 1,
+        _ => 2,
+    }
+}
+
 fn recenter(state: &mut State) {
     state.zoom = 1.0;
     state.pan_x = 0.0;
@@ -153,10 +170,42 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 state.pan_y += event.mouse_dy;
             }
         }
-        sapp::EventType::MouseDown => state.dragging = true,
+        sapp::EventType::MouseDown => {
+            let width = sapp::widthf();
+            let height = sapp::heightf();
+            let (left, right, top, bottom) = reference_projection(width, height);
+            let x = left + event.mouse_x / width.max(1.0) * (right - left);
+            let y = top + event.mouse_y / height.max(1.0) * (bottom - top);
+
+            if (FLOOR_PANEL_X..MAP_X).contains(&x) {
+                let marker_y = [543.0, 587.0, 631.0];
+                if let Some((slot, _)) = marker_y
+                    .iter()
+                    .enumerate()
+                    .min_by(|(_, a), (_, b)| ((*a - y).abs()).total_cmp(&(*b - y).abs()))
+                {
+                    if (y - marker_y[slot]).abs() < 24.0 {
+                        change_floor(state, slot);
+                    }
+                }
+                state.dragging = false;
+            } else if (ZOOM_PANEL_X..ZOOM_PANEL_X + PANEL_W).contains(&x) {
+                if (400.0..430.0).contains(&y) {
+                    state.zoom = (state.zoom + 0.12).min(ZOOM_MAX);
+                } else if (735.0..765.0).contains(&y) {
+                    state.zoom = (state.zoom - 0.12).max(ZOOM_MIN);
+                } else if (438.0..=730.0).contains(&y) {
+                    let normalized = ((y - 730.0) / (438.0 - 730.0)).clamp(0.0, 1.0);
+                    state.zoom = ZOOM_MIN + (ZOOM_MAX - ZOOM_MIN) * normalized;
+                }
+                state.dragging = false;
+            } else {
+                state.dragging = true;
+            }
+        }
         sapp::EventType::MouseUp => state.dragging = false,
         sapp::EventType::MouseScroll => {
-            state.zoom = (state.zoom + event.scroll_y * 0.08).clamp(0.72, 2.4);
+            state.zoom = (state.zoom + event.scroll_y * 0.08).clamp(ZOOM_MIN, ZOOM_MAX);
         }
         sapp::EventType::KeyDown => match event.key_code {
             sapp::Keycode::F1 if !event.key_repeat => state.debug_mode = !state.debug_mode,
@@ -167,10 +216,10 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             sapp::Keycode::A | sapp::Keycode::Left => state.pan_x += 22.0,
             sapp::Keycode::D | sapp::Keycode::Right => state.pan_x -= 22.0,
             sapp::Keycode::Equal | sapp::Keycode::KpAdd => {
-                state.zoom = (state.zoom + 0.12).min(2.4)
+                state.zoom = (state.zoom + 0.12).min(ZOOM_MAX)
             }
             sapp::Keycode::Minus | sapp::Keycode::KpSubtract => {
-                state.zoom = (state.zoom - 0.12).max(0.72)
+                state.zoom = (state.zoom - 0.12).max(ZOOM_MIN)
             }
             sapp::Keycode::C | sapp::Keycode::Home => recenter(state),
             _ => {}
@@ -186,22 +235,80 @@ fn line(x1: f32, y1: f32, x2: f32, y2: f32) {
     sgl::end();
 }
 
-fn draw_grid() {
-    sgl::c4f(0.62, 0.56, 0.38, 0.16);
+fn rect(x: f32, y: f32, width: f32, height: f32) {
+    sgl::begin_quads();
+    sgl::v2f(x, y);
+    sgl::v2f(x + width, y);
+    sgl::v2f(x + width, y + height);
+    sgl::v2f(x, y + height);
+    sgl::end();
+}
+
+fn outline_rect(x: f32, y: f32, width: f32, height: f32) {
+    line(x, y, x + width, y);
+    line(x + width, y, x + width, y + height);
+    line(x + width, y + height, x, y + height);
+    line(x, y + height, x, y);
+}
+
+fn diamond(cx: f32, cy: f32, radius: f32, filled: bool) {
+    if filled {
+        sgl::begin_triangles();
+        sgl::v2f(cx, cy - radius);
+        sgl::v2f(cx + radius, cy);
+        sgl::v2f(cx, cy + radius);
+        sgl::v2f(cx, cy - radius);
+        sgl::v2f(cx, cy + radius);
+        sgl::v2f(cx - radius, cy);
+        sgl::end();
+    } else {
+        line(cx, cy - radius, cx + radius, cy);
+        line(cx + radius, cy, cx, cy + radius);
+        line(cx, cy + radius, cx - radius, cy);
+        line(cx - radius, cy, cx, cy - radius);
+    }
+}
+
+fn triangle(cx: f32, cy: f32, radius: f32, up: bool) {
+    sgl::begin_triangles();
+    if up {
+        sgl::v2f(cx, cy - radius);
+        sgl::v2f(cx + radius, cy + radius);
+        sgl::v2f(cx - radius, cy + radius);
+    } else {
+        sgl::v2f(cx - radius, cy - radius);
+        sgl::v2f(cx + radius, cy - radius);
+        sgl::v2f(cx, cy + radius);
+    }
+    sgl::end();
+}
+
+fn draw_grid(left: f32, right: f32, top: f32, bottom: f32) {
+    let point_start_x = (left / 16.0).floor() as i32 * 16 - 16;
+    let point_end_x = (right / 16.0).ceil() as i32 * 16 + 16;
+    let point_start_y = (top / 16.0).floor() as i32 * 16 - 16;
+    let point_end_y = (bottom / 16.0).ceil() as i32 * 16 + 16;
+
+    sgl::c4f(GRID_RGB.0, GRID_RGB.1, GRID_RGB.2, 0.26);
+    sgl::point_size(1.2);
     sgl::begin_points();
-    for y in (0..=1080).step_by(16) {
-        for x in (0..=1920).step_by(16) {
+    for y in (point_start_y..=point_end_y).step_by(16) {
+        for x in (point_start_x..=point_end_x).step_by(16) {
             sgl::v2f(x as f32, y as f32);
         }
     }
     sgl::end();
 
-    sgl::c4f(0.62, 0.56, 0.38, 0.08);
-    for x in (0..=1920).step_by(96) {
-        line(x as f32, 0.0, x as f32, REF_H);
+    sgl::c4f(GRID_RGB.0, GRID_RGB.1, GRID_RGB.2, 0.11);
+    let major_start_x = (left / 96.0).floor() as i32 * 96 - 96;
+    let major_end_x = (right / 96.0).ceil() as i32 * 96 + 96;
+    let major_start_y = (top / 96.0).floor() as i32 * 96 - 96;
+    let major_end_y = (bottom / 96.0).ceil() as i32 * 96 + 96;
+    for x in (major_start_x..=major_end_x).step_by(96) {
+        line(x as f32, top, x as f32, bottom);
     }
-    for y in (0..=1080).step_by(96) {
-        line(0.0, y as f32, REF_W, y as f32);
+    for y in (major_start_y..=major_end_y).step_by(96) {
+        line(left, y as f32, right, y as f32);
     }
 }
 
@@ -227,6 +334,277 @@ fn draw_map(state: &State, floor: usize, alpha: f32, pan_x: f32, pan_y: f32) {
     sgl::v2f_t2f(x, y + height, 0.0, 1.0);
     sgl::end();
     sgl::disable_texture();
+}
+
+fn draw_floor_selector(state: &State) {
+    let top = MAP_Y;
+    let center = FLOOR_PANEL_X + PANEL_W * 0.5;
+
+    sgl::c4f(GOLD_RGB.0, GOLD_RGB.1, GOLD_RGB.2, 0.08);
+    rect(FLOOR_PANEL_X, top, PANEL_W, MAP_H);
+    sgl::c4f(GOLD_RGB.0, GOLD_RGB.1, GOLD_RGB.2, 0.75);
+    outline_rect(FLOOR_PANEL_X, top, PANEL_W, MAP_H);
+    line(FLOOR_PANEL_X, 463.0, FLOOR_PANEL_X + PANEL_W, 463.0);
+    line(FLOOR_PANEL_X, 512.0, FLOOR_PANEL_X + PANEL_W, 512.0);
+    line(FLOOR_PANEL_X, 661.0, FLOOR_PANEL_X + PANEL_W, 661.0);
+    line(FLOOR_PANEL_X, 710.0, FLOOR_PANEL_X + PANEL_W, 710.0);
+
+    sgl::c4f(GOLD_RGB.0, GOLD_RGB.1, GOLD_RGB.2, 0.92);
+    triangle(center, 489.0, 6.0, true);
+    triangle(center, 684.0, 6.0, false);
+
+    let marker_y = [543.0, 587.0, 631.0];
+    let selected_slot = floor_slot(state.floor);
+    for (slot, y) in marker_y.into_iter().enumerate() {
+        let selected = slot == selected_slot;
+        sgl::c4f(
+            GOLD_RGB.0 + if selected { 0.20 } else { 0.0 },
+            GOLD_RGB.1 + if selected { 0.18 } else { 0.0 },
+            GOLD_RGB.2 + if selected { 0.12 } else { 0.0 },
+            if selected { 1.0 } else { 0.8 },
+        );
+        diamond(center, y, 9.0, selected);
+    }
+}
+
+fn draw_zoom_selector(state: &State) {
+    let top = MAP_Y;
+    let center = ZOOM_PANEL_X + PANEL_W * 0.5;
+    let line_top = 438.0;
+    let line_bottom = 730.0;
+
+    sgl::c4f(GOLD_RGB.0, GOLD_RGB.1, GOLD_RGB.2, 0.08);
+    rect(ZOOM_PANEL_X, top, PANEL_W, MAP_H);
+    sgl::c4f(GOLD_RGB.0, GOLD_RGB.1, GOLD_RGB.2, 0.75);
+    outline_rect(ZOOM_PANEL_X, top, PANEL_W, MAP_H);
+
+    sgl::c4f(GOLD_RGB.0, GOLD_RGB.1, GOLD_RGB.2, 0.86);
+    outline_rect(center - 8.0, 406.0, 16.0, 16.0);
+    line(center - 4.0, 414.0, center + 4.0, 414.0);
+    line(center, 410.0, center, 418.0);
+    outline_rect(center - 8.0, 742.0, 16.0, 16.0);
+    line(center - 4.0, 750.0, center + 4.0, 750.0);
+
+    line(center, line_top, center, line_bottom);
+    let default_zoom = (line_top + line_bottom) * 0.5;
+    sgl::c4f(GOLD_RGB.0, GOLD_RGB.1, GOLD_RGB.2, 0.72);
+    rect(center - 8.0, default_zoom - 1.0, 16.0, 2.0);
+    // The reference UI places the default zoom (1.0) at the halfway mark.
+    // Keep the indicator anchored there while preserving the full zoom range.
+    let normalized = if state.zoom >= 1.0 {
+        0.5 + (state.zoom - 1.0) / (ZOOM_MAX - 1.0) * 0.5
+    } else {
+        (state.zoom - ZOOM_MIN) / (1.0 - ZOOM_MIN) * 0.5
+    }
+    .clamp(0.0, 1.0);
+    let marker_y = line_bottom + (line_top - line_bottom) * normalized;
+    sgl::c4f(GOLD_RGB.0 + 0.14, GOLD_RGB.1 + 0.12, GOLD_RGB.2 + 0.08, 1.0);
+    rect(center - 10.0, marker_y - 2.0, 20.0, 4.0);
+}
+
+fn draw_map_frame() {
+    let right = MAP_X + MAP_W;
+    let bottom = MAP_Y + MAP_H;
+
+    sgl::c4f(FRAME_RGB.0, FRAME_RGB.1, FRAME_RGB.2, 0.86);
+    outline_rect(MAP_X, MAP_Y, MAP_W, MAP_H);
+
+    sgl::c4f(FRAME_RGB.0, FRAME_RGB.1, FRAME_RGB.2, 0.66);
+    let mut x = MAP_X + 5.0;
+    while x < right - 4.0 {
+        rect(x, MAP_Y + 3.0, 1.0, 6.0);
+        rect(x, bottom - 9.0, 1.0, 6.0);
+        x += 6.0;
+    }
+    let mut y = MAP_Y + 5.0;
+    while y < bottom - 4.0 {
+        rect(MAP_X + 3.0, y, 6.0, 1.0);
+        rect(right - 9.0, y, 6.0, 1.0);
+        y += 8.0;
+    }
+}
+
+fn draw_map_overlay() {
+    let right = MAP_X + MAP_W;
+    let bottom = MAP_Y + MAP_H;
+    let hud_right = right - 18.0;
+
+    sgl::c4f(FRAME_RGB.0, FRAME_RGB.1, FRAME_RGB.2, 0.58);
+    let rows = [MAP_Y + 20.0, MAP_Y + 32.0, MAP_Y + 44.0];
+    for y in rows {
+        line(right - 118.0, y + 4.0, hud_right, y + 4.0);
+        sgl::begin_points();
+        sgl::point_size(2.0);
+        sgl::v2f(hud_right, y + 4.0);
+        sgl::end();
+    }
+    line(hud_right, MAP_Y + 58.0, hud_right, bottom - 44.0);
+
+    sgl::c4f(GOLD_RGB.0, GOLD_RGB.1, GOLD_RGB.2, 0.9);
+    outline_rect(right - 108.0, bottom - 43.0, 88.0, 22.0);
+
+    // Two short registration lines continue below the lower-right corner.
+    line(right - 34.0, bottom + 4.0, right - 34.0, bottom + 48.0);
+    line(right - 20.0, bottom + 4.0, right - 20.0, bottom + 48.0);
+}
+
+fn text_position(
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+    left: f32,
+    right: f32,
+    top: f32,
+    bottom: f32,
+    glyph_pixels: f32,
+) -> (f32, f32) {
+    let screen_x = (x - left) / (right - left).max(0.0001) * width;
+    let screen_y = (y - top) / (bottom - top).max(0.0001) * height;
+    (screen_x / glyph_pixels, screen_y / glyph_pixels)
+}
+
+fn draw_ui_text(
+    text: &str,
+    x: f32,
+    y: f32,
+    color: (u8, u8, u8),
+    large: bool,
+    width: f32,
+    height: f32,
+    left: f32,
+    right: f32,
+    top: f32,
+    bottom: f32,
+) {
+    let glyph_pixels = if large { 16.0 } else { 8.0 };
+    if large {
+        sdtx::canvas(width * 0.5, height * 0.5);
+    } else {
+        sdtx::canvas(width, height);
+    }
+    let (tx, ty) = text_position(x, y, width, height, left, right, top, bottom, glyph_pixels);
+    sdtx::font(DEBUG_FONT);
+    sdtx::color3b(color.0, color.1, color.2);
+    sdtx::pos(tx, ty);
+    sdtx::puts(text);
+}
+
+fn draw_map_labels(width: f32, height: f32, left: f32, right: f32, top: f32, bottom: f32) {
+    draw_ui_text(
+        "BATTERY",
+        MAP_X + MAP_W - 154.0,
+        MAP_Y + 20.0,
+        (112, 111, 94),
+        false,
+        width,
+        height,
+        left,
+        right,
+        top,
+        bottom,
+    );
+    draw_ui_text(
+        "MEMORY",
+        MAP_X + MAP_W - 154.0,
+        MAP_Y + 32.0,
+        (112, 111, 94),
+        false,
+        width,
+        height,
+        left,
+        right,
+        top,
+        bottom,
+    );
+    draw_ui_text(
+        "DISC",
+        MAP_X + MAP_W - 154.0,
+        MAP_Y + 44.0,
+        (112, 111, 94),
+        false,
+        width,
+        height,
+        left,
+        right,
+        top,
+        bottom,
+    );
+    draw_ui_text(
+        "AREA MAP",
+        MAP_X + MAP_W - 103.0,
+        MAP_Y + MAP_H - 38.0,
+        (132, 125, 91),
+        false,
+        width,
+        height,
+        left,
+        right,
+        top,
+        bottom,
+    );
+    draw_ui_text(
+        "In",
+        ZOOM_PANEL_X + 13.0,
+        MAP_Y + 140.0,
+        (135, 119, 69),
+        false,
+        width,
+        height,
+        left,
+        right,
+        top,
+        bottom,
+    );
+    draw_ui_text(
+        "Out",
+        ZOOM_PANEL_X + 8.0,
+        MAP_Y + 570.0,
+        (135, 119, 69),
+        false,
+        width,
+        height,
+        left,
+        right,
+        top,
+        bottom,
+    );
+    draw_ui_text(
+        "Care Center",
+        MAP_X + 76.0,
+        MAP_Y + MAP_H + 23.0,
+        (174, 163, 113),
+        true,
+        width,
+        height,
+        left,
+        right,
+        top,
+        bottom,
+    );
+
+    let name_left = MAP_X;
+    let name_left_inner = MAP_X + 14.0;
+    let name_right = MAP_X + 242.0;
+    sgl::c4f(GOLD_RGB.0, GOLD_RGB.1, GOLD_RGB.2, 0.9);
+    line(
+        name_left,
+        MAP_Y + MAP_H + 4.0,
+        name_left,
+        MAP_Y + MAP_H + 48.0,
+    );
+    line(
+        name_left_inner,
+        MAP_Y + MAP_H + 4.0,
+        name_left_inner,
+        MAP_Y + MAP_H + 48.0,
+    );
+    line(
+        name_right,
+        MAP_Y + MAP_H + 4.0,
+        name_right,
+        MAP_Y + MAP_H + 48.0,
+    );
 }
 
 fn draw_debug_overlay(state: &State, width: f32, height: f32) {
@@ -298,7 +676,23 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     sgl::load_identity();
     sgl::load_pipeline(state.pipeline);
 
-    draw_grid();
+    draw_grid(left, right, top, bottom);
+    draw_floor_selector(state);
+    draw_zoom_selector(state);
+
+    // Keep the pannable map inside the main map window. The surrounding
+    // selectors and grid remain visible while the map moves and zooms.
+    let clip_x = ((MAP_X - left) / (right - left) * width).clamp(0.0, width);
+    let clip_y = ((MAP_Y - top) / (bottom - top) * height).clamp(0.0, height);
+    let clip_right = ((MAP_X + MAP_W - left) / (right - left) * width).clamp(0.0, width);
+    let clip_bottom = ((MAP_Y + MAP_H - top) / (bottom - top) * height).clamp(0.0, height);
+    sgl::scissor_rectf(
+        clip_x,
+        clip_y,
+        (clip_right - clip_x).max(0.0),
+        (clip_bottom - clip_y).max(0.0),
+        true,
+    );
     if let Some(transition) = state.transition {
         let progress = (transition.elapsed / 0.72).clamp(0.0, 1.0);
         let smooth = progress * progress * (3.0 - 2.0 * progress);
@@ -313,6 +707,10 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     } else {
         draw_map(state, state.floor, 1.0, state.pan_x, state.pan_y);
     }
+    sgl::scissor_rectf(0.0, 0.0, width, height, true);
+    draw_map_frame();
+    draw_map_overlay();
+    draw_map_labels(width, height, left, right, top, bottom);
     draw_debug_overlay(state, width, height);
 
     sg::begin_pass(&sg::Pass {
