@@ -1,6 +1,6 @@
 use std::ffi;
 
-use sokol::{app as sapp, gfx as sg, gl as sgl, glue as sglue};
+use sokol::{app as sapp, debugtext as sdtx, gfx as sg, gl as sgl, glue as sglue};
 
 const REF_W: f32 = 1920.0;
 const REF_H: f32 = 1080.0;
@@ -8,6 +8,7 @@ const MAP_X: f32 = 266.0;
 const MAP_Y: f32 = 228.0;
 const MAP_W: f32 = 1387.0;
 const MAP_H: f32 = 720.0;
+const DEBUG_FONT: usize = 0;
 
 const MAPS: [(&[u8], i32, i32); 4] = [
     (include_bytes!("../../assets/floor-3.rgba"), 2048, 662),
@@ -34,6 +35,10 @@ struct State {
     pan_y: f32,
     dragging: bool,
     transition: Option<FloorTransition>,
+    debug_mode: bool,
+    fps: f32,
+    fps_elapsed: f32,
+    fps_frames: u32,
 }
 
 fn texture(bytes: &[u8], width: i32, height: i32) -> sg::View {
@@ -81,6 +86,10 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
         },
         ..Default::default()
     });
+    let mut debug_text = sdtx::Desc::new();
+    debug_text.fonts[DEBUG_FONT] = sdtx::font_kc853();
+    debug_text.context.sample_count = 4;
+    sdtx::setup(&debug_text);
 
     for (i, (bytes, width, height)) in MAPS.iter().enumerate() {
         state.views[i] = texture(bytes, *width, *height);
@@ -150,6 +159,7 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             state.zoom = (state.zoom + event.scroll_y * 0.08).clamp(0.72, 2.4);
         }
         sapp::EventType::KeyDown => match event.key_code {
+            sapp::Keycode::F1 if !event.key_repeat => state.debug_mode = !state.debug_mode,
             sapp::Keycode::Q => change_floor(state, state.floor.saturating_sub(1)),
             sapp::Keycode::E => change_floor(state, (state.floor + 1).min(MAPS.len() - 1)),
             sapp::Keycode::W | sapp::Keycode::Up => state.pan_y += 22.0,
@@ -219,6 +229,22 @@ fn draw_map(state: &State, floor: usize, alpha: f32, pan_x: f32, pan_y: f32) {
     sgl::disable_texture();
 }
 
+fn draw_debug_overlay(state: &State, width: f32, height: f32) {
+    if !state.debug_mode {
+        return;
+    }
+    // Use a half-size virtual canvas so the 8x8 debug glyphs remain readable
+    // on a high-resolution fullscreen display.
+    let canvas_width = width * 0.5;
+    let canvas_height = height * 0.5;
+    sdtx::canvas(canvas_width, canvas_height);
+    sdtx::font(DEBUG_FONT);
+    sdtx::color3b(0, 255, 0);
+    // Debugtext positions are character-grid cells, not virtual pixels.
+    sdtx::pos((canvas_width / 8.0 - 12.0).max(0.0), 1.0);
+    sdtx::puts(&format!("FPS: {:5.1}", state.fps));
+}
+
 fn reference_projection(width: f32, height: f32) -> (f32, f32, f32, f32) {
     // Fill the resized viewport without distorting the fixed reference map.
     // If the viewport is not 16:9, expose a little more reference space on
@@ -243,6 +269,13 @@ fn reference_projection(width: f32, height: f32) -> (f32, f32, f32, f32) {
 extern "C" fn frame(user_data: *mut ffi::c_void) {
     let state = unsafe { &mut *(user_data as *mut State) };
     let delta = (sapp::frame_duration() as f32).clamp(0.0, 0.1);
+    state.fps_elapsed += delta;
+    state.fps_frames += 1;
+    if state.fps_elapsed >= 0.25 {
+        state.fps = state.fps_frames as f32 / state.fps_elapsed.max(0.0001);
+        state.fps_elapsed = 0.0;
+        state.fps_frames = 0;
+    }
     if let Some(mut transition) = state.transition {
         transition.elapsed += delta;
         if transition.elapsed >= 0.72 {
@@ -280,6 +313,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     } else {
         draw_map(state, state.floor, 1.0, state.pan_x, state.pan_y);
     }
+    draw_debug_overlay(state, width, height);
 
     sg::begin_pass(&sg::Pass {
         action: state.pass_action,
@@ -287,11 +321,13 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
         ..Default::default()
     });
     sgl::draw();
+    sdtx::draw();
     sg::end_pass();
     sg::commit();
 }
 
 extern "C" fn cleanup(user_data: *mut ffi::c_void) {
+    sdtx::shutdown();
     sgl::shutdown();
     sg::shutdown();
     let _ = unsafe { Box::from_raw(user_data as *mut State) };
@@ -309,6 +345,10 @@ fn main() {
         pan_y: 0.0,
         dragging: false,
         transition: None,
+        debug_mode: false,
+        fps: 0.0,
+        fps_elapsed: 0.0,
+        fps_frames: 0,
     });
     sapp::run(&sapp::Desc {
         init_userdata_cb: Some(init),
@@ -319,6 +359,9 @@ fn main() {
         window_title: c"Resident Evil Requiem Map".as_ptr(),
         width: 1280,
         height: 720,
+        // Native Sokol uses the platform's borderless fullscreen path. The
+        // web target remains inside the React shell's map canvas.
+        fullscreen: true,
         sample_count: 4,
         swap_interval: 1,
         html5: sapp::Html5Desc {
