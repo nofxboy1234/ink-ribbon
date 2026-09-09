@@ -219,6 +219,17 @@ fn draw_map(state: &State, floor: usize, alpha: f32, pan_x: f32, pan_y: f32) {
     sgl::disable_texture();
 }
 
+fn reference_viewport(width: f32, height: f32) -> (f32, f32, f32, f32) {
+    // Keep the map in its fixed reference coordinate system. Browser/native
+    // resizing changes only this letterboxed viewport, never map geometry.
+    let scale = (width / REF_W).min(height / REF_H).max(0.0);
+    let viewport_width = REF_W * scale;
+    let viewport_height = REF_H * scale;
+    let viewport_x = (width - viewport_width) * 0.5;
+    let viewport_y = (height - viewport_height) * 0.5;
+    (viewport_x, viewport_y, viewport_width, viewport_height)
+}
+
 extern "C" fn frame(user_data: *mut ffi::c_void) {
     let state = unsafe { &mut *(user_data as *mut State) };
     let delta = (sapp::frame_duration() as f32).clamp(0.0, 0.1);
@@ -234,11 +245,8 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
 
     let width = sapp::widthf();
     let height = sapp::heightf();
-    let scale = (width / REF_W).min(height / REF_H);
-    let viewport_width = REF_W * scale;
-    let viewport_height = REF_H * scale;
-    let viewport_x = (width - viewport_width) * 0.5;
-    let viewport_y = (height - viewport_height) * 0.5;
+    let (viewport_x, viewport_y, viewport_width, viewport_height) =
+        reference_viewport(width, height);
 
     sgl::viewportf(
         viewport_x,
