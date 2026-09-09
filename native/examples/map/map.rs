@@ -289,12 +289,41 @@ fn draw_grid(left: f32, right: f32, top: f32, bottom: f32) {
     let point_start_y = (top / 16.0).floor() as i32 * 16 - 16;
     let point_end_y = (bottom / 16.0).ceil() as i32 * 16 + 16;
 
-    sgl::c4f(GRID_RGB.0, GRID_RGB.1, GRID_RGB.2, 0.26);
-    sgl::point_size(1.2);
+    // Fine grid lines run through every dot. The existing six-dot rhythm is
+    // retained below as the slightly stronger secondary grid.
+    sgl::c4f(GRID_RGB.0, GRID_RGB.1, GRID_RGB.2, 0.055);
+    sgl::begin_lines();
+    for x in (point_start_x..=point_end_x).step_by(16) {
+        sgl::v2f(x as f32, top);
+        sgl::v2f(x as f32, bottom);
+    }
+    for y in (point_start_y..=point_end_y).step_by(16) {
+        sgl::v2f(left, y as f32);
+        sgl::v2f(right, y as f32);
+    }
+    sgl::end();
+
+    // Alternate the dot intensity on a checkerboard cadence, matching the
+    // reference's quiet/bright rhythm without changing the dot spacing.
+    sgl::c4f(GRID_RGB.0, GRID_RGB.1, GRID_RGB.2, 0.30);
+    sgl::point_size(2.4);
     sgl::begin_points();
     for y in (point_start_y..=point_end_y).step_by(16) {
         for x in (point_start_x..=point_end_x).step_by(16) {
-            sgl::v2f(x as f32, y as f32);
+            if ((x / 16 + y / 16) & 1) == 0 {
+                sgl::v2f(x as f32, y as f32);
+            }
+        }
+    }
+    sgl::end();
+
+    sgl::c4f(GRID_RGB.0, GRID_RGB.1, GRID_RGB.2, 0.15);
+    sgl::begin_points();
+    for y in (point_start_y..=point_end_y).step_by(16) {
+        for x in (point_start_x..=point_end_x).step_by(16) {
+            if ((x / 16 + y / 16) & 1) != 0 {
+                sgl::v2f(x as f32, y as f32);
+            }
         }
     }
     sgl::end();
