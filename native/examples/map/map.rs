@@ -219,15 +219,25 @@ fn draw_map(state: &State, floor: usize, alpha: f32, pan_x: f32, pan_y: f32) {
     sgl::disable_texture();
 }
 
-fn reference_viewport(width: f32, height: f32) -> (f32, f32, f32, f32) {
-    // Keep the map in its fixed reference coordinate system. Browser/native
-    // resizing changes only this letterboxed viewport, never map geometry.
-    let scale = (width / REF_W).min(height / REF_H).max(0.0);
-    let viewport_width = REF_W * scale;
-    let viewport_height = REF_H * scale;
-    let viewport_x = (width - viewport_width) * 0.5;
-    let viewport_y = (height - viewport_height) * 0.5;
-    (viewport_x, viewport_y, viewport_width, viewport_height)
+fn reference_projection(width: f32, height: f32) -> (f32, f32, f32, f32) {
+    // Fill the resized viewport without distorting the fixed reference map.
+    // If the viewport is not 16:9, expose a little more reference space on
+    // the longer axis so the excess is cropped instead of shown as a gap.
+    let aspect = if height > 0.0 {
+        width / height
+    } else {
+        REF_W / REF_H
+    };
+    let reference_aspect = REF_W / REF_H;
+    if aspect >= reference_aspect {
+        let visible_width = REF_H * aspect;
+        let crop = (visible_width - REF_W) * 0.5;
+        (-crop, REF_W + crop, 0.0, REF_H)
+    } else {
+        let visible_height = REF_W / aspect.max(0.0001);
+        let crop = (visible_height - REF_H) * 0.5;
+        (0.0, REF_W, -crop, REF_H + crop)
+    }
 }
 
 extern "C" fn frame(user_data: *mut ffi::c_void) {
@@ -245,19 +255,12 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
 
     let width = sapp::widthf();
     let height = sapp::heightf();
-    let (viewport_x, viewport_y, viewport_width, viewport_height) =
-        reference_viewport(width, height);
+    let (left, right, top, bottom) = reference_projection(width, height);
 
-    sgl::viewportf(
-        viewport_x,
-        viewport_y,
-        viewport_width,
-        viewport_height,
-        true,
-    );
+    sgl::viewportf(0.0, 0.0, width, height, true);
     sgl::defaults();
     sgl::matrix_mode_projection();
-    sgl::ortho(0.0, REF_W, REF_H, 0.0, -1.0, 1.0);
+    sgl::ortho(left, right, bottom, top, -1.0, 1.0);
     sgl::matrix_mode_modelview();
     sgl::load_identity();
     sgl::load_pipeline(state.pipeline);
