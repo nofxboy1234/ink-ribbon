@@ -17,12 +17,14 @@ const NUM_FLOORS: usize = 4;
 const DEBUG_FONT: usize = 0;
 
 // Dracula theme palette: https://draculatheme.com
-const DRACULA_BACKGROUND: (f32, f32, f32) = (0.157, 0.165, 0.212); // #282a36
 const DRACULA_COMMENT: (f32, f32, f32) = (0.384, 0.447, 0.643); // #6272a4
 const DRACULA_CYAN: (f32, f32, f32) = (0.545, 0.914, 0.992); // #8be9fd
 const DRACULA_GREEN: (f32, f32, f32) = (0.314, 0.980, 0.482); // #50fa7b
 const DRACULA_PURPLE: (f32, f32, f32) = (0.741, 0.576, 0.976); // #bd93f9
 const DRACULA_PINK: (f32, f32, f32) = (1.0, 0.475, 0.776); // #ff79c6
+
+// Oxocarbon main background (base16 dark base00): https://github.com/nyoom-engineering/base16-oxocarbon
+const BACKGROUND: (f32, f32, f32) = (0.086, 0.086, 0.086); // #161616
 
 struct State {
     pass_action: sg::PassAction,
@@ -77,9 +79,9 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
     state.pass_action.colors[0] = sg::ColorAttachmentAction {
         load_action: sg::LoadAction::Clear,
         clear_value: sg::Color {
-            r: DRACULA_BACKGROUND.0,
-            g: DRACULA_BACKGROUND.1,
-            b: DRACULA_BACKGROUND.2,
+            r: BACKGROUND.0,
+            g: BACKGROUND.1,
+            b: BACKGROUND.2,
             a: 1.0,
         },
         ..Default::default()
