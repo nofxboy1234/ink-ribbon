@@ -13,7 +13,7 @@ const ZOOM_PANEL_X: f32 = MAP_X + MAP_W;
 const PANEL_W: f32 = 46.0;
 const ZOOM_MIN: f32 = 0.72;
 const ZOOM_MAX: f32 = 2.4;
-const NUM_FLOORS: usize = 4;
+const NUM_FLOORS: usize = 3;
 const DEBUG_FONT: usize = 0;
 
 // Dracula theme palette: https://draculatheme.com
@@ -25,6 +25,27 @@ const DRACULA_PINK: (f32, f32, f32) = (1.0, 0.475, 0.776); // #ff79c6
 
 // Dracula background: https://draculatheme.com
 const BACKGROUND: (f32, f32, f32) = (0.157, 0.165, 0.212); // #282a36
+
+#[cfg(target_os = "emscripten")]
+extern "C" {
+    fn emscripten_run_script(script: *const ffi::c_char);
+}
+
+// Let the surrounding web shell react to floor changes. On native there is no
+// shell, so this is a no-op.
+fn notify_floor(floor: usize) {
+    #[cfg(target_os = "emscripten")]
+    {
+        let script = format!("window.inkRibbonSetFloor && window.inkRibbonSetFloor({floor})");
+        if let Ok(script) = ffi::CString::new(script) {
+            unsafe { emscripten_run_script(script.as_ptr()) };
+        }
+    }
+    #[cfg(not(target_os = "emscripten"))]
+    {
+        let _ = floor;
+    }
+}
 
 struct State {
     pass_action: sg::PassAction,
@@ -91,6 +112,7 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
 fn change_floor(state: &mut State, floor: usize) {
     if floor < NUM_FLOORS {
         state.floor = floor;
+        notify_floor(floor);
     }
 }
 
@@ -429,17 +451,16 @@ fn draw_map_labels(left: f32, right: f32, top: f32, bottom: f32) {
         DRACULA_GREEN,
         false,
     );
-    label(
-        "Care Center",
-        MAP_X + 76.0,
-        MAP_Y + MAP_H + 23.0,
-        DRACULA_PINK,
-        true,
-    );
-
+    // The nameplate is framed by the outer left/right lines below the map.
     let name_left = MAP_X;
     let name_left_inner = MAP_X + 14.0;
     let name_right = MAP_X + 242.0;
+    // Center the label between those lines using the large glyph width.
+    let large_glyph = 16.0;
+    let name = "Care Center";
+    let name_x = (name_left + name_right) * 0.5 - name.len() as f32 * large_glyph * 0.5;
+    label(name, name_x, MAP_Y + MAP_H + 23.0, DRACULA_PINK, true);
+
     sgl::c4f(DRACULA_PURPLE.0, DRACULA_PURPLE.1, DRACULA_PURPLE.2, 0.9);
     line(
         name_left,

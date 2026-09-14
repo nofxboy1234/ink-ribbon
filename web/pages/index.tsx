@@ -1,11 +1,29 @@
+import { useEffect, useState } from "react";
+
 import type { Props } from "./index.server";
 import "./styles.css";
 
+const DEFAULT_FLOOR = 2;
+const FLOOR_LABELS = ["FLOOR 3", "FLOOR 2", "FLOOR 1"];
+
 export default function HomePage(_props: Props) {
+  const [floor, setFloor] = useState(DEFAULT_FLOOR);
+
+  useEffect(() => {
+    const onFloorChange = (event: Event) => {
+      const detail = (event as CustomEvent<number>).detail;
+      if (typeof detail === "number") {
+        setFloor(detail);
+      }
+    };
+    window.addEventListener("ink-ribbon:floor", onFloorChange);
+    return () => window.removeEventListener("ink-ribbon:floor", onFloorChange);
+  }, []);
+
   return (
     <main className="map-app">
       <header className="map-shell-header">
-        <span className="brand">evo</span>
+        <span className="brand">ink-ribbon</span>
         <span>living instrument / v6</span>
         <strong>124</strong>
         <span>POPULATION</span>
@@ -23,7 +41,8 @@ export default function HomePage(_props: Props) {
           <script
             dangerouslySetInnerHTML={{
               __html:
-                "var Module = { canvas: document.getElementById('map-canvas'), locateFile: function (path) { return '/' + path; } };",
+                "var Module = { canvas: document.getElementById('map-canvas'), locateFile: function (path) { return '/' + path; } };" +
+                "window.inkRibbonSetFloor = function (floor) { window.dispatchEvent(new CustomEvent('ink-ribbon:floor', { detail: floor })); };",
             }}
           />
           <script src="/map.js" />
@@ -36,7 +55,7 @@ export default function HomePage(_props: Props) {
           </div>
           <div className="panel-row">
             <span>FLOOR</span>
-            <b>FLOOR 1</b>
+            <b>{FLOOR_LABELS[floor] ?? FLOOR_LABELS[DEFAULT_FLOOR]}</b>
           </div>
           <div className="panel-rule" />
           <h2>LEGEND</h2>
