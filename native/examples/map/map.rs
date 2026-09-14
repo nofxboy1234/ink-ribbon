@@ -26,6 +26,29 @@ const DRACULA_PINK: (f32, f32, f32) = (1.0, 0.475, 0.776); // #ff79c6
 // Dracula background: https://draculatheme.com
 const BACKGROUND: (f32, f32, f32) = (0.157, 0.165, 0.212); // #282a36
 
+// Floor 1 frame in source-composite pixels (see artifacts/care-center/README.md).
+const FLOOR1_X: f32 = 1600.0;
+const FLOOR1_Y: f32 = 3420.0;
+const FLOOR1_W: f32 = 4750.0;
+const FLOOR1_H: f32 = 2730.0;
+
+// Hand-traced wall texture (Dracula yellow line art on transparency), raw RGBA.
+const WALLS_W: i32 = 2048;
+const WALLS_H: i32 = 1177;
+const WALLS_RGBA: &[u8] = include_bytes!("../../assets/floor-1-walls.rgba");
+
+// Polygon "Key Item" positions for Floor 1, in source-composite pixels.
+const KEY_ITEMS: [(&str, f32, f32); 6] = [
+    ("Pantry Key", 3432.0, 3899.0),
+    ("ID Wristband (Level 2)", 4751.0, 4416.0),
+    ("ID Wristband (Level 3)", 6134.0, 4397.0),
+    ("East Wing Keycard", 3309.0, 4590.0),
+    ("Star Quartz", 4658.0, 5138.0),
+    ("West Wing Keycard", 3530.0, 5162.0),
+];
+const ITEM_RADIUS: f32 = 7.0;
+const CIRCLE_SEGMENTS: usize = 24;
+
 #[cfg(target_os = "emscripten")]
 extern "C" {
     fn emscripten_run_script(script: *const ffi::c_char);
@@ -50,6 +73,8 @@ fn notify_floor(floor: usize) {
 struct State {
     pass_action: sg::PassAction,
     pipeline: sgl::Pipeline,
+    walls_view: sg::View,
+    walls_sampler: sg::Sampler,
     floor: usize,
     zoom: f32,
     pan_x: f32,
@@ -59,6 +84,32 @@ struct State {
     fps: f32,
     fps_elapsed: f32,
     fps_frames: u32,
+}
+
+fn walls_texture() -> sg::View {
+    assert_eq!(WALLS_RGBA.len(), (WALLS_W * WALLS_H * 4) as usize);
+    let pixels: Vec<u32> = WALLS_RGBA
+        .chunks_exact(4)
+        .map(|p| u32::from_ne_bytes([p[0], p[1], p[2], p[3]]))
+        .collect();
+    let mut data = sg::ImageData::new();
+    data.mip_levels[0] = sg::slice_as_range(&pixels);
+    let image = sg::make_image(&sg::ImageDesc {
+        width: WALLS_W,
+        height: WALLS_H,
+        num_slices: 1,
+        num_mipmaps: 1,
+        data,
+        pixel_format: sg::PixelFormat::Rgba8,
+        ..Default::default()
+    });
+    sg::make_view(&sg::ViewDesc {
+        texture: sg::TextureViewDesc {
+            image,
+            ..Default::default()
+        },
+        ..Default::default()
+    })
 }
 
 extern "C" fn init(user_data: *mut ffi::c_void) {
@@ -84,6 +135,15 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
     debug_text.fonts[DEBUG_FONT] = sdtx::font_kc853();
     debug_text.context.sample_count = 4;
     sdtx::setup(&debug_text);
+
+    state.walls_view = walls_texture();
+    state.walls_sampler = sg::make_sampler(&sg::SamplerDesc {
+        min_filter: sg::Filter::Linear,
+        mag_filter: sg::Filter::Linear,
+        wrap_u: sg::Wrap::ClampToEdge,
+        wrap_v: sg::Wrap::ClampToEdge,
+        ..Default::default()
+    });
 
     let mut pipeline = sg::PipelineDesc::default();
     pipeline.depth.write_enabled = false;
@@ -257,6 +317,81 @@ fn triangle(cx: f32, cy: f32, radius: f32, up: bool) {
         sgl::v2f(cx, cy + radius);
     }
     sgl::end();
+}
+
+fn filled_circle(cx: f32, cy: f32, radius: f32) {
+    sgl::begin_triangles();
+    let step = std::f32::consts::TAU / CIRCLE_SEGMENTS as f32;
+    for i in 0..CIRCLE_SEGMENTS {
+        let a0 = i as f32 * step;
+        let a1 = (i + 1) as f32 * step;
+        sgl::v2f(cx, cy);
+        sgl::v2f(cx + radius * a0.cos(), cy + radius * a0.sin());
+        sgl::v2f(cx + radius * a1.cos(), cy + radius * a1.sin());
+    }
+    sgl::end();
+}
+
+// Floor 1 art frame inside the fixed map window, centred and scaled by zoom.
+fn map_rect(zoom: f32, pan_x: f32, pan_y: f32) -> (f32, f32, f32, f32) {
+    let image_width = MAP_W * zoom;
+    let image_height = image_width * FLOOR1_H / FLOOR1_W;
+    let x = MAP_X + (MAP_W - image_width) * 0.5 + pan_x;
+    let y = MAP_Y + (MAP_H - image_height) * 0.5 + pan_y;
+    (x, y, image_width, image_height)
+}
+
+// Source-composite pixel -> reference coordinates.
+fn src_to_ref(ox: f32, oy: f32, iw: f32, ih: f32, sx: f32, sy: f32) -> (f32, f32) {
+    (
+        ox + (sx - FLOOR1_X) * iw / FLOOR1_W,
+        oy + (sy - FLOOR1_Y) * ih / FLOOR1_H,
+    )
+}
+
+fn draw_floor1(
+    state: &State,
+    width: f32,
+    height: f32,
+    left: f32,
+    right: f32,
+    top: f32,
+    bottom: f32,
+) {
+    // Keep the map content inside the map window.
+    let clip_x = ((MAP_X - left) / (right - left) * width).clamp(0.0, width);
+    let clip_y = ((MAP_Y - top) / (bottom - top) * height).clamp(0.0, height);
+    let clip_right = ((MAP_X + MAP_W - left) / (right - left) * width).clamp(0.0, width);
+    let clip_bottom = ((MAP_Y + MAP_H - top) / (bottom - top) * height).clamp(0.0, height);
+    sgl::scissor_rectf(
+        clip_x,
+        clip_y,
+        (clip_right - clip_x).max(0.0),
+        (clip_bottom - clip_y).max(0.0),
+        true,
+    );
+
+    let (ox, oy, iw, ih) = map_rect(state.zoom, state.pan_x, state.pan_y);
+
+    sgl::enable_texture();
+    sgl::texture(state.walls_view, state.walls_sampler);
+    sgl::c4f(1.0, 1.0, 1.0, 1.0);
+    sgl::begin_quads();
+    sgl::v2f_t2f(ox, oy, 0.0, 0.0);
+    sgl::v2f_t2f(ox + iw, oy, 1.0, 0.0);
+    sgl::v2f_t2f(ox + iw, oy + ih, 1.0, 1.0);
+    sgl::v2f_t2f(ox, oy + ih, 0.0, 1.0);
+    sgl::end();
+    sgl::disable_texture();
+
+    // Key item dots: Dracula purple, constant screen size (reference units).
+    sgl::c4f(DRACULA_PURPLE.0, DRACULA_PURPLE.1, DRACULA_PURPLE.2, 1.0);
+    for (_name, sx, sy) in KEY_ITEMS {
+        let (rx, ry) = src_to_ref(ox, oy, iw, ih, sx, sy);
+        filled_circle(rx, ry, ITEM_RADIUS);
+    }
+
+    sgl::scissor_rectf(0.0, 0.0, width, height, true);
 }
 
 fn draw_floor_selector(state: &State) {
@@ -549,6 +684,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
 
     draw_floor_selector(state);
     draw_zoom_selector(state);
+    draw_floor1(state, width, height, left, right, top, bottom);
     draw_map_frame();
     draw_map_overlay();
     draw_map_labels(left, right, top, bottom);
@@ -576,6 +712,8 @@ fn main() {
     let state = Box::new(State {
         pass_action: sg::PassAction::new(),
         pipeline: sgl::Pipeline::new(),
+        walls_view: sg::View::new(),
+        walls_sampler: sg::Sampler::new(),
         floor: 2,
         zoom: 1.0,
         pan_x: 0.0,
