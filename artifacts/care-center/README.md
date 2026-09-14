@@ -10,8 +10,6 @@ Downloaded on 2026-09-08. `originals/care-center-full.png` is the original 8192 
 
 The mask explicitly clears exterior pockets enclosed by dashed connections and empty spaces between basement passages and other rooms. Detail detection is limited to the vicinity of traced foreground, so isolated grid specks are not mistaken for room features. Brightened inspection previews are used only for checking; saved maps retain their original foreground brightness.
 
-Run `/usr/bin/python3 artifacts/care-center/remove-grid.py` from the project root to reproduce the edit (requires Pillow). The script checks that every protected foreground pixel is unchanged and every crop exactly matches its region in the cleaned full map.
-
 The floor images are lossless rectangular crops without resizing, enhancement, or reconstruction. Coordinates below are in source pixels, measured from the upper-left corner.
 
 | Image | X | Y | Width | Height |

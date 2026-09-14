@@ -14,6 +14,4 @@ target/
 artifacts/interactive-map.mp4
 artifacts/care-center/*.png
 artifacts/care-center/originals/*.png
-native/assets/*.rgba
 web/public/*.wasm
-web/public/maps/**/*.png
