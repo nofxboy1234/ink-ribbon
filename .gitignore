@@ -8,6 +8,7 @@ web/wrangler.jsonc.void-provision.lock.recovery
 .DS_Store
 notes/
 native/target/
+ref/
 
 # Generated/build outputs and large local-only map references.
 target/
