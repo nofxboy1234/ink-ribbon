@@ -21,6 +21,7 @@ const DRACULA_COMMENT: (f32, f32, f32) = (0.384, 0.447, 0.643); // #6272a4
 const DRACULA_CYAN: (f32, f32, f32) = (0.545, 0.914, 0.992); // #8be9fd
 const DRACULA_GREEN: (f32, f32, f32) = (0.314, 0.980, 0.482); // #50fa7b
 const DRACULA_PURPLE: (f32, f32, f32) = (0.741, 0.576, 0.976); // #bd93f9
+const DRACULA_ORANGE: (f32, f32, f32) = (1.0, 0.718, 0.424); // #ffb86c
 const DRACULA_PINK: (f32, f32, f32) = (1.0, 0.475, 0.776); // #ff79c6
 
 // Dracula background: https://draculatheme.com
@@ -51,6 +52,27 @@ const KEY_ITEMS: [(&str, f32, f32); 6] = [
 ];
 const ITEM_RADIUS: f32 = 7.0;
 const CIRCLE_SEGMENTS: usize = 24;
+
+// Floor 1 room name labels (composite source px), drawn with sokol_debugtext.
+const ROOMS: [(&str, f32, f32); 17] = [
+    ("Cold Storage", 2146.0, 3775.0),
+    ("Courtyard", 4035.0, 3862.0),
+    ("Dining Room", 3490.0, 3960.0),
+    ("Restroom", 2830.0, 4078.0),
+    ("Isolation Ward", 5830.0, 4100.0),
+    ("Blood Lab", 5256.0, 4196.0),
+    ("Security Manager's", 6110.0, 4375.0),
+    ("Treatment Room", 4754.0, 4148.0),
+    ("Kitchen", 3011.0, 4614.0),
+    ("Parlor", 3390.0, 4700.0),
+    ("Central Hall", 4035.0, 4738.0),
+    ("East Wing Lobby", 4640.0, 4815.0),
+    ("Waiting Room", 5000.0, 4825.0),
+    ("Guard Office", 3840.0, 5008.0),
+    ("Custodian's Office", 2905.0, 5128.0),
+    ("Medication Room", 3504.0, 5145.0),
+    ("Garage", 2404.0, 5740.0),
+];
 
 #[cfg(target_os = "emscripten")]
 extern "C" {
@@ -397,6 +419,25 @@ fn draw_floor1(
     for (_name, sx, sy) in KEY_ITEMS {
         let (rx, ry) = src_to_ref(ox, oy, iw, ih, sx, sy);
         filled_circle(rx, ry, ITEM_RADIUS);
+    }
+
+    // Room names: Dracula orange sokol_debugtext, centred on their position.
+    for (name, sx, sy) in ROOMS {
+        let (rx, ry) = src_to_ref(ox, oy, iw, ih, sx, sy);
+        if rx < MAP_X || rx > MAP_X + MAP_W || ry < MAP_Y || ry > MAP_Y + MAP_H {
+            continue;
+        }
+        draw_ui_text(
+            name,
+            rx - name.len() as f32 * 4.0,
+            ry - 4.0,
+            DRACULA_ORANGE,
+            false,
+            left,
+            top,
+            right - left,
+            bottom - top,
+        );
     }
 
     sgl::scissor_rectf(0.0, 0.0, width, height, true);
