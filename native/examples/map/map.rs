@@ -1397,7 +1397,9 @@ fn main() {
         transition_t: 0.0,
         cursor: (MAP_X + MAP_W * 0.5, MAP_Y + MAP_H * 0.5),
         mouse: (MAP_X + MAP_W * 0.5, MAP_Y + MAP_H * 0.5),
-        mouse_in_map: false,
+        // Show the default map-centre cursor from the first frame; it snaps
+        // to the pointer on the first mouse-move event in mouse-cursor mode.
+        mouse_in_map: true,
         cursor_mode: CursorMode::Free,
         os_cursor_hidden: false,
         touch_last: (0.0, 0.0),
