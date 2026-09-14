@@ -36,10 +36,10 @@ const FLOOR1_H: f32 = 2730.0;
 // Floor index for "FLOOR 1" (0 = Floor 3, 1 = Floor 2, 2 = Floor 1).
 const FLOOR1_INDEX: usize = 2;
 
-// Hand-traced wall texture (Dracula yellow line art on transparency), raw RGBA.
-const WALLS_W: i32 = 2048;
-const WALLS_H: i32 = 1177;
-const WALLS_RGBA: &[u8] = include_bytes!("../../assets/floor-1-walls.rgba");
+// Hand-traced overlay (walls, obstacles, doors) composited to one raw RGBA texture.
+const OVERLAY_W: i32 = 2048;
+const OVERLAY_H: i32 = 1177;
+const OVERLAY_RGBA: &[u8] = include_bytes!("../../assets/floor-1-overlay.rgba");
 
 // Polygon "Key Item" positions for Floor 1, in source-composite pixels.
 const KEY_ITEMS: [(&str, f32, f32); 6] = [
@@ -135,8 +135,8 @@ impl Nav {
 struct State {
     pass_action: sg::PassAction,
     pipeline: sgl::Pipeline,
-    walls_view: sg::View,
-    walls_sampler: sg::Sampler,
+    overlay_view: sg::View,
+    overlay_sampler: sg::Sampler,
     nav: Nav,
     target: Option<usize>,
     path: Vec<(f32, f32)>,
@@ -152,17 +152,17 @@ struct State {
     fps_frames: u32,
 }
 
-fn walls_texture() -> sg::View {
-    assert_eq!(WALLS_RGBA.len(), (WALLS_W * WALLS_H * 4) as usize);
-    let pixels: Vec<u32> = WALLS_RGBA
+fn overlay_texture() -> sg::View {
+    assert_eq!(OVERLAY_RGBA.len(), (OVERLAY_W * OVERLAY_H * 4) as usize);
+    let pixels: Vec<u32> = OVERLAY_RGBA
         .chunks_exact(4)
         .map(|p| u32::from_ne_bytes([p[0], p[1], p[2], p[3]]))
         .collect();
     let mut data = sg::ImageData::new();
     data.mip_levels[0] = sg::slice_as_range(&pixels);
     let image = sg::make_image(&sg::ImageDesc {
-        width: WALLS_W,
-        height: WALLS_H,
+        width: OVERLAY_W,
+        height: OVERLAY_H,
         num_slices: 1,
         num_mipmaps: 1,
         data,
@@ -202,8 +202,8 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
     debug_text.context.sample_count = 4;
     sdtx::setup(&debug_text);
 
-    state.walls_view = walls_texture();
-    state.walls_sampler = sg::make_sampler(&sg::SamplerDesc {
+    state.overlay_view = overlay_texture();
+    state.overlay_sampler = sg::make_sampler(&sg::SamplerDesc {
         min_filter: sg::Filter::Linear,
         mag_filter: sg::Filter::Linear,
         wrap_u: sg::Wrap::ClampToEdge,
@@ -677,7 +677,7 @@ fn draw_floor1(
     }
 
     sgl::enable_texture();
-    sgl::texture(state.walls_view, state.walls_sampler);
+    sgl::texture(state.overlay_view, state.overlay_sampler);
     sgl::c4f(1.0, 1.0, 1.0, 1.0);
     sgl::begin_quads();
     sgl::v2f_t2f(ox, oy, 0.0, 0.0);
@@ -1053,8 +1053,8 @@ fn main() {
     let state = Box::new(State {
         pass_action: sg::PassAction::new(),
         pipeline: sgl::Pipeline::new(),
-        walls_view: sg::View::new(),
-        walls_sampler: sg::Sampler::new(),
+        overlay_view: sg::View::new(),
+        overlay_sampler: sg::Sampler::new(),
         nav: Nav::from_bytes(NAV_BIN),
         target: None,
         path: Vec::new(),
@@ -1105,15 +1105,22 @@ fn main() {
 mod tests {
     use super::*;
 
+    // Key items that sit behind locked doors are intentionally unreachable.
+    const LOCKED_GATED: [&str; 2] = ["ID Wristband (Level 3)", "Star Quartz"];
+
     #[test]
-    fn nav_grid_reaches_every_key_item() {
+    fn nav_grid_reachability_matches_locked_doors() {
         let nav = Nav::from_bytes(NAV_BIN);
         assert!(nav.w > 0 && nav.h > 0, "nav grid header");
         let start = snap_source(&nav, PLAYER.0, PLAYER.1).expect("player start is walkable");
         for (name, sx, sy) in KEY_ITEMS {
-            let goal = snap_source(&nav, sx, sy).unwrap_or_else(|| panic!("{name} not walkable"));
-            let path = astar(&nav, start, goal).unwrap_or_else(|| panic!("{name} unreachable"));
-            assert!(path.len() > 1, "{name} path too short");
+            let reachable =
+                snap_source(&nav, sx, sy).is_some_and(|goal| astar(&nav, start, goal).is_some());
+            if LOCKED_GATED.contains(&name) {
+                assert!(!reachable, "{name} should be blocked by a locked door");
+            } else {
+                assert!(reachable, "{name} should be reachable");
+            }
         }
     }
 

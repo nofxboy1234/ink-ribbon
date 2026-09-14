@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
-"""Build the Floor 1 navigation grid from the traced wall art.
+"""Build the Floor 1 navigation grid from the traced wall/door/obstacle art.
 
-The wall trace (`care-center-full-walls.png`) encloses the walkable floor area.
-We rasterise it at the navigation resolution, grow the walls by a clearance so
-routes keep away from them, flood-fill the exterior from the image border, and
-treat everything left inside as walkable. A* then runs on this grid in Sokol.
+Impassable: walls, obstacles and locked doors, grown by a clearance so routes
+keep away from them.
+Passable:   unlocked and unknown doors, carved through after the clearance.
+
+The exterior is flood-filled *before* the doors are carved, so a door on the
+building boundary cannot leak the outside into the walkable area.
 
 Output: `native/assets/floor-1-nav.bin`
     header: u32 LE cell_px, u32 LE width, u32 LE height
     body:   width*height bits, row-major, LSB first per byte (1 = walkable)
 
-Also writes a preview PNG and a reachability report (Guard Office -> key items).
+Also writes a preview PNG and a reachability report (Guard Office -> key items),
+flagging items that are only blocked by locked doors.
 """
 
 from collections import deque
@@ -20,7 +23,7 @@ from pathlib import Path
 from PIL import Image, ImageFilter
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "artifacts" / "care-center" / "originals" / "care-center-full-walls.png"
+ORIGINALS = ROOT / "artifacts" / "care-center" / "originals"
 OUTPUT = ROOT / "native" / "assets" / "floor-1-nav.bin"
 PREVIEW = ROOT / "artifacts" / "care-center" / "nav-preview.png"
 
@@ -30,8 +33,15 @@ CROP_W, CROP_H = 4750, 2730
 CELL_PX = 8
 W = round(CROP_W / CELL_PX)
 H = round(CROP_H / CELL_PX)
-WALL_THRESHOLD = 30
-CLEARANCE_CELLS = 3
+ALPHA_THRESHOLD = 30
+CLEARANCE_CELLS = 2
+DOOR_DILATION_CELLS = 1
+
+WALLS = "care-center-full-walls.png"
+OBSTACLES = "care-center-full-obstacles.png"
+LOCKED = "care-center-full-locked_doors.png"
+UNLOCKED = "care-center-full-unlocked_doors.png"
+UNKNOWN = "care-center-full-unknown_doors.png"
 
 PLAYER = (3840.0, 5008.0)  # Guard Office
 KEY_ITEMS = [
@@ -42,6 +52,49 @@ KEY_ITEMS = [
     ("Star Quartz", 4658.0, 5138.0),
     ("West Wing Keycard", 3530.0, 5162.0),
 ]
+
+
+def mask(name: str) -> list[bytearray]:
+    image = (
+        Image.open(ORIGINALS / name)
+        .convert("RGBA")
+        .crop(CROP)
+        .resize((W, H), Image.Resampling.LANCZOS)
+    )
+    alpha = image.getchannel("A").point(lambda v: 255 if v > ALPHA_THRESHOLD else 0)
+    return [bytearray(1 if alpha.getpixel((x, y)) else 0 for x in range(W)) for y in range(H)]
+
+
+def dilate(source: list[bytearray], radius: int) -> list[bytearray]:
+    if radius <= 0:
+        return source
+    image = Image.new("L", (W, H))
+    image.putdata([255 if source[y][x] else 0 for y in range(H) for x in range(W)])
+    image = image.filter(ImageFilter.MaxFilter(radius * 2 + 1))
+    return [bytearray(1 if image.getpixel((x, y)) else 0 for x in range(W)) for y in range(H)]
+
+
+def flood_exterior(free: list[bytearray]) -> list[bytearray]:
+    exterior = [bytearray(W) for _ in range(H)]
+    dq = deque()
+    for x in range(W):
+        for y in (0, H - 1):
+            if free[y][x]:
+                exterior[y][x] = 1
+                dq.append((x, y))
+    for y in range(H):
+        for x in (0, W - 1):
+            if free[y][x]:
+                exterior[y][x] = 1
+                dq.append((x, y))
+    while dq:
+        x, y = dq.popleft()
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < W and 0 <= ny < H and free[ny][nx] and not exterior[ny][nx]:
+                exterior[ny][nx] = 1
+                dq.append((nx, ny))
+    return exterior
 
 
 def source_to_cell(sx: float, sy: float) -> tuple[int, int]:
@@ -81,38 +134,40 @@ def bfs(walk: list[bytearray], start: tuple[int, int]):
 
 
 def main() -> None:
-    image = Image.open(SOURCE).convert("L").crop(CROP).resize((W, H), Image.Resampling.LANCZOS)
-    wall_mask = image.point(lambda v: 255 if v > WALL_THRESHOLD else 0)
-    if CLEARANCE_CELLS > 0:
-        wall_mask = wall_mask.filter(ImageFilter.MaxFilter(CLEARANCE_CELLS * 2 + 1))
-    wall = [[1 if wall_mask.getpixel((x, y)) else 0 for x in range(W)] for y in range(H)]
-    free = [[0 if wall[y][x] else 1 for x in range(W)] for y in range(H)]
+    walls = mask(WALLS)
+    obstacles = mask(OBSTACLES)
+    locked = mask(LOCKED)
+    unlocked = mask(UNLOCKED)
+    unknown = mask(UNKNOWN)
+    doors = dilate(
+        [bytearray(1 if unlocked[y][x] or unknown[y][x] else 0 for x in range(W)) for y in range(H)],
+        DOOR_DILATION_CELLS,
+    )
 
-    # Flood-fill the exterior from the border.
-    exterior = [[0] * W for _ in range(H)]
-    dq = deque()
-    for x in range(W):
-        for y in (0, H - 1):
-            if free[y][x]:
-                exterior[y][x] = 1
-                dq.append((x, y))
-    for y in range(H):
-        for x in (0, W - 1):
-            if free[y][x]:
-                exterior[y][x] = 1
-                dq.append((x, y))
-    while dq:
-        x, y = dq.popleft()
-        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            nx, ny = x + dx, y + dy
-            if 0 <= nx < W and 0 <= ny < H and free[ny][nx] and not exterior[ny][nx]:
-                exterior[ny][nx] = 1
-                dq.append((nx, ny))
+    def build(include_locked: bool) -> list[bytearray]:
+        base = [
+            bytearray(
+                1
+                if walls[y][x] or obstacles[y][x] or (locked[y][x] and include_locked)
+                else 0
+                for x in range(W)
+            )
+            for y in range(H)
+        ]
+        impassable = dilate(base, CLEARANCE_CELLS)
+        free = [bytearray(0 if impassable[y][x] else 1 for x in range(W)) for y in range(H)]
+        exterior = flood_exterior(free)
+        return [
+            bytearray(
+                1 if ((free[y][x] and not exterior[y][x]) or doors[y][x]) else 0
+                for x in range(W)
+            )
+            for y in range(H)
+        ]
 
-    walk = [[1 if free[y][x] and not exterior[y][x] else 0 for x in range(W)] for y in range(H)]
-    total = sum(sum(row) for row in walk)
+    walk = build(include_locked=True)
+    walk_unlocked = build(include_locked=False)
 
-    # Pack: header + 1 bit per cell, LSB first.
     bits = bytearray((W * H + 7) // 8)
     for y in range(H):
         for x in range(W):
@@ -122,41 +177,56 @@ def main() -> None:
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_bytes(struct.pack("<III", CELL_PX, W, H) + bytes(bits))
 
-    # Reachability report.
     start = nearest_walkable(walk, *source_to_cell(*PLAYER))
-    print(f"nav grid {W}x{H} cell={CELL_PX}px clearance={CLEARANCE_CELLS} walkable={total}")
-    print(f"player snap {start} from {source_to_cell(*PLAYER)}")
+    print(
+        f"nav grid {W}x{H} cell={CELL_PX}px clearance={CLEARANCE_CELLS} "
+        f"door_dilation={DOOR_DILATION_CELLS} walkable={sum(sum(r) for r in walk)}"
+    )
     if start is None:
         print("ERROR: player has no walkable cell")
-    else:
-        dist, came = bfs(walk, start)
-        for name, sx, sy in KEY_ITEMS:
-            target = nearest_walkable(walk, *source_to_cell(sx, sy))
-            d = dist.get(target) if target else None
-            print(f"  {name:24} cell={source_to_cell(sx, sy)} snap={target} reachable={d is not None} steps={d}")
+        return
+    dist, came = bfs(walk, start)
+    dist_unlocked, _ = bfs(walk_unlocked, start) if walk_unlocked[start[1]][start[0]] else ({}, {})
+    print(f"player snap {start} from {source_to_cell(*PLAYER)}")
+    for name, sx, sy in KEY_ITEMS:
+        target = nearest_walkable(walk, *source_to_cell(sx, sy))
+        reachable = target is not None and target in dist
+        if reachable:
+            note = f"reachable steps={dist[target]}"
+        else:
+            target_unlocked = nearest_walkable(walk_unlocked, *source_to_cell(sx, sy))
+            gated = target_unlocked is not None and target_unlocked in dist_unlocked
+            note = "LOCKED-DOOR GATED" if gated else "DISCONNECTED"
+        print(f"  {name:24} cell={source_to_cell(sx, sy)} snap={target} {note}")
 
-    # Preview: walls grey, walkable cyan, exterior black, player/dots/path.
+    # Preview (colour-coded by category).
     preview = Image.new("RGB", (W, H), (12, 12, 16))
     px = preview.load()
     for y in range(H):
         for x in range(W):
-            if wall[y][x]:
-                px[x, y] = (241, 250, 140)
-            elif walk[y][x]:
+            if walk[y][x]:
                 px[x, y] = (30, 60, 70)
-    if start:
-        dist, came = bfs(walk, start)
-        demo = nearest_walkable(walk, *source_to_cell(*KEY_ITEMS[1][1:]))
-        if demo and demo in came:
-            c = demo
-            while c != start:
-                px[c[0], c[1]] = (80, 250, 123)
-                c = came[c]
-            px[start[0], start[1]] = (80, 250, 123)
-        px[start[0], start[1]] = (80, 250, 123)
+    for y in range(H):
+        for x in range(W):
+            if walls[y][x]:
+                px[x, y] = (241, 250, 140)
+            elif obstacles[y][x]:
+                px[x, y] = (255, 121, 198)
+            elif locked[y][x]:
+                px[x, y] = (255, 85, 85)
+            elif unknown[y][x]:
+                px[x, y] = (140, 150, 190)
+            elif unlocked[y][x]:
+                px[x, y] = (139, 233, 253)
+    demo = nearest_walkable(walk, *source_to_cell(*KEY_ITEMS[1][1:]))
+    if demo is not None and demo in came:
+        c = demo
+        while c != start:
+            px[c[0], c[1]] = (80, 250, 123)
+            c = came[c]
+    px[start[0], start[1]] = (80, 250, 123)
     for name, sx, sy in KEY_ITEMS:
-        cx, cy = source_to_cell(sx, sy)
-        cell = nearest_walkable(walk, cx, cy)
+        cell = nearest_walkable(walk, *source_to_cell(sx, sy))
         if cell:
             px[cell[0], cell[1]] = (189, 147, 249)
     preview.resize((W * 2, H * 2), Image.Resampling.NEAREST).save(PREVIEW)
