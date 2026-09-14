@@ -143,6 +143,15 @@ def main() -> None:
         [bytearray(1 if unlocked[y][x] or unknown[y][x] else 0 for x in range(W)) for y in range(H)],
         DOOR_DILATION_CELLS,
     )
+    # Only open a door where there is actually floor: a door bar drawn across the
+    # wall ends must not punch a hole through the wall itself.
+    doors = [
+        bytearray(
+            1 if doors[y][x] and not (walls[y][x] or obstacles[y][x] or locked[y][x]) else 0
+            for x in range(W)
+        )
+        for y in range(H)
+    ]
 
     def build(include_locked: bool) -> list[bytearray]:
         base = [
@@ -192,7 +201,13 @@ def main() -> None:
         target = nearest_walkable(walk, *source_to_cell(sx, sy))
         reachable = target is not None and target in dist
         if reachable:
-            note = f"reachable steps={dist[target]}"
+            clipped = 0
+            node = target
+            while node != start:
+                if walls[node[1]][node[0]]:
+                    clipped += 1
+                node = came[node]
+            note = f"reachable steps={dist[target]} through_wall={clipped}"
         else:
             target_unlocked = nearest_walkable(walk_unlocked, *source_to_cell(sx, sy))
             gated = target_unlocked is not None and target_unlocked in dist_unlocked
