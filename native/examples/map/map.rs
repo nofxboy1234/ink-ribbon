@@ -32,6 +32,9 @@ const FLOOR1_Y: f32 = 3420.0;
 const FLOOR1_W: f32 = 4750.0;
 const FLOOR1_H: f32 = 2730.0;
 
+// Floor index for "FLOOR 1" (0 = Floor 3, 1 = Floor 2, 2 = Floor 1).
+const FLOOR1_INDEX: usize = 2;
+
 // Hand-traced wall texture (Dracula yellow line art on transparency), raw RGBA.
 const WALLS_W: i32 = 2048;
 const WALLS_H: i32 = 1177;
@@ -358,6 +361,11 @@ fn draw_floor1(
     top: f32,
     bottom: f32,
 ) {
+    // Only Floor 1 has art for now; Floors 2 and 3 stay blank.
+    if state.floor != FLOOR1_INDEX {
+        return;
+    }
+
     // Keep the map content inside the map window.
     let clip_x = ((MAP_X - left) / (right - left) * width).clamp(0.0, width);
     let clip_y = ((MAP_Y - top) / (bottom - top) * height).clamp(0.0, height);
