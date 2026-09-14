@@ -10,13 +10,15 @@
     "fmt": "cd web && npm run fmt",
     "typecheck": "cd web && npm run typecheck",
     "assets:walls": "/usr/bin/python3 native/prepare-walls.py",
-    "build:native": "npm run assets:walls && cd native && cargo build --release --example map",
+    "assets:nav": "/usr/bin/python3 native/prepare-nav.py",
+    "assets": "npm run assets:walls && npm run assets:nav",
+    "build:native": "npm run assets && cd native && cargo build --release --example map",
     "run:native": "cd native && cargo run --release --example map",
-    "build:wasm": "npm run assets:walls && cd native && ./build-wasm.sh",
+    "build:wasm": "npm run assets && cd native && ./build-wasm.sh",
     "copy:wasm": "cp target/wasm32-unknown-emscripten/release/examples/map.js target/wasm32-unknown-emscripten/release/examples/map.wasm web/public/",
     "compile:shaders": "cd native && ./compile-shaders.sh",
     "build:all": "npm run build:wasm && npm run copy:wasm && npm run build",
-    "check:map": "npm run assets:walls && cd native && cargo fmt --check && cargo check --example map && cd ../web && npm run typecheck && npm run build",
+    "check:map": "npm run assets && cd native && cargo fmt --check && cargo check --example map && cd ../web && npm run typecheck && npm run build",
     "dev": "npm run build:wasm && npm run copy:wasm && cd web && npm run dev"
   }
 }
