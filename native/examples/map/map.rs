@@ -179,8 +179,14 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
         }
         sapp::EventType::KeyDown => match event.key_code {
             sapp::Keycode::F1 if !event.key_repeat => state.debug_mode = !state.debug_mode,
-            sapp::Keycode::Q => change_floor(state, state.floor.saturating_sub(1)),
-            sapp::Keycode::E => change_floor(state, (state.floor + 1).min(NUM_FLOORS - 1)),
+            sapp::Keycode::Q => {
+                let floor = (state.floor + NUM_FLOORS - 1) % NUM_FLOORS;
+                change_floor(state, floor);
+            }
+            sapp::Keycode::E => {
+                let floor = (state.floor + 1) % NUM_FLOORS;
+                change_floor(state, floor);
+            }
             sapp::Keycode::W | sapp::Keycode::Up => state.pan_y += 22.0,
             sapp::Keycode::S | sapp::Keycode::Down => state.pan_y -= 22.0,
             sapp::Keycode::A | sapp::Keycode::Left => state.pan_x += 22.0,
