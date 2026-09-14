@@ -4,16 +4,15 @@
 }
 
 :root {
-  /* Dracula theme palette: https://draculatheme.com */
-  --dracula-bg: #282a36;
-  --dracula-surface: #21222c;
-  --dracula-selection: #44475a;
-  --dracula-comment: #6272a4;
-  --dracula-foreground: #f8f8f2;
-  --dracula-cyan: #8be9fd;
-  --dracula-green: #50fa7b;
-  --dracula-pink: #ff79c6;
-  --dracula-purple: #bd93f9;
+  /* Near-monochrome palette matched to the Sokol map. */
+  --bg: #0c0c0c;
+  --surface: #0f0f0f;
+  --surface-2: #141414;
+  --line: #262626;
+  --muted: #6a6a6a;
+  --fg: #b8b8b3;
+  --fg-dim: #8a8a85;
+  --accent: #c7c099;
 }
 
 * {
@@ -22,15 +21,15 @@
 
 body {
   margin: 0;
-  background: var(--dracula-bg);
-  color: var(--dracula-foreground);
+  background: var(--bg);
+  color: var(--fg);
   font-family: ShellMono, monospace;
 }
 
 .map-app {
   min-height: 100vh;
-  background: var(--dracula-bg);
-  color: var(--dracula-foreground);
+  background: var(--bg);
+  color: var(--fg);
 }
 
 .map-shell-header {
@@ -39,20 +38,20 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  border-bottom: 1px solid var(--dracula-selection);
-  color: var(--dracula-comment);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
   font-size: 12px;
   letter-spacing: 0.13em;
 }
 
 .map-shell-header .brand {
-  color: var(--dracula-pink);
+  color: var(--fg);
   font: bold 22px Georgia;
   letter-spacing: -0.08em;
 }
 
 .map-shell-header strong {
-  color: var(--dracula-foreground);
+  color: var(--fg);
   font-size: 18px;
   margin-left: 12px;
 }
@@ -76,7 +75,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--dracula-bg);
+  background: var(--bg);
 }
 
 .map-canvas {
@@ -89,15 +88,15 @@ body {
 
 .details-panel {
   padding: 24px 22px;
-  border-left: 1px solid var(--dracula-selection);
-  background: var(--dracula-surface);
-  color: var(--dracula-foreground);
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--fg);
   font-size: 12px;
 }
 
 .details-panel h2 {
   margin: 0 0 22px;
-  color: var(--dracula-comment);
+  color: var(--muted);
   font-size: 11px;
   letter-spacing: 0.16em;
 }
@@ -110,7 +109,7 @@ body {
 }
 
 .panel-row span {
-  color: var(--dracula-comment);
+  color: var(--muted);
 }
 
 .panel-row b {
@@ -120,14 +119,14 @@ body {
 .panel-rule {
   height: 1px;
   margin: 26px -22px;
-  background: var(--dracula-selection);
+  background: var(--line);
 }
 
 .details-panel p {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--dracula-comment);
+  color: var(--muted);
 }
 
 .legend-player,
@@ -140,16 +139,16 @@ body {
 
 .legend-player {
   border-radius: 50%;
-  background: var(--dracula-green);
+  background: var(--accent);
 }
 
 .legend-route {
   height: 2px;
-  background: var(--dracula-purple);
+  background: var(--accent);
 }
 
 .legend-floor {
-  border: 1px solid var(--dracula-cyan);
+  border: 1px solid var(--fg-dim);
   transform: rotate(45deg);
 }
 
@@ -159,9 +158,9 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  border-top: 1px solid var(--dracula-selection);
-  background: var(--dracula-surface);
-  color: var(--dracula-comment);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
   font-size: 11px;
 }
 
@@ -171,9 +170,9 @@ body {
 
 .app-footer button {
   padding: 8px 12px;
-  border: 1px solid var(--dracula-selection);
-  background: var(--dracula-selection);
-  color: var(--dracula-foreground);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--fg);
   font: 11px ShellMono;
 }
 

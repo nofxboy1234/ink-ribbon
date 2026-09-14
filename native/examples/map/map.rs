@@ -16,16 +16,18 @@ const ZOOM_MAX: f32 = 2.4;
 const NUM_FLOORS: usize = 3;
 const DEBUG_FONT: usize = 0;
 
-// Dracula theme palette: https://draculatheme.com
-const DRACULA_COMMENT: (f32, f32, f32) = (0.384, 0.447, 0.643); // #6272a4
-const DRACULA_CYAN: (f32, f32, f32) = (0.545, 0.914, 0.992); // #8be9fd
-const DRACULA_GREEN: (f32, f32, f32) = (0.314, 0.980, 0.482); // #50fa7b
-const DRACULA_PURPLE: (f32, f32, f32) = (0.741, 0.576, 0.976); // #bd93f9
-const DRACULA_ORANGE: (f32, f32, f32) = (1.0, 0.718, 0.424); // #ffb86c
-const DRACULA_PINK: (f32, f32, f32) = (1.0, 0.475, 0.776); // #ff79c6
+// Palette sampled from the reference interactive-map capture (near-monochrome).
+const C_DIM: (f32, f32, f32) = (0.20, 0.21, 0.21); // #333636 dim chrome
+const C_HILITE: (f32, f32, f32) = (0.80, 0.81, 0.80); // #cccfcc highlight
+const C_ACCENT: (f32, f32, f32) = (0.78, 0.75, 0.60); // #c7c099 player / route
+const C_LINE: (f32, f32, f32) = (0.55, 0.57, 0.57); // #8c9191 panels, markers
+const C_LABEL: (f32, f32, f32) = (0.58, 0.58, 0.55); // #94948c room labels
+const C_TITLE: (f32, f32, f32) = (0.72, 0.72, 0.70); // #b8b8b3 title
 
-// Dracula background: https://draculatheme.com
-const BACKGROUND: (f32, f32, f32) = (0.157, 0.165, 0.212); // #282a36
+// Near-black background and faint map backing grid.
+const BACKGROUND: (f32, f32, f32) = (0.047, 0.047, 0.047); // #0c0c0c
+const MAP_BG: (f32, f32, f32) = (0.059, 0.059, 0.059); // #0f0f0f
+const GRID_RGB: (f32, f32, f32) = (0.10, 0.10, 0.10); // backing grid
 
 // Floor 1 frame in source-composite pixels (see artifacts/care-center/README.md).
 const FLOOR1_X: f32 = 1600.0;
@@ -141,6 +143,12 @@ struct State {
     target: Option<usize>,
     path: Vec<(f32, f32)>,
     show_grid: bool,
+    time: f32,
+    zoom_target: f32,
+    pan_target_x: f32,
+    pan_target_y: f32,
+    pending_floor: Option<usize>,
+    transition_t: f32,
     floor: usize,
     zoom: f32,
     pan_x: f32,
@@ -236,11 +244,11 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
 }
 
 fn change_floor(state: &mut State, floor: usize) {
-    if floor < NUM_FLOORS {
-        state.floor = floor;
+    if floor < NUM_FLOORS && floor != state.floor && state.pending_floor.is_none() {
+        state.pending_floor = Some(floor);
+        state.transition_t = 0.0;
         state.target = None;
         state.path.clear();
-        notify_floor(floor);
     }
 }
 
@@ -253,9 +261,9 @@ fn floor_slot(floor: usize) -> usize {
 }
 
 fn recenter(state: &mut State) {
-    state.zoom = 1.0;
-    state.pan_x = 0.0;
-    state.pan_y = 0.0;
+    state.zoom_target = 1.0;
+    state.pan_target_x = 0.0;
+    state.pan_target_y = 0.0;
 }
 
 extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
@@ -266,6 +274,8 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             if state.dragging {
                 state.pan_x += event.mouse_dx;
                 state.pan_y += event.mouse_dy;
+                state.pan_target_x = state.pan_x;
+                state.pan_target_y = state.pan_y;
             }
         }
         sapp::EventType::MouseDown => {
@@ -289,12 +299,12 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 state.dragging = false;
             } else if (ZOOM_PANEL_X..ZOOM_PANEL_X + PANEL_W).contains(&x) {
                 if (400.0..430.0).contains(&y) {
-                    state.zoom = (state.zoom + 0.12).min(ZOOM_MAX);
+                    state.zoom_target = (state.zoom_target + 0.12).min(ZOOM_MAX);
                 } else if (735.0..765.0).contains(&y) {
-                    state.zoom = (state.zoom - 0.12).max(ZOOM_MIN);
+                    state.zoom_target = (state.zoom_target - 0.12).max(ZOOM_MIN);
                 } else if (438.0..=730.0).contains(&y) {
                     let normalized = ((y - 730.0) / (438.0 - 730.0)).clamp(0.0, 1.0);
-                    state.zoom = ZOOM_MIN + (ZOOM_MAX - ZOOM_MIN) * normalized;
+                    state.zoom_target = ZOOM_MIN + (ZOOM_MAX - ZOOM_MIN) * normalized;
                 }
                 state.dragging = false;
             } else if state.floor == FLOOR1_INDEX
@@ -329,7 +339,8 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
         }
         sapp::EventType::MouseUp => state.dragging = false,
         sapp::EventType::MouseScroll => {
-            state.zoom = (state.zoom + event.scroll_y * 0.08).clamp(ZOOM_MIN, ZOOM_MAX);
+            state.zoom_target =
+                (state.zoom_target + event.scroll_y * 0.08).clamp(ZOOM_MIN, ZOOM_MAX);
         }
         sapp::EventType::KeyDown => match event.key_code {
             sapp::Keycode::F1 if !event.key_repeat => state.debug_mode = !state.debug_mode,
@@ -342,15 +353,15 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 let floor = (state.floor + 1) % NUM_FLOORS;
                 change_floor(state, floor);
             }
-            sapp::Keycode::W | sapp::Keycode::Up => state.pan_y += 22.0,
-            sapp::Keycode::S | sapp::Keycode::Down => state.pan_y -= 22.0,
-            sapp::Keycode::A | sapp::Keycode::Left => state.pan_x += 22.0,
-            sapp::Keycode::D | sapp::Keycode::Right => state.pan_x -= 22.0,
+            sapp::Keycode::W | sapp::Keycode::Up => state.pan_target_y += 22.0,
+            sapp::Keycode::S | sapp::Keycode::Down => state.pan_target_y -= 22.0,
+            sapp::Keycode::A | sapp::Keycode::Left => state.pan_target_x += 22.0,
+            sapp::Keycode::D | sapp::Keycode::Right => state.pan_target_x -= 22.0,
             sapp::Keycode::Equal | sapp::Keycode::KpAdd => {
-                state.zoom = (state.zoom + 0.12).min(ZOOM_MAX)
+                state.zoom_target = (state.zoom_target + 0.12).min(ZOOM_MAX)
             }
             sapp::Keycode::Minus | sapp::Keycode::KpSubtract => {
-                state.zoom = (state.zoom - 0.12).max(ZOOM_MIN)
+                state.zoom_target = (state.zoom_target - 0.12).max(ZOOM_MIN)
             }
             sapp::Keycode::C | sapp::Keycode::Home => recenter(state),
             _ => {}
@@ -614,11 +625,25 @@ fn outline_circle(cx: f32, cy: f32, radius: f32) {
     sgl::end();
 }
 
+// Reference player marker: a pale-yellow arrow with expanding pulse rings.
+fn draw_player_marker(state: &State, cx: f32, cy: f32) {
+    let period = 1.8f32;
+    for k in 0..2 {
+        let frac = (state.time / period + k as f32 * 0.5).fract();
+        let radius = PLAYER_RADIUS + 4.0 + frac * (PLAYER_RADIUS + 16.0);
+        let alpha = (1.0 - frac) * 0.45;
+        sgl::c4f(C_ACCENT.0, C_ACCENT.1, C_ACCENT.2, alpha);
+        outline_circle(cx, cy, radius);
+    }
+    sgl::c4f(C_ACCENT.0, C_ACCENT.1, C_ACCENT.2, 1.0);
+    triangle(cx, cy, PLAYER_RADIUS, true);
+}
+
 // Debug view: fill each walkable cell (the exact grid A* uses), batched per row run.
 fn draw_nav_grid(nav: &Nav, ox: f32, oy: f32, iw: f32, ih: f32) {
     let cell_w = iw / nav.w as f32;
     let cell_h = ih / nav.h as f32;
-    sgl::c4f(DRACULA_CYAN.0, DRACULA_CYAN.1, DRACULA_CYAN.2, GRID_ALPHA);
+    sgl::c4f(C_HILITE.0, C_HILITE.1, C_HILITE.2, GRID_ALPHA);
     sgl::begin_quads();
     for cy in 0..nav.h {
         let mut run: Option<i32> = None;
@@ -672,6 +697,21 @@ fn draw_floor1(
 
     let (ox, oy, iw, ih) = map_rect(state.zoom, state.pan_x, state.pan_y);
 
+    // Map panel backing and faint coordinate grid (reference chrome).
+    sgl::c4f(MAP_BG.0, MAP_BG.1, MAP_BG.2, 1.0);
+    rect(MAP_X, MAP_Y, MAP_W, MAP_H);
+    sgl::c4f(GRID_RGB.0, GRID_RGB.1, GRID_RGB.2, 1.0);
+    let mut gx = MAP_X;
+    while gx <= MAP_X + MAP_W + 0.1 {
+        line(gx, MAP_Y, gx, MAP_Y + MAP_H);
+        gx += 32.0;
+    }
+    let mut gy = MAP_Y;
+    while gy <= MAP_Y + MAP_H + 0.1 {
+        line(MAP_X, gy, MAP_X + MAP_W, gy);
+        gy += 32.0;
+    }
+
     if state.show_grid {
         draw_nav_grid(&state.nav, ox, oy, iw, ih);
     }
@@ -687,33 +727,32 @@ fn draw_floor1(
     sgl::end();
     sgl::disable_texture();
 
-    // Key item dots: Dracula purple, constant screen size (reference units).
-    sgl::c4f(DRACULA_PURPLE.0, DRACULA_PURPLE.1, DRACULA_PURPLE.2, 1.0);
+    // Key item dots: constant screen size (reference units).
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 1.0);
     for (_name, sx, sy) in KEY_ITEMS {
         let (rx, ry) = src_to_ref(ox, oy, iw, ih, sx, sy);
         filled_circle(rx, ry, ITEM_RADIUS);
     }
 
-    // Computed route, player marker and selected target ring (Dracula green).
+    // Computed route, player marker and selected target ring.
     if !state.path.is_empty() {
         let route: Vec<(f32, f32)> = state
             .path
             .iter()
             .map(|&(sx, sy)| src_to_ref(ox, oy, iw, ih, sx, sy))
             .collect();
-        sgl::c4f(DRACULA_GREEN.0, DRACULA_GREEN.1, DRACULA_GREEN.2, 1.0);
+        sgl::c4f(C_ACCENT.0, C_ACCENT.1, C_ACCENT.2, 1.0);
         thick_polyline(&route, PATH_WIDTH);
     }
     if let Some(i) = state.target {
         let (rx, ry) = src_to_ref(ox, oy, iw, ih, KEY_ITEMS[i].1, KEY_ITEMS[i].2);
-        sgl::c4f(DRACULA_GREEN.0, DRACULA_GREEN.1, DRACULA_GREEN.2, 1.0);
+        sgl::c4f(C_ACCENT.0, C_ACCENT.1, C_ACCENT.2, 1.0);
         outline_circle(rx, ry, ITEM_RADIUS + 4.0);
     }
     let (px, py) = src_to_ref(ox, oy, iw, ih, PLAYER.0, PLAYER.1);
-    sgl::c4f(DRACULA_GREEN.0, DRACULA_GREEN.1, DRACULA_GREEN.2, 1.0);
-    filled_circle(px, py, PLAYER_RADIUS);
+    draw_player_marker(state, px, py);
 
-    // Room names: Dracula orange sokol_debugtext, centred on their position.
+    // Room names: sokol_debugtext, centred on their position.
     for (name, sx, sy) in ROOMS {
         let (rx, ry) = src_to_ref(ox, oy, iw, ih, sx, sy);
         if rx < MAP_X || rx > MAP_X + MAP_W || ry < MAP_Y || ry > MAP_Y + MAP_H {
@@ -723,7 +762,7 @@ fn draw_floor1(
             name,
             rx - name.len() as f32 * 4.0,
             ry - 4.0,
-            DRACULA_ORANGE,
+            C_LABEL,
             false,
             left,
             top,
@@ -735,20 +774,50 @@ fn draw_floor1(
     sgl::scissor_rectf(0.0, 0.0, width, height, true);
 }
 
+// Fade the map window out/in around a floor change.
+fn draw_floor_fade(
+    state: &State,
+    width: f32,
+    height: f32,
+    left: f32,
+    right: f32,
+    top: f32,
+    bottom: f32,
+) {
+    if state.pending_floor.is_none() {
+        return;
+    }
+    let clip_x = ((MAP_X - left) / (right - left) * width).clamp(0.0, width);
+    let clip_y = ((MAP_Y - top) / (bottom - top) * height).clamp(0.0, height);
+    let clip_right = ((MAP_X + MAP_W - left) / (right - left) * width).clamp(0.0, width);
+    let clip_bottom = ((MAP_Y + MAP_H - top) / (bottom - top) * height).clamp(0.0, height);
+    sgl::scissor_rectf(
+        clip_x,
+        clip_y,
+        (clip_right - clip_x).max(0.0),
+        (clip_bottom - clip_y).max(0.0),
+        true,
+    );
+    let fade = 1.0 - (2.0 * state.transition_t - 1.0).abs();
+    sgl::c4f(BACKGROUND.0, BACKGROUND.1, BACKGROUND.2, fade);
+    rect(MAP_X, MAP_Y, MAP_W, MAP_H);
+    sgl::scissor_rectf(0.0, 0.0, width, height, true);
+}
+
 fn draw_floor_selector(state: &State) {
     let top = MAP_Y;
     let center = FLOOR_PANEL_X + PANEL_W * 0.5;
 
-    sgl::c4f(DRACULA_PURPLE.0, DRACULA_PURPLE.1, DRACULA_PURPLE.2, 0.08);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.08);
     rect(FLOOR_PANEL_X, top, PANEL_W, MAP_H);
-    sgl::c4f(DRACULA_PURPLE.0, DRACULA_PURPLE.1, DRACULA_PURPLE.2, 0.75);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.75);
     outline_rect(FLOOR_PANEL_X, top, PANEL_W, MAP_H);
     line(FLOOR_PANEL_X, 463.0, FLOOR_PANEL_X + PANEL_W, 463.0);
     line(FLOOR_PANEL_X, 512.0, FLOOR_PANEL_X + PANEL_W, 512.0);
     line(FLOOR_PANEL_X, 661.0, FLOOR_PANEL_X + PANEL_W, 661.0);
     line(FLOOR_PANEL_X, 710.0, FLOOR_PANEL_X + PANEL_W, 710.0);
 
-    sgl::c4f(DRACULA_PURPLE.0, DRACULA_PURPLE.1, DRACULA_PURPLE.2, 0.92);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.92);
     triangle(center, 489.0, 6.0, true);
     triangle(center, 684.0, 6.0, false);
 
@@ -757,9 +826,9 @@ fn draw_floor_selector(state: &State) {
     for (slot, y) in marker_y.into_iter().enumerate() {
         let selected = slot == selected_slot;
         if selected {
-            sgl::c4f(DRACULA_CYAN.0, DRACULA_CYAN.1, DRACULA_CYAN.2, 1.0);
+            sgl::c4f(C_HILITE.0, C_HILITE.1, C_HILITE.2, 1.0);
         } else {
-            sgl::c4f(DRACULA_PURPLE.0, DRACULA_PURPLE.1, DRACULA_PURPLE.2, 0.8);
+            sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.8);
         }
         diamond(center, y, 9.0, selected);
     }
@@ -771,12 +840,12 @@ fn draw_zoom_selector(state: &State) {
     let line_top = 438.0;
     let line_bottom = 730.0;
 
-    sgl::c4f(DRACULA_PURPLE.0, DRACULA_PURPLE.1, DRACULA_PURPLE.2, 0.08);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.08);
     rect(ZOOM_PANEL_X, top, PANEL_W, MAP_H);
-    sgl::c4f(DRACULA_PURPLE.0, DRACULA_PURPLE.1, DRACULA_PURPLE.2, 0.75);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.75);
     outline_rect(ZOOM_PANEL_X, top, PANEL_W, MAP_H);
 
-    sgl::c4f(DRACULA_PURPLE.0, DRACULA_PURPLE.1, DRACULA_PURPLE.2, 0.86);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.86);
     outline_rect(center - 8.0, 406.0, 16.0, 16.0);
     line(center - 4.0, 414.0, center + 4.0, 414.0);
     line(center, 410.0, center, 418.0);
@@ -785,7 +854,7 @@ fn draw_zoom_selector(state: &State) {
 
     line(center, line_top, center, line_bottom);
     let default_zoom = (line_top + line_bottom) * 0.5;
-    sgl::c4f(DRACULA_PURPLE.0, DRACULA_PURPLE.1, DRACULA_PURPLE.2, 0.72);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.72);
     rect(center - 8.0, default_zoom - 1.0, 16.0, 2.0);
     // The reference UI places the default zoom (1.0) at the halfway mark.
     // Keep the indicator anchored there while preserving the full zoom range.
@@ -796,7 +865,7 @@ fn draw_zoom_selector(state: &State) {
     }
     .clamp(0.0, 1.0);
     let marker_y = line_bottom + (line_top - line_bottom) * normalized;
-    sgl::c4f(DRACULA_CYAN.0, DRACULA_CYAN.1, DRACULA_CYAN.2, 1.0);
+    sgl::c4f(C_HILITE.0, C_HILITE.1, C_HILITE.2, 1.0);
     rect(center - 10.0, marker_y - 2.0, 20.0, 4.0);
 }
 
@@ -804,10 +873,10 @@ fn draw_map_frame() {
     let right = MAP_X + MAP_W;
     let bottom = MAP_Y + MAP_H;
 
-    sgl::c4f(DRACULA_COMMENT.0, DRACULA_COMMENT.1, DRACULA_COMMENT.2, 0.9);
+    sgl::c4f(C_DIM.0, C_DIM.1, C_DIM.2, 0.9);
     outline_rect(MAP_X, MAP_Y, MAP_W, MAP_H);
 
-    sgl::c4f(DRACULA_COMMENT.0, DRACULA_COMMENT.1, DRACULA_COMMENT.2, 0.7);
+    sgl::c4f(C_DIM.0, C_DIM.1, C_DIM.2, 0.7);
     let mut x = MAP_X + 5.0;
     while x < right - 4.0 {
         rect(x, MAP_Y + 3.0, 1.0, 6.0);
@@ -827,12 +896,7 @@ fn draw_map_overlay() {
     let bottom = MAP_Y + MAP_H;
     let hud_right = right - 18.0;
 
-    sgl::c4f(
-        DRACULA_COMMENT.0,
-        DRACULA_COMMENT.1,
-        DRACULA_COMMENT.2,
-        0.62,
-    );
+    sgl::c4f(C_DIM.0, C_DIM.1, C_DIM.2, 0.62);
     let rows = [MAP_Y + 20.0, MAP_Y + 32.0, MAP_Y + 44.0];
     for y in rows {
         line(right - 118.0, y + 4.0, hud_right, y + 4.0);
@@ -843,7 +907,7 @@ fn draw_map_overlay() {
     }
     line(hud_right, MAP_Y + 58.0, hud_right, bottom - 44.0);
 
-    sgl::c4f(DRACULA_PURPLE.0, DRACULA_PURPLE.1, DRACULA_PURPLE.2, 0.9);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.9);
     outline_rect(right - 108.0, bottom - 43.0, 88.0, 22.0);
 
     // Two short registration lines continue below the lower-right corner.
@@ -891,48 +955,18 @@ fn draw_map_labels(left: f32, right: f32, top: f32, bottom: f32) {
         )
     };
 
-    label(
-        "BATTERY",
-        MAP_X + MAP_W - 154.0,
-        MAP_Y + 20.0,
-        DRACULA_COMMENT,
-        false,
-    );
-    label(
-        "MEMORY",
-        MAP_X + MAP_W - 154.0,
-        MAP_Y + 32.0,
-        DRACULA_COMMENT,
-        false,
-    );
-    label(
-        "DISC",
-        MAP_X + MAP_W - 154.0,
-        MAP_Y + 44.0,
-        DRACULA_COMMENT,
-        false,
-    );
+    label("BATTERY", MAP_X + MAP_W - 154.0, MAP_Y + 20.0, C_DIM, false);
+    label("MEMORY", MAP_X + MAP_W - 154.0, MAP_Y + 32.0, C_DIM, false);
+    label("DISC", MAP_X + MAP_W - 154.0, MAP_Y + 44.0, C_DIM, false);
     label(
         "AREA MAP",
         MAP_X + MAP_W - 103.0,
         MAP_Y + MAP_H - 38.0,
-        DRACULA_CYAN,
+        C_HILITE,
         false,
     );
-    label(
-        "In",
-        ZOOM_PANEL_X + 13.0,
-        MAP_Y + 140.0,
-        DRACULA_GREEN,
-        false,
-    );
-    label(
-        "Out",
-        ZOOM_PANEL_X + 8.0,
-        MAP_Y + 570.0,
-        DRACULA_GREEN,
-        false,
-    );
+    label("In", ZOOM_PANEL_X + 13.0, MAP_Y + 140.0, C_LABEL, false);
+    label("Out", ZOOM_PANEL_X + 8.0, MAP_Y + 570.0, C_LABEL, false);
     // The nameplate is framed by the outer left/right lines below the map.
     let name_left = MAP_X;
     let name_left_inner = MAP_X + 14.0;
@@ -941,9 +975,9 @@ fn draw_map_labels(left: f32, right: f32, top: f32, bottom: f32) {
     let large_glyph = 16.0;
     let name = "Care Center";
     let name_x = (name_left + name_right) * 0.5 - name.len() as f32 * large_glyph * 0.5;
-    label(name, name_x, MAP_Y + MAP_H + 23.0, DRACULA_PINK, true);
+    label(name, name_x, MAP_Y + MAP_H + 23.0, C_TITLE, true);
 
-    sgl::c4f(DRACULA_PURPLE.0, DRACULA_PURPLE.1, DRACULA_PURPLE.2, 0.9);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.9);
     line(
         name_left,
         MAP_Y + MAP_H + 4.0,
@@ -971,7 +1005,7 @@ fn draw_debug_overlay(state: &State, top: f32, visible_width: f32, visible_heigh
     let glyph_pixels = 16.0;
     sdtx::canvas(visible_width * 0.5, visible_height * 0.5);
     sdtx::font(DEBUG_FONT);
-    sdtx::color3f(DRACULA_GREEN.0, DRACULA_GREEN.1, DRACULA_GREEN.2);
+    sdtx::color3f(C_ACCENT.0, C_ACCENT.1, C_ACCENT.2);
     sdtx::pos(
         (visible_width / glyph_pixels - 12.0).max(0.0),
         (-top) / glyph_pixels + 1.0,
@@ -1003,6 +1037,21 @@ fn reference_projection(width: f32, height: f32) -> (f32, f32, f32, f32) {
 extern "C" fn frame(user_data: *mut ffi::c_void) {
     let state = unsafe { &mut *(user_data as *mut State) };
     let delta = (sapp::frame_duration() as f32).clamp(0.0, 0.1);
+    state.time += delta;
+    let ease = (delta * 14.0).min(1.0);
+    state.zoom += (state.zoom_target - state.zoom) * ease;
+    state.pan_x += (state.pan_target_x - state.pan_x) * ease;
+    state.pan_y += (state.pan_target_y - state.pan_y) * ease;
+    if let Some(target) = state.pending_floor {
+        state.transition_t = (state.transition_t + delta / 0.45).min(1.0);
+        if state.transition_t >= 0.5 && state.floor != target {
+            state.floor = target;
+            notify_floor(target);
+        }
+        if state.transition_t >= 1.0 {
+            state.pending_floor = None;
+        }
+    }
     state.fps_elapsed += delta;
     state.fps_frames += 1;
     if state.fps_elapsed >= 0.25 {
@@ -1026,6 +1075,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     draw_floor_selector(state);
     draw_zoom_selector(state);
     draw_floor1(state, width, height, left, right, top, bottom);
+    draw_floor_fade(state, width, height, left, right, top, bottom);
     draw_map_frame();
     draw_map_overlay();
     draw_map_labels(left, right, top, bottom);
@@ -1059,6 +1109,12 @@ fn main() {
         target: None,
         path: Vec::new(),
         show_grid: false,
+        time: 0.0,
+        zoom_target: 1.0,
+        pan_target_x: 0.0,
+        pan_target_y: 0.0,
+        pending_floor: None,
+        transition_t: 0.0,
         floor: 2,
         zoom: 1.0,
         pan_x: 0.0,
