@@ -1,6 +1,6 @@
 @font-face {
   font-family: ShellMono;
-  src: url('/fonts/roboto-regular.ttf');
+  src: url("/fonts/roboto-regular.ttf");
 }
 
 * {
@@ -27,13 +27,13 @@ body {
   align-items: center;
   gap: 12px;
   font-size: 12px;
-  letter-spacing: .13em;
+  letter-spacing: 0.13em;
 }
 
 .map-shell-header .brand {
   color: #18232c;
   font: bold 22px Georgia;
-  letter-spacing: -.08em;
+  letter-spacing: -0.08em;
 }
 
 .map-shell-header strong {
@@ -84,14 +84,14 @@ body {
   margin: 0 0 22px;
   color: #68717a;
   font-size: 11px;
-  letter-spacing: .16em;
+  letter-spacing: 0.16em;
 }
 
 .panel-row {
   display: flex;
   justify-content: space-between;
   margin: 0 0 16px;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
 }
 
 .panel-row span {

@@ -48,6 +48,9 @@ let removalEnd = arrayEnd;
 while (removalEnd < source.length && /\s/.test(source[removalEnd])) removalEnd += 1;
 if (source[removalEnd] === ",") removalEnd += 1;
 
-const updated = (source.slice(0, removalStart) + source.slice(removalEnd)).replace(/,(\s*})\s*$/, "$1\n");
+const updated = (source.slice(0, removalStart) + source.slice(removalEnd)).replace(
+  /,(\s*})\s*$/,
+  "$1\n",
+);
 await writeFile(configPath, updated);
 console.log("Removed d1_databases from wrangler.jsonc for Void-managed local D1 bindings.");

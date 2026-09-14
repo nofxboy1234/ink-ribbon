@@ -2,5 +2,62 @@ import type { Props } from "./index.server";
 import "./styles.css";
 
 export default function HomePage(_props: Props) {
-  return <main className="map-app"><header className="map-shell-header"><span className="brand">evo</span><span>living instrument / v6</span><strong>124</strong><span>POPULATION</span><strong>39</strong><span>GENERATION</span><strong>74:58</strong><span>TIME</span><strong>81</strong><span>LINEAGES</span><span className="terrarium">terrarium</span></header><div className="map-layout"><section className="map-stage"><canvas suppressHydrationWarning id="map-canvas" className="map-canvas" /><script dangerouslySetInnerHTML={{ __html: "var Module = { canvas: document.getElementById('map-canvas'), locateFile: function (path) { return '/' + path; } };" }} /><script src="/map.js" /></section><aside className="details-panel"><h2>MAP STATUS</h2><div className="panel-row"><span>LOCATION</span><b>CARE CENTER</b></div><div className="panel-row"><span>FLOOR</span><b>FLOOR 1</b></div><div className="panel-rule" /><h2>LEGEND</h2><p><i className="legend-player" /> Current location</p><p><i className="legend-route" /> Route / connection</p><p><i className="legend-floor" /> Floor selector</p></aside></div><footer className="app-footer"><span>running · map navigation</span><button>lineage colors</button><button>save</button><button>load</button><button>CSV</button></footer></main>;
+  return (
+    <main className="map-app">
+      <header className="map-shell-header">
+        <span className="brand">evo</span>
+        <span>living instrument / v6</span>
+        <strong>124</strong>
+        <span>POPULATION</span>
+        <strong>39</strong>
+        <span>GENERATION</span>
+        <strong>74:58</strong>
+        <span>TIME</span>
+        <strong>81</strong>
+        <span>LINEAGES</span>
+        <span className="terrarium">terrarium</span>
+      </header>
+      <div className="map-layout">
+        <section className="map-stage">
+          <canvas suppressHydrationWarning id="map-canvas" className="map-canvas" />
+          <script
+            dangerouslySetInnerHTML={{
+              __html:
+                "var Module = { canvas: document.getElementById('map-canvas'), locateFile: function (path) { return '/' + path; } };",
+            }}
+          />
+          <script src="/map.js" />
+        </section>
+        <aside className="details-panel">
+          <h2>MAP STATUS</h2>
+          <div className="panel-row">
+            <span>LOCATION</span>
+            <b>CARE CENTER</b>
+          </div>
+          <div className="panel-row">
+            <span>FLOOR</span>
+            <b>FLOOR 1</b>
+          </div>
+          <div className="panel-rule" />
+          <h2>LEGEND</h2>
+          <p>
+            <i className="legend-player" /> Current location
+          </p>
+          <p>
+            <i className="legend-route" /> Route / connection
+          </p>
+          <p>
+            <i className="legend-floor" /> Floor selector
+          </p>
+        </aside>
+      </div>
+      <footer className="app-footer">
+        <span>running · map navigation</span>
+        <button>lineage colors</button>
+        <button>save</button>
+        <button>load</button>
+        <button>CSV</button>
+      </footer>
+    </main>
+  );
 }

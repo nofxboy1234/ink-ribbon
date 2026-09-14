@@ -23,8 +23,8 @@ const DRACULA_GREEN: (f32, f32, f32) = (0.314, 0.980, 0.482); // #50fa7b
 const DRACULA_PURPLE: (f32, f32, f32) = (0.741, 0.576, 0.976); // #bd93f9
 const DRACULA_PINK: (f32, f32, f32) = (1.0, 0.475, 0.776); // #ff79c6
 
-// Oxocarbon main background (base16 dark base00): https://github.com/nyoom-engineering/base16-oxocarbon
-const BACKGROUND: (f32, f32, f32) = (0.086, 0.086, 0.086); // #161616
+// Dracula background: https://draculatheme.com
+const BACKGROUND: (f32, f32, f32) = (0.157, 0.165, 0.212); // #282a36
 
 struct State {
     pass_action: sg::PassAction,
