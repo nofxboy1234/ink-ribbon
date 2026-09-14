@@ -61,14 +61,14 @@ const ROOMS: [(&str, f32, f32); 17] = [
     ("Restroom", 2830.0, 4078.0),
     ("Isolation Ward", 5830.0, 4100.0),
     ("Blood Lab", 5256.0, 4196.0),
-    ("Security Manager's", 6110.0, 4375.0),
+    ("Security Manager's", 6030.0, 4375.0),
     ("Treatment Room", 4754.0, 4148.0),
     ("Kitchen", 3011.0, 4614.0),
     ("Parlor", 3390.0, 4700.0),
     ("Central Hall", 4035.0, 4738.0),
-    ("East Wing Lobby", 4640.0, 4815.0),
-    ("Waiting Room", 5000.0, 4825.0),
-    ("Guard Office", 3840.0, 5008.0),
+    ("East Wing Lobby", 4520.0, 4862.0),
+    ("Waiting Room", 5080.0, 4862.0),
+    ("Guard Office", 3840.0, 5060.0),
     ("Custodian's Office", 2905.0, 5128.0),
     ("Medication Room", 3504.0, 5145.0),
     ("Garage", 2404.0, 5740.0),
@@ -858,8 +858,8 @@ fn draw_floor1(
         if rx < MAP_X || rx > MAP_X + MAP_W || ry < MAP_Y || ry > MAP_Y + MAP_H {
             continue;
         }
-        let width = font.text_width(name, 15.0);
-        draw_ui_text(font, name, rx - width * 0.5, ry - 7.5, C_LABEL, false);
+        let width = font.text_width(name, 19.5);
+        draw_ui_text(font, name, rx - width * 0.5, ry - 9.75, C_LABEL, false);
     }
 
     sgl::scissor_rectf(0.0, 0.0, width, height, true);
@@ -963,21 +963,29 @@ fn draw_zoom_selector(state: &State) {
 fn draw_map_frame() {
     let right = MAP_X + MAP_W;
     let bottom = MAP_Y + MAP_H;
+    // Top/bottom lines span the full widget width, matching the vertical line
+    // to the left of the floor diamonds (the floor panel border).
+    let wx0 = FLOOR_PANEL_X;
+    let wx1 = ZOOM_PANEL_X + PANEL_W;
 
-    sgl::c4f(C_DIM.0, C_DIM.1, C_DIM.2, 0.9);
-    outline_rect(MAP_X, MAP_Y, MAP_W, MAP_H);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.75);
+    line(wx0, MAP_Y, wx1, MAP_Y);
+    line(wx0, bottom, wx1, bottom);
+    line(MAP_X, MAP_Y, MAP_X, bottom);
+    line(right, MAP_Y, right, bottom);
 
-    sgl::c4f(C_DIM.0, C_DIM.1, C_DIM.2, 0.7);
-    let mut x = MAP_X + 5.0;
-    while x < right - 4.0 {
-        rect(x, MAP_Y + 3.0, 1.0, 6.0);
-        rect(x, bottom - 9.0, 1.0, 6.0);
+    // Gradation ticks at the map edge, pointing inward (no outside margin).
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.5);
+    let mut x = MAP_X + 4.0;
+    while x < right - 2.0 {
+        rect(x, MAP_Y, 1.0, 6.0);
+        rect(x, bottom - 6.0, 1.0, 6.0);
         x += 8.0;
     }
-    let mut y = MAP_Y + 5.0;
-    while y < bottom - 4.0 {
-        rect(MAP_X + 3.0, y, 6.0, 1.0);
-        rect(right - 9.0, y, 6.0, 1.0);
+    let mut y = MAP_Y + 4.0;
+    while y < bottom - 2.0 {
+        rect(MAP_X, y, 6.0, 1.0);
+        rect(right - 6.0, y, 6.0, 1.0);
         y += 8.0;
     }
 }
@@ -1007,7 +1015,7 @@ fn draw_map_overlay() {
 }
 
 fn draw_ui_text(font: &Font, text: &str, x: f32, y: f32, color: (f32, f32, f32), large: bool) {
-    let size = if large { 22.0 } else { 15.0 };
+    let size = if large { 28.6 } else { 19.5 };
     draw_text(font, text, x, y, size, color);
 }
 
@@ -1034,7 +1042,7 @@ fn draw_map_labels(font: &Font) {
     let name_right = MAP_X + 242.0;
     // Center the label between those lines.
     let name = "Care Center";
-    let name_x = (name_left + name_right) * 0.5 - font.text_width(name, 22.0) * 0.5;
+    let name_x = (name_left + name_right) * 0.5 - font.text_width(name, 28.6) * 0.5;
     label(name, name_x, MAP_Y + MAP_H + 23.0, C_TITLE, true);
 
     sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.9);
@@ -1064,7 +1072,7 @@ fn draw_debug_overlay(state: &State) {
     }
     let font = state.font.as_ref().unwrap();
     let text = format!("FPS: {:5.1}", state.fps);
-    let width = font.text_width(&text, 15.0);
+    let width = font.text_width(&text, 19.5);
     draw_ui_text(
         font,
         &text,
