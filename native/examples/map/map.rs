@@ -52,6 +52,9 @@ const KEY_ITEMS: [(&str, f32, f32); 6] = [
 ];
 const ITEM_RADIUS: f32 = 7.0;
 const CIRCLE_SEGMENTS: usize = 24;
+const CURSOR_RADIUS: f32 = 36.0;
+const CURSOR_TICK: f32 = 20.0;
+const CURSOR_SEGMENTS: usize = 48;
 
 // Floor 1 room name labels (composite source px), drawn with sokol_debugtext.
 const ROOMS: [(&str, f32, f32); 17] = [
@@ -251,6 +254,12 @@ fn draw_text(font: &Font, text: &str, x: f32, y: f32, size: f32, color: (f32, f3
     sgl::disable_texture();
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum CursorMode {
+    Free,
+    Centered,
+}
+
 struct State {
     pass_action: sg::PassAction,
     pipeline: sgl::Pipeline,
@@ -267,6 +276,12 @@ struct State {
     pan_target_y: f32,
     pending_floor: Option<usize>,
     transition_t: f32,
+    cursor: (f32, f32),
+    mouse: (f32, f32),
+    mouse_in_map: bool,
+    cursor_mode: CursorMode,
+    os_cursor_hidden: bool,
+    touch_last: (f32, f32),
     floor: usize,
     zoom: f32,
     pan_x: f32,
@@ -355,6 +370,8 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
         },
         ..Default::default()
     };
+    set_cursor_hidden(true);
+    state.os_cursor_hidden = true;
 }
 
 fn change_floor(state: &mut State, floor: usize) {
@@ -380,78 +397,179 @@ fn recenter(state: &mut State) {
     state.pan_target_y = 0.0;
 }
 
+fn screen_to_ref(mx: f32, my: f32) -> (f32, f32) {
+    let width = sapp::widthf();
+    let height = sapp::heightf();
+    let (left, right, top, bottom) = reference_projection(width, height);
+    (
+        left + mx / width.max(1.0) * (right - left),
+        top + my / height.max(1.0) * (bottom - top),
+    )
+}
+
+fn cursor_center() -> (f32, f32) {
+    (MAP_X + MAP_W * 0.5, MAP_Y + MAP_H * 0.5)
+}
+
+fn active_cursor(state: &State) -> (f32, f32) {
+    match state.cursor_mode {
+        CursorMode::Centered => cursor_center(),
+        CursorMode::Free => state.cursor,
+    }
+}
+
+fn clamp_to_map(p: (f32, f32)) -> (f32, f32) {
+    (
+        p.0.clamp(MAP_X, MAP_X + MAP_W),
+        p.1.clamp(MAP_Y, MAP_Y + MAP_H),
+    )
+}
+
+fn set_cursor_hidden(hidden: bool) {
+    if hidden {
+        let pixels = [0u32; 1];
+        let desc = sapp::ImageDesc {
+            width: 1,
+            height: 1,
+            pixels: sapp::slice_as_range(&pixels),
+            ..Default::default()
+        };
+        let cursor = sapp::bind_mouse_cursor_image(sapp::MouseCursor::Custom0, &desc);
+        sapp::set_mouse_cursor(cursor);
+    } else {
+        sapp::set_mouse_cursor(sapp::MouseCursor::Default);
+    }
+}
+
+fn drag_by(state: &mut State, dx: f32, dy: f32) {
+    state.pan_x += dx;
+    state.pan_y += dy;
+    state.pan_target_x = state.pan_x;
+    state.pan_target_y = state.pan_y;
+}
+
+fn pan_to_center_player(state: &mut State) {
+    let iw = MAP_W * state.zoom;
+    let ih = iw * FLOOR1_H / FLOOR1_W;
+    let (cx, cy) = cursor_center();
+    state.pan_target_x = cx - (PLAYER.0 - FLOOR1_X) * iw / FLOOR1_W - MAP_X - (MAP_W - iw) * 0.5;
+    state.pan_target_y = cy - (PLAYER.1 - FLOOR1_Y) * ih / FLOOR1_H - MAP_Y - (MAP_H - ih) * 0.5;
+}
+
+fn recenter_on_player(state: &mut State) {
+    pan_to_center_player(state);
+}
+fn press_at(state: &mut State, x: f32, y: f32) {
+    if (FLOOR_PANEL_X..MAP_X).contains(&x) {
+        let marker_y = [543.0, 587.0, 631.0];
+        if let Some((slot, _)) = marker_y
+            .iter()
+            .enumerate()
+            .min_by(|(_, a), (_, b)| ((*a - y).abs()).total_cmp(&(*b - y).abs()))
+        {
+            if (y - marker_y[slot]).abs() < 24.0 {
+                change_floor(state, slot);
+            }
+        }
+        state.dragging = false;
+    } else if (ZOOM_PANEL_X..ZOOM_PANEL_X + PANEL_W).contains(&x) {
+        if (400.0..430.0).contains(&y) {
+            state.zoom_target = (state.zoom_target + 0.12).min(ZOOM_MAX);
+        } else if (735.0..765.0).contains(&y) {
+            state.zoom_target = (state.zoom_target - 0.12).max(ZOOM_MIN);
+        } else if (438.0..=730.0).contains(&y) {
+            let normalized = ((y - 730.0) / (438.0 - 730.0)).clamp(0.0, 1.0);
+            state.zoom_target = ZOOM_MIN + (ZOOM_MAX - ZOOM_MIN) * normalized;
+        }
+        state.dragging = false;
+    } else if state.floor == FLOOR1_INDEX
+        && (MAP_X..MAP_X + MAP_W).contains(&x)
+        && (MAP_Y..MAP_Y + MAP_H).contains(&y)
+    {
+        let (hx, hy) = if state.cursor_mode == CursorMode::Centered {
+            cursor_center()
+        } else {
+            (x, y)
+        };
+        let (ox, oy, iw, ih) = map_rect(state.zoom, state.pan_x, state.pan_y);
+        let sx = FLOOR1_X + (hx - ox) * FLOOR1_W / iw;
+        let sy = FLOOR1_Y + (hy - oy) * FLOOR1_H / ih;
+        let hit = KEY_ITEMS.iter().position(|&(_, kx, ky)| {
+            let (dx, dy) = (sx - kx, sy - ky);
+            dx * dx + dy * dy <= CLICK_RADIUS * CLICK_RADIUS
+        });
+        match hit {
+            Some(i) if state.target == Some(i) => {
+                state.target = None;
+                state.path.clear();
+                state.dragging = false;
+            }
+            Some(i) => {
+                state.target = Some(i);
+                let (tx, ty) = (KEY_ITEMS[i].1, KEY_ITEMS[i].2);
+                state.path = compute_path(&state.nav, PLAYER, (tx, ty));
+                state.dragging = false;
+            }
+            None => state.dragging = true,
+        }
+    } else {
+        state.dragging = true;
+    }
+}
+
 extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
     let state = unsafe { &mut *(user_data as *mut State) };
     let event = unsafe { &*event };
     match event._type {
         sapp::EventType::MouseMove => {
             if state.dragging {
-                state.pan_x += event.mouse_dx;
-                state.pan_y += event.mouse_dy;
-                state.pan_target_x = state.pan_x;
-                state.pan_target_y = state.pan_y;
+                drag_by(state, event.mouse_dx, event.mouse_dy);
+            }
+            let (mx, my) = screen_to_ref(event.mouse_x, event.mouse_y);
+            state.mouse = (mx, my);
+            state.mouse_in_map =
+                (MAP_X..MAP_X + MAP_W).contains(&mx) && (MAP_Y..MAP_Y + MAP_H).contains(&my);
+            if state.cursor_mode == CursorMode::Free && state.mouse_in_map {
+                state.cursor = clamp_to_map(state.mouse);
             }
         }
+        sapp::EventType::MouseLeave => state.mouse_in_map = false,
         sapp::EventType::MouseDown => {
-            let width = sapp::widthf();
-            let height = sapp::heightf();
-            let (left, right, top, bottom) = reference_projection(width, height);
-            let x = left + event.mouse_x / width.max(1.0) * (right - left);
-            let y = top + event.mouse_y / height.max(1.0) * (bottom - top);
-
-            if (FLOOR_PANEL_X..MAP_X).contains(&x) {
-                let marker_y = [543.0, 587.0, 631.0];
-                if let Some((slot, _)) = marker_y
-                    .iter()
-                    .enumerate()
-                    .min_by(|(_, a), (_, b)| ((*a - y).abs()).total_cmp(&(*b - y).abs()))
-                {
-                    if (y - marker_y[slot]).abs() < 24.0 {
-                        change_floor(state, slot);
-                    }
-                }
-                state.dragging = false;
-            } else if (ZOOM_PANEL_X..ZOOM_PANEL_X + PANEL_W).contains(&x) {
-                if (400.0..430.0).contains(&y) {
-                    state.zoom_target = (state.zoom_target + 0.12).min(ZOOM_MAX);
-                } else if (735.0..765.0).contains(&y) {
-                    state.zoom_target = (state.zoom_target - 0.12).max(ZOOM_MIN);
-                } else if (438.0..=730.0).contains(&y) {
-                    let normalized = ((y - 730.0) / (438.0 - 730.0)).clamp(0.0, 1.0);
-                    state.zoom_target = ZOOM_MIN + (ZOOM_MAX - ZOOM_MIN) * normalized;
-                }
-                state.dragging = false;
-            } else if state.floor == FLOOR1_INDEX
-                && (MAP_X..MAP_X + MAP_W).contains(&x)
-                && (MAP_Y..MAP_Y + MAP_H).contains(&y)
-            {
-                // Reference -> source px, then hit-test the key item dots.
-                let (ox, oy, iw, ih) = map_rect(state.zoom, state.pan_x, state.pan_y);
-                let sx = FLOOR1_X + (x - ox) * FLOOR1_W / iw;
-                let sy = FLOOR1_Y + (y - oy) * FLOOR1_H / ih;
-                let hit = KEY_ITEMS.iter().position(|&(_, kx, ky)| {
-                    let (dx, dy) = (sx - kx, sy - ky);
-                    dx * dx + dy * dy <= CLICK_RADIUS * CLICK_RADIUS
-                });
-                match hit {
-                    Some(i) if state.target == Some(i) => {
-                        state.target = None;
-                        state.path.clear();
-                        state.dragging = false;
-                    }
-                    Some(i) => {
-                        state.target = Some(i);
-                        let (tx, ty) = (KEY_ITEMS[i].1, KEY_ITEMS[i].2);
-                        state.path = compute_path(&state.nav, PLAYER, (tx, ty));
-                        state.dragging = false;
-                    }
-                    None => state.dragging = true,
-                }
-            } else {
-                state.dragging = true;
+            let (x, y) = screen_to_ref(event.mouse_x, event.mouse_y);
+            if state.cursor_mode == CursorMode::Free {
+                state.cursor = clamp_to_map((x, y));
             }
+            press_at(state, x, y);
         }
         sapp::EventType::MouseUp => state.dragging = false,
+        sapp::EventType::TouchesBegan => {
+            if event.num_touches > 0 {
+                let t = event.touches[0];
+                state.touch_last = (t.pos_x, t.pos_y);
+                let (x, y) = screen_to_ref(t.pos_x, t.pos_y);
+                state.mouse = (x, y);
+                state.mouse_in_map =
+                    (MAP_X..MAP_X + MAP_W).contains(&x) && (MAP_Y..MAP_Y + MAP_H).contains(&y);
+                if state.cursor_mode == CursorMode::Free {
+                    state.cursor = clamp_to_map((x, y));
+                }
+                press_at(state, x, y);
+            }
+        }
+        sapp::EventType::TouchesMoved => {
+            if event.num_touches > 0 {
+                let t = event.touches[0];
+                if state.dragging {
+                    let dx = t.pos_x - state.touch_last.0;
+                    let dy = t.pos_y - state.touch_last.1;
+                    drag_by(state, dx, dy);
+                }
+                state.touch_last = (t.pos_x, t.pos_y);
+            }
+        }
+        sapp::EventType::TouchesEnded | sapp::EventType::TouchesCancelled => {
+            state.dragging = false;
+        }
         sapp::EventType::MouseScroll => {
             state.zoom_target =
                 (state.zoom_target + event.scroll_y * 0.08).clamp(ZOOM_MIN, ZOOM_MAX);
@@ -459,6 +577,18 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
         sapp::EventType::KeyDown => match event.key_code {
             sapp::Keycode::F1 if !event.key_repeat => state.debug_mode = !state.debug_mode,
             sapp::Keycode::G if !event.key_repeat => state.show_grid = !state.show_grid,
+            sapp::Keycode::M if !event.key_repeat => {
+                state.cursor_mode = match state.cursor_mode {
+                    CursorMode::Free => CursorMode::Centered,
+                    CursorMode::Centered => CursorMode::Free,
+                };
+                let hide = state.cursor_mode == CursorMode::Free;
+                if hide != state.os_cursor_hidden {
+                    set_cursor_hidden(hide);
+                    state.os_cursor_hidden = hide;
+                }
+            }
+            sapp::Keycode::F if !event.key_repeat => recenter_on_player(state),
             sapp::Keycode::Q => {
                 let floor = (state.floor + NUM_FLOORS - 1) % NUM_FLOORS;
                 change_floor(state, floor);
@@ -730,13 +860,54 @@ fn thick_polyline(points: &[(f32, f32)], width: f32) {
     }
 }
 
-fn outline_circle(cx: f32, cy: f32, radius: f32) {
+fn outline_circle_seg(cx: f32, cy: f32, radius: f32, segments: usize) {
     sgl::begin_line_strip();
-    for i in 0..=CIRCLE_SEGMENTS {
-        let a = i as f32 / CIRCLE_SEGMENTS as f32 * std::f32::consts::TAU;
+    for i in 0..=segments {
+        let a = i as f32 / segments as f32 * std::f32::consts::TAU;
         sgl::v2f(cx + radius * a.cos(), cy + radius * a.sin());
     }
     sgl::end();
+}
+
+fn outline_circle(cx: f32, cy: f32, radius: f32) {
+    outline_circle_seg(cx, cy, radius, CIRCLE_SEGMENTS);
+}
+
+// Reference map cursor: a circle with four short ticks at N/E/S/W.
+fn draw_cursor(
+    state: &State,
+    width: f32,
+    height: f32,
+    left: f32,
+    right: f32,
+    top: f32,
+    bottom: f32,
+) {
+    if state.cursor_mode == CursorMode::Free && !state.mouse_in_map {
+        return;
+    }
+    let (cx, cy) = active_cursor(state);
+    if cx < MAP_X || cx > MAP_X + MAP_W || cy < MAP_Y || cy > MAP_Y + MAP_H {
+        return;
+    }
+    let clip_x = ((MAP_X - left) / (right - left) * width).clamp(0.0, width);
+    let clip_y = ((MAP_Y - top) / (bottom - top) * height).clamp(0.0, height);
+    let clip_right = ((MAP_X + MAP_W - left) / (right - left) * width).clamp(0.0, width);
+    let clip_bottom = ((MAP_Y + MAP_H - top) / (bottom - top) * height).clamp(0.0, height);
+    sgl::scissor_rectf(
+        clip_x,
+        clip_y,
+        (clip_right - clip_x).max(0.0),
+        (clip_bottom - clip_y).max(0.0),
+        true,
+    );
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.9);
+    outline_circle_seg(cx, cy, CURSOR_RADIUS, CURSOR_SEGMENTS);
+    line(cx, cy - CURSOR_RADIUS, cx, cy - CURSOR_RADIUS - CURSOR_TICK);
+    line(cx, cy + CURSOR_RADIUS, cx, cy + CURSOR_RADIUS + CURSOR_TICK);
+    line(cx - CURSOR_RADIUS, cy, cx - CURSOR_RADIUS - CURSOR_TICK, cy);
+    line(cx + CURSOR_RADIUS, cy, cx + CURSOR_RADIUS + CURSOR_TICK, cy);
+    sgl::scissor_rectf(0.0, 0.0, width, height, true);
 }
 
 // Reference player marker: a pale-yellow arrow with expanding pulse rings.
@@ -1140,6 +1311,12 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
         state.pan_target_x = state.pan_target_x.clamp(-max_x, max_x);
         state.pan_target_y = state.pan_target_y.clamp(-max_y, max_y);
     }
+
+    // Free cursor: follow the mouse. F recentering only moves the view, never
+    // the cursor, so the drawn cursor stays in sync with the physical pointer.
+    if state.cursor_mode == CursorMode::Free && state.mouse_in_map {
+        state.cursor = clamp_to_map(state.mouse);
+    }
     if let Some(target) = state.pending_floor {
         state.transition_t = (state.transition_t + delta / 0.45).min(1.0);
         if state.transition_t >= 0.5 && state.floor != target {
@@ -1178,6 +1355,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     draw_map_frame();
     draw_map_overlay();
     draw_map_labels(state.font.as_ref().unwrap());
+    draw_cursor(state, width, height, left, right, top, bottom);
     draw_debug_overlay(state);
 
     sg::begin_pass(&sg::Pass {
@@ -1191,6 +1369,10 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
 }
 
 extern "C" fn cleanup(user_data: *mut ffi::c_void) {
+    // Unbind the custom cursor while the X11 display is still alive. Sokol's
+    // Linux shutdown closes the display before discarding bound cursor images
+    // (sokol_app.h _sapp_discard_state), which would segfault in XFreeCursor.
+    sapp::unbind_mouse_cursor_image(sapp::MouseCursor::Custom0);
     sgl::shutdown();
     sg::shutdown();
     let _ = unsafe { Box::from_raw(user_data as *mut State) };
@@ -1213,6 +1395,12 @@ fn main() {
         pan_target_y: 0.0,
         pending_floor: None,
         transition_t: 0.0,
+        cursor: (MAP_X + MAP_W * 0.5, MAP_Y + MAP_H * 0.5),
+        mouse: (MAP_X + MAP_W * 0.5, MAP_Y + MAP_H * 0.5),
+        mouse_in_map: false,
+        cursor_mode: CursorMode::Free,
+        os_cursor_hidden: false,
+        touch_last: (0.0, 0.0),
         floor: 2,
         zoom: 1.0,
         pan_x: 0.0,
