@@ -47,7 +47,7 @@ impl Layout {
             let ref_w = 1080.0;
             let ref_h = 1920.0;
             let zoom_h = 46.0;
-            let floor_h = 46.0;
+            let floor_h = 78.0;
             let name_h = 52.0;
             let map_y = zoom_h;
             let map_h = ref_h - zoom_h - floor_h - name_h;
@@ -70,12 +70,12 @@ impl Layout {
                 zoom_h,
                 panel_w: 46.0,
                 floor_markers: [
-                    (180.0, floor_y + 23.0),
-                    (540.0, floor_y + 23.0),
-                    (900.0, floor_y + 23.0),
+                    (180.0, floor_y + 39.0),
+                    (540.0, floor_y + 39.0),
+                    (900.0, floor_y + 39.0),
                 ],
-                floor_up: (24.0, floor_y + 23.0),
-                floor_down: (ref_w - 24.0, floor_y + 23.0),
+                floor_up: (ref_w * 0.5, floor_y + 15.0),
+                floor_down: (ref_w * 0.5, floor_y + 63.0),
                 zoom_a: (60.0, 23.0),
                 zoom_b: (ref_w - 60.0, 23.0),
                 zoom_minus: (12.0, 15.0),
@@ -117,8 +117,8 @@ impl Layout {
                     (panel_w * 0.5, mid_y),
                     (panel_w * 0.5, mid_y + 44.0),
                 ],
-                floor_up: (panel_w * 0.5, 24.0),
-                floor_down: (panel_w * 0.5, map_h - 24.0),
+                floor_up: (panel_w * 0.5, mid_y - 98.0),
+                floor_down: (panel_w * 0.5, mid_y + 98.0),
                 zoom_a: (ref_w - panel_w * 0.5, 24.0),
                 zoom_b: (ref_w - panel_w * 0.5, map_h - 24.0),
                 zoom_minus: (ref_w - panel_w * 0.5 - 8.0, map_h - 32.0),
@@ -395,8 +395,18 @@ enum CursorMode {
     Centered,
 }
 
+// Zoom-to-cursor anchor: keeps a map point under the circle cursor and pulls it
+// to the map centre as the zoom completes.
+#[derive(Clone, Copy)]
+struct ZoomAnchor {
+    src: (f32, f32),
+    cursor_ref: (f32, f32),
+    end: f32,
+}
+
 struct State {
     layout: Layout,
+    zoom_anchor: Option<ZoomAnchor>,
     pass_action: sg::PassAction,
     pipeline: sgl::Pipeline,
     overlay_view: sg::View,
@@ -541,6 +551,7 @@ fn floor_slot(floor: usize) -> usize {
 }
 
 fn recenter(state: &mut State) {
+    state.zoom_anchor = None;
     state.zoom_target = DEFAULT_ZOOM;
     state.pan_target_x = 0.0;
     state.pan_target_y = 0.0;
@@ -596,6 +607,7 @@ fn set_cursor_hidden(hidden: bool) {
 }
 
 fn drag_by(state: &mut State, dx: f32, dy: f32) {
+    state.zoom_anchor = None;
     state.pan_x += dx;
     state.pan_y += dy;
     state.pan_target_x = state.pan_x;
@@ -625,6 +637,7 @@ fn recenter_on_player(state: &mut State) {
     if state.floor != FLOOR1_INDEX {
         change_floor(state, FLOOR1_INDEX);
     }
+    state.zoom_anchor = None;
     state.zoom_target = DEFAULT_ZOOM;
     pan_to_center_player(state);
 }
@@ -656,22 +669,13 @@ fn panel_click(state: &mut State, x: f32, y: f32) -> bool {
     if (l.floor_x..l.floor_x + l.floor_w).contains(&x)
         && (l.floor_y..l.floor_y + l.floor_h).contains(&y)
     {
-        let pos = if l.portrait { x } else { y };
-        let up_pos = if l.portrait {
-            l.floor_up.0
-        } else {
-            l.floor_up.1
-        };
-        let down_pos = if l.portrait {
-            l.floor_down.0
-        } else {
-            l.floor_down.1
-        };
-        if (pos - up_pos).abs() < 24.0 {
+        // Arrows are above/below the row, near the bar centre.
+        let near_arrow_x = !l.portrait || (x - l.floor_up.0).abs() < 44.0;
+        if near_arrow_x && (y - l.floor_up.1).abs() < 20.0 {
             state.arrow_up_t = 0.001;
             let floor = (state.floor + NUM_FLOORS - 1) % NUM_FLOORS;
             change_floor(state, floor);
-        } else if (pos - down_pos).abs() < 24.0 {
+        } else if near_arrow_x && (y - l.floor_down.1).abs() < 20.0 {
             state.arrow_down_t = 0.001;
             let floor = (state.floor + 1) % NUM_FLOORS;
             change_floor(state, floor);
@@ -717,6 +721,7 @@ fn panel_click(state: &mut State, x: f32, y: f32) -> bool {
             let t = ((y - l.zoom_b.1) / (l.zoom_a.1 - l.zoom_b.1)).clamp(0.0, 1.0);
             state.zoom_target = ZOOM_MIN + (ZOOM_MAX - ZOOM_MIN) * t;
         }
+        capture_zoom_anchor(state);
         return true;
     }
     false
@@ -856,6 +861,7 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
         sapp::EventType::MouseScroll => {
             state.zoom_target =
                 (state.zoom_target + event.scroll_y * 0.08).clamp(ZOOM_MIN, ZOOM_MAX);
+            capture_zoom_anchor(state);
         }
         sapp::EventType::KeyDown => match event.key_code {
             sapp::Keycode::F1 if !event.key_repeat => state.debug_mode = !state.debug_mode,
@@ -887,10 +893,12 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             sapp::Keycode::A | sapp::Keycode::Left => state.pan_target_x += 22.0,
             sapp::Keycode::D | sapp::Keycode::Right => state.pan_target_x -= 22.0,
             sapp::Keycode::Equal | sapp::Keycode::KpAdd => {
-                state.zoom_target = (state.zoom_target + 0.12).min(ZOOM_MAX)
+                state.zoom_target = (state.zoom_target + 0.12).min(ZOOM_MAX);
+                capture_zoom_anchor(state);
             }
             sapp::Keycode::Minus | sapp::Keycode::KpSubtract => {
-                state.zoom_target = (state.zoom_target - 0.12).max(ZOOM_MIN)
+                state.zoom_target = (state.zoom_target - 0.12).max(ZOOM_MIN);
+                capture_zoom_anchor(state);
             }
             sapp::Keycode::C | sapp::Keycode::Home => recenter(state),
             _ => {}
@@ -954,22 +962,6 @@ fn triangle(cx: f32, cy: f32, radius: f32, up: bool) {
     sgl::end();
 }
 
-// Triangle whose apex points along (dx, dy); used for the horizontal floor bar.
-fn triangle_dir(cx: f32, cy: f32, radius: f32, dx: f32, dy: f32) {
-    let (bx, by) = (-dy, dx);
-    sgl::begin_triangles();
-    sgl::v2f(cx + dx * radius, cy + dy * radius);
-    sgl::v2f(
-        cx - dx * radius + bx * radius,
-        cy - dy * radius + by * radius,
-    );
-    sgl::v2f(
-        cx - dx * radius - bx * radius,
-        cy - dy * radius - by * radius,
-    );
-    sgl::end();
-}
-
 fn filled_circle(cx: f32, cy: f32, radius: f32) {
     sgl::begin_triangles();
     let step = std::f32::consts::TAU / CIRCLE_SEGMENTS as f32;
@@ -984,18 +976,53 @@ fn filled_circle(cx: f32, cy: f32, radius: f32) {
 }
 
 // Floor 1 art frame inside the fixed map window, centred and scaled by zoom.
-fn map_rect(l: &Layout, zoom: f32, pan_x: f32, pan_y: f32) -> (f32, f32, f32, f32) {
+fn image_size(l: &Layout, zoom: f32) -> (f32, f32) {
     // Landscape fits the floor width; portrait fits the floor height.
-    let (image_width, image_height) = if l.portrait {
-        let image_height = l.map_h * zoom;
-        (image_height * FLOOR1_W / FLOOR1_H, image_height)
+    if l.portrait {
+        let ih = l.map_h * zoom;
+        (ih * FLOOR1_W / FLOOR1_H, ih)
     } else {
-        let image_width = l.map_w * zoom;
-        (image_width, image_width * FLOOR1_H / FLOOR1_W)
-    };
+        let iw = l.map_w * zoom;
+        (iw, iw * FLOOR1_H / FLOOR1_W)
+    }
+}
+
+fn map_rect(l: &Layout, zoom: f32, pan_x: f32, pan_y: f32) -> (f32, f32, f32, f32) {
+    let (image_width, image_height) = image_size(l, zoom);
     let x = l.map_x + (l.map_w - image_width) * 0.5 + pan_x;
     let y = l.map_y + (l.map_h - image_height) * 0.5 + pan_y;
     (x, y, image_width, image_height)
+}
+
+// Capture the map point under the circle cursor when a zoom starts.
+fn capture_zoom_anchor(state: &mut State) {
+    if state.floor != FLOOR1_INDEX {
+        state.zoom_anchor = None;
+        return;
+    }
+    let l = state.layout;
+    let cursor = active_cursor(state);
+    if !in_map(&l, cursor) {
+        state.zoom_anchor = None;
+        return;
+    }
+    let (ox, oy, iw, ih) = map_rect(&l, state.zoom, state.pan_x, state.pan_y);
+    let sx = FLOOR1_X + (cursor.0 - ox) * FLOOR1_W / iw;
+    let sy = FLOOR1_Y + (cursor.1 - oy) * FLOOR1_H / ih;
+    state.zoom_anchor = Some(ZoomAnchor {
+        src: (sx, sy),
+        cursor_ref: cursor,
+        end: state.zoom_target,
+    });
+}
+
+// Pan that places `src` at `ref_point` for the given zoom.
+fn anchor_pan(l: &Layout, zoom: f32, src: (f32, f32), ref_point: (f32, f32)) -> (f32, f32) {
+    let (iw, ih) = image_size(l, zoom);
+    (
+        ref_point.0 - l.map_x - (l.map_w - iw) * 0.5 - (src.0 - FLOOR1_X) * iw / FLOOR1_W,
+        ref_point.1 - l.map_y - (l.map_h - ih) * 0.5 - (src.1 - FLOOR1_Y) * ih / FLOOR1_H,
+    )
 }
 
 // Source-composite pixel -> reference coordinates.
@@ -1515,16 +1542,10 @@ fn draw_floor_selector(state: &State) {
     sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.75);
     outline_rect(l.floor_x, l.floor_y, l.floor_w, l.floor_h);
 
+    // Arrows sit above/below the diamond row in both orientations.
     sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.92);
-    if l.portrait {
-        // Horizontal bar: up arrow at the left end, down arrow at the right.
-        triangle_dir(l.floor_up.0 - up_off, l.floor_up.1, 6.0, -1.0, 0.0);
-        triangle_dir(l.floor_down.0 + down_off, l.floor_down.1, 6.0, 1.0, 0.0);
-    } else {
-        // Vertical bar: up arrow at the top end, down arrow at the bottom.
-        triangle(l.floor_up.0, l.floor_up.1 - up_off, 6.0, true);
-        triangle(l.floor_down.0, l.floor_down.1 + down_off, 6.0, false);
-    }
+    triangle(l.floor_up.0, l.floor_up.1 - up_off, 6.0, true);
+    triangle(l.floor_down.0, l.floor_down.1 + down_off, 6.0, false);
 
     for (slot, (mx, my)) in l.floor_markers.into_iter().enumerate() {
         if slot == selected_slot {
@@ -1749,8 +1770,21 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     state.time += delta;
     let ease = (delta * 14.0).min(1.0);
     state.zoom += (state.zoom_target - state.zoom) * ease;
-    state.pan_x += (state.pan_target_x - state.pan_x) * ease;
-    state.pan_y += (state.pan_target_y - state.pan_y) * ease;
+    if let Some(a) = state.zoom_anchor {
+        let l = state.layout;
+        // Google-Maps style: keep the anchored map point under the cursor.
+        let (pan_x, pan_y) = anchor_pan(&l, state.zoom, a.src, a.cursor_ref);
+        state.pan_x = pan_x;
+        state.pan_y = pan_y;
+        state.pan_target_x = pan_x;
+        state.pan_target_y = pan_y;
+        if (state.zoom - a.end).abs() < 0.002 {
+            state.zoom_anchor = None;
+        }
+    } else {
+        state.pan_x += (state.pan_target_x - state.pan_x) * ease;
+        state.pan_y += (state.pan_target_y - state.pan_y) * ease;
+    }
     if state.arrow_up_t > 0.0 {
         state.arrow_up_t = (state.arrow_up_t + delta / 0.25).min(1.0);
         if state.arrow_up_t >= 1.0 {
@@ -1867,6 +1901,7 @@ extern "C" fn cleanup(user_data: *mut ffi::c_void) {
 fn main() {
     let state = Box::new(State {
         layout: Layout::compute(1920.0, 1080.0),
+        zoom_anchor: None,
         pass_action: sg::PassAction::new(),
         pipeline: sgl::Pipeline::new(),
         overlay_view: sg::View::new(),
@@ -1994,6 +2029,30 @@ mod tests {
                     "{name} should be fully green"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn zoom_anchor_keeps_point_under_cursor() {
+        for portrait in [false, true] {
+            let l = if portrait {
+                Layout::compute(450.0, 800.0)
+            } else {
+                Layout::compute(1280.0, 720.0)
+            };
+            assert_eq!(l.portrait, portrait);
+            let cursor = (l.map_x + l.map_w * 0.3, l.map_y + l.map_h * 0.4);
+            let (ox, oy, iw, ih) = map_rect(&l, DEFAULT_ZOOM, 0.0, 0.0);
+            let sx = FLOOR1_X + (cursor.0 - ox) * FLOOR1_W / iw;
+            let sy = FLOOR1_Y + (cursor.1 - oy) * FLOOR1_H / ih;
+            // Google style: the anchored point stays under the cursor.
+            let (px, py) = anchor_pan(&l, 1.5, (sx, sy), cursor);
+            let (ox1, oy1, iw1, ih1) = map_rect(&l, 1.5, px, py);
+            let (rx, ry) = src_to_ref(ox1, oy1, iw1, ih1, sx, sy);
+            assert!(
+                (rx - cursor.0).abs() < 1.0 && (ry - cursor.1).abs() < 1.0,
+                "portrait={portrait} anchored point drifted from the cursor"
+            );
         }
     }
 }
