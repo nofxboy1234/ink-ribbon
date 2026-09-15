@@ -14,6 +14,7 @@ const PANEL_W: f32 = 46.0;
 const ZOOM_MIN: f32 = 0.7;
 const ZOOM_MAX: f32 = 1.6;
 const DEFAULT_ZOOM: f32 = 1.15;
+const PAN_MARGIN: f32 = 160.0;
 const NUM_FLOORS: usize = 3;
 
 // Palette sampled from the reference interactive-map capture (near-monochrome).
@@ -286,6 +287,8 @@ struct State {
     cursor_mode: CursorMode,
     os_cursor_hidden: bool,
     touch_last: (f32, f32),
+    down_ref: (f32, f32),
+    moved: bool,
     hover_item: Option<usize>,
     arrow_up_t: f32,
     arrow_down_t: f32,
@@ -383,11 +386,6 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
 
 fn change_floor(state: &mut State, floor: usize) {
     if floor < NUM_FLOORS && floor != state.floor && state.pending_floor.is_none() {
-        if floor < state.floor {
-            state.arrow_up_t = 0.001;
-        } else {
-            state.arrow_down_t = 0.001;
-        }
         state.pending_floor = Some(floor);
         state.transition_t = 0.0;
         state.target = None;
@@ -470,6 +468,10 @@ fn pan_to_center_player(state: &mut State) {
 }
 
 fn recenter_on_player(state: &mut State) {
+    // If the player is on another floor, change to it (animated) and recenter.
+    if state.floor != FLOOR1_INDEX {
+        change_floor(state, FLOOR1_INDEX);
+    }
     pan_to_center_player(state);
 }
 
@@ -490,7 +492,8 @@ fn hover_item_at(state: &State, cx: f32, cy: f32) -> Option<usize> {
         dx * dx + dy * dy <= CLICK_RADIUS * CLICK_RADIUS
     })
 }
-fn press_at(state: &mut State, x: f32, y: f32) {
+// Panel controls consume the click; returns true if it was handled.
+fn panel_click(state: &mut State, x: f32, y: f32) -> bool {
     if (FLOOR_PANEL_X..MAP_X).contains(&x) {
         let marker_y = [543.0, 587.0, 631.0];
         if let Some((slot, _)) = marker_y
@@ -499,11 +502,17 @@ fn press_at(state: &mut State, x: f32, y: f32) {
             .min_by(|(_, a), (_, b)| ((*a - y).abs()).total_cmp(&(*b - y).abs()))
         {
             if (y - marker_y[slot]).abs() < 24.0 {
+                match slot.cmp(&floor_slot(state.floor)) {
+                    std::cmp::Ordering::Less => state.arrow_up_t = 0.001,
+                    std::cmp::Ordering::Greater => state.arrow_down_t = 0.001,
+                    std::cmp::Ordering::Equal => {}
+                }
                 change_floor(state, slot);
             }
         }
-        state.dragging = false;
-    } else if (ZOOM_PANEL_X..ZOOM_PANEL_X + PANEL_W).contains(&x) {
+        return true;
+    }
+    if (ZOOM_PANEL_X..ZOOM_PANEL_X + PANEL_W).contains(&x) {
         if (400.0..430.0).contains(&y) {
             state.zoom_target = (state.zoom_target + 0.12).min(ZOOM_MAX);
         } else if (735.0..765.0).contains(&y) {
@@ -512,39 +521,46 @@ fn press_at(state: &mut State, x: f32, y: f32) {
             let normalized = ((y - 730.0) / (438.0 - 730.0)).clamp(0.0, 1.0);
             state.zoom_target = ZOOM_MIN + (ZOOM_MAX - ZOOM_MIN) * normalized;
         }
-        state.dragging = false;
-    } else if state.floor == FLOOR1_INDEX
-        && (MAP_X..MAP_X + MAP_W).contains(&x)
-        && (MAP_Y..MAP_Y + MAP_H).contains(&y)
+        return true;
+    }
+    false
+}
+
+// A tap (not a drag): toggle/clear the route to the key item under the cursor.
+fn select_at(state: &mut State, x: f32, y: f32) {
+    if state.floor != FLOOR1_INDEX
+        || !(MAP_X..MAP_X + MAP_W).contains(&x)
+        || !(MAP_Y..MAP_Y + MAP_H).contains(&y)
     {
-        let (hx, hy) = if state.cursor_mode == CursorMode::Centered {
-            cursor_center()
-        } else {
-            (x, y)
-        };
-        let (ox, oy, iw, ih) = map_rect(state.zoom, state.pan_x, state.pan_y);
-        let sx = FLOOR1_X + (hx - ox) * FLOOR1_W / iw;
-        let sy = FLOOR1_Y + (hy - oy) * FLOOR1_H / ih;
-        let hit = KEY_ITEMS.iter().position(|&(_, kx, ky)| {
-            let (dx, dy) = (sx - kx, sy - ky);
-            dx * dx + dy * dy <= CLICK_RADIUS * CLICK_RADIUS
-        });
-        match hit {
-            Some(i) if state.target == Some(i) => {
-                state.target = None;
-                state.path.clear();
-                state.dragging = false;
-            }
-            Some(i) => {
-                state.target = Some(i);
-                let (tx, ty) = (KEY_ITEMS[i].1, KEY_ITEMS[i].2);
-                state.path = compute_path(&state.nav, PLAYER, (tx, ty));
-                state.dragging = false;
-            }
-            None => state.dragging = true,
-        }
+        return;
+    }
+    let (hx, hy) = if state.cursor_mode == CursorMode::Centered {
+        cursor_center()
     } else {
-        state.dragging = true;
+        (x, y)
+    };
+    let (ox, oy, iw, ih) = map_rect(state.zoom, state.pan_x, state.pan_y);
+    let sx = FLOOR1_X + (hx - ox) * FLOOR1_W / iw;
+    let sy = FLOOR1_Y + (hy - oy) * FLOOR1_H / ih;
+    let hit = KEY_ITEMS.iter().position(|&(_, kx, ky)| {
+        let (dx, dy) = (sx - kx, sy - ky);
+        dx * dx + dy * dy <= CLICK_RADIUS * CLICK_RADIUS
+    });
+    match hit {
+        Some(i) if state.target == Some(i) => {
+            state.target = None;
+            state.path.clear();
+        }
+        Some(i) => {
+            state.target = Some(i);
+            let (tx, ty) = (KEY_ITEMS[i].1, KEY_ITEMS[i].2);
+            state.path = compute_path(&state.nav, PLAYER, (tx, ty));
+        }
+        None => {
+            // Clicking off the item hides the route.
+            state.target = None;
+            state.path.clear();
+        }
     }
 }
 
@@ -553,11 +569,14 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
     let event = unsafe { &*event };
     match event._type {
         sapp::EventType::MouseMove => {
-            if state.dragging {
-                drag_by(state, event.mouse_dx, event.mouse_dy);
-            }
             let (mx, my) = screen_to_ref(event.mouse_x, event.mouse_y);
             state.mouse = (mx, my);
+            if state.dragging {
+                if (mx - state.down_ref.0).abs() > 6.0 || (my - state.down_ref.1).abs() > 6.0 {
+                    state.moved = true;
+                }
+                drag_by(state, event.mouse_dx, event.mouse_dy);
+            }
             state.mouse_in_map =
                 (MAP_X..MAP_X + MAP_W).contains(&mx) && (MAP_Y..MAP_Y + MAP_H).contains(&my);
             if state.cursor_mode == CursorMode::Free && state.mouse_in_map {
@@ -570,9 +589,22 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             if state.cursor_mode == CursorMode::Free {
                 state.cursor = clamp_to_map((x, y));
             }
-            press_at(state, x, y);
+            if panel_click(state, x, y) {
+                state.dragging = false;
+            } else {
+                state.down_ref = (x, y);
+                state.moved = false;
+                state.dragging = true;
+            }
         }
-        sapp::EventType::MouseUp => state.dragging = false,
+        sapp::EventType::MouseUp => {
+            let was_drag = state.moved;
+            state.dragging = false;
+            if !was_drag {
+                let (x, y) = screen_to_ref(event.mouse_x, event.mouse_y);
+                select_at(state, x, y);
+            }
+        }
         sapp::EventType::TouchesBegan => {
             if event.num_touches > 0 {
                 let t = event.touches[0];
@@ -584,7 +616,13 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 if state.cursor_mode == CursorMode::Free {
                     state.cursor = clamp_to_map((x, y));
                 }
-                press_at(state, x, y);
+                if panel_click(state, x, y) {
+                    state.dragging = false;
+                } else {
+                    state.down_ref = (x, y);
+                    state.moved = false;
+                    state.dragging = true;
+                }
             }
         }
         sapp::EventType::TouchesMoved => {
@@ -593,12 +631,20 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 if state.dragging {
                     let dx = t.pos_x - state.touch_last.0;
                     let dy = t.pos_y - state.touch_last.1;
+                    if dx.abs() + dy.abs() > 3.0 {
+                        state.moved = true;
+                    }
                     drag_by(state, dx, dy);
                 }
                 state.touch_last = (t.pos_x, t.pos_y);
+                let (x, y) = screen_to_ref(t.pos_x, t.pos_y);
+                state.mouse = (x, y);
             }
         }
         sapp::EventType::TouchesEnded | sapp::EventType::TouchesCancelled => {
+            if !state.moved {
+                select_at(state, state.mouse.0, state.mouse.1);
+            }
             state.dragging = false;
         }
         sapp::EventType::MouseScroll => {
@@ -621,10 +667,12 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             }
             sapp::Keycode::F if !event.key_repeat => recenter_on_player(state),
             sapp::Keycode::Q => {
+                state.arrow_up_t = 0.001;
                 let floor = (state.floor + NUM_FLOORS - 1) % NUM_FLOORS;
                 change_floor(state, floor);
             }
             sapp::Keycode::E => {
+                state.arrow_down_t = 0.001;
                 let floor = (state.floor + 1) % NUM_FLOORS;
                 change_floor(state, floor);
             }
@@ -1389,8 +1437,8 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     {
         let iw = MAP_W * state.zoom;
         let ih = iw * FLOOR1_H / FLOOR1_W;
-        let max_x = if iw > MAP_W { (iw - MAP_W) * 0.5 } else { 0.0 };
-        let max_y = if ih > MAP_H { (ih - MAP_H) * 0.5 } else { 0.0 };
+        let max_x = if iw > MAP_W { (iw - MAP_W) * 0.5 } else { 0.0 } + PAN_MARGIN;
+        let max_y = if ih > MAP_H { (ih - MAP_H) * 0.5 } else { 0.0 } + PAN_MARGIN;
         state.pan_x = state.pan_x.clamp(-max_x, max_x);
         state.pan_y = state.pan_y.clamp(-max_y, max_y);
         state.pan_target_x = state.pan_target_x.clamp(-max_x, max_x);
@@ -1411,7 +1459,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
         state.cursor = clamp_to_map(state.mouse);
     }
     if let Some(target) = state.pending_floor {
-        state.transition_t = (state.transition_t + delta / 0.45).min(1.0);
+        state.transition_t = (state.transition_t + delta / 0.225).min(1.0);
         if state.transition_t >= 0.5 && state.floor != target {
             state.floor = target;
             notify_floor(target);
@@ -1496,6 +1544,8 @@ fn main() {
         cursor_mode: CursorMode::Free,
         os_cursor_hidden: false,
         touch_last: (0.0, 0.0),
+        down_ref: (0.0, 0.0),
+        moved: false,
         hover_item: None,
         arrow_up_t: 0.0,
         arrow_down_t: 0.0,
