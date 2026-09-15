@@ -2,20 +2,127 @@ use std::ffi;
 
 use sokol::{app as sapp, gfx as sg, gl as sgl, glue as sglue};
 
-const REF_W: f32 = 1920.0;
-const REF_H: f32 = 1080.0;
-const MAP_X: f32 = 266.0;
-const MAP_Y: f32 = 228.0;
-const MAP_W: f32 = 1387.0;
-const MAP_H: f32 = 720.0;
-const FLOOR_PANEL_X: f32 = 220.0;
-const ZOOM_PANEL_X: f32 = MAP_X + MAP_W;
-const PANEL_W: f32 = 46.0;
 const ZOOM_MIN: f32 = 0.7;
 const ZOOM_MAX: f32 = 1.6;
 const DEFAULT_ZOOM: f32 = 1.15;
 const PAN_MARGIN: f32 = 700.0;
 const NUM_FLOORS: usize = 3;
+
+// All layout geometry, resolved for the current orientation. Landscape uses a
+// 1920x1080 reference; portrait is its transpose (1080x1920).
+#[derive(Clone, Copy)]
+struct Layout {
+    portrait: bool,
+    ref_w: f32,
+    ref_h: f32,
+    map_x: f32,
+    map_y: f32,
+    map_w: f32,
+    map_h: f32,
+    floor_x: f32,
+    floor_y: f32,
+    floor_w: f32,
+    floor_h: f32,
+    zoom_x: f32,
+    zoom_y: f32,
+    zoom_w: f32,
+    zoom_h: f32,
+    panel_w: f32,
+    floor_markers: [(f32, f32); 3],
+    floor_up: (f32, f32),
+    floor_down: (f32, f32),
+    zoom_a: (f32, f32),
+    zoom_b: (f32, f32),
+    zoom_minus: (f32, f32),
+    zoom_plus: (f32, f32),
+    name_x: f32,
+    name_y: f32,
+    in_pos: (f32, f32),
+    out_pos: (f32, f32),
+}
+
+impl Layout {
+    fn compute(width: f32, height: f32) -> Layout {
+        if width < height {
+            Layout {
+                portrait: true,
+                ref_w: 1080.0,
+                ref_h: 1920.0,
+                map_x: 180.0,
+                map_y: 235.0,
+                map_w: 720.0,
+                map_h: 1387.0,
+                floor_x: 180.0,
+                floor_y: 1636.0,
+                floor_w: 720.0,
+                floor_h: 46.0,
+                zoom_x: 180.0,
+                zoom_y: 175.0,
+                zoom_w: 720.0,
+                zoom_h: 46.0,
+                panel_w: 46.0,
+                floor_markers: [(330.0, 1659.0), (540.0, 1659.0), (750.0, 1659.0)],
+                floor_up: (210.0, 1659.0),
+                floor_down: (870.0, 1659.0),
+                zoom_a: (220.0, 198.0),
+                zoom_b: (860.0, 198.0),
+                zoom_minus: (192.0, 190.0),
+                zoom_plus: (872.0, 190.0),
+                name_x: 540.0,
+                name_y: 1710.0,
+                in_pos: (893.0, 191.0),
+                out_pos: (146.0, 191.0),
+            }
+        } else {
+            let map_x = 266.0;
+            let map_y = 228.0;
+            let map_w = 1387.0;
+            let map_h = 720.0;
+            Layout {
+                portrait: false,
+                ref_w: 1920.0,
+                ref_h: 1080.0,
+                map_x,
+                map_y,
+                map_w,
+                map_h,
+                floor_x: 220.0,
+                floor_y: map_y,
+                floor_w: 46.0,
+                floor_h: map_h,
+                zoom_x: map_x + map_w,
+                zoom_y: map_y,
+                zoom_w: 46.0,
+                zoom_h: map_h,
+                panel_w: 46.0,
+                floor_markers: [(243.0, 543.0), (243.0, 587.0), (243.0, 631.0)],
+                floor_up: (243.0, 489.0),
+                floor_down: (243.0, 684.0),
+                zoom_a: (1676.0, 438.0),
+                zoom_b: (1676.0, 730.0),
+                zoom_minus: (1668.0, 406.0),
+                zoom_plus: (1668.0, 742.0),
+                name_x: 387.0,
+                name_y: 971.0,
+                in_pos: (1666.0, 368.0),
+                out_pos: (1661.0, 798.0),
+            }
+        }
+    }
+
+    #[allow(non_snake_case)]
+    fn vars(&self) -> (f32, f32, f32, f32, f32, f32, f32) {
+        (
+            self.map_x,
+            self.map_y,
+            self.map_w,
+            self.map_h,
+            self.floor_x,
+            self.zoom_x,
+            self.panel_w,
+        )
+    }
+}
 
 // Palette sampled from the reference interactive-map capture (near-monochrome).
 const C_DIM: (f32, f32, f32) = (0.20, 0.21, 0.21); // #333636 dim chrome
@@ -268,6 +375,7 @@ enum CursorMode {
 }
 
 struct State {
+    layout: Layout,
     pass_action: sg::PassAction,
     pipeline: sgl::Pipeline,
     overlay_view: sg::View,
@@ -417,31 +525,35 @@ fn recenter(state: &mut State) {
     state.pan_target_y = 0.0;
 }
 
-fn screen_to_ref(mx: f32, my: f32) -> (f32, f32) {
+fn screen_to_ref(l: &Layout, mx: f32, my: f32) -> (f32, f32) {
     let width = sapp::widthf();
     let height = sapp::heightf();
-    let (left, right, top, bottom) = reference_projection(width, height);
+    let (left, right, top, bottom) = reference_projection(l, width, height);
     (
         left + mx / width.max(1.0) * (right - left),
         top + my / height.max(1.0) * (bottom - top),
     )
 }
 
-fn cursor_center() -> (f32, f32) {
-    (MAP_X + MAP_W * 0.5, MAP_Y + MAP_H * 0.5)
+fn cursor_center(l: &Layout) -> (f32, f32) {
+    (l.map_x + l.map_w * 0.5, l.map_y + l.map_h * 0.5)
 }
 
 fn active_cursor(state: &State) -> (f32, f32) {
     match state.cursor_mode {
-        CursorMode::Centered => cursor_center(),
+        CursorMode::Centered => cursor_center(&state.layout),
         CursorMode::Free => state.cursor,
     }
 }
 
-fn clamp_to_map(p: (f32, f32)) -> (f32, f32) {
+fn in_map(l: &Layout, p: (f32, f32)) -> bool {
+    (l.map_x..l.map_x + l.map_w).contains(&p.0) && (l.map_y..l.map_y + l.map_h).contains(&p.1)
+}
+
+fn clamp_to_map(l: &Layout, p: (f32, f32)) -> (f32, f32) {
     (
-        p.0.clamp(MAP_X, MAP_X + MAP_W),
-        p.1.clamp(MAP_Y, MAP_Y + MAP_H),
+        p.0.clamp(l.map_x, l.map_x + l.map_w),
+        p.1.clamp(l.map_y, l.map_y + l.map_h),
     )
 }
 
@@ -470,12 +582,20 @@ fn drag_by(state: &mut State, dx: f32, dy: f32) {
 }
 
 fn pan_to_center_player(state: &mut State) {
+    let l = state.layout;
     // Computed for the default zoom so the player ends centred once zoom settles.
-    let iw = MAP_W * DEFAULT_ZOOM;
-    let ih = iw * FLOOR1_H / FLOOR1_W;
-    let (cx, cy) = cursor_center();
-    state.pan_target_x = cx - (PLAYER.0 - FLOOR1_X) * iw / FLOOR1_W - MAP_X - (MAP_W - iw) * 0.5;
-    state.pan_target_y = cy - (PLAYER.1 - FLOOR1_Y) * ih / FLOOR1_H - MAP_Y - (MAP_H - ih) * 0.5;
+    let (iw, ih) = if l.portrait {
+        let ih = l.map_h * DEFAULT_ZOOM;
+        (ih * FLOOR1_W / FLOOR1_H, ih)
+    } else {
+        let iw = l.map_w * DEFAULT_ZOOM;
+        (iw, iw * FLOOR1_H / FLOOR1_W)
+    };
+    let (cx, cy) = cursor_center(&l);
+    state.pan_target_x =
+        cx - (PLAYER.0 - FLOOR1_X) * iw / FLOOR1_W - l.map_x - (l.map_w - iw) * 0.5;
+    state.pan_target_y =
+        cy - (PLAYER.1 - FLOOR1_Y) * ih / FLOOR1_H - l.map_y - (l.map_h - ih) * 0.5;
 }
 
 fn recenter_on_player(state: &mut State) {
@@ -489,6 +609,8 @@ fn recenter_on_player(state: &mut State) {
 }
 
 fn hover_item_at(state: &State, cx: f32, cy: f32) -> Option<usize> {
+    #[allow(non_snake_case)]
+    let (MAP_X, MAP_Y, MAP_W, MAP_H, _, _, _) = state.layout.vars();
     if state.floor != FLOOR1_INDEX
         || cx < MAP_X
         || cx > MAP_X + MAP_W
@@ -497,7 +619,7 @@ fn hover_item_at(state: &State, cx: f32, cy: f32) -> Option<usize> {
     {
         return None;
     }
-    let (ox, oy, iw, ih) = map_rect(state.zoom, state.pan_x, state.pan_y);
+    let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y);
     let sx = FLOOR1_X + (cx - ox) * FLOOR1_W / iw;
     let sy = FLOOR1_Y + (cy - oy) * FLOOR1_H / ih;
     KEY_ITEMS.iter().position(|&(_, kx, ky)| {
@@ -507,32 +629,72 @@ fn hover_item_at(state: &State, cx: f32, cy: f32) -> Option<usize> {
 }
 // Panel controls consume the click; returns true if it was handled.
 fn panel_click(state: &mut State, x: f32, y: f32) -> bool {
-    if (FLOOR_PANEL_X..MAP_X).contains(&x) {
-        let marker_y = [543.0, 587.0, 631.0];
-        if let Some((slot, _)) = marker_y
-            .iter()
-            .enumerate()
-            .min_by(|(_, a), (_, b)| ((*a - y).abs()).total_cmp(&(*b - y).abs()))
-        {
-            if (y - marker_y[slot]).abs() < 24.0 {
-                match slot.cmp(&floor_slot(state.floor)) {
-                    std::cmp::Ordering::Less => state.arrow_up_t = 0.001,
-                    std::cmp::Ordering::Greater => state.arrow_down_t = 0.001,
-                    std::cmp::Ordering::Equal => {}
-                }
-                change_floor(state, slot);
+    let l = state.layout;
+
+    // Floor bar.
+    if (l.floor_x..l.floor_x + l.floor_w).contains(&x)
+        && (l.floor_y..l.floor_y + l.floor_h).contains(&y)
+    {
+        let pos = if l.portrait { x } else { y };
+        let up_pos = if l.portrait {
+            l.floor_up.0
+        } else {
+            l.floor_up.1
+        };
+        let down_pos = if l.portrait {
+            l.floor_down.0
+        } else {
+            l.floor_down.1
+        };
+        if (pos - up_pos).abs() < 24.0 {
+            state.arrow_up_t = 0.001;
+            let floor = (state.floor + NUM_FLOORS - 1) % NUM_FLOORS;
+            change_floor(state, floor);
+        } else if (pos - down_pos).abs() < 24.0 {
+            state.arrow_down_t = 0.001;
+            let floor = (state.floor + 1) % NUM_FLOORS;
+            change_floor(state, floor);
+        } else {
+            let slot = l
+                .floor_markers
+                .iter()
+                .enumerate()
+                .min_by(|(_, a), (_, b)| {
+                    let da = if l.portrait { a.0 - x } else { a.1 - y };
+                    let db = if l.portrait { b.0 - x } else { b.1 - y };
+                    da.abs().total_cmp(&db.abs())
+                })
+                .map(|(i, _)| i)
+                .unwrap_or(0);
+            match slot.cmp(&floor_slot(state.floor)) {
+                std::cmp::Ordering::Less => state.arrow_up_t = 0.001,
+                std::cmp::Ordering::Greater => state.arrow_down_t = 0.001,
+                std::cmp::Ordering::Equal => {}
             }
+            change_floor(state, slot);
         }
         return true;
     }
-    if (ZOOM_PANEL_X..ZOOM_PANEL_X + PANEL_W).contains(&x) {
-        if (400.0..430.0).contains(&y) {
+
+    // Zoom bar.
+    if (l.zoom_x..l.zoom_x + l.zoom_w).contains(&x) && (l.zoom_y..l.zoom_y + l.zoom_h).contains(&y)
+    {
+        if l.portrait {
+            if x < l.zoom_a.0 - 20.0 {
+                state.zoom_target = (state.zoom_target - 0.12).max(ZOOM_MIN);
+            } else if x > l.zoom_b.0 + 20.0 {
+                state.zoom_target = (state.zoom_target + 0.12).min(ZOOM_MAX);
+            } else {
+                let t = ((x - l.zoom_a.0) / (l.zoom_b.0 - l.zoom_a.0)).clamp(0.0, 1.0);
+                state.zoom_target = ZOOM_MIN + (ZOOM_MAX - ZOOM_MIN) * t;
+            }
+        } else if y < l.zoom_a.1 - 20.0 {
             state.zoom_target = (state.zoom_target + 0.12).min(ZOOM_MAX);
-        } else if (735.0..765.0).contains(&y) {
+        } else if y > l.zoom_b.1 + 20.0 {
             state.zoom_target = (state.zoom_target - 0.12).max(ZOOM_MIN);
-        } else if (438.0..=730.0).contains(&y) {
-            let normalized = ((y - 730.0) / (438.0 - 730.0)).clamp(0.0, 1.0);
-            state.zoom_target = ZOOM_MIN + (ZOOM_MAX - ZOOM_MIN) * normalized;
+        } else {
+            let t = ((y - l.zoom_b.1) / (l.zoom_a.1 - l.zoom_b.1)).clamp(0.0, 1.0);
+            state.zoom_target = ZOOM_MIN + (ZOOM_MAX - ZOOM_MIN) * t;
         }
         return true;
     }
@@ -541,6 +703,8 @@ fn panel_click(state: &mut State, x: f32, y: f32) -> bool {
 
 // A tap (not a drag): toggle/clear the route to the key item under the cursor.
 fn select_at(state: &mut State, x: f32, y: f32) {
+    #[allow(non_snake_case)]
+    let (MAP_X, MAP_Y, MAP_W, MAP_H, _, _, _) = state.layout.vars();
     if state.floor != FLOOR1_INDEX
         || !(MAP_X..MAP_X + MAP_W).contains(&x)
         || !(MAP_Y..MAP_Y + MAP_H).contains(&y)
@@ -548,11 +712,11 @@ fn select_at(state: &mut State, x: f32, y: f32) {
         return;
     }
     let (hx, hy) = if state.cursor_mode == CursorMode::Centered {
-        cursor_center()
+        cursor_center(&state.layout)
     } else {
         (x, y)
     };
-    let (ox, oy, iw, ih) = map_rect(state.zoom, state.pan_x, state.pan_y);
+    let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y);
     let sx = FLOOR1_X + (hx - ox) * FLOOR1_W / iw;
     let sy = FLOOR1_Y + (hy - oy) * FLOOR1_H / ih;
     let hit = KEY_ITEMS.iter().position(|&(_, kx, ky)| {
@@ -592,7 +756,7 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
     let event = unsafe { &*event };
     match event._type {
         sapp::EventType::MouseMove => {
-            let (mx, my) = screen_to_ref(event.mouse_x, event.mouse_y);
+            let (mx, my) = screen_to_ref(&state.layout, event.mouse_x, event.mouse_y);
             state.mouse = (mx, my);
             if state.dragging {
                 if (mx - state.down_ref.0).abs() > 6.0 || (my - state.down_ref.1).abs() > 6.0 {
@@ -600,17 +764,16 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 }
                 drag_by(state, event.mouse_dx, event.mouse_dy);
             }
-            state.mouse_in_map =
-                (MAP_X..MAP_X + MAP_W).contains(&mx) && (MAP_Y..MAP_Y + MAP_H).contains(&my);
+            state.mouse_in_map = in_map(&state.layout, (mx, my));
             if state.cursor_mode == CursorMode::Free && state.mouse_in_map {
-                state.cursor = clamp_to_map(state.mouse);
+                state.cursor = clamp_to_map(&state.layout, state.mouse);
             }
         }
         sapp::EventType::MouseLeave => state.mouse_in_map = false,
         sapp::EventType::MouseDown => {
-            let (x, y) = screen_to_ref(event.mouse_x, event.mouse_y);
+            let (x, y) = screen_to_ref(&state.layout, event.mouse_x, event.mouse_y);
             if state.cursor_mode == CursorMode::Free {
-                state.cursor = clamp_to_map((x, y));
+                state.cursor = clamp_to_map(&state.layout, (x, y));
             }
             if panel_click(state, x, y) {
                 state.dragging = false;
@@ -624,7 +787,7 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             let was_drag = state.moved;
             state.dragging = false;
             if !was_drag {
-                let (x, y) = screen_to_ref(event.mouse_x, event.mouse_y);
+                let (x, y) = screen_to_ref(&state.layout, event.mouse_x, event.mouse_y);
                 select_at(state, x, y);
             }
         }
@@ -632,12 +795,11 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             if event.num_touches > 0 {
                 let t = event.touches[0];
                 state.touch_last = (t.pos_x, t.pos_y);
-                let (x, y) = screen_to_ref(t.pos_x, t.pos_y);
+                let (x, y) = screen_to_ref(&state.layout, t.pos_x, t.pos_y);
                 state.mouse = (x, y);
-                state.mouse_in_map =
-                    (MAP_X..MAP_X + MAP_W).contains(&x) && (MAP_Y..MAP_Y + MAP_H).contains(&y);
+                state.mouse_in_map = in_map(&state.layout, (x, y));
                 if state.cursor_mode == CursorMode::Free {
-                    state.cursor = clamp_to_map((x, y));
+                    state.cursor = clamp_to_map(&state.layout, (x, y));
                 }
                 if panel_click(state, x, y) {
                     state.dragging = false;
@@ -660,7 +822,7 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                     drag_by(state, dx, dy);
                 }
                 state.touch_last = (t.pos_x, t.pos_y);
-                let (x, y) = screen_to_ref(t.pos_x, t.pos_y);
+                let (x, y) = screen_to_ref(&state.layout, t.pos_x, t.pos_y);
                 state.mouse = (x, y);
             }
         }
@@ -771,6 +933,22 @@ fn triangle(cx: f32, cy: f32, radius: f32, up: bool) {
     sgl::end();
 }
 
+// Triangle whose apex points along (dx, dy); used for the horizontal floor bar.
+fn triangle_dir(cx: f32, cy: f32, radius: f32, dx: f32, dy: f32) {
+    let (bx, by) = (-dy, dx);
+    sgl::begin_triangles();
+    sgl::v2f(cx + dx * radius, cy + dy * radius);
+    sgl::v2f(
+        cx - dx * radius + bx * radius,
+        cy - dy * radius + by * radius,
+    );
+    sgl::v2f(
+        cx - dx * radius - bx * radius,
+        cy - dy * radius - by * radius,
+    );
+    sgl::end();
+}
+
 fn filled_circle(cx: f32, cy: f32, radius: f32) {
     sgl::begin_triangles();
     let step = std::f32::consts::TAU / CIRCLE_SEGMENTS as f32;
@@ -785,11 +963,17 @@ fn filled_circle(cx: f32, cy: f32, radius: f32) {
 }
 
 // Floor 1 art frame inside the fixed map window, centred and scaled by zoom.
-fn map_rect(zoom: f32, pan_x: f32, pan_y: f32) -> (f32, f32, f32, f32) {
-    let image_width = MAP_W * zoom;
-    let image_height = image_width * FLOOR1_H / FLOOR1_W;
-    let x = MAP_X + (MAP_W - image_width) * 0.5 + pan_x;
-    let y = MAP_Y + (MAP_H - image_height) * 0.5 + pan_y;
+fn map_rect(l: &Layout, zoom: f32, pan_x: f32, pan_y: f32) -> (f32, f32, f32, f32) {
+    // Landscape fits the floor width; portrait fits the floor height.
+    let (image_width, image_height) = if l.portrait {
+        let image_height = l.map_h * zoom;
+        (image_height * FLOOR1_W / FLOOR1_H, image_height)
+    } else {
+        let image_width = l.map_w * zoom;
+        (image_width, image_width * FLOOR1_H / FLOOR1_W)
+    };
+    let x = l.map_x + (l.map_w - image_width) * 0.5 + pan_x;
+    let y = l.map_y + (l.map_h - image_height) * 0.5 + pan_y;
     (x, y, image_width, image_height)
 }
 
@@ -1082,6 +1266,8 @@ fn draw_cursor(
     if state.cursor_mode == CursorMode::Free && !state.mouse_in_map {
         return;
     }
+    #[allow(non_snake_case)]
+    let (MAP_X, MAP_Y, MAP_W, MAP_H, _, _, _) = state.layout.vars();
     let (cx, cy) = active_cursor(state);
     if cx < MAP_X || cx > MAP_X + MAP_W || cy < MAP_Y || cy > MAP_Y + MAP_H {
         return;
@@ -1175,6 +1361,8 @@ fn draw_floor1(
         return;
     }
 
+    #[allow(non_snake_case)]
+    let (MAP_X, MAP_Y, MAP_W, MAP_H, _, _, _) = state.layout.vars();
     // Keep the map content inside the map window.
     let clip_x = ((MAP_X - left) / (right - left) * width).clamp(0.0, width);
     let clip_y = ((MAP_Y - top) / (bottom - top) * height).clamp(0.0, height);
@@ -1188,7 +1376,7 @@ fn draw_floor1(
         true,
     );
 
-    let (ox, oy, iw, ih) = map_rect(state.zoom, state.pan_x, state.pan_y);
+    let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y);
 
     if state.show_grid {
         draw_nav_grid(&state.nav, ox, oy, iw, ih);
@@ -1271,6 +1459,8 @@ fn draw_floor_fade(
     if state.pending_floor.is_none() {
         return;
     }
+    #[allow(non_snake_case)]
+    let (MAP_X, MAP_Y, MAP_W, MAP_H, _, _, _) = state.layout.vars();
     let clip_x = ((MAP_X - left) / (right - left) * width).clamp(0.0, width);
     let clip_y = ((MAP_Y - top) / (bottom - top) * height).clamp(0.0, height);
     let clip_right = ((MAP_X + MAP_W - left) / (right - left) * width).clamp(0.0, width);
@@ -1289,34 +1479,33 @@ fn draw_floor_fade(
 }
 
 fn draw_floor_selector(state: &State) {
-    let top = MAP_Y;
-    let center = FLOOR_PANEL_X + PANEL_W * 0.5;
-
-    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.08);
-    rect(FLOOR_PANEL_X, top, PANEL_W, MAP_H);
-    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.75);
-    outline_rect(FLOOR_PANEL_X, top, PANEL_W, MAP_H);
-    line(FLOOR_PANEL_X, 463.0, FLOOR_PANEL_X + PANEL_W, 463.0);
-    line(FLOOR_PANEL_X, 512.0, FLOOR_PANEL_X + PANEL_W, 512.0);
-    line(FLOOR_PANEL_X, 661.0, FLOOR_PANEL_X + PANEL_W, 661.0);
-    line(FLOOR_PANEL_X, 710.0, FLOOR_PANEL_X + PANEL_W, 710.0);
-
-    // Arrows nudge outward when their direction is activated (no pulse).
-    let up_offset = (state.arrow_up_t * std::f32::consts::PI).sin() * 10.0;
-    let down_offset = (state.arrow_down_t * std::f32::consts::PI).sin() * 10.0;
-    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.92);
-    triangle(center, 489.0 - up_offset, 6.0, true);
-    triangle(center, 684.0 + down_offset, 6.0, false);
-
-    let marker_y = [543.0, 587.0, 631.0];
+    let l = state.layout;
     let selected_slot = floor_slot(state.floor);
-    // Fade the selection out and back in quickly during a floor change.
     let sel_alpha = if state.pending_floor.is_some() {
         (2.0 * state.transition_t - 1.0).abs()
     } else {
         1.0
     };
-    for (slot, y) in marker_y.into_iter().enumerate() {
+    let up_off = (state.arrow_up_t * std::f32::consts::PI).sin() * 10.0;
+    let down_off = (state.arrow_down_t * std::f32::consts::PI).sin() * 10.0;
+
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.08);
+    rect(l.floor_x, l.floor_y, l.floor_w, l.floor_h);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.75);
+    outline_rect(l.floor_x, l.floor_y, l.floor_w, l.floor_h);
+
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.92);
+    if l.portrait {
+        // Horizontal bar: up arrow at the left end, down arrow at the right.
+        triangle_dir(l.floor_up.0 - up_off, l.floor_up.1, 6.0, -1.0, 0.0);
+        triangle_dir(l.floor_down.0 + down_off, l.floor_down.1, 6.0, 1.0, 0.0);
+    } else {
+        // Vertical bar: up arrow at the top end, down arrow at the bottom.
+        triangle(l.floor_up.0, l.floor_up.1 - up_off, 6.0, true);
+        triangle(l.floor_down.0, l.floor_down.1 + down_off, 6.0, false);
+    }
+
+    for (slot, (mx, my)) in l.floor_markers.into_iter().enumerate() {
         if slot == selected_slot {
             sgl::c4f(
                 C_FLOOR_YELLOW.0,
@@ -1324,82 +1513,99 @@ fn draw_floor_selector(state: &State) {
                 C_FLOOR_YELLOW.2,
                 0.9 * sel_alpha,
             );
-            diamond(center, y, 12.5, false);
+            diamond(mx, my, 12.5, false);
             sgl::c4f(C_HILITE.0, C_HILITE.1, C_HILITE.2, sel_alpha);
-            diamond(center, y, 9.0, true);
+            diamond(mx, my, 9.0, true);
         } else {
             sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.8);
-            diamond(center, y, 9.0, false);
+            diamond(mx, my, 9.0, false);
         }
     }
 }
 
 fn draw_zoom_selector(state: &State) {
-    let top = MAP_Y;
-    let center = ZOOM_PANEL_X + PANEL_W * 0.5;
-    let line_top = 438.0;
-    let line_bottom = 730.0;
-
+    let l = state.layout;
     sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.08);
-    rect(ZOOM_PANEL_X, top, PANEL_W, MAP_H);
+    rect(l.zoom_x, l.zoom_y, l.zoom_w, l.zoom_h);
     sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.75);
-    outline_rect(ZOOM_PANEL_X, top, PANEL_W, MAP_H);
+    outline_rect(l.zoom_x, l.zoom_y, l.zoom_w, l.zoom_h);
 
-    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.86);
-    outline_rect(center - 8.0, 406.0, 16.0, 16.0);
-    line(center - 4.0, 414.0, center + 4.0, 414.0);
-    line(center, 410.0, center, 418.0);
-    outline_rect(center - 8.0, 742.0, 16.0, 16.0);
-    line(center - 4.0, 750.0, center + 4.0, 750.0);
-
-    line(center, line_top, center, line_bottom);
-    let default_zoom = (line_top + line_bottom) * 0.5;
-    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.72);
-    rect(center - 8.0, default_zoom - 1.0, 16.0, 2.0);
-    // The default zoom sits at the centre of the bar, so the mapping is linear.
     let normalized = ((state.zoom - ZOOM_MIN) / (ZOOM_MAX - ZOOM_MIN)).clamp(0.0, 1.0);
-    let marker_y = line_bottom + (line_top - line_bottom) * normalized;
-    sgl::c4f(C_HILITE.0, C_HILITE.1, C_HILITE.2, 1.0);
-    rect(center - 10.0, marker_y - 2.0, 20.0, 4.0);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.86);
+    if l.portrait {
+        // Horizontal bar: - left, + right, vertical default-zoom centre line.
+        let (mx, my) = l.zoom_minus;
+        outline_rect(mx, my, 16.0, 16.0);
+        line(mx + 4.0, my + 8.0, mx + 12.0, my + 8.0);
+        let (px, py) = l.zoom_plus;
+        outline_rect(px, py, 16.0, 16.0);
+        line(px + 4.0, py + 8.0, px + 12.0, py + 8.0);
+        line(px + 8.0, py + 4.0, px + 8.0, py + 12.0);
+
+        line(l.zoom_a.0, l.zoom_a.1, l.zoom_b.0, l.zoom_b.1);
+        let cx = (l.zoom_a.0 + l.zoom_b.0) * 0.5;
+        sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.72);
+        line(cx, l.zoom_a.1 - 8.0, cx, l.zoom_a.1 + 8.0);
+        let marker_x = l.zoom_a.0 + (l.zoom_b.0 - l.zoom_a.0) * normalized;
+        sgl::c4f(C_HILITE.0, C_HILITE.1, C_HILITE.2, 1.0);
+        rect(marker_x - 2.0, l.zoom_a.1 - 10.0, 4.0, 20.0);
+    } else {
+        // Vertical bar: + top, - bottom, horizontal default-zoom centre line.
+        let (px, py) = l.zoom_plus;
+        outline_rect(px, py, 16.0, 16.0);
+        line(px + 4.0, py + 8.0, px + 12.0, py + 8.0);
+        line(px + 8.0, py + 4.0, px + 8.0, py + 12.0);
+        let (mx, my) = l.zoom_minus;
+        outline_rect(mx, my, 16.0, 16.0);
+        line(mx + 4.0, my + 8.0, mx + 12.0, my + 8.0);
+
+        line(l.zoom_a.0, l.zoom_a.1, l.zoom_b.0, l.zoom_b.1);
+        let cy = (l.zoom_a.1 + l.zoom_b.1) * 0.5;
+        sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.72);
+        rect(l.zoom_a.0 - 8.0, cy - 1.0, 16.0, 2.0);
+        let marker_y = l.zoom_b.1 + (l.zoom_a.1 - l.zoom_b.1) * normalized;
+        sgl::c4f(C_HILITE.0, C_HILITE.1, C_HILITE.2, 1.0);
+        rect(l.zoom_a.0 - 10.0, marker_y - 2.0, 20.0, 4.0);
+    }
 }
 
-fn draw_map_frame() {
-    let right = MAP_X + MAP_W;
-    let bottom = MAP_Y + MAP_H;
-    // Top/bottom lines span the full widget width, matching the vertical line
-    // to the left of the floor diamonds (the floor panel border).
-    let wx0 = FLOOR_PANEL_X;
-    let wx1 = ZOOM_PANEL_X + PANEL_W;
-
+fn draw_map_frame(l: &Layout) {
+    let right = l.map_x + l.map_w;
+    let bottom = l.map_y + l.map_h;
     sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.75);
-    line(wx0, MAP_Y, wx1, MAP_Y);
-    line(wx0, bottom, wx1, bottom);
-    line(MAP_X, MAP_Y, MAP_X, bottom);
-    line(right, MAP_Y, right, bottom);
+    if l.portrait {
+        line(l.map_x, l.map_y, right, l.map_y);
+        line(l.map_x, bottom, right, bottom);
+    } else {
+        line(l.floor_x, l.map_y, l.zoom_x + l.panel_w, l.map_y);
+        line(l.floor_x, bottom, l.zoom_x + l.panel_w, bottom);
+    }
+    line(l.map_x, l.map_y, l.map_x, bottom);
+    line(right, l.map_y, right, bottom);
 
     // Gradation ticks at the map edge, pointing inward (no outside margin).
     sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.5);
-    let mut x = MAP_X + 4.0;
+    let mut x = l.map_x + 4.0;
     while x < right - 2.0 {
-        rect(x, MAP_Y, 1.0, 6.0);
+        rect(x, l.map_y, 1.0, 6.0);
         rect(x, bottom - 6.0, 1.0, 6.0);
         x += 8.0;
     }
-    let mut y = MAP_Y + 4.0;
+    let mut y = l.map_y + 4.0;
     while y < bottom - 2.0 {
-        rect(MAP_X, y, 6.0, 1.0);
+        rect(l.map_x, y, 6.0, 1.0);
         rect(right - 6.0, y, 6.0, 1.0);
         y += 8.0;
     }
 }
 
-fn draw_map_overlay() {
-    let right = MAP_X + MAP_W;
-    let bottom = MAP_Y + MAP_H;
+fn draw_map_overlay(l: &Layout) {
+    let right = l.map_x + l.map_w;
+    let bottom = l.map_y + l.map_h;
     let hud_right = right - 18.0;
 
     sgl::c4f(C_DIM.0, C_DIM.1, C_DIM.2, 0.62);
-    let rows = [MAP_Y + 20.0, MAP_Y + 32.0, MAP_Y + 44.0];
+    let rows = [l.map_y + 20.0, l.map_y + 32.0, l.map_y + 44.0];
     for y in rows {
         line(right - 118.0, y + 4.0, hud_right, y + 4.0);
         sgl::begin_points();
@@ -1407,14 +1613,16 @@ fn draw_map_overlay() {
         sgl::v2f(hud_right, y + 4.0);
         sgl::end();
     }
-    line(hud_right, MAP_Y + 58.0, hud_right, bottom - 44.0);
+    line(hud_right, l.map_y + 58.0, hud_right, bottom - 44.0);
 
     sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.9);
     outline_rect(right - 108.0, bottom - 43.0, 88.0, 22.0);
 
-    // Two short registration lines continue below the lower-right corner.
-    line(right - 34.0, bottom + 4.0, right - 34.0, bottom + 48.0);
-    line(right - 20.0, bottom + 4.0, right - 20.0, bottom + 48.0);
+    if !l.portrait {
+        // Two short registration lines continue below the lower-right corner.
+        line(right - 34.0, bottom + 4.0, right - 34.0, bottom + 48.0);
+        line(right - 20.0, bottom + 4.0, right - 20.0, bottom + 48.0);
+    }
 }
 
 fn draw_ui_text(font: &Font, text: &str, x: f32, y: f32, color: (f32, f32, f32), large: bool) {
@@ -1422,57 +1630,48 @@ fn draw_ui_text(font: &Font, text: &str, x: f32, y: f32, color: (f32, f32, f32),
     draw_text(font, text, x, y, size, color);
 }
 
-fn draw_map_labels(font: &Font) {
+fn draw_map_labels(font: &Font, l: &Layout) {
+    let right = l.map_x + l.map_w;
+    let bottom = l.map_y + l.map_h;
     let label = |text: &str, x: f32, y: f32, color: (f32, f32, f32), large: bool| {
         draw_ui_text(font, text, x, y, color, large)
     };
 
-    label("BATTERY", MAP_X + MAP_W - 154.0, MAP_Y + 20.0, C_DIM, false);
-    label("MEMORY", MAP_X + MAP_W - 154.0, MAP_Y + 32.0, C_DIM, false);
-    label("DISC", MAP_X + MAP_W - 154.0, MAP_Y + 44.0, C_DIM, false);
-    label(
-        "AREA MAP",
-        MAP_X + MAP_W - 103.0,
-        MAP_Y + MAP_H - 38.0,
-        C_HILITE,
-        false,
-    );
-    label("In", ZOOM_PANEL_X + 13.0, MAP_Y + 140.0, C_LABEL, false);
-    label("Out", ZOOM_PANEL_X + 8.0, MAP_Y + 570.0, C_LABEL, false);
-    // The nameplate is framed by the outer left/right lines below the map.
-    let name_left = MAP_X;
-    let name_left_inner = MAP_X + 14.0;
-    let name_right = MAP_X + 242.0;
-    // Center the label between those lines.
-    let name = "Care Center";
-    let name_x = (name_left + name_right) * 0.5 - font.text_width(name, 28.6) * 0.5;
-    label(name, name_x, MAP_Y + MAP_H + 23.0, C_TITLE, true);
+    label("BATTERY", right - 154.0, l.map_y + 20.0, C_DIM, false);
+    label("MEMORY", right - 154.0, l.map_y + 32.0, C_DIM, false);
+    label("DISC", right - 154.0, l.map_y + 44.0, C_DIM, false);
+    label("AREA MAP", right - 103.0, bottom - 38.0, C_HILITE, false);
+    label("In", l.in_pos.0, l.in_pos.1, C_LABEL, false);
+    label("Out", l.out_pos.0, l.out_pos.1, C_LABEL, false);
 
-    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.9);
-    line(
-        name_left,
-        MAP_Y + MAP_H + 4.0,
-        name_left,
-        MAP_Y + MAP_H + 48.0,
-    );
-    line(
-        name_left_inner,
-        MAP_Y + MAP_H + 4.0,
-        name_left_inner,
-        MAP_Y + MAP_H + 48.0,
-    );
-    line(
-        name_right,
-        MAP_Y + MAP_H + 4.0,
-        name_right,
-        MAP_Y + MAP_H + 48.0,
-    );
+    // Care Center name; in landscape it sits in a bracketed nameplate.
+    let name = "Care Center";
+    let name_x = l.name_x - font.text_width(name, 28.6) * 0.5;
+    label(name, name_x, l.name_y, C_TITLE, true);
+
+    if !l.portrait {
+        let name_left = l.map_x;
+        let name_left_inner = l.map_x + 14.0;
+        let name_right = l.map_x + 242.0;
+        sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.9);
+        line(name_left, bottom + 4.0, name_left, bottom + 48.0);
+        line(
+            name_left_inner,
+            bottom + 4.0,
+            name_left_inner,
+            bottom + 48.0,
+        );
+        line(name_right, bottom + 4.0, name_right, bottom + 48.0);
+    }
 }
 
 fn draw_debug_overlay(state: &State) {
     if !state.debug_mode {
         return;
     }
+    #[allow(non_snake_case)]
+    let (MAP_X, MAP_Y, MAP_W, MAP_H, _, _, _) = state.layout.vars();
+    let _ = (MAP_Y, MAP_H);
     let font = state.font.as_ref().unwrap();
     let text = format!("FPS: {:5.1}", state.fps);
     let width = font.text_width(&text, 19.5);
@@ -1502,30 +1701,30 @@ fn draw_background_grid(left: f32, right: f32, top: f32, bottom: f32) {
     }
 }
 
-fn reference_projection(width: f32, height: f32) -> (f32, f32, f32, f32) {
-    // Fill the resized viewport without distorting the fixed reference map.
-    // If the viewport is not 16:9, expose a little more reference space on
-    // the longer axis so the excess is cropped instead of shown as a gap.
+fn reference_projection(l: &Layout, width: f32, height: f32) -> (f32, f32, f32, f32) {
+    // Fill the resized viewport without distorting the reference layout. If the
+    // viewport aspect differs, expose extra reference space on the longer axis.
+    let reference_aspect = l.ref_w / l.ref_h;
     let aspect = if height > 0.0 {
         width / height
     } else {
-        REF_W / REF_H
+        reference_aspect
     };
-    let reference_aspect = REF_W / REF_H;
     if aspect >= reference_aspect {
-        let visible_width = REF_H * aspect;
-        let crop = (visible_width - REF_W) * 0.5;
-        (-crop, REF_W + crop, 0.0, REF_H)
+        let visible_width = l.ref_h * aspect;
+        let crop = (visible_width - l.ref_w) * 0.5;
+        (-crop, l.ref_w + crop, 0.0, l.ref_h)
     } else {
-        let visible_height = REF_W / aspect.max(0.0001);
-        let crop = (visible_height - REF_H) * 0.5;
-        (0.0, REF_W, -crop, REF_H + crop)
+        let visible_height = l.ref_w / aspect.max(0.0001);
+        let crop = (visible_height - l.ref_h) * 0.5;
+        (0.0, l.ref_w, -crop, l.ref_h + crop)
     }
 }
 
 extern "C" fn frame(user_data: *mut ffi::c_void) {
     let state = unsafe { &mut *(user_data as *mut State) };
     let delta = (sapp::frame_duration() as f32).clamp(0.0, 0.1);
+    state.layout = Layout::compute(sapp::widthf(), sapp::heightf());
     state.time += delta;
     let ease = (delta * 14.0).min(1.0);
     state.zoom += (state.zoom_target - state.zoom) * ease;
@@ -1546,10 +1745,24 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
 
     // Limit panning so the map stays within the window.
     {
-        let iw = MAP_W * state.zoom;
-        let ih = iw * FLOOR1_H / FLOOR1_W;
-        let max_x = if iw > MAP_W { (iw - MAP_W) * 0.5 } else { 0.0 } + PAN_MARGIN;
-        let max_y = if ih > MAP_H { (ih - MAP_H) * 0.5 } else { 0.0 } + PAN_MARGIN;
+        let l = state.layout;
+        let (iw, ih) = if l.portrait {
+            let ih = l.map_h * state.zoom;
+            (ih * FLOOR1_W / FLOOR1_H, ih)
+        } else {
+            let iw = l.map_w * state.zoom;
+            (iw, iw * FLOOR1_H / FLOOR1_W)
+        };
+        let max_x = if iw > l.map_w {
+            (iw - l.map_w) * 0.5
+        } else {
+            0.0
+        } + PAN_MARGIN;
+        let max_y = if ih > l.map_h {
+            (ih - l.map_h) * 0.5
+        } else {
+            0.0
+        } + PAN_MARGIN;
         state.pan_x = state.pan_x.clamp(-max_x, max_x);
         state.pan_y = state.pan_y.clamp(-max_y, max_y);
         state.pan_target_x = state.pan_target_x.clamp(-max_x, max_x);
@@ -1567,7 +1780,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
 
     // Free cursor follows the mouse.
     if state.cursor_mode == CursorMode::Free && state.mouse_in_map {
-        state.cursor = clamp_to_map(state.mouse);
+        state.cursor = clamp_to_map(&state.layout, state.mouse);
     }
     if let Some(target) = state.pending_floor {
         state.transition_t = (state.transition_t + delta / 0.225).min(1.0);
@@ -1589,7 +1802,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
 
     let width = sapp::widthf();
     let height = sapp::heightf();
-    let (left, right, top, bottom) = reference_projection(width, height);
+    let (left, right, top, bottom) = reference_projection(&state.layout, width, height);
 
     sgl::viewportf(0.0, 0.0, width, height, true);
     sgl::defaults();
@@ -1604,9 +1817,9 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     draw_zoom_selector(state);
     draw_floor1(state, width, height, left, right, top, bottom);
     draw_floor_fade(state, width, height, left, right, top, bottom);
-    draw_map_frame();
-    draw_map_overlay();
-    draw_map_labels(state.font.as_ref().unwrap());
+    draw_map_frame(&state.layout);
+    draw_map_overlay(&state.layout);
+    draw_map_labels(state.font.as_ref().unwrap(), &state.layout);
     draw_cursor(state, width, height, left, right, top, bottom);
     draw_debug_overlay(state);
 
@@ -1632,6 +1845,7 @@ extern "C" fn cleanup(user_data: *mut ffi::c_void) {
 
 fn main() {
     let state = Box::new(State {
+        layout: Layout::compute(1920.0, 1080.0),
         pass_action: sg::PassAction::new(),
         pipeline: sgl::Pipeline::new(),
         overlay_view: sg::View::new(),
@@ -1650,8 +1864,8 @@ fn main() {
         pan_target_y: 0.0,
         pending_floor: None,
         transition_t: 0.0,
-        cursor: (MAP_X + MAP_W * 0.5, MAP_Y + MAP_H * 0.5),
-        mouse: (MAP_X + MAP_W * 0.5, MAP_Y + MAP_H * 0.5),
+        cursor: (959.5, 588.0),
+        mouse: (959.5, 588.0),
         // Show the default map-centre cursor from the first frame; it snaps
         // to the pointer on the first mouse-move event in mouse-cursor mode.
         mouse_in_map: true,
