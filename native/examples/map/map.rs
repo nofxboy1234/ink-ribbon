@@ -11,8 +11,9 @@ const MAP_H: f32 = 720.0;
 const FLOOR_PANEL_X: f32 = 220.0;
 const ZOOM_PANEL_X: f32 = MAP_X + MAP_W;
 const PANEL_W: f32 = 46.0;
-const ZOOM_MIN: f32 = 0.72;
-const ZOOM_MAX: f32 = 2.4;
+const ZOOM_MIN: f32 = 0.7;
+const ZOOM_MAX: f32 = 1.6;
+const DEFAULT_ZOOM: f32 = 1.15;
 const NUM_FLOORS: usize = 3;
 
 // Palette sampled from the reference interactive-map capture (near-monochrome).
@@ -22,6 +23,9 @@ const C_ACCENT: (f32, f32, f32) = (0.78, 0.75, 0.60); // #c7c099 player / route
 const C_LINE: (f32, f32, f32) = (0.55, 0.57, 0.57); // #8c9191 panels, markers
 const C_LABEL: (f32, f32, f32) = (0.58, 0.58, 0.55); // #94948c room labels
 const C_TITLE: (f32, f32, f32) = (0.72, 0.72, 0.70); // #b8b8b3 title
+const C_ITEM: (f32, f32, f32) = (0.54, 0.40, 0.82); // #8a65d1 item markers
+const C_ROUTE: (f32, f32, f32) = (0.63, 0.90, 0.67); // #a0e6aa route green
+const C_FLOOR_YELLOW: (f32, f32, f32) = (0.55, 0.52, 0.14); // selected floor border
 
 // Near-black background and faint map backing grid.
 const BACKGROUND: (f32, f32, f32) = (0.047, 0.047, 0.047); // #0c0c0c
@@ -282,6 +286,9 @@ struct State {
     cursor_mode: CursorMode,
     os_cursor_hidden: bool,
     touch_last: (f32, f32),
+    hover_item: Option<usize>,
+    arrow_up_t: f32,
+    arrow_down_t: f32,
     floor: usize,
     zoom: f32,
     pan_x: f32,
@@ -376,6 +383,11 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
 
 fn change_floor(state: &mut State, floor: usize) {
     if floor < NUM_FLOORS && floor != state.floor && state.pending_floor.is_none() {
+        if floor < state.floor {
+            state.arrow_up_t = 0.001;
+        } else {
+            state.arrow_down_t = 0.001;
+        }
         state.pending_floor = Some(floor);
         state.transition_t = 0.0;
         state.target = None;
@@ -392,7 +404,7 @@ fn floor_slot(floor: usize) -> usize {
 }
 
 fn recenter(state: &mut State) {
-    state.zoom_target = 1.0;
+    state.zoom_target = DEFAULT_ZOOM;
     state.pan_target_x = 0.0;
     state.pan_target_y = 0.0;
 }
@@ -426,12 +438,13 @@ fn clamp_to_map(p: (f32, f32)) -> (f32, f32) {
 }
 
 fn set_cursor_hidden(hidden: bool) {
+    // The pixel buffer must outlive the binding: sokol keeps the range pointer.
+    static CURSOR_PIXEL: [u32; 1] = [0];
     if hidden {
-        let pixels = [0u32; 1];
         let desc = sapp::ImageDesc {
             width: 1,
             height: 1,
-            pixels: sapp::slice_as_range(&pixels),
+            pixels: sapp::slice_as_range(&CURSOR_PIXEL),
             ..Default::default()
         };
         let cursor = sapp::bind_mouse_cursor_image(sapp::MouseCursor::Custom0, &desc);
@@ -458,6 +471,24 @@ fn pan_to_center_player(state: &mut State) {
 
 fn recenter_on_player(state: &mut State) {
     pan_to_center_player(state);
+}
+
+fn hover_item_at(state: &State, cx: f32, cy: f32) -> Option<usize> {
+    if state.floor != FLOOR1_INDEX
+        || cx < MAP_X
+        || cx > MAP_X + MAP_W
+        || cy < MAP_Y
+        || cy > MAP_Y + MAP_H
+    {
+        return None;
+    }
+    let (ox, oy, iw, ih) = map_rect(state.zoom, state.pan_x, state.pan_y);
+    let sx = FLOOR1_X + (cx - ox) * FLOOR1_W / iw;
+    let sy = FLOOR1_Y + (cy - oy) * FLOOR1_H / ih;
+    KEY_ITEMS.iter().position(|&(_, kx, ky)| {
+        let (dx, dy) = (sx - kx, sy - ky);
+        dx * dx + dy * dy <= CLICK_RADIUS * CLICK_RADIUS
+    })
 }
 fn press_at(state: &mut State, x: f32, y: f32) {
     if (FLOOR_PANEL_X..MAP_X).contains(&x) {
@@ -873,6 +904,26 @@ fn outline_circle(cx: f32, cy: f32, radius: f32) {
     outline_circle_seg(cx, cy, radius, CIRCLE_SEGMENTS);
 }
 
+// Black bar with a horizontal alpha ramp: solid in the middle, fading at the
+// left and right ends. Used behind the hover popup text.
+fn draw_gradient_rect(x: f32, y: f32, width: f32, height: f32, alpha_max: f32, fade: f32) {
+    let strips = 24;
+    let strip_w = width / strips as f32;
+    for i in 0..strips {
+        let sx = x + i as f32 * strip_w;
+        let center = sx + strip_w * 0.5;
+        let edge = ((center - x) / fade)
+            .min((x + width - center) / fade)
+            .clamp(0.0, 1.0);
+        let alpha = alpha_max * edge;
+        if alpha <= 0.0 {
+            continue;
+        }
+        sgl::c4f(0.0, 0.0, 0.0, alpha);
+        rect(sx, y, strip_w, height);
+    }
+}
+
 // Reference map cursor: a circle with four short ticks at N/E/S/W.
 fn draw_cursor(
     state: &State,
@@ -907,6 +958,18 @@ fn draw_cursor(
     line(cx, cy + CURSOR_RADIUS, cx, cy + CURSOR_RADIUS + CURSOR_TICK);
     line(cx - CURSOR_RADIUS, cy, cx - CURSOR_RADIUS - CURSOR_TICK, cy);
     line(cx + CURSOR_RADIUS, cy, cx + CURSOR_RADIUS + CURSOR_TICK, cy);
+    if let Some(i) = state.hover_item {
+        let font = state.font.as_ref().unwrap();
+        let text = KEY_ITEMS[i].0;
+        let size = 19.5;
+        let tx = cx;
+        let ty = cy + CURSOR_RADIUS + CURSOR_TICK + 6.0;
+        let width = font.text_width(text, size);
+        let pad = 13.0;
+        draw_gradient_rect(tx - pad, ty - 4.0, width + pad * 2.0, size + 8.0, 0.8, pad);
+        draw_text(font, text, tx + 1.5, ty + 1.5, size, (0.02, 0.02, 0.02));
+        draw_text(font, text, tx, ty, size, C_HILITE);
+    }
     sgl::scissor_rectf(0.0, 0.0, width, height, true);
 }
 
@@ -998,7 +1061,7 @@ fn draw_floor1(
     sgl::disable_texture();
 
     // Key item dots: constant screen size (reference units).
-    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 1.0);
+    sgl::c4f(C_ITEM.0, C_ITEM.1, C_ITEM.2, 1.0);
     for (_name, sx, sy) in KEY_ITEMS {
         let (rx, ry) = src_to_ref(ox, oy, iw, ih, sx, sy);
         filled_circle(rx, ry, ITEM_RADIUS);
@@ -1011,12 +1074,12 @@ fn draw_floor1(
             .iter()
             .map(|&(sx, sy)| src_to_ref(ox, oy, iw, ih, sx, sy))
             .collect();
-        sgl::c4f(C_ACCENT.0, C_ACCENT.1, C_ACCENT.2, 1.0);
+        sgl::c4f(C_ROUTE.0, C_ROUTE.1, C_ROUTE.2, 1.0);
         thick_polyline(&route, PATH_WIDTH);
     }
     if let Some(i) = state.target {
         let (rx, ry) = src_to_ref(ox, oy, iw, ih, KEY_ITEMS[i].1, KEY_ITEMS[i].2);
-        sgl::c4f(C_ACCENT.0, C_ACCENT.1, C_ACCENT.2, 1.0);
+        sgl::c4f(C_ROUTE.0, C_ROUTE.1, C_ROUTE.2, 1.0);
         outline_circle(rx, ry, ITEM_RADIUS + 4.0);
     }
     let (px, py) = src_to_ref(ox, oy, iw, ih, PLAYER.0, PLAYER.1);
@@ -1079,20 +1142,36 @@ fn draw_floor_selector(state: &State) {
     line(FLOOR_PANEL_X, 661.0, FLOOR_PANEL_X + PANEL_W, 661.0);
     line(FLOOR_PANEL_X, 710.0, FLOOR_PANEL_X + PANEL_W, 710.0);
 
+    // Arrows nudge outward when their direction is activated (no pulse).
+    let up_offset = (state.arrow_up_t * std::f32::consts::PI).sin() * 10.0;
+    let down_offset = (state.arrow_down_t * std::f32::consts::PI).sin() * 10.0;
     sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.92);
-    triangle(center, 489.0, 6.0, true);
-    triangle(center, 684.0, 6.0, false);
+    triangle(center, 489.0 - up_offset, 6.0, true);
+    triangle(center, 684.0 + down_offset, 6.0, false);
 
     let marker_y = [543.0, 587.0, 631.0];
     let selected_slot = floor_slot(state.floor);
+    // Fade the selection out and back in quickly during a floor change.
+    let sel_alpha = if state.pending_floor.is_some() {
+        (2.0 * state.transition_t - 1.0).abs()
+    } else {
+        1.0
+    };
     for (slot, y) in marker_y.into_iter().enumerate() {
-        let selected = slot == selected_slot;
-        if selected {
-            sgl::c4f(C_HILITE.0, C_HILITE.1, C_HILITE.2, 1.0);
+        if slot == selected_slot {
+            sgl::c4f(
+                C_FLOOR_YELLOW.0,
+                C_FLOOR_YELLOW.1,
+                C_FLOOR_YELLOW.2,
+                0.9 * sel_alpha,
+            );
+            diamond(center, y, 12.5, false);
+            sgl::c4f(C_HILITE.0, C_HILITE.1, C_HILITE.2, sel_alpha);
+            diamond(center, y, 9.0, true);
         } else {
             sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.8);
+            diamond(center, y, 9.0, false);
         }
-        diamond(center, y, 9.0, selected);
     }
 }
 
@@ -1118,14 +1197,8 @@ fn draw_zoom_selector(state: &State) {
     let default_zoom = (line_top + line_bottom) * 0.5;
     sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.72);
     rect(center - 8.0, default_zoom - 1.0, 16.0, 2.0);
-    // The reference UI places the default zoom (1.0) at the halfway mark.
-    // Keep the indicator anchored there while preserving the full zoom range.
-    let normalized = if state.zoom >= 1.0 {
-        0.5 + (state.zoom - 1.0) / (ZOOM_MAX - 1.0) * 0.5
-    } else {
-        (state.zoom - ZOOM_MIN) / (1.0 - ZOOM_MIN) * 0.5
-    }
-    .clamp(0.0, 1.0);
+    // The default zoom sits at the centre of the bar, so the mapping is linear.
+    let normalized = ((state.zoom - ZOOM_MIN) / (ZOOM_MAX - ZOOM_MIN)).clamp(0.0, 1.0);
     let marker_y = line_bottom + (line_top - line_bottom) * normalized;
     sgl::c4f(C_HILITE.0, C_HILITE.1, C_HILITE.2, 1.0);
     rect(center - 10.0, marker_y - 2.0, 20.0, 4.0);
@@ -1299,6 +1372,18 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     state.zoom += (state.zoom_target - state.zoom) * ease;
     state.pan_x += (state.pan_target_x - state.pan_x) * ease;
     state.pan_y += (state.pan_target_y - state.pan_y) * ease;
+    if state.arrow_up_t > 0.0 {
+        state.arrow_up_t = (state.arrow_up_t + delta / 0.25).min(1.0);
+        if state.arrow_up_t >= 1.0 {
+            state.arrow_up_t = 0.0;
+        }
+    }
+    if state.arrow_down_t > 0.0 {
+        state.arrow_down_t = (state.arrow_down_t + delta / 0.25).min(1.0);
+        if state.arrow_down_t >= 1.0 {
+            state.arrow_down_t = 0.0;
+        }
+    }
 
     // Limit panning so the map stays within the window.
     {
@@ -1312,8 +1397,16 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
         state.pan_target_y = state.pan_target_y.clamp(-max_y, max_y);
     }
 
-    // Free cursor: follow the mouse. F recentering only moves the view, never
-    // the cursor, so the drawn cursor stays in sync with the physical pointer.
+    // Hovered key item under the active cursor (drives the popup label).
+    let (hc_x, hc_y) = active_cursor(state);
+    let show_cursor = !(state.cursor_mode == CursorMode::Free && !state.mouse_in_map);
+    state.hover_item = if show_cursor {
+        hover_item_at(state, hc_x, hc_y)
+    } else {
+        None
+    };
+
+    // Free cursor follows the mouse.
     if state.cursor_mode == CursorMode::Free && state.mouse_in_map {
         state.cursor = clamp_to_map(state.mouse);
     }
@@ -1390,7 +1483,7 @@ fn main() {
         path: Vec::new(),
         show_grid: false,
         time: 0.0,
-        zoom_target: 1.0,
+        zoom_target: DEFAULT_ZOOM,
         pan_target_x: 0.0,
         pan_target_y: 0.0,
         pending_floor: None,
@@ -1403,8 +1496,11 @@ fn main() {
         cursor_mode: CursorMode::Free,
         os_cursor_hidden: false,
         touch_last: (0.0, 0.0),
+        hover_item: None,
+        arrow_up_t: 0.0,
+        arrow_down_t: 0.0,
         floor: 2,
-        zoom: 1.0,
+        zoom: DEFAULT_ZOOM,
         pan_x: 0.0,
         pan_y: 0.0,
         dragging: false,
