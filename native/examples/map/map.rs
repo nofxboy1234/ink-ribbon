@@ -14,7 +14,7 @@ const PANEL_W: f32 = 46.0;
 const ZOOM_MIN: f32 = 0.7;
 const ZOOM_MAX: f32 = 1.6;
 const DEFAULT_ZOOM: f32 = 1.15;
-const PAN_MARGIN: f32 = 160.0;
+const PAN_MARGIN: f32 = 700.0;
 const NUM_FLOORS: usize = 3;
 
 // Palette sampled from the reference interactive-map capture (near-monochrome).
@@ -460,7 +460,8 @@ fn drag_by(state: &mut State, dx: f32, dy: f32) {
 }
 
 fn pan_to_center_player(state: &mut State) {
-    let iw = MAP_W * state.zoom;
+    // Computed for the default zoom so the player ends centred once zoom settles.
+    let iw = MAP_W * DEFAULT_ZOOM;
     let ih = iw * FLOOR1_H / FLOOR1_W;
     let (cx, cy) = cursor_center();
     state.pan_target_x = cx - (PLAYER.0 - FLOOR1_X) * iw / FLOOR1_W - MAP_X - (MAP_W - iw) * 0.5;
@@ -468,10 +469,12 @@ fn pan_to_center_player(state: &mut State) {
 }
 
 fn recenter_on_player(state: &mut State) {
-    // If the player is on another floor, change to it (animated) and recenter.
+    // Change to the player's floor (animated), reset to the default zoom, and
+    // pan so the player ends centred.
     if state.floor != FLOOR1_INDEX {
         change_floor(state, FLOOR1_INDEX);
     }
+    state.zoom_target = DEFAULT_ZOOM;
     pan_to_center_player(state);
 }
 
