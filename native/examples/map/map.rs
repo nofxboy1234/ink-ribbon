@@ -44,68 +44,89 @@ struct Layout {
 impl Layout {
     fn compute(width: f32, height: f32) -> Layout {
         if width < height {
+            let ref_w = 1080.0;
+            let ref_h = 1920.0;
+            let zoom_h = 46.0;
+            let floor_h = 46.0;
+            let name_h = 52.0;
+            let map_y = zoom_h;
+            let map_h = ref_h - zoom_h - floor_h - name_h;
+            let floor_y = map_y + map_h;
             Layout {
                 portrait: true,
-                ref_w: 1080.0,
-                ref_h: 1920.0,
-                map_x: 180.0,
-                map_y: 235.0,
-                map_w: 720.0,
-                map_h: 1387.0,
-                floor_x: 180.0,
-                floor_y: 1636.0,
-                floor_w: 720.0,
-                floor_h: 46.0,
-                zoom_x: 180.0,
-                zoom_y: 175.0,
-                zoom_w: 720.0,
-                zoom_h: 46.0,
+                ref_w,
+                ref_h,
+                map_x: 0.0,
+                map_y,
+                map_w: ref_w,
+                map_h,
+                floor_x: 0.0,
+                floor_y,
+                floor_w: ref_w,
+                floor_h,
+                zoom_x: 0.0,
+                zoom_y: 0.0,
+                zoom_w: ref_w,
+                zoom_h,
                 panel_w: 46.0,
-                floor_markers: [(330.0, 1659.0), (540.0, 1659.0), (750.0, 1659.0)],
-                floor_up: (210.0, 1659.0),
-                floor_down: (870.0, 1659.0),
-                zoom_a: (220.0, 198.0),
-                zoom_b: (860.0, 198.0),
-                zoom_minus: (192.0, 190.0),
-                zoom_plus: (872.0, 190.0),
-                name_x: 540.0,
-                name_y: 1710.0,
-                in_pos: (893.0, 191.0),
-                out_pos: (146.0, 191.0),
+                floor_markers: [
+                    (180.0, floor_y + 23.0),
+                    (540.0, floor_y + 23.0),
+                    (900.0, floor_y + 23.0),
+                ],
+                floor_up: (24.0, floor_y + 23.0),
+                floor_down: (ref_w - 24.0, floor_y + 23.0),
+                zoom_a: (60.0, 23.0),
+                zoom_b: (ref_w - 60.0, 23.0),
+                zoom_minus: (12.0, 15.0),
+                zoom_plus: (ref_w - 28.0, 15.0),
+                name_x: ref_w * 0.5,
+                name_y: ref_h - 40.0,
+                in_pos: (ref_w - 56.0, 14.0),
+                out_pos: (30.0, 14.0),
             }
         } else {
-            let map_x = 266.0;
-            let map_y = 228.0;
-            let map_w = 1387.0;
-            let map_h = 720.0;
+            let ref_w = 1920.0;
+            let ref_h = 1080.0;
+            let panel_w = 46.0;
+            let name_h = 52.0;
+            let map_x = panel_w;
+            let map_y = 0.0;
+            let map_w = ref_w - panel_w * 2.0;
+            let map_h = ref_h - name_h;
+            let mid_y = map_h * 0.5;
             Layout {
                 portrait: false,
-                ref_w: 1920.0,
-                ref_h: 1080.0,
+                ref_w,
+                ref_h,
                 map_x,
                 map_y,
                 map_w,
                 map_h,
-                floor_x: 220.0,
-                floor_y: map_y,
-                floor_w: 46.0,
+                floor_x: 0.0,
+                floor_y: 0.0,
+                floor_w: panel_w,
                 floor_h: map_h,
-                zoom_x: map_x + map_w,
-                zoom_y: map_y,
-                zoom_w: 46.0,
+                zoom_x: ref_w - panel_w,
+                zoom_y: 0.0,
+                zoom_w: panel_w,
                 zoom_h: map_h,
-                panel_w: 46.0,
-                floor_markers: [(243.0, 543.0), (243.0, 587.0), (243.0, 631.0)],
-                floor_up: (243.0, 489.0),
-                floor_down: (243.0, 684.0),
-                zoom_a: (1676.0, 438.0),
-                zoom_b: (1676.0, 730.0),
-                zoom_minus: (1668.0, 406.0),
-                zoom_plus: (1668.0, 742.0),
-                name_x: 387.0,
-                name_y: 971.0,
-                in_pos: (1666.0, 368.0),
-                out_pos: (1661.0, 798.0),
+                panel_w,
+                floor_markers: [
+                    (panel_w * 0.5, mid_y - 44.0),
+                    (panel_w * 0.5, mid_y),
+                    (panel_w * 0.5, mid_y + 44.0),
+                ],
+                floor_up: (panel_w * 0.5, 24.0),
+                floor_down: (panel_w * 0.5, map_h - 24.0),
+                zoom_a: (ref_w - panel_w * 0.5, 24.0),
+                zoom_b: (ref_w - panel_w * 0.5, map_h - 24.0),
+                zoom_minus: (ref_w - panel_w * 0.5 - 8.0, map_h - 32.0),
+                zoom_plus: (ref_w - panel_w * 0.5 - 8.0, 8.0),
+                name_x: ref_w * 0.5,
+                name_y: map_h + 14.0,
+                in_pos: (ref_w - panel_w * 0.5 + 11.0, 34.0),
+                out_pos: (ref_w - panel_w * 0.5 + 6.0, map_h - 56.0),
             }
         }
     }
