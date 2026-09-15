@@ -25,6 +25,7 @@ from PIL import Image, ImageFilter
 ROOT = Path(__file__).resolve().parents[1]
 ORIGINALS = ROOT / "artifacts" / "care-center" / "originals"
 OUTPUT = ROOT / "native" / "assets" / "floor-1-nav.bin"
+OUTPUT_OPEN = ROOT / "native" / "assets" / "floor-1-nav-open.bin"
 PREVIEW = ROOT / "artifacts" / "care-center" / "nav-preview.png"
 
 # Canonical Floor 1 frame and navigation resolution.
@@ -185,6 +186,16 @@ def main() -> None:
                 bits[i >> 3] |= 1 << (i & 7)
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_bytes(struct.pack("<III", CELL_PX, W, H) + bytes(bits))
+
+    # Optimistic grid: same as above but locked doors are passable, so a route
+    # can be traced up to (and past) a locked-door blocker for display.
+    open_bits = bytearray((W * H + 7) // 8)
+    for y in range(H):
+        for x in range(W):
+            if walk_unlocked[y][x]:
+                i = y * W + x
+                open_bits[i >> 3] |= 1 << (i & 7)
+    OUTPUT_OPEN.write_bytes(struct.pack("<III", CELL_PX, W, H) + bytes(open_bits))
 
     start = nearest_walkable(walk, *source_to_cell(*PLAYER))
     print(
