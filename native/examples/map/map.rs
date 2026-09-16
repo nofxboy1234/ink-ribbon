@@ -226,7 +226,15 @@ const FONT_BIN: &[u8] = include_bytes!("../../assets/font.bin");
 // Player start (Guard Office), click tolerance (source px) and route styling (reference units).
 const PLAYER: (f32, f32) = (3840.0, 5008.0);
 const CLICK_RADIUS: f32 = 70.0;
-const PLAYER_RADIUS: f32 = 8.0;
+// Player movement. The nav grid inflates walls, obstacles and locked doors by
+// CLEARANCE_CELLS = 2 (16 source px), so "player centre on a walkable cell" is
+// exactly equivalent to a collision disc of that radius. Speed is source px/s.
+const PLAYER_SPEED: f32 = 160.0;
+const PLAYER_COLLIDE_RADIUS: f32 = 16.0;
+const PLAYER_MARKER_SCALE: f32 = 0.85;
+const PLAYER_ACCEL: f32 = 14.0;
+const PLAYER_TURN_RATE: f32 = 10.0;
+const MOVE_SUBSTEP: f32 = 6.0;
 const PATH_WIDTH: f32 = 5.0;
 const GRID_ALPHA: f32 = 0.18;
 
@@ -444,6 +452,12 @@ struct State {
     pinch_dist: f32,
     pinch_base_zoom: f32,
     pinch_src: (f32, f32),
+    player: (f32, f32),
+    player_vel: (f32, f32),
+    facing: f32,
+    facing_target: f32,
+    holding: [bool; 4],
+    player_cell: Option<(i32, i32)>,
     hover_item: Option<usize>,
     arrow_up_t: f32,
     arrow_down_t: f32,
@@ -537,7 +551,13 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
     };
     set_cursor_hidden(true);
     state.os_cursor_hidden = true;
-    state.reachable = match snap_source(&state.nav, PLAYER.0, PLAYER.1) {
+    // The traced Guard Office point can sit on room furniture; start on the
+    // nearest walkable cell so the collision disc has room.
+    if let Some(cell) = snap_source(&state.nav, PLAYER.0, PLAYER.1) {
+        state.player = cell_to_source(&state.nav, cell.0, cell.1);
+        state.player_cell = Some(cell);
+    }
+    state.reachable = match snap_source(&state.nav, state.player.0, state.player.1) {
         Some(start) => reachable_from(&state.nav, start),
         None => Vec::new(),
     };
@@ -646,9 +666,9 @@ fn pan_to_center_player(state: &mut State) {
     };
     let (cx, cy) = cursor_center(&l);
     state.pan_target_x =
-        cx - (PLAYER.0 - FLOOR1_X) * iw / FLOOR1_W - l.map_x - (l.map_w - iw) * 0.5;
+        cx - (state.player.0 - FLOOR1_X) * iw / FLOOR1_W - l.map_x - (l.map_w - iw) * 0.5;
     state.pan_target_y =
-        cy - (PLAYER.1 - FLOOR1_Y) * ih / FLOOR1_H - l.map_y - (l.map_h - ih) * 0.5;
+        cy - (state.player.1 - FLOOR1_Y) * ih / FLOOR1_H - l.map_y - (l.map_h - ih) * 0.5;
 }
 
 fn recenter_on_player(state: &mut State) {
@@ -660,6 +680,127 @@ fn recenter_on_player(state: &mut State) {
     state.zoom_anchor = None;
     state.zoom_target = DEFAULT_ZOOM;
     pan_to_center_player(state);
+}
+
+// Unit direction for a facing angle (0 rad = up, increasing clockwise on screen).
+fn facing_vector(facing: f32) -> (f32, f32) {
+    (facing.sin(), -facing.cos())
+}
+
+fn wrap_angle(a: f32) -> f32 {
+    let tau = std::f32::consts::TAU;
+    let mut a = a;
+    while a > std::f32::consts::PI {
+        a -= tau;
+    }
+    while a < -std::f32::consts::PI {
+        a += tau;
+    }
+    a
+}
+
+// The player's collision disc, expressed on the nav grid. The grid already
+// inflates walls/obstacles/locked doors by 2 cells (16px), so requiring the
+// centre cell to be walkable is equivalent to a 16px disc against the raw art.
+fn walkable_center(nav: &Nav, sx: f32, sy: f32) -> bool {
+    let (cx, cy) = source_to_cell(nav, sx, sy);
+    nav.walkable(cx, cy)
+}
+
+// Resolve one movement step axis by axis, so the player slides along a blocked
+// surface instead of stopping dead. Returns (position, x blocked, y blocked).
+fn resolve_move(nav: &Nav, from: (f32, f32), step: (f32, f32)) -> ((f32, f32), bool, bool) {
+    let full = (from.0 + step.0, from.1 + step.1);
+    if walkable_center(nav, full.0, full.1) {
+        return (full, false, false);
+    }
+    if walkable_center(nav, from.0 + step.0, from.1) {
+        return ((from.0 + step.0, from.1), false, true);
+    }
+    if walkable_center(nav, from.0, from.1 + step.1) {
+        return ((from.0, from.1 + step.1), true, false);
+    }
+    (from, true, true)
+}
+
+// Arrow-key player movement: eased velocity, smooth turning toward the movement
+// direction, and circle collision that slides along walls.
+fn update_player(state: &mut State, delta: f32) {
+    if state.floor != FLOOR1_INDEX {
+        return;
+    }
+    let mut ix: f32 = 0.0;
+    let mut iy: f32 = 0.0;
+    if state.holding[0] {
+        iy -= 1.0;
+    }
+    if state.holding[1] {
+        iy += 1.0;
+    }
+    if state.holding[2] {
+        ix -= 1.0;
+    }
+    if state.holding[3] {
+        ix += 1.0;
+    }
+    let len = (ix * ix + iy * iy).sqrt();
+    let (target_vx, target_vy) = if len > 0.0 {
+        let (nx, ny) = (ix / len, iy / len);
+        state.facing_target = nx.atan2(-ny);
+        (nx * PLAYER_SPEED, ny * PLAYER_SPEED)
+    } else {
+        (0.0, 0.0)
+    };
+    let ease = (delta * PLAYER_ACCEL).min(1.0);
+    state.player_vel.0 += (target_vx - state.player_vel.0) * ease;
+    state.player_vel.1 += (target_vy - state.player_vel.1) * ease;
+
+    // Turn smoothly toward the movement direction (shortest arc).
+    let turn = wrap_angle(state.facing_target - state.facing);
+    state.facing += turn * (delta * PLAYER_TURN_RATE).min(1.0);
+
+    // Substep so fast movement cannot tunnel through a wall in one frame.
+    let mut remaining = (state.player_vel.0 * delta, state.player_vel.1 * delta);
+    while remaining.0.abs() > 1e-4 || remaining.1.abs() > 1e-4 {
+        let step = (
+            remaining.0.clamp(-MOVE_SUBSTEP, MOVE_SUBSTEP),
+            remaining.1.clamp(-MOVE_SUBSTEP, MOVE_SUBSTEP),
+        );
+        remaining.0 -= step.0;
+        remaining.1 -= step.1;
+        let (pos, blocked_x, blocked_y) = resolve_move(&state.nav, state.player, step);
+        state.player = pos;
+        if blocked_x {
+            state.player_vel.0 = 0.0;
+        }
+        if blocked_y {
+            state.player_vel.1 = 0.0;
+        }
+        if blocked_x && blocked_y {
+            break;
+        }
+    }
+
+    // Refresh the route from the player's current cell.
+    let cell = source_to_cell(&state.nav, state.player.0, state.player.1);
+    if state.player_cell != Some(cell) {
+        state.player_cell = Some(cell);
+        if let Some(i) = state.target {
+            if let Some(start) = snap_source(&state.nav, state.player.0, state.player.1) {
+                state.reachable = reachable_from(&state.nav, start);
+                let (tx, ty) = (KEY_ITEMS[i].1, KEY_ITEMS[i].2);
+                let (green, red) = route_to(
+                    &state.nav,
+                    &state.nav_open,
+                    &state.reachable,
+                    state.player,
+                    (tx, ty),
+                );
+                state.path = green;
+                state.path_red = red;
+            }
+        }
+    }
 }
 
 fn hover_item_at(state: &State, cx: f32, cy: f32) -> Option<usize> {
@@ -789,11 +930,14 @@ fn select_at(state: &mut State, x: f32, y: f32) {
         Some(i) => {
             state.target = Some(i);
             let (tx, ty) = (KEY_ITEMS[i].1, KEY_ITEMS[i].2);
+            state.reachable = snap_source(&state.nav, state.player.0, state.player.1)
+                .map(|start| reachable_from(&state.nav, start))
+                .unwrap_or_default();
             let (green, red) = route_to(
                 &state.nav,
                 &state.nav_open,
                 &state.reachable,
-                PLAYER,
+                state.player,
                 (tx, ty),
             );
             state.path = green;
@@ -961,10 +1105,14 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 let floor = (state.floor + 1) % NUM_FLOORS;
                 change_floor(state, floor);
             }
-            sapp::Keycode::W | sapp::Keycode::Up => state.pan_target_y += 22.0,
-            sapp::Keycode::S | sapp::Keycode::Down => state.pan_target_y -= 22.0,
-            sapp::Keycode::A | sapp::Keycode::Left => state.pan_target_x += 22.0,
-            sapp::Keycode::D | sapp::Keycode::Right => state.pan_target_x -= 22.0,
+            sapp::Keycode::W => state.pan_target_y += 22.0,
+            sapp::Keycode::S => state.pan_target_y -= 22.0,
+            sapp::Keycode::A => state.pan_target_x += 22.0,
+            sapp::Keycode::D => state.pan_target_x -= 22.0,
+            sapp::Keycode::Up => state.holding[0] = true,
+            sapp::Keycode::Down => state.holding[1] = true,
+            sapp::Keycode::Left => state.holding[2] = true,
+            sapp::Keycode::Right => state.holding[3] = true,
             sapp::Keycode::Equal | sapp::Keycode::KpAdd => {
                 state.zoom_target = (state.zoom_target + 0.12).min(ZOOM_MAX);
                 capture_zoom_anchor(state);
@@ -976,6 +1124,15 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             sapp::Keycode::C | sapp::Keycode::Home => recenter(state),
             _ => {}
         },
+        sapp::EventType::KeyUp => match event.key_code {
+            sapp::Keycode::Up => state.holding[0] = false,
+            sapp::Keycode::Down => state.holding[1] = false,
+            sapp::Keycode::Left => state.holding[2] = false,
+            sapp::Keycode::Right => state.holding[3] = false,
+            _ => {}
+        },
+        // Dropping focus must not leave a direction stuck on.
+        sapp::EventType::Unfocused => state.holding = [false; 4],
         _ => {}
     }
 }
@@ -1442,17 +1599,19 @@ fn draw_cursor(
 }
 
 // Reference player marker: a pale-yellow arrow with expanding pulse rings.
-fn draw_player_marker(state: &State, cx: f32, cy: f32) {
+fn draw_player_marker(state: &State, cx: f32, cy: f32, radius: f32) {
     let period = 1.8f32;
     for k in 0..2 {
         let frac = (state.time / period + k as f32 * 0.5).fract();
-        let radius = PLAYER_RADIUS + 4.0 + frac * (PLAYER_RADIUS + 16.0);
+        let ring = radius + 4.0 + frac * (radius + 16.0);
         let alpha = (1.0 - frac) * 0.45;
         sgl::c4f(C_ACCENT.0, C_ACCENT.1, C_ACCENT.2, alpha);
-        outline_circle(cx, cy, radius);
+        outline_circle(cx, cy, ring);
     }
+    // Rotate the arrow to face the direction of movement (0 rad = up).
+    let (dx, dy) = facing_vector(state.facing);
     sgl::c4f(C_ACCENT.0, C_ACCENT.1, C_ACCENT.2, 1.0);
-    triangle(cx, cy, PLAYER_RADIUS, true);
+    triangle_dir(cx, cy, radius, dx, dy);
 }
 
 // Debug view: fill each walkable cell (the exact grid A* uses), batched per row run.
@@ -1566,8 +1725,24 @@ fn draw_floor1(
         sgl::c4f(color.0, color.1, color.2, 1.0);
         outline_circle(rx, ry, ITEM_RADIUS + 4.0);
     }
-    let (px, py) = src_to_ref(ox, oy, iw, ih, PLAYER.0, PLAYER.1);
-    draw_player_marker(state, px, py);
+    let (px, py) = src_to_ref(ox, oy, iw, ih, state.player.0, state.player.1);
+    let collide_ref = PLAYER_COLLIDE_RADIUS * iw / FLOOR1_W;
+    if state.debug_mode {
+        // The collision disc the player keeps clear of walls, obstacles and
+        // locked doors, plus the 8 samples debug uses to eyeball it.
+        sgl::c4f(C_ACCENT.0, C_ACCENT.1, C_ACCENT.2, 0.7);
+        outline_circle(px, py, collide_ref);
+        sgl::c4f(C_LOCK.0, C_LOCK.1, C_LOCK.2, 0.9);
+        sgl::begin_points();
+        sgl::point_size(3.0);
+        sgl::v2f(px, py);
+        for i in 0..8 {
+            let a = i as f32 / 8.0 * std::f32::consts::TAU;
+            sgl::v2f(px + a.cos() * collide_ref, py + a.sin() * collide_ref);
+        }
+        sgl::end();
+    }
+    draw_player_marker(state, px, py, collide_ref * PLAYER_MARKER_SCALE);
 
     // Room names, centred on their position.
     let font = state.font.as_ref().unwrap();
@@ -1911,6 +2086,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     let delta = (sapp::frame_duration() as f32).clamp(0.0, 0.1);
     state.layout = Layout::compute(sapp::widthf(), sapp::heightf());
     state.time += delta;
+    update_player(state, delta);
     let ease = (delta * 14.0).min(1.0);
     state.zoom += (state.zoom_target - state.zoom) * ease;
     if let Some(a) = state.zoom_anchor {
@@ -2076,6 +2252,12 @@ fn main() {
         pinch_dist: 0.0,
         pinch_base_zoom: DEFAULT_ZOOM,
         pinch_src: (0.0, 0.0),
+        player: PLAYER,
+        player_vel: (0.0, 0.0),
+        facing: 0.0,
+        facing_target: 0.0,
+        holding: [false; 4],
+        player_cell: None,
         hover_item: None,
         arrow_up_t: 0.0,
         arrow_down_t: 0.0,
@@ -2200,5 +2382,109 @@ mod tests {
                 "portrait={portrait} anchored point drifted from the cursor"
             );
         }
+    }
+
+    // Build a throwaway nav grid for collision tests (leaked so it is 'static).
+    fn synthetic_nav(w: usize, h: usize, blocked: impl Fn(usize, usize) -> bool) -> Nav {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&8u32.to_le_bytes());
+        bytes.extend_from_slice(&(w as u32).to_le_bytes());
+        bytes.extend_from_slice(&(h as u32).to_le_bytes());
+        let mut bits = vec![0u8; (w * h + 7) / 8];
+        for y in 0..h {
+            for x in 0..w {
+                if !blocked(x, y) {
+                    let i = y * w + x;
+                    bits[i >> 3] |= 1 << (i & 7);
+                }
+            }
+        }
+        bytes.extend_from_slice(&bits);
+        let leaked: &'static [u8] = Box::leak(bytes.into_boxed_slice());
+        Nav::from_bytes(leaked)
+    }
+
+    #[test]
+    fn facing_vector_points_with_the_angle() {
+        let up = facing_vector(0.0);
+        assert!(up.0.abs() < 1e-6 && up.1 < -0.99, "0 rad should point up");
+        let right = facing_vector(std::f32::consts::FRAC_PI_2);
+        assert!(
+            right.0 > 0.99 && right.1.abs() < 1e-6,
+            "90 deg should point right"
+        );
+        let down = facing_vector(std::f32::consts::PI);
+        assert!(
+            down.0.abs() < 1e-6 && down.1 > 0.99,
+            "180 deg should point down"
+        );
+    }
+
+    #[test]
+    fn player_spawn_snaps_to_a_walkable_cell() {
+        let nav = Nav::from_bytes(NAV_BIN);
+        let cell = snap_source(&nav, PLAYER.0, PLAYER.1).expect("player has a walkable cell");
+        let (sx, sy) = cell_to_source(&nav, cell.0, cell.1);
+        assert!(
+            walkable_center(&nav, sx, sy),
+            "the snapped spawn must be walkable"
+        );
+    }
+
+    #[test]
+    fn player_slides_along_walls() {
+        // Vertical wall at x == 11; everything else walkable.
+        let nav = synthetic_nav(40, 40, |x, _| x == 11);
+        let start = cell_to_source(&nav, 10, 10);
+        assert!(walkable_center(&nav, start.0, start.1));
+
+        // Straight into the wall is refused.
+        let (pos, blocked_x, _) = resolve_move(&nav, start, (100.0, 0.0));
+        assert_eq!(pos, start, "moving straight into a wall should not move");
+        assert!(blocked_x, "x should report as blocked");
+
+        // Diagonal into the wall keeps the tangential component: it slides in y.
+        let (pos, blocked_x, blocked_y) = resolve_move(&nav, start, (100.0, 60.0));
+        assert!(blocked_x, "x should be blocked by the wall");
+        assert!(!blocked_y, "y should stay free so the player slides");
+        assert!(pos.1 > start.1, "player should slide along the wall");
+        assert!(
+            (pos.0 - start.0).abs() < 0.01,
+            "player must not advance into the wall"
+        );
+    }
+
+    #[test]
+    fn player_cannot_enter_locked_doors() {
+        let nav = Nav::from_bytes(NAV_BIN);
+        let nav_open = Nav::from_bytes(NAV_OPEN_BIN);
+        // A cell that only the optimistic grid opens is a locked door.
+        let mut door = None;
+        'outer: for y in 0..nav.h {
+            for x in 0..nav.w {
+                if nav_open.walkable(x, y) && !nav.walkable(x, y) {
+                    door = Some((x, y));
+                    break 'outer;
+                }
+            }
+        }
+        let (dx, dy) = door.expect("a locked-door cell should exist");
+        let center = cell_to_source(&nav, dx, dy);
+        assert!(
+            !walkable_center(&nav, center.0, center.1),
+            "a locked door must not be walkable"
+        );
+
+        // From any walkable neighbour the player cannot step onto the door.
+        let from = [(dx - 1, dy), (dx + 1, dy), (dx, dy - 1), (dx, dy + 1)]
+            .into_iter()
+            .filter(|&(x, y)| nav.walkable(x, y))
+            .map(|(x, y)| cell_to_source(&nav, x, y))
+            .next()
+            .expect("a walkable neighbour of the door");
+        let step = (center.0 - from.0, center.1 - from.1);
+        let (pos, _, _) = resolve_move(&nav, from, step);
+        let entered = (pos.0 - center.0).abs() < 1.0 && (pos.1 - center.1).abs() < 1.0;
+        assert!(!entered, "the player must not enter a locked door");
     }
 }
