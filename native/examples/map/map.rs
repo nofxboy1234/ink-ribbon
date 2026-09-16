@@ -502,6 +502,7 @@ struct State {
     holding: [bool; 4],
     player_cell: Option<(i32, i32)>,
     follow_target: (f32, f32),
+    recentre: bool,
     hover_item: Option<usize>,
     arrow_up_t: f32,
     arrow_down_t: f32,
@@ -631,6 +632,7 @@ fn recenter(state: &mut State) {
     state.pan_target_x = 0.0;
     state.pan_target_y = 0.0;
     state.follow_target = (0.0, 0.0);
+    state.recentre = false;
 }
 
 // Midpoint (in pixels) and separation of the first two active touches.
@@ -693,6 +695,7 @@ fn set_cursor_hidden(hidden: bool) {
 
 fn drag_by(state: &mut State, dx: f32, dy: f32) {
     state.zoom_anchor = None;
+    state.recentre = false;
     state.pan_x += dx;
     state.pan_y += dy;
     state.pan_target_x = state.pan_x;
@@ -742,6 +745,7 @@ fn recenter_on_player(state: &mut State) {
     state.zoom_target = DEFAULT_ZOOM;
     pan_to_center_player(state);
     state.follow_target = (state.pan_target_x, state.pan_target_y);
+    state.recentre = false;
 }
 
 // Unit direction for a facing angle (0 rad = up, increasing clockwise on screen).
@@ -977,6 +981,7 @@ fn panel_click(state: &mut State, x: f32, y: f32) -> bool {
         && (l.zoom_x..l.zoom_x + l.zoom_w).contains(&x)
         && (l.zoom_y..l.zoom_y + l.zoom_h).contains(&y)
     {
+        state.recentre = false;
         if l.portrait {
             if x < l.zoom_a.0 - 20.0 {
                 state.zoom_target = (state.zoom_target - 0.12).max(ZOOM_MIN);
@@ -1100,6 +1105,7 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 state.pinching = true;
                 state.dragging = false;
                 state.moved = true;
+                state.recentre = false;
                 state.pinch_dist = dist.max(1.0);
                 state.pinch_base_zoom = state.zoom_target;
                 let mid = screen_to_ref(&state.layout, mid_px.0, mid_px.1);
@@ -1139,6 +1145,7 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
         }
         sapp::EventType::TouchesMoved => {
             if state.pinching && event.num_touches >= 2 {
+                state.recentre = false;
                 let (mid_px, dist) = touch_pinch(&event.touches[..2]);
                 let mid = screen_to_ref(&state.layout, mid_px.0, mid_px.1);
                 let factor = dist / state.pinch_dist;
@@ -1179,6 +1186,7 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
         sapp::EventType::MouseScroll => {
             state.zoom_target =
                 (state.zoom_target + event.scroll_y * 0.08).clamp(ZOOM_MIN, ZOOM_MAX);
+            state.recentre = false;
             capture_zoom_anchor(state);
         }
         sapp::EventType::KeyDown => match event.key_code {
@@ -1210,16 +1218,30 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             sapp::Keycode::S => state.pan_target_y -= 22.0,
             sapp::Keycode::A => state.pan_target_x += 22.0,
             sapp::Keycode::D => state.pan_target_x -= 22.0,
-            sapp::Keycode::Up => state.holding[0] = true,
-            sapp::Keycode::Down => state.holding[1] = true,
-            sapp::Keycode::Left => state.holding[2] = true,
-            sapp::Keycode::Right => state.holding[3] = true,
+            sapp::Keycode::Up => {
+                state.holding[0] = true;
+                state.recentre = true;
+            }
+            sapp::Keycode::Down => {
+                state.holding[1] = true;
+                state.recentre = true;
+            }
+            sapp::Keycode::Left => {
+                state.holding[2] = true;
+                state.recentre = true;
+            }
+            sapp::Keycode::Right => {
+                state.holding[3] = true;
+                state.recentre = true;
+            }
             sapp::Keycode::Equal | sapp::Keycode::KpAdd => {
                 state.zoom_target = (state.zoom_target + 0.12).min(ZOOM_MAX);
+                state.recentre = false;
                 capture_zoom_anchor(state);
             }
             sapp::Keycode::Minus | sapp::Keycode::KpSubtract => {
                 state.zoom_target = (state.zoom_target - 0.12).max(ZOOM_MIN);
+                state.recentre = false;
                 capture_zoom_anchor(state);
             }
             sapp::Keycode::C | sapp::Keycode::Home => recenter(state),
@@ -2206,18 +2228,34 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
         state.pan_x += (state.pan_target_x - state.pan_x) * ease;
         state.pan_y += (state.pan_target_y - state.pan_y) * ease;
     }
-    // Camera follow: while a movement key is held the camera continuously eases
-    // onto the player (a smooth version of F). When idle it never moves on its
+    // Camera follow. Holding a movement key tracks the player continuously; a
+    // tap latches `recentre` so a single press still pans smoothly all the way
+    // back to the player. When neither is active the camera never moves on its
     // own, so a manual pan stays where it was left.
     let has_input = state.holding.iter().any(|&held| held);
-    if has_input && state.zoom_anchor.is_none() && !state.dragging && !state.pinching {
+    let following = (has_input || state.recentre)
+        && state.floor == FLOOR1_INDEX
+        && state.zoom_anchor.is_none()
+        && !state.dragging
+        && !state.pinching;
+    if following {
         let target = player_center_pan(&state.layout, state.zoom, state.player);
         state.follow_target = follow_step(target, state.follow_target, delta);
         state.pan_target_x = state.follow_target.0;
         state.pan_target_y = state.follow_target.1;
+        // A tap-recentre is done once the camera has reached the player.
+        if state.recentre
+            && (state.follow_target.0 - target.0).abs() < 1.0
+            && (state.follow_target.1 - target.1).abs() < 1.0
+        {
+            state.recentre = false;
+        }
     } else {
         // Keep the catch-up seed in sync so a later follow never jumps.
         state.follow_target = (state.pan_target_x, state.pan_target_y);
+        if state.floor != FLOOR1_INDEX {
+            state.recentre = false;
+        }
     }
 
     if state.arrow_up_t > 0.0 {
@@ -2376,6 +2414,7 @@ fn main() {
         holding: [false; 4],
         player_cell: None,
         follow_target: (0.0, 0.0),
+        recentre: false,
         hover_item: None,
         arrow_up_t: 0.0,
         arrow_down_t: 0.0,
@@ -2683,6 +2722,31 @@ mod tests {
         let (rx, ry) = src_to_ref(ox, oy, iw, ih, player.0, player.1);
         let (cx, cy) = cursor_center(&l);
         assert!((rx - cx).abs() < 1.0 && (ry - cy).abs() < 1.0);
+    }
+
+    #[test]
+    fn tap_recentre_finishes_after_release() {
+        // A single frame of input arms the latch; the camera must keep easing to
+        // the player after release, then stop.
+        let l = Layout::compute(1280.0, 720.0);
+        let dt = 1.0 / 60.0;
+        // Start deliberately panned away from the player.
+        let mut follow_target = player_center_pan(&l, DEFAULT_ZOOM, PLAYER);
+        follow_target.0 -= 400.0;
+        let target = player_center_pan(&l, DEFAULT_ZOOM, PLAYER);
+        let mut recentre = true;
+        let mut frames = 0;
+        while recentre {
+            follow_target = follow_step(target, follow_target, dt);
+            if (follow_target.0 - target.0).abs() < 1.0 && (follow_target.1 - target.1).abs() < 1.0
+            {
+                recentre = false;
+            }
+            frames += 1;
+            assert!(frames < 600, "recentre never reached the player");
+        }
+        // It must actually have travelled back.
+        assert!(frames > 10, "recentre finished suspiciously fast");
     }
 
     #[test]
