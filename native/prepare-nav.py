@@ -26,6 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ORIGINALS = ROOT / "artifacts" / "care-center" / "originals"
 OUTPUT = ROOT / "native" / "assets" / "floor-1-nav.bin"
 OUTPUT_OPEN = ROOT / "native" / "assets" / "floor-1-nav-open.bin"
+OUTPUT_SOLID = ROOT / "native" / "assets" / "floor-1-solid.bin"
 PREVIEW = ROOT / "artifacts" / "care-center" / "nav-preview.png"
 
 # Canonical Floor 1 frame and navigation resolution.
@@ -34,6 +35,13 @@ CROP_W, CROP_H = 4750, 2730
 CELL_PX = 8
 W = round(CROP_W / CELL_PX)
 H = round(CROP_H / CELL_PX)
+
+# High-resolution solid mask for player collision (1 = wall/obstacle/locked door).
+# The nav grid has to be coarse (it pads for routing); collision wants the real
+# geometry, so it is baked separately at 2 source px per cell.
+SOLID_CELL_PX = 2
+SW = round(CROP_W / SOLID_CELL_PX)
+SH = round(CROP_H / SOLID_CELL_PX)
 ALPHA_THRESHOLD = 30
 CLEARANCE_CELLS = 2
 DOOR_DILATION_CELLS = 1
@@ -55,15 +63,15 @@ KEY_ITEMS = [
 ]
 
 
-def mask(name: str) -> list[bytearray]:
+def mask(name: str, w: int = W, h: int = H) -> list[bytearray]:
     image = (
         Image.open(ORIGINALS / name)
         .convert("RGBA")
         .crop(CROP)
-        .resize((W, H), Image.Resampling.LANCZOS)
+        .resize((w, h), Image.Resampling.LANCZOS)
     )
     alpha = image.getchannel("A").point(lambda v: 255 if v > ALPHA_THRESHOLD else 0)
-    return [bytearray(1 if alpha.getpixel((x, y)) else 0 for x in range(W)) for y in range(H)]
+    return [bytearray(1 if alpha.getpixel((x, y)) else 0 for x in range(w)) for y in range(h)]
 
 
 def dilate(source: list[bytearray], radius: int) -> list[bytearray]:
@@ -197,6 +205,21 @@ def main() -> None:
                 open_bits[i >> 3] |= 1 << (i & 7)
     OUTPUT_OPEN.write_bytes(struct.pack("<III", CELL_PX, W, H) + bytes(open_bits))
 
+    # Solid collision mask at 2px: walls + obstacles + locked doors, no padding.
+    s_walls = mask(WALLS, SW, SH)
+    s_obstacles = mask(OBSTACLES, SW, SH)
+    s_locked = mask(LOCKED, SW, SH)
+    solid_bits = bytearray((SW * SH + 7) // 8)
+    solid_count = 0
+    for y in range(SH):
+        for x in range(SW):
+            if s_walls[y][x] or s_obstacles[y][x] or s_locked[y][x]:
+                i = y * SW + x
+                solid_bits[i >> 3] |= 1 << (i & 7)
+                solid_count += 1
+    OUTPUT_SOLID.write_bytes(struct.pack("<III", SOLID_CELL_PX, SW, SH) + bytes(solid_bits))
+    print(f"solid grid {SW}x{SH} cell={SOLID_CELL_PX}px blocked={solid_count}")
+
     start = nearest_walkable(walk, *source_to_cell(*PLAYER))
     print(
         f"nav grid {W}x{H} cell={CELL_PX}px clearance={CLEARANCE_CELLS} "
@@ -256,7 +279,10 @@ def main() -> None:
         if cell:
             px[cell[0], cell[1]] = (189, 147, 249)
     preview.resize((W * 2, H * 2), Image.Resampling.NEAREST).save(PREVIEW)
-    print(f"wrote {OUTPUT.relative_to(ROOT)} and {PREVIEW.relative_to(ROOT)}")
+    print(
+        f"wrote {OUTPUT.relative_to(ROOT)}, {OUTPUT_OPEN.relative_to(ROOT)}, "
+        f"{OUTPUT_SOLID.relative_to(ROOT)} and {PREVIEW.relative_to(ROOT)}"
+    )
 
 
 if __name__ == "__main__":
