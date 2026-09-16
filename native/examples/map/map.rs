@@ -41,6 +41,9 @@ struct Layout {
     out_pos: (f32, f32),
     show_zoom: bool,
     text_scale: f32,
+    stick_center: (f32, f32),
+    stick_radius: f32,
+    stick_knob: f32,
 }
 
 impl Layout {
@@ -87,6 +90,10 @@ impl Layout {
                 out_pos: (0.0, 0.0),
                 show_zoom: false,
                 text_scale: 3.0,
+                // Virtual thumbstick, bottom-left of the map window.
+                stick_center: (190.0, map_h - 190.0),
+                stick_radius: 150.0,
+                stick_knob: 62.0,
             }
         } else {
             let ref_w = 1920.0;
@@ -134,6 +141,10 @@ impl Layout {
                 out_pos: (ref_w - panel_w * 0.5 + 6.0, map_h - 56.0),
                 show_zoom: true,
                 text_scale,
+                // Virtual thumbstick, bottom-left of the map window.
+                stick_center: (map_x + 160.0, map_h - 160.0),
+                stick_radius: 120.0,
+                stick_knob: 50.0,
             }
         }
     }
@@ -242,6 +253,10 @@ const MOVE_SUBSTEP: f32 = 4.0;
 // Camera follow: how fast the camera catches up to the player's centred pan
 // while a movement key is held (lower = lazier trail).
 const FOLLOW_CATCHUP: f32 = 4.0;
+// Virtual thumbstick: radial deadzone and how far outside the base a touch may
+// land and still be captured as the stick.
+const STICK_DEADZONE: f32 = 0.15;
+const STICK_GRAB: f32 = 1.35;
 const PATH_WIDTH: f32 = 5.0;
 const GRID_ALPHA: f32 = 0.18;
 
@@ -327,6 +342,23 @@ impl Solid {
         let y = ((sy - FLOOR1_Y) / FLOOR1_H * self.h as f32).floor() as i32;
         self.blocked(x, y)
     }
+}
+
+// True when the primary pointer is coarse (phones, tablets). The sokol Rust
+// bindings expose no touch/pointer capability query, so ask the browser.
+#[cfg(target_os = "emscripten")]
+fn touch_capable() -> bool {
+    extern "C" {
+        fn emscripten_run_script_int(script: *const ffi::c_char) -> i32;
+    }
+    const EXPR: &[u8] =
+        b"try { matchMedia('(pointer: coarse)').matches ? 1 : 0 } catch (e) { 0 }\0";
+    unsafe { emscripten_run_script_int(EXPR.as_ptr() as *const ffi::c_char) != 0 }
+}
+
+#[cfg(not(target_os = "emscripten"))]
+fn touch_capable() -> bool {
+    false
 }
 
 // Texture bitmap font baked by native/prepare-font.py.
@@ -505,6 +537,10 @@ struct State {
     recentre: bool,
     circle_cursor_hidden: bool,
     camera_ready: bool,
+    stick_id: Option<usize>,
+    stick_vec: (f32, f32),
+    touch_capable: bool,
+    touch_seen: bool,
     hover_item: Option<usize>,
     arrow_up_t: f32,
     arrow_down_t: f32,
@@ -727,6 +763,33 @@ fn pan_to_center_player(state: &mut State) {
     state.pan_target_y = y;
 }
 
+fn show_stick(state: &State) -> bool {
+    state.touch_capable || state.touch_seen
+}
+
+// The first active touch that is not the captured thumbstick finger.
+fn primary_touch<'a>(
+    event: &'a sapp::Event,
+    stick_id: Option<usize>,
+) -> Option<&'a sapp::Touchpoint> {
+    let n = event.num_touches.clamp(0, event.touches.len() as i32) as usize;
+    event.touches[..n]
+        .iter()
+        .find(|t| Some(t.identifier) != stick_id)
+}
+
+// Radial deadzone + clamp for a touch offset from the stick centre. Returns a
+// direction scaled by magnitude in [0, 1]; zero inside the deadzone.
+fn stick_vector(offset: (f32, f32), radius: f32, deadzone: f32) -> (f32, f32) {
+    let len = (offset.0 * offset.0 + offset.1 * offset.1).sqrt();
+    let dead = radius * deadzone;
+    if radius <= 0.0 || len <= dead {
+        return (0.0, 0.0);
+    }
+    let mag = ((len - dead) / (radius - dead)).min(1.0);
+    (offset.0 / len * mag, offset.1 / len * mag)
+}
+
 // One frame of camera catch-up toward `target` (the player-centred pan). Only
 // applied while a movement key is held; the eased rate is the "trailing" feel.
 fn follow_step(target: (f32, f32), follow_target: (f32, f32), delta: f32) -> (f32, f32) {
@@ -835,25 +898,39 @@ fn update_player(state: &mut State, delta: f32) {
     if state.floor != FLOOR1_INDEX {
         return;
     }
-    let mut ix: f32 = 0.0;
-    let mut iy: f32 = 0.0;
-    if state.holding[0] {
-        iy -= 1.0;
-    }
-    if state.holding[1] {
-        iy += 1.0;
-    }
-    if state.holding[2] {
-        ix -= 1.0;
-    }
-    if state.holding[3] {
-        ix += 1.0;
-    }
-    let len = (ix * ix + iy * iy).sqrt();
-    let (target_vx, target_vy) = if len > 0.0 {
-        let (nx, ny) = (ix / len, iy / len);
-        state.facing_target = nx.atan2(-ny);
-        (nx * PLAYER_SPEED, ny * PLAYER_SPEED)
+    // Direction + magnitude from the thumbstick, else the arrow keys.
+    let stick = state.stick_vec;
+    let stick_mag = (stick.0 * stick.0 + stick.1 * stick.1).sqrt();
+    let (dir, mag) = if stick_mag > 0.0 {
+        (
+            (stick.0 / stick_mag, stick.1 / stick_mag),
+            stick_mag.min(1.0),
+        )
+    } else {
+        let mut ix: f32 = 0.0;
+        let mut iy: f32 = 0.0;
+        if state.holding[0] {
+            iy -= 1.0;
+        }
+        if state.holding[1] {
+            iy += 1.0;
+        }
+        if state.holding[2] {
+            ix -= 1.0;
+        }
+        if state.holding[3] {
+            ix += 1.0;
+        }
+        let len = (ix * ix + iy * iy).sqrt();
+        if len > 0.0 {
+            ((ix / len, iy / len), 1.0)
+        } else {
+            ((0.0, 0.0), 0.0)
+        }
+    };
+    let (target_vx, target_vy) = if mag > 0.0 {
+        state.facing_target = dir.0.atan2(-dir.1);
+        (dir.0 * PLAYER_SPEED * mag, dir.1 * PLAYER_SPEED * mag)
     } else {
         (0.0, 0.0)
     };
@@ -1102,7 +1179,31 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             }
         }
         sapp::EventType::TouchesBegan => {
-            if event.num_touches >= 2 {
+            state.touch_seen = true;
+            // A touch landing on the thumbstick base is captured by the stick.
+            if show_stick(state) && state.stick_id.is_none() {
+                let l = state.layout;
+                let grab = l.stick_radius * STICK_GRAB;
+                let n = event.num_touches.clamp(0, event.touches.len() as i32) as usize;
+                for t in &event.touches[..n] {
+                    if !t.changed {
+                        continue;
+                    }
+                    let p = screen_to_ref(&l, t.pos_x, t.pos_y);
+                    let dx = p.0 - l.stick_center.0;
+                    let dy = p.1 - l.stick_center.1;
+                    if dx * dx + dy * dy <= grab * grab {
+                        state.stick_id = Some(t.identifier);
+                        state.stick_vec = (0.0, 0.0);
+                        state.recentre = true;
+                        state.circle_cursor_hidden = true;
+                        state.moved = true;
+                        state.dragging = false;
+                        break;
+                    }
+                }
+            }
+            if state.stick_id.is_none() && event.num_touches >= 2 {
                 // Two fingers: pinch to zoom (and pan with the midpoint).
                 let (mid_px, dist) = touch_pinch(&event.touches[..2]);
                 state.pinching = true;
@@ -1128,10 +1229,10 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                     state.cursor = clamp_to_map(&state.layout, mid);
                     state.mouse_in_map = in_map(&state.layout, mid);
                 }
-            } else if event.num_touches > 0 {
-                let t = event.touches[0];
-                state.touch_last = (t.pos_x, t.pos_y);
-                let (x, y) = screen_to_ref(&state.layout, t.pos_x, t.pos_y);
+            } else if let Some(t) = primary_touch(event, state.stick_id) {
+                let t = (t.pos_x, t.pos_y);
+                state.touch_last = t;
+                let (x, y) = screen_to_ref(&state.layout, t.0, t.1);
                 state.mouse = (x, y);
                 state.mouse_in_map = in_map(&state.layout, (x, y));
                 if state.cursor_mode == CursorMode::Free {
@@ -1147,7 +1248,20 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             }
         }
         sapp::EventType::TouchesMoved => {
-            if state.pinching && event.num_touches >= 2 {
+            // Track the captured thumbstick finger.
+            if let Some(id) = state.stick_id {
+                let l = state.layout;
+                let n = event.num_touches.clamp(0, event.touches.len() as i32) as usize;
+                if let Some(t) = event.touches[..n].iter().find(|t| t.identifier == id) {
+                    let p = screen_to_ref(&l, t.pos_x, t.pos_y);
+                    state.stick_vec = stick_vector(
+                        (p.0 - l.stick_center.0, p.1 - l.stick_center.1),
+                        l.stick_radius,
+                        STICK_DEADZONE,
+                    );
+                }
+            }
+            if state.pinching && state.stick_id.is_none() && event.num_touches >= 2 {
                 state.recentre = false;
                 let (mid_px, dist) = touch_pinch(&event.touches[..2]);
                 let mid = screen_to_ref(&state.layout, mid_px.0, mid_px.1);
@@ -1163,25 +1277,39 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                     state.cursor = clamp_to_map(&state.layout, mid);
                     state.mouse_in_map = in_map(&state.layout, mid);
                 }
-            } else if !state.pinching && event.num_touches > 0 {
-                let t = event.touches[0];
-                if state.dragging {
-                    let dx = t.pos_x - state.touch_last.0;
-                    let dy = t.pos_y - state.touch_last.1;
-                    if dx.abs() + dy.abs() > 3.0 {
-                        state.moved = true;
+            } else if !state.pinching {
+                if let Some(t) = primary_touch(event, state.stick_id) {
+                    let t = (t.pos_x, t.pos_y);
+                    if state.dragging {
+                        let dx = t.0 - state.touch_last.0;
+                        let dy = t.1 - state.touch_last.1;
+                        if dx.abs() + dy.abs() > 3.0 {
+                            state.moved = true;
+                        }
+                        drag_by(state, dx, dy);
                     }
-                    drag_by(state, dx, dy);
+                    state.touch_last = t;
+                    let (x, y) = screen_to_ref(&state.layout, t.0, t.1);
+                    state.mouse = (x, y);
                 }
-                state.touch_last = (t.pos_x, t.pos_y);
-                let (x, y) = screen_to_ref(&state.layout, t.pos_x, t.pos_y);
-                state.mouse = (x, y);
             }
         }
         sapp::EventType::TouchesEnded | sapp::EventType::TouchesCancelled => {
+            let stick_held = state.stick_id.is_some();
+            // Release the stick when its finger is no longer down.
+            if let Some(id) = state.stick_id {
+                let n = event.num_touches.clamp(0, event.touches.len() as i32) as usize;
+                let still_down = event.touches[..n]
+                    .iter()
+                    .any(|t| t.identifier == id && !t.changed);
+                if !still_down {
+                    state.stick_id = None;
+                    state.stick_vec = (0.0, 0.0);
+                }
+            }
             if state.pinching {
                 state.pinching = false;
-            } else if !state.moved {
+            } else if !stick_held && !state.moved {
                 select_at(state, state.mouse.0, state.mouse.1);
             }
             state.dragging = false;
@@ -2158,6 +2286,25 @@ fn draw_map_labels(font: &Font, l: &Layout) {
     }
 }
 
+// On-screen thumbstick for touch devices: a dim base with an accent knob.
+fn draw_stick(state: &State) {
+    if !show_stick(state) {
+        return;
+    }
+    let l = state.layout;
+    let (cx, cy) = l.stick_center;
+    sgl::c4f(BACKGROUND.0, BACKGROUND.1, BACKGROUND.2, 0.35);
+    filled_circle(cx, cy, l.stick_radius);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.55);
+    outline_circle(cx, cy, l.stick_radius);
+    sgl::c4f(C_DIM.0, C_DIM.1, C_DIM.2, 0.6);
+    outline_circle(cx, cy, l.stick_knob);
+    let kx = cx + state.stick_vec.0 * l.stick_radius;
+    let ky = cy + state.stick_vec.1 * l.stick_radius;
+    sgl::c4f(C_ACCENT.0, C_ACCENT.1, C_ACCENT.2, 0.85);
+    filled_circle(kx, ky, l.stick_knob * 0.72);
+}
+
 fn draw_debug_overlay(state: &State) {
     if !state.debug_mode {
         return;
@@ -2251,7 +2398,8 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     // tap latches `recentre` so a single press still pans smoothly all the way
     // back to the player. When neither is active the camera never moves on its
     // own, so a manual pan stays where it was left.
-    let has_input = state.holding.iter().any(|&held| held);
+    let stick_mag = (state.stick_vec.0.powi(2) + state.stick_vec.1.powi(2)).sqrt();
+    let has_input = stick_mag > 0.0 || state.holding.iter().any(|&held| held);
     let following = (has_input || state.recentre)
         && state.floor == FLOOR1_INDEX
         && state.zoom_anchor.is_none()
@@ -2368,6 +2516,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     draw_map_frame(&state.layout);
     draw_map_labels(state.font.as_ref().unwrap(), &state.layout);
     draw_cursor(state, width, height, left, right, top, bottom);
+    draw_stick(state);
     draw_debug_overlay(state);
 
     sg::begin_pass(&sg::Pass {
@@ -2437,6 +2586,10 @@ fn main() {
         recentre: false,
         circle_cursor_hidden: false,
         camera_ready: false,
+        stick_id: None,
+        stick_vec: (0.0, 0.0),
+        touch_capable: touch_capable(),
+        touch_seen: false,
         hover_item: None,
         arrow_up_t: 0.0,
         arrow_down_t: 0.0,
@@ -2733,6 +2886,25 @@ mod tests {
             !solid.blocked_source(pos.0, pos.1),
             "the player ended inside the locked door ink"
         );
+    }
+
+    #[test]
+    fn stick_vector_deadzone_clamp_and_direction() {
+        // Inside the deadzone => no movement.
+        assert_eq!(stick_vector((5.0, 0.0), 100.0, 0.15), (0.0, 0.0));
+        // At the rim => unit length, same direction.
+        let full = stick_vector((0.0, 100.0), 100.0, 0.15);
+        assert!(full.1 > 0.999 && full.0.abs() < 1e-6);
+        // Beyond the rim => clamped to unit length.
+        let over = stick_vector((300.0, 0.0), 100.0, 0.15);
+        assert!(over.0 > 0.999 && over.1.abs() < 1e-6);
+        // Partial deflection scales magnitude: (57.5-15)/(100-15) = 0.5.
+        let half = stick_vector((0.0, 57.5), 100.0, 0.15);
+        assert!((half.1 - 0.5).abs() < 1e-4);
+        // A diagonal never exceeds unit length (no faster diagonals).
+        let diag = stick_vector((100.0, 100.0), 100.0, 0.15);
+        assert!((diag.0 - diag.1).abs() < 1e-6);
+        assert!((diag.0 * diag.0 + diag.1 * diag.1).sqrt() <= 1.0 + 1e-6);
     }
 
     #[test]
