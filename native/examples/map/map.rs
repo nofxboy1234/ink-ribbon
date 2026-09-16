@@ -86,13 +86,15 @@ impl Layout {
                 in_pos: (0.0, 0.0),
                 out_pos: (0.0, 0.0),
                 show_zoom: false,
-                text_scale: 2.0,
+                text_scale: 3.0,
             }
         } else {
             let ref_w = 1920.0;
             let ref_h = 1080.0;
             let panel_w = 46.0;
-            let name_h = 52.0;
+            // Landscape text is 2x the base size, so the name band grows to fit it.
+            let text_scale = 1.5;
+            let name_h = 52.0 * text_scale;
             let map_x = panel_w;
             let map_y = 0.0;
             let map_w = ref_w - panel_w * 2.0;
@@ -127,11 +129,11 @@ impl Layout {
                 zoom_minus: (ref_w - panel_w * 0.5 - 8.0, map_h - 32.0),
                 zoom_plus: (ref_w - panel_w * 0.5 - 8.0, 8.0),
                 name_x: ref_w * 0.5,
-                name_y: map_h + 14.0,
+                name_y: map_h + 14.0 * text_scale,
                 in_pos: (ref_w - panel_w * 0.5 + 11.0, 34.0),
                 out_pos: (ref_w - panel_w * 0.5 + 6.0, map_h - 56.0),
                 show_zoom: true,
-                text_scale: 1.0,
+                text_scale,
             }
         }
     }
@@ -1576,15 +1578,10 @@ fn draw_floor1(
         }
         let scale = state.layout.text_scale;
         let width = font.text_width(name, 19.5 * scale);
-        draw_ui_text(
-            font,
-            name,
-            rx - width * 0.5,
-            ry - 9.75 * scale,
-            C_LABEL,
-            false,
-            scale,
-        );
+        // Keep the (now larger) labels inside the map window instead of clipping.
+        let max_x = (MAP_X + MAP_W - width).max(MAP_X);
+        let tx = (rx - width * 0.5).clamp(MAP_X, max_x);
+        draw_ui_text(font, name, tx, ry - 9.75 * scale, C_LABEL, false, scale);
     }
 
     sgl::scissor_rectf(0.0, 0.0, width, height, true);
@@ -1792,44 +1789,43 @@ fn draw_map_labels(font: &Font, l: &Layout) {
         draw_ui_text(font, text, x, y, color, large, l.text_scale)
     };
 
-    if l.portrait {
-        // Right-align the status labels so the larger portrait text stays on screen.
-        let right_label = |text: &str, y: f32, color: (f32, f32, f32)| {
-            let w = font.text_width(text, 19.5 * l.text_scale);
-            draw_ui_text(font, text, right - 24.0 - w, y, color, false, l.text_scale);
-        };
-        let line_h = 13.0 * l.text_scale;
-        right_label("BATTERY", l.map_y + line_h, C_DIM);
-        right_label("MEMORY", l.map_y + line_h * 2.0, C_DIM);
-        right_label("DISC", l.map_y + line_h * 3.0, C_DIM);
-        right_label("AREA MAP", bottom - 30.0 * l.text_scale, C_HILITE);
-    } else {
-        label("BATTERY", right - 154.0, l.map_y + 20.0, C_DIM, false);
-        label("MEMORY", right - 154.0, l.map_y + 32.0, C_DIM, false);
-        label("DISC", right - 154.0, l.map_y + 44.0, C_DIM, false);
-        label("AREA MAP", right - 103.0, bottom - 38.0, C_HILITE, false);
+    // Status labels are right-aligned so the larger text stays on screen.
+    let scale = l.text_scale;
+    let right_label = |text: &str, y: f32, color: (f32, f32, f32)| {
+        let w = font.text_width(text, 19.5 * scale);
+        draw_ui_text(font, text, right - 24.0 * scale - w, y, color, false, scale);
+    };
+    let line_h = 13.0 * scale;
+    right_label("BATTERY", l.map_y + line_h, C_DIM);
+    right_label("MEMORY", l.map_y + line_h * 2.0, C_DIM);
+    right_label("DISC", l.map_y + line_h * 3.0, C_DIM);
+    right_label("AREA MAP", bottom - 30.0 * scale, C_HILITE);
+
+    if !l.portrait {
         label("In", l.in_pos.0, l.in_pos.1, C_LABEL, false);
         label("Out", l.out_pos.0, l.out_pos.1, C_LABEL, false);
 
         // Care Center name, in its bracketed nameplate.
         let name = "Care Center";
-        let name_x = l.name_x - font.text_width(name, 28.6 * l.text_scale) * 0.5;
+        let name_x = l.name_x - font.text_width(name, 28.6 * scale) * 0.5;
         label(name, name_x, l.name_y, C_TITLE, true);
-    }
 
-    if !l.portrait {
-        let name_left = l.map_x;
-        let name_left_inner = l.map_x + 14.0;
-        let name_right = l.map_x + 242.0;
+        let inner = l.map_x + 14.0 * scale;
+        let name_right = l.map_x + 242.0 * scale;
         sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.9);
-        line(name_left, bottom + 4.0, name_left, bottom + 48.0);
         line(
-            name_left_inner,
-            bottom + 4.0,
-            name_left_inner,
-            bottom + 48.0,
+            l.map_x,
+            bottom + 4.0 * scale,
+            l.map_x,
+            bottom + 48.0 * scale,
         );
-        line(name_right, bottom + 4.0, name_right, bottom + 48.0);
+        line(inner, bottom + 4.0 * scale, inner, bottom + 48.0 * scale);
+        line(
+            name_right,
+            bottom + 4.0 * scale,
+            name_right,
+            bottom + 48.0 * scale,
+        );
     }
 }
 
