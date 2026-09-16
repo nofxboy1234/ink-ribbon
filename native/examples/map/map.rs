@@ -1217,10 +1217,6 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 let floor = (state.floor + 1) % NUM_FLOORS;
                 change_floor(state, floor);
             }
-            sapp::Keycode::W => state.pan_target_y += 22.0,
-            sapp::Keycode::S => state.pan_target_y -= 22.0,
-            sapp::Keycode::A => state.pan_target_x += 22.0,
-            sapp::Keycode::D => state.pan_target_x -= 22.0,
             sapp::Keycode::Up => {
                 state.holding[0] = true;
                 state.recentre = true;
