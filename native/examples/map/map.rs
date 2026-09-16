@@ -671,15 +671,6 @@ fn floor_slot(floor: usize) -> usize {
     }
 }
 
-fn recenter(state: &mut State) {
-    state.zoom_anchor = None;
-    state.zoom_target = DEFAULT_ZOOM;
-    state.pan_target_x = 0.0;
-    state.pan_target_y = 0.0;
-    state.follow_target = (0.0, 0.0);
-    state.recentre = false;
-}
-
 // Midpoint (in pixels) and separation of the first two active touches.
 fn touch_pinch(touches: &[sapp::Touchpoint]) -> ((f32, f32), f32) {
     let (ax, ay) = (touches[0].pos_x, touches[0].pos_y);
@@ -1381,7 +1372,6 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 state.recentre = false;
                 capture_zoom_anchor(state);
             }
-            sapp::Keycode::C | sapp::Keycode::Home => recenter(state),
             _ => {}
         },
         sapp::EventType::KeyUp => match event.key_code {
