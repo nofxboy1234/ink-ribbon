@@ -39,19 +39,24 @@ struct Layout {
     name_y: f32,
     in_pos: (f32, f32),
     out_pos: (f32, f32),
+    show_zoom: bool,
+    text_scale: f32,
 }
 
 impl Layout {
     fn compute(width: f32, height: f32) -> Layout {
         if width < height {
+            // Phone / portrait: no zoom bar (pinch to zoom), arrows flank the
+            // diamonds, and text is scaled up for readability.
             let ref_w = 1080.0;
             let ref_h = 1920.0;
-            let zoom_h = 46.0;
             let floor_h = 78.0;
-            let name_h = 52.0;
-            let map_y = zoom_h;
-            let map_h = ref_h - zoom_h - floor_h - name_h;
-            let floor_y = map_y + map_h;
+            // No Care Center band in portrait: the floor bar sits at the bottom.
+            let name_h = 0.0;
+            let map_y = 0.0;
+            let map_h = ref_h - floor_h - name_h;
+            let floor_y = map_h;
+            let marker_y = floor_y + 39.0;
             Layout {
                 portrait: true,
                 ref_w,
@@ -66,24 +71,22 @@ impl Layout {
                 floor_h,
                 zoom_x: 0.0,
                 zoom_y: 0.0,
-                zoom_w: ref_w,
-                zoom_h,
+                zoom_w: 0.0,
+                zoom_h: 0.0,
                 panel_w: 46.0,
-                floor_markers: [
-                    (180.0, floor_y + 39.0),
-                    (540.0, floor_y + 39.0),
-                    (900.0, floor_y + 39.0),
-                ],
-                floor_up: (ref_w * 0.5, floor_y + 15.0),
-                floor_down: (ref_w * 0.5, floor_y + 63.0),
-                zoom_a: (60.0, 23.0),
-                zoom_b: (ref_w - 60.0, 23.0),
-                zoom_minus: (12.0, 15.0),
-                zoom_plus: (ref_w - 28.0, 15.0),
+                floor_markers: [(180.0, marker_y), (540.0, marker_y), (900.0, marker_y)],
+                floor_up: (24.0, marker_y),
+                floor_down: (ref_w - 24.0, marker_y),
+                zoom_a: (0.0, 0.0),
+                zoom_b: (0.0, 0.0),
+                zoom_minus: (0.0, 0.0),
+                zoom_plus: (0.0, 0.0),
                 name_x: ref_w * 0.5,
                 name_y: ref_h - 40.0,
-                in_pos: (ref_w - 56.0, 14.0),
-                out_pos: (30.0, 14.0),
+                in_pos: (0.0, 0.0),
+                out_pos: (0.0, 0.0),
+                show_zoom: false,
+                text_scale: 2.0,
             }
         } else {
             let ref_w = 1920.0;
@@ -127,6 +130,8 @@ impl Layout {
                 name_y: map_h + 14.0,
                 in_pos: (ref_w - panel_w * 0.5 + 11.0, 34.0),
                 out_pos: (ref_w - panel_w * 0.5 + 6.0, map_h - 56.0),
+                show_zoom: true,
+                text_scale: 1.0,
             }
         }
     }
@@ -433,6 +438,10 @@ struct State {
     touch_last: (f32, f32),
     down_ref: (f32, f32),
     moved: bool,
+    pinching: bool,
+    pinch_dist: f32,
+    pinch_base_zoom: f32,
+    pinch_src: (f32, f32),
     hover_item: Option<usize>,
     arrow_up_t: f32,
     arrow_down_t: f32,
@@ -557,6 +566,15 @@ fn recenter(state: &mut State) {
     state.pan_target_y = 0.0;
 }
 
+// Midpoint (in pixels) and separation of the first two active touches.
+fn touch_pinch(touches: &[sapp::Touchpoint]) -> ((f32, f32), f32) {
+    let (ax, ay) = (touches[0].pos_x, touches[0].pos_y);
+    let (bx, by) = (touches[1].pos_x, touches[1].pos_y);
+    let mid = ((ax + bx) * 0.5, (ay + by) * 0.5);
+    let dist = ((bx - ax).powi(2) + (by - ay).powi(2)).sqrt();
+    (mid, dist)
+}
+
 fn screen_to_ref(l: &Layout, mx: f32, my: f32) -> (f32, f32) {
     let width = sapp::widthf();
     let height = sapp::heightf();
@@ -669,13 +687,22 @@ fn panel_click(state: &mut State, x: f32, y: f32) -> bool {
     if (l.floor_x..l.floor_x + l.floor_w).contains(&x)
         && (l.floor_y..l.floor_y + l.floor_h).contains(&y)
     {
-        // Arrows are above/below the row, near the bar centre.
-        let near_arrow_x = !l.portrait || (x - l.floor_up.0).abs() < 44.0;
-        if near_arrow_x && (y - l.floor_up.1).abs() < 20.0 {
+        // Portrait: arrows flank the row on the left/right. Landscape: above/below.
+        let on_up = if l.portrait {
+            (x - l.floor_up.0).abs() < 22.0
+        } else {
+            (x - l.floor_up.0).abs() < 40.0 && (y - l.floor_up.1).abs() < 20.0
+        };
+        let on_down = if l.portrait {
+            (x - l.floor_down.0).abs() < 22.0
+        } else {
+            (x - l.floor_down.0).abs() < 40.0 && (y - l.floor_down.1).abs() < 20.0
+        };
+        if on_up {
             state.arrow_up_t = 0.001;
             let floor = (state.floor + NUM_FLOORS - 1) % NUM_FLOORS;
             change_floor(state, floor);
-        } else if near_arrow_x && (y - l.floor_down.1).abs() < 20.0 {
+        } else if on_down {
             state.arrow_down_t = 0.001;
             let floor = (state.floor + 1) % NUM_FLOORS;
             change_floor(state, floor);
@@ -701,8 +728,10 @@ fn panel_click(state: &mut State, x: f32, y: f32) -> bool {
         return true;
     }
 
-    // Zoom bar.
-    if (l.zoom_x..l.zoom_x + l.zoom_w).contains(&x) && (l.zoom_y..l.zoom_y + l.zoom_h).contains(&y)
+    // Zoom bar (hidden in portrait / phone layout).
+    if l.show_zoom
+        && (l.zoom_x..l.zoom_x + l.zoom_w).contains(&x)
+        && (l.zoom_y..l.zoom_y + l.zoom_h).contains(&y)
     {
         if l.portrait {
             if x < l.zoom_a.0 - 20.0 {
@@ -818,7 +847,32 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             }
         }
         sapp::EventType::TouchesBegan => {
-            if event.num_touches > 0 {
+            if event.num_touches >= 2 {
+                // Two fingers: pinch to zoom (and pan with the midpoint).
+                let (mid_px, dist) = touch_pinch(&event.touches[..2]);
+                state.pinching = true;
+                state.dragging = false;
+                state.moved = true;
+                state.pinch_dist = dist.max(1.0);
+                state.pinch_base_zoom = state.zoom_target;
+                let mid = screen_to_ref(&state.layout, mid_px.0, mid_px.1);
+                let (ox, oy, iw, ih) =
+                    map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y);
+                state.pinch_src = (
+                    FLOOR1_X + (mid.0 - ox) * FLOOR1_W / iw,
+                    FLOOR1_Y + (mid.1 - oy) * FLOOR1_H / ih,
+                );
+                state.zoom_anchor = Some(ZoomAnchor {
+                    src: state.pinch_src,
+                    cursor_ref: mid,
+                    end: state.zoom_target,
+                });
+                state.mouse = mid;
+                if state.cursor_mode == CursorMode::Free {
+                    state.cursor = clamp_to_map(&state.layout, mid);
+                    state.mouse_in_map = in_map(&state.layout, mid);
+                }
+            } else if event.num_touches > 0 {
                 let t = event.touches[0];
                 state.touch_last = (t.pos_x, t.pos_y);
                 let (x, y) = screen_to_ref(&state.layout, t.pos_x, t.pos_y);
@@ -837,7 +891,22 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             }
         }
         sapp::EventType::TouchesMoved => {
-            if event.num_touches > 0 {
+            if state.pinching && event.num_touches >= 2 {
+                let (mid_px, dist) = touch_pinch(&event.touches[..2]);
+                let mid = screen_to_ref(&state.layout, mid_px.0, mid_px.1);
+                let factor = dist / state.pinch_dist;
+                state.zoom_target = (state.pinch_base_zoom * factor).clamp(ZOOM_MIN, ZOOM_MAX);
+                state.zoom_anchor = Some(ZoomAnchor {
+                    src: state.pinch_src,
+                    cursor_ref: mid,
+                    end: state.zoom_target,
+                });
+                state.mouse = mid;
+                if state.cursor_mode == CursorMode::Free {
+                    state.cursor = clamp_to_map(&state.layout, mid);
+                    state.mouse_in_map = in_map(&state.layout, mid);
+                }
+            } else if !state.pinching && event.num_touches > 0 {
                 let t = event.touches[0];
                 if state.dragging {
                     let dx = t.pos_x - state.touch_last.0;
@@ -853,7 +922,9 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             }
         }
         sapp::EventType::TouchesEnded | sapp::EventType::TouchesCancelled => {
-            if !state.moved {
+            if state.pinching {
+                state.pinching = false;
+            } else if !state.moved {
                 select_at(state, state.mouse.0, state.mouse.1);
             }
             state.dragging = false;
@@ -959,6 +1030,22 @@ fn triangle(cx: f32, cy: f32, radius: f32, up: bool) {
         sgl::v2f(cx + radius, cy - radius);
         sgl::v2f(cx, cy + radius);
     }
+    sgl::end();
+}
+
+// Triangle whose apex points along (dx, dy); used for the horizontal floor bar.
+fn triangle_dir(cx: f32, cy: f32, radius: f32, dx: f32, dy: f32) {
+    let (bx, by) = (-dy, dx);
+    sgl::begin_triangles();
+    sgl::v2f(cx + dx * radius, cy + dy * radius);
+    sgl::v2f(
+        cx - dx * radius + bx * radius,
+        cy - dy * radius + by * radius,
+    );
+    sgl::v2f(
+        cx - dx * radius - bx * radius,
+        cy - dy * radius - by * radius,
+    );
     sgl::end();
 }
 
@@ -1340,7 +1427,7 @@ fn draw_cursor(
     if let Some(i) = state.hover_item {
         let font = state.font.as_ref().unwrap();
         let text = KEY_ITEMS[i].0;
-        let size = 19.5;
+        let size = 19.5 * state.layout.text_scale;
         let tx = cx;
         let ty = cy + CURSOR_RADIUS + CURSOR_TICK + 6.0;
         let width = font.text_width(text, size);
@@ -1487,8 +1574,17 @@ fn draw_floor1(
         if rx < MAP_X || rx > MAP_X + MAP_W || ry < MAP_Y || ry > MAP_Y + MAP_H {
             continue;
         }
-        let width = font.text_width(name, 19.5);
-        draw_ui_text(font, name, rx - width * 0.5, ry - 9.75, C_LABEL, false);
+        let scale = state.layout.text_scale;
+        let width = font.text_width(name, 19.5 * scale);
+        draw_ui_text(
+            font,
+            name,
+            rx - width * 0.5,
+            ry - 9.75 * scale,
+            C_LABEL,
+            false,
+            scale,
+        );
     }
 
     sgl::scissor_rectf(0.0, 0.0, width, height, true);
@@ -1542,10 +1638,16 @@ fn draw_floor_selector(state: &State) {
     sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.75);
     outline_rect(l.floor_x, l.floor_y, l.floor_w, l.floor_h);
 
-    // Arrows sit above/below the diamond row in both orientations.
     sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.92);
-    triangle(l.floor_up.0, l.floor_up.1 - up_off, 6.0, true);
-    triangle(l.floor_down.0, l.floor_down.1 + down_off, 6.0, false);
+    if l.portrait {
+        // Arrows flank the diamond row (up on the left, down on the right).
+        triangle_dir(l.floor_up.0 - up_off, l.floor_up.1, 6.0, -1.0, 0.0);
+        triangle_dir(l.floor_down.0 + down_off, l.floor_down.1, 6.0, 1.0, 0.0);
+    } else {
+        // Arrows sit just above/below the diamond group.
+        triangle(l.floor_up.0, l.floor_up.1 - up_off, 6.0, true);
+        triangle(l.floor_down.0, l.floor_down.1 + down_off, 6.0, false);
+    }
 
     for (slot, (mx, my)) in l.floor_markers.into_iter().enumerate() {
         if slot == selected_slot {
@@ -1567,6 +1669,9 @@ fn draw_floor_selector(state: &State) {
 
 fn draw_zoom_selector(state: &State) {
     let l = state.layout;
+    if !l.show_zoom {
+        return;
+    }
     sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.08);
     rect(l.zoom_x, l.zoom_y, l.zoom_w, l.zoom_h);
     sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.75);
@@ -1667,8 +1772,16 @@ fn draw_map_overlay(l: &Layout) {
     }
 }
 
-fn draw_ui_text(font: &Font, text: &str, x: f32, y: f32, color: (f32, f32, f32), large: bool) {
-    let size = if large { 28.6 } else { 19.5 };
+fn draw_ui_text(
+    font: &Font,
+    text: &str,
+    x: f32,
+    y: f32,
+    color: (f32, f32, f32),
+    large: bool,
+    scale: f32,
+) {
+    let size = if large { 28.6 } else { 19.5 } * scale;
     draw_text(font, text, x, y, size, color);
 }
 
@@ -1676,20 +1789,33 @@ fn draw_map_labels(font: &Font, l: &Layout) {
     let right = l.map_x + l.map_w;
     let bottom = l.map_y + l.map_h;
     let label = |text: &str, x: f32, y: f32, color: (f32, f32, f32), large: bool| {
-        draw_ui_text(font, text, x, y, color, large)
+        draw_ui_text(font, text, x, y, color, large, l.text_scale)
     };
 
-    label("BATTERY", right - 154.0, l.map_y + 20.0, C_DIM, false);
-    label("MEMORY", right - 154.0, l.map_y + 32.0, C_DIM, false);
-    label("DISC", right - 154.0, l.map_y + 44.0, C_DIM, false);
-    label("AREA MAP", right - 103.0, bottom - 38.0, C_HILITE, false);
-    label("In", l.in_pos.0, l.in_pos.1, C_LABEL, false);
-    label("Out", l.out_pos.0, l.out_pos.1, C_LABEL, false);
+    if l.portrait {
+        // Right-align the status labels so the larger portrait text stays on screen.
+        let right_label = |text: &str, y: f32, color: (f32, f32, f32)| {
+            let w = font.text_width(text, 19.5 * l.text_scale);
+            draw_ui_text(font, text, right - 24.0 - w, y, color, false, l.text_scale);
+        };
+        let line_h = 13.0 * l.text_scale;
+        right_label("BATTERY", l.map_y + line_h, C_DIM);
+        right_label("MEMORY", l.map_y + line_h * 2.0, C_DIM);
+        right_label("DISC", l.map_y + line_h * 3.0, C_DIM);
+        right_label("AREA MAP", bottom - 30.0 * l.text_scale, C_HILITE);
+    } else {
+        label("BATTERY", right - 154.0, l.map_y + 20.0, C_DIM, false);
+        label("MEMORY", right - 154.0, l.map_y + 32.0, C_DIM, false);
+        label("DISC", right - 154.0, l.map_y + 44.0, C_DIM, false);
+        label("AREA MAP", right - 103.0, bottom - 38.0, C_HILITE, false);
+        label("In", l.in_pos.0, l.in_pos.1, C_LABEL, false);
+        label("Out", l.out_pos.0, l.out_pos.1, C_LABEL, false);
 
-    // Care Center name; in landscape it sits in a bracketed nameplate.
-    let name = "Care Center";
-    let name_x = l.name_x - font.text_width(name, 28.6) * 0.5;
-    label(name, name_x, l.name_y, C_TITLE, true);
+        // Care Center name, in its bracketed nameplate.
+        let name = "Care Center";
+        let name_x = l.name_x - font.text_width(name, 28.6 * l.text_scale) * 0.5;
+        label(name, name_x, l.name_y, C_TITLE, true);
+    }
 
     if !l.portrait {
         let name_left = l.map_x;
@@ -1715,8 +1841,9 @@ fn draw_debug_overlay(state: &State) {
     let (MAP_X, MAP_Y, MAP_W, MAP_H, _, _, _) = state.layout.vars();
     let _ = (MAP_Y, MAP_H);
     let font = state.font.as_ref().unwrap();
+    let scale = state.layout.text_scale;
     let text = format!("FPS: {:5.1}", state.fps);
-    let width = font.text_width(&text, 19.5);
+    let width = font.text_width(&text, 19.5 * scale);
     draw_ui_text(
         font,
         &text,
@@ -1724,6 +1851,7 @@ fn draw_debug_overlay(state: &State) {
         MAP_Y + 8.0,
         C_ACCENT,
         false,
+        scale,
     );
 }
 
@@ -1930,6 +2058,10 @@ fn main() {
         touch_last: (0.0, 0.0),
         down_ref: (0.0, 0.0),
         moved: false,
+        pinching: false,
+        pinch_dist: 0.0,
+        pinch_base_zoom: DEFAULT_ZOOM,
+        pinch_src: (0.0, 0.0),
         hover_item: None,
         arrow_up_t: 0.0,
         arrow_down_t: 0.0,

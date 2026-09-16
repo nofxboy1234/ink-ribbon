@@ -2,5 +2,12 @@
   "$schema": "./node_modules/void/schema.json",
   "worker": {
     "compatibility_date": "2026-09-02"
+  },
+  "head": {
+    "htmlAttrs": { "lang": "en" },
+    "meta": [
+      { "charset": "utf-8" },
+      { "name": "viewport", "content": "width=device-width, initial-scale=1" }
+    ]
   }
 }
