@@ -387,8 +387,10 @@ impl Font {
         let pad = h(14);
         assert_eq!(FONT_RGBA.len(), (atlas_w * atlas_h) as usize * 4);
         let pixels: Vec<u32> = FONT_RGBA
-            .chunks_exact(4)
-            .map(|p| u32::from_ne_bytes([p[0], p[1], p[2], p[3]]))
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|p| u32::from_ne_bytes(*p))
             .collect();
         let mut data = sg::ImageData::new();
         data.mip_levels[0] = sg::slice_as_range(&pixels);
@@ -559,8 +561,10 @@ struct State {
 fn overlay_texture() -> sg::View {
     assert_eq!(OVERLAY_RGBA.len(), (OVERLAY_W * OVERLAY_H * 4) as usize);
     let pixels: Vec<u32> = OVERLAY_RGBA
-        .chunks_exact(4)
-        .map(|p| u32::from_ne_bytes([p[0], p[1], p[2], p[3]]))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|p| u32::from_ne_bytes(*p))
         .collect();
     let mut data = sg::ImageData::new();
     data.mip_levels[0] = sg::slice_as_range(&pixels);
@@ -769,10 +773,7 @@ fn show_stick(state: &State) -> bool {
 }
 
 // The first active touch that is not the captured thumbstick finger.
-fn primary_touch<'a>(
-    event: &'a sapp::Event,
-    stick_id: Option<usize>,
-) -> Option<&'a sapp::Touchpoint> {
+fn primary_touch(event: &sapp::Event, stick_id: Option<usize>) -> Option<&sapp::Touchpoint> {
     let n = event.num_touches.clamp(0, event.touches.len() as i32) as usize;
     event.touches[..n]
         .iter()
@@ -1698,7 +1699,7 @@ fn compute_path(astar: &mut Astar, nav: &Nav, from: (f32, f32), to: (f32, f32)) 
 
 fn reachable_from(nav: &Nav, start: (i32, i32)) -> Vec<u8> {
     let n = (nav.w * nav.h) as usize;
-    let mut bits = vec![0u8; (n + 7) / 8];
+    let mut bits = vec![0u8; n.div_ceil(8)];
     if !nav.walkable(start.0, start.1) {
         return bits;
     }
