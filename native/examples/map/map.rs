@@ -233,8 +233,8 @@ const CLICK_RADIUS: f32 = 70.0;
 // exactly equivalent to a collision disc of that radius. Speed is source px/s.
 const PLAYER_SPEED: f32 = 160.0;
 const PLAYER_COLLIDE_RADIUS: f32 = 8.0;
-// Arrow radius in source px, kept at its size from before the real-geometry
-// collision change (the collision disc is deliberately smaller than the arrow).
+// Arrow radius in source px at the default zoom; converted to a constant
+// reference size (like the item dots) so zooming never changes how big it looks.
 const PLAYER_MARKER_RADIUS: f32 = 13.6;
 const PLAYER_ACCEL: f32 = 14.0;
 const PLAYER_TURN_RATE: f32 = 10.0;
@@ -1857,7 +1857,14 @@ fn draw_floor1(
     }
     let (px, py) = src_to_ref(ox, oy, iw, ih, state.player.0, state.player.1);
     let collide_ref = PLAYER_COLLIDE_RADIUS * iw / FLOOR1_W;
-    let marker_ref = PLAYER_MARKER_RADIUS * iw / FLOOR1_W;
+    // Like the item dots, the arrow keeps a constant screen scale: use the
+    // default zoom for the source->reference conversion, not the live zoom.
+    let default_scale = if state.layout.portrait {
+        state.layout.map_h * DEFAULT_ZOOM / FLOOR1_H
+    } else {
+        state.layout.map_w * DEFAULT_ZOOM / FLOOR1_W
+    };
+    let marker_ref = PLAYER_MARKER_RADIUS * default_scale;
     if state.debug_mode {
         // The collision disc the player keeps clear of walls, obstacles and
         // locked doors, plus the 8 samples debug uses to eyeball it.
