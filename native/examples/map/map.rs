@@ -504,6 +504,7 @@ struct State {
     follow_target: (f32, f32),
     recentre: bool,
     circle_cursor_hidden: bool,
+    camera_ready: bool,
     hover_item: Option<usize>,
     arrow_up_t: f32,
     arrow_down_t: f32,
@@ -2223,6 +2224,14 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     let state = unsafe { &mut *(user_data as *mut State) };
     let delta = (sapp::frame_duration() as f32).clamp(0.0, 0.1);
     state.layout = Layout::compute(sapp::widthf(), sapp::heightf());
+    if !state.camera_ready {
+        // Open the map centred on the player instead of the map's middle.
+        pan_to_center_player(state);
+        state.pan_x = state.pan_target_x;
+        state.pan_y = state.pan_target_y;
+        state.follow_target = (state.pan_x, state.pan_y);
+        state.camera_ready = true;
+    }
     state.time += delta;
     update_player(state, delta);
     let ease = (delta * 14.0).min(1.0);
@@ -2431,6 +2440,7 @@ fn main() {
         follow_target: (0.0, 0.0),
         recentre: false,
         circle_cursor_hidden: false,
+        camera_ready: false,
         hover_item: None,
         arrow_up_t: 0.0,
         arrow_down_t: 0.0,
