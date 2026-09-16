@@ -504,6 +504,7 @@ struct State {
     nav: Nav,
     nav_open: Nav,
     solid: Solid,
+    astar: Astar,
     reachable: Vec<u8>,
     path_red: Vec<(f32, f32)>,
     target: Option<usize>,
@@ -965,15 +966,16 @@ fn update_player(state: &mut State, delta: f32) {
         }
     }
 
-    // Refresh the route from the player's current cell.
+    // Refresh the route from the player's current cell (realtime).
     let cell = source_to_cell(&state.nav, state.player.0, state.player.1);
     if state.player_cell != Some(cell) {
         state.player_cell = Some(cell);
         if let Some(i) = state.target {
             if let Some(start) = snap_source(&state.nav, state.player.0, state.player.1) {
-                state.reachable = reachable_from(&state.nav, start);
+                ensure_reachable(state, start);
                 let (tx, ty) = (KEY_ITEMS[i].1, KEY_ITEMS[i].2);
                 let (green, red) = route_to(
+                    &mut state.astar,
                     &state.nav,
                     &state.nav_open,
                     &state.reachable,
@@ -1115,10 +1117,11 @@ fn select_at(state: &mut State, x: f32, y: f32) {
         Some(i) => {
             state.target = Some(i);
             let (tx, ty) = (KEY_ITEMS[i].1, KEY_ITEMS[i].2);
-            state.reachable = snap_source(&state.nav, state.player.0, state.player.1)
-                .map(|start| reachable_from(&state.nav, start))
-                .unwrap_or_default();
+            if let Some(start) = snap_source(&state.nav, state.player.0, state.player.1) {
+                ensure_reachable(state, start);
+            }
             let (green, red) = route_to(
+                &mut state.astar,
                 &state.nav,
                 &state.nav_open,
                 &state.reachable,
@@ -1571,66 +1574,110 @@ fn snap_source(nav: &Nav, sx: f32, sy: f32) -> Option<(i32, i32)> {
     nearest_walkable(nav, cx, cy)
 }
 
-// A* on the nav grid, 4-neighbour with a Manhattan heuristic.
-fn astar(nav: &Nav, start: (i32, i32), goal: (i32, i32)) -> Option<Vec<(i32, i32)>> {
-    use std::cmp::Reverse;
-    use std::collections::BinaryHeap;
+// Reusable A* scratch: the cost/came arrays are stamped with a generation
+// counter instead of being cleared, so repeated searches don't reallocate or
+// re-zero the whole grid, and the open heap is reused too.
+struct Astar {
+    g: Vec<u32>,
+    came: Vec<i32>,
+    stamp: Vec<u32>,
+    gen: u32,
+    heap: std::collections::BinaryHeap<std::cmp::Reverse<(u32, i32)>>,
+}
 
-    let w = nav.w;
-    let n = (nav.w * nav.h) as usize;
-    let sidx = (start.1 * w + start.0) as usize;
-    let gidx = (goal.1 * w + goal.0) as usize;
-    let heuristic = |x: i32, y: i32| (x - goal.0).unsigned_abs() + (y - goal.1).unsigned_abs();
-
-    let mut g = vec![u32::MAX; n];
-    let mut came = vec![-1i32; n];
-    let mut heap: BinaryHeap<Reverse<(u32, i32)>> = BinaryHeap::new();
-    g[sidx] = 0;
-    heap.push(Reverse((heuristic(start.0, start.1), sidx as i32)));
-    while let Some(Reverse((_f, cur))) = heap.pop() {
-        let cur = cur as usize;
-        if cur == gidx {
-            break;
-        }
-        let cx = (cur as i32) % w;
-        let cy = (cur as i32) / w;
-        let cg = g[cur];
-        for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
-            let (nx, ny) = (cx + dx, cy + dy);
-            if !nav.walkable(nx, ny) {
-                continue;
-            }
-            let ni = (ny * w + nx) as usize;
-            let ng = cg + 1;
-            if ng < g[ni] {
-                g[ni] = ng;
-                came[ni] = cur as i32;
-                heap.push(Reverse((ng + heuristic(nx, ny), ni as i32)));
-            }
+impl Astar {
+    fn new() -> Astar {
+        Astar {
+            g: Vec::new(),
+            came: Vec::new(),
+            stamp: Vec::new(),
+            gen: 0,
+            heap: std::collections::BinaryHeap::new(),
         }
     }
-    if g[gidx] == u32::MAX {
-        return None;
-    }
-    let mut cells = Vec::new();
-    let mut cur = gidx as i32;
-    loop {
-        let ci = cur as usize;
-        cells.push(((ci as i32) % w, (ci as i32) / w));
-        if ci == sidx {
-            break;
+}
+
+impl Astar {
+    // A* on the nav grid, 4-neighbour with a Manhattan heuristic.
+    fn search(
+        &mut self,
+        nav: &Nav,
+        start: (i32, i32),
+        goal: (i32, i32),
+    ) -> Option<Vec<(i32, i32)>> {
+        let w = nav.w;
+        let n = (nav.w * nav.h) as usize;
+        if self.g.len() != n {
+            self.g = vec![0; n];
+            self.came = vec![-1; n];
+            self.stamp = vec![0; n];
+            self.gen = 0;
         }
-        cur = came[ci];
-        if cur < 0 {
+        self.gen = self.gen.wrapping_add(1);
+        if self.gen == 0 {
+            self.stamp.fill(0);
+            self.gen = 1;
+        }
+        let gen = self.gen;
+
+        let sidx = (start.1 * w + start.0) as usize;
+        let gidx = (goal.1 * w + goal.0) as usize;
+        let heuristic = |x: i32, y: i32| (x - goal.0).unsigned_abs() + (y - goal.1).unsigned_abs();
+
+        self.heap.clear();
+        self.stamp[sidx] = gen;
+        self.g[sidx] = 0;
+        self.heap.push(std::cmp::Reverse((
+            heuristic(start.0, start.1),
+            sidx as i32,
+        )));
+        while let Some(std::cmp::Reverse((_f, cur))) = self.heap.pop() {
+            let cur = cur as usize;
+            if cur == gidx {
+                break;
+            }
+            let cx = (cur as i32) % w;
+            let cy = (cur as i32) / w;
+            let cg = self.g[cur];
+            for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+                let (nx, ny) = (cx + dx, cy + dy);
+                if !nav.walkable(nx, ny) {
+                    continue;
+                }
+                let ni = (ny * w + nx) as usize;
+                let ng = cg + 1;
+                if self.stamp[ni] != gen || ng < self.g[ni] {
+                    self.stamp[ni] = gen;
+                    self.g[ni] = ng;
+                    self.came[ni] = cur as i32;
+                    self.heap
+                        .push(std::cmp::Reverse((ng + heuristic(nx, ny), ni as i32)));
+                }
+            }
+        }
+        if self.stamp[gidx] != gen {
             return None;
         }
+        let mut cells = Vec::new();
+        let mut cur = gidx as i32;
+        loop {
+            let ci = cur as usize;
+            cells.push(((ci as i32) % w, (ci as i32) / w));
+            if ci == sidx {
+                break;
+            }
+            cur = self.came[ci];
+            if cur < 0 {
+                return None;
+            }
+        }
+        cells.reverse();
+        Some(cells)
     }
-    cells.reverse();
-    Some(cells)
 }
 
 // Shortest route in source px between two source px points, or empty on failure.
-fn compute_path(nav: &Nav, from: (f32, f32), to: (f32, f32)) -> Vec<(f32, f32)> {
+fn compute_path(astar: &mut Astar, nav: &Nav, from: (f32, f32), to: (f32, f32)) -> Route {
     let (start, goal) = match (
         snap_source(nav, from.0, from.1),
         snap_source(nav, to.0, to.1),
@@ -1638,7 +1685,7 @@ fn compute_path(nav: &Nav, from: (f32, f32), to: (f32, f32)) -> Vec<(f32, f32)> 
         (Some(s), Some(g)) => (s, g),
         _ => return Vec::new(),
     };
-    match astar(nav, start, goal) {
+    match astar.search(nav, start, goal) {
         Some(cells) => simplify(
             cells
                 .iter()
@@ -1674,6 +1721,14 @@ fn reachable_from(nav: &Nav, start: (i32, i32)) -> Vec<u8> {
     bits
 }
 
+// Refresh the reachable set only when the player's cell is not already in it.
+// The nav grid is static, so the player's component never changes by walking.
+fn ensure_reachable(state: &mut State, cell: (i32, i32)) {
+    if !is_reachable(&state.reachable, &state.nav, cell.0, cell.1) {
+        state.reachable = reachable_from(&state.nav, cell);
+    }
+}
+
 fn is_reachable(bits: &[u8], nav: &Nav, x: i32, y: i32) -> bool {
     if x < 0 || y < 0 || x >= nav.w || y >= nav.h || bits.is_empty() {
         return false;
@@ -1682,17 +1737,21 @@ fn is_reachable(bits: &[u8], nav: &Nav, x: i32, y: i32) -> bool {
     (bits[i >> 3] >> (i & 7)) & 1 == 1
 }
 
+// A polyline in source pixels.
+type Route = Vec<(f32, f32)>;
+
 // Route to a target. Returns (green reachable part, red part past the blocker).
 fn route_to(
+    astar: &mut Astar,
     nav: &Nav,
     nav_open: &Nav,
     reachable: &[u8],
     from: (f32, f32),
     to: (f32, f32),
-) -> (Vec<(f32, f32)>, Vec<(f32, f32)>) {
+) -> (Route, Route) {
     if let Some(goal) = snap_source(nav, to.0, to.1) {
         if is_reachable(reachable, nav, goal.0, goal.1) {
-            let green = compute_path(nav, from, to);
+            let green = compute_path(astar, nav, from, to);
             if !green.is_empty() {
                 return (green, Vec::new());
             }
@@ -1703,7 +1762,7 @@ fn route_to(
         snap_source(nav_open, from.0, from.1),
         snap_source(nav_open, to.0, to.1),
     ) {
-        if let Some(cells) = astar(nav_open, start, goal) {
+        if let Some(cells) = astar.search(nav_open, start, goal) {
             let split = cells
                 .iter()
                 .position(|&(x, y)| !is_reachable(reachable, nav, x, y))
@@ -2551,6 +2610,7 @@ fn main() {
         nav: Nav::from_bytes(NAV_BIN),
         nav_open: Nav::from_bytes(NAV_OPEN_BIN),
         solid: Solid::from_bytes(SOLID_BIN),
+        astar: Astar::new(),
         reachable: Vec::new(),
         path_red: Vec::new(),
         target: None,
@@ -2645,11 +2705,12 @@ mod tests {
     #[test]
     fn nav_grid_reachability_matches_locked_doors() {
         let nav = Nav::from_bytes(NAV_BIN);
+        let mut astar = Astar::new();
         assert!(nav.w > 0 && nav.h > 0, "nav grid header");
         let start = snap_source(&nav, PLAYER.0, PLAYER.1).expect("player start is walkable");
         for (name, sx, sy) in KEY_ITEMS {
-            let reachable =
-                snap_source(&nav, sx, sy).is_some_and(|goal| astar(&nav, start, goal).is_some());
+            let reachable = snap_source(&nav, sx, sy)
+                .is_some_and(|goal| astar.search(&nav, start, goal).is_some());
             if LOCKED_GATED.contains(&name) {
                 assert!(!reachable, "{name} should be blocked by a locked door");
             } else {
@@ -2661,8 +2722,9 @@ mod tests {
     #[test]
     fn demo_route_is_axis_aligned() {
         let nav = Nav::from_bytes(NAV_BIN);
+        let mut astar = Astar::new();
         let (_, sx, sy) = KEY_ITEMS[1]; // ID Wristband (Level 2)
-        let route = compute_path(&nav, PLAYER, (sx, sy));
+        let route = compute_path(&mut astar, &nav, PLAYER, (sx, sy));
         assert!(route.len() >= 2, "demo route should have endpoints");
         for pair in route.windows(2) {
             let (dx, dy) = (pair[1].0 - pair[0].0, pair[1].1 - pair[0].1);
@@ -2677,10 +2739,11 @@ mod tests {
     fn locked_items_have_a_red_segment() {
         let nav = Nav::from_bytes(NAV_BIN);
         let nav_open = Nav::from_bytes(NAV_OPEN_BIN);
+        let mut astar = Astar::new();
         let start = snap_source(&nav, PLAYER.0, PLAYER.1).expect("player start");
         let reachable = reachable_from(&nav, start);
         for (name, sx, sy) in KEY_ITEMS {
-            let (green, red) = route_to(&nav, &nav_open, &reachable, PLAYER, (sx, sy));
+            let (green, red) = route_to(&mut astar, &nav, &nav_open, &reachable, PLAYER, (sx, sy));
             if LOCKED_GATED.contains(&name) {
                 assert!(!red.is_empty(), "{name} should route up to a red blocker");
             } else {
@@ -2824,11 +2887,27 @@ mod tests {
     }
 
     #[test]
+    fn astar_reuse_matches_fresh_searches() {
+        let nav = Nav::from_bytes(NAV_BIN);
+        let start = snap_source(&nav, PLAYER.0, PLAYER.1).expect("player start");
+        let mut reused = Astar::new();
+        for &(_, sx, sy) in KEY_ITEMS.iter() {
+            let goal = snap_source(&nav, sx, sy).unwrap();
+            // Interleave an unrelated search so stale stamps would show up.
+            let _ = reused.search(&nav, goal, start);
+            let got = reused.search(&nav, start, goal);
+            let fresh = Astar::new().search(&nav, start, goal);
+            assert_eq!(got, fresh, "reused scratch diverged from a fresh search");
+        }
+    }
+
+    #[test]
     fn astar_routes_are_followable() {
         let nav = Nav::from_bytes(NAV_BIN);
         let solid = Solid::from_bytes(SOLID_BIN);
+        let mut astar = Astar::new();
         for (name, sx, sy) in KEY_ITEMS {
-            let route = compute_path(&nav, PLAYER, (sx, sy));
+            let route = compute_path(&mut astar, &nav, PLAYER, (sx, sy));
             if route.is_empty() {
                 continue;
             }
