@@ -503,6 +503,7 @@ struct State {
     player_cell: Option<(i32, i32)>,
     follow_target: (f32, f32),
     recentre: bool,
+    circle_cursor_hidden: bool,
     hover_item: Option<usize>,
     arrow_up_t: f32,
     arrow_down_t: f32,
@@ -1065,6 +1066,7 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
         sapp::EventType::MouseMove => {
             let (mx, my) = screen_to_ref(&state.layout, event.mouse_x, event.mouse_y);
             state.mouse = (mx, my);
+            state.circle_cursor_hidden = false;
             if state.dragging {
                 if (mx - state.down_ref.0).abs() > 6.0 || (my - state.down_ref.1).abs() > 6.0 {
                     state.moved = true;
@@ -1221,18 +1223,22 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             sapp::Keycode::Up => {
                 state.holding[0] = true;
                 state.recentre = true;
+                state.circle_cursor_hidden = true;
             }
             sapp::Keycode::Down => {
                 state.holding[1] = true;
                 state.recentre = true;
+                state.circle_cursor_hidden = true;
             }
             sapp::Keycode::Left => {
                 state.holding[2] = true;
                 state.recentre = true;
+                state.circle_cursor_hidden = true;
             }
             sapp::Keycode::Right => {
                 state.holding[3] = true;
                 state.recentre = true;
+                state.circle_cursor_hidden = true;
             }
             sapp::Keycode::Equal | sapp::Keycode::KpAdd => {
                 state.zoom_target = (state.zoom_target + 0.12).min(ZOOM_MAX);
@@ -1680,7 +1686,8 @@ fn draw_cursor(
     top: f32,
     bottom: f32,
 ) {
-    if state.cursor_mode == CursorMode::Free && !state.mouse_in_map {
+    if state.circle_cursor_hidden || (state.cursor_mode == CursorMode::Free && !state.mouse_in_map)
+    {
         return;
     }
     #[allow(non_snake_case)]
@@ -2299,7 +2306,8 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
 
     // Hovered key item under the active cursor (drives the popup label).
     let (hc_x, hc_y) = active_cursor(state);
-    let show_cursor = !(state.cursor_mode == CursorMode::Free && !state.mouse_in_map);
+    let show_cursor = !state.circle_cursor_hidden
+        && !(state.cursor_mode == CursorMode::Free && !state.mouse_in_map);
     state.hover_item = if show_cursor {
         hover_item_at(state, hc_x, hc_y)
     } else {
@@ -2415,6 +2423,7 @@ fn main() {
         player_cell: None,
         follow_target: (0.0, 0.0),
         recentre: false,
+        circle_cursor_hidden: false,
         hover_item: None,
         arrow_up_t: 0.0,
         arrow_down_t: 0.0,
