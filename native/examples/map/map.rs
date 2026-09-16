@@ -1743,32 +1743,6 @@ fn draw_map_frame(l: &Layout) {
     }
 }
 
-fn draw_map_overlay(l: &Layout) {
-    let right = l.map_x + l.map_w;
-    let bottom = l.map_y + l.map_h;
-    let hud_right = right - 18.0;
-
-    sgl::c4f(C_DIM.0, C_DIM.1, C_DIM.2, 0.62);
-    let rows = [l.map_y + 20.0, l.map_y + 32.0, l.map_y + 44.0];
-    for y in rows {
-        line(right - 118.0, y + 4.0, hud_right, y + 4.0);
-        sgl::begin_points();
-        sgl::point_size(2.0);
-        sgl::v2f(hud_right, y + 4.0);
-        sgl::end();
-    }
-    line(hud_right, l.map_y + 58.0, hud_right, bottom - 44.0);
-
-    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.9);
-    outline_rect(right - 108.0, bottom - 43.0, 88.0, 22.0);
-
-    if !l.portrait {
-        // Two short registration lines continue below the lower-right corner.
-        line(right - 34.0, bottom + 4.0, right - 34.0, bottom + 48.0);
-        line(right - 20.0, bottom + 4.0, right - 20.0, bottom + 48.0);
-    }
-}
-
 fn draw_ui_text(
     font: &Font,
     text: &str,
@@ -1789,19 +1763,64 @@ fn draw_map_labels(font: &Font, l: &Layout) {
         draw_ui_text(font, text, x, y, color, large, l.text_scale)
     };
 
-    // Status labels are right-aligned so the larger text stays on screen.
+    // Status HUD: each label gets a rule sized to its own text, so the larger
+    // type still sits inside the decoration.
     let scale = l.text_scale;
-    let right_label = |text: &str, y: f32, color: (f32, f32, f32)| {
-        let w = font.text_width(text, 19.5 * scale);
-        draw_ui_text(font, text, right - 24.0 * scale - w, y, color, false, scale);
-    };
-    let line_h = 13.0 * scale;
-    right_label("BATTERY", l.map_y + line_h, C_DIM);
-    right_label("MEMORY", l.map_y + line_h * 2.0, C_DIM);
-    right_label("DISC", l.map_y + line_h * 3.0, C_DIM);
-    right_label("AREA MAP", bottom - 30.0 * scale, C_HILITE);
+    let size = 19.5 * scale;
+    let hud_right = right - 20.0 * scale;
+    let text_right = hud_right - 8.0 * scale;
+    // Cap-height band within the em cell (top of caps .. baseline).
+    let cap_top = 0.265;
+    let cap_bot = 0.81;
+    let line_h = size * 0.95;
+    sgl::c4f(C_DIM.0, C_DIM.1, C_DIM.2, 0.62);
+    let mut last_rule = l.map_y + 8.0 * scale;
+    for (i, text) in ["BATTERY", "MEMORY", "DISC"].iter().enumerate() {
+        let w = font.text_width(text, size);
+        let tx = text_right - w;
+        let ty = l.map_y + 8.0 * scale + i as f32 * line_h;
+        // Rule just under the baseline so it never crosses the glyphs.
+        let rule_y = ty + cap_bot * size + 4.0 * scale;
+        last_rule = rule_y;
+        line(tx - 8.0 * scale, rule_y, hud_right, rule_y);
+        draw_ui_text(font, text, tx, ty, C_DIM, false, scale);
+    }
+    sgl::begin_points();
+    sgl::point_size(2.0 * scale);
+    sgl::v2f(hud_right, last_rule);
+    sgl::end();
+
+    // AREA MAP inside a border that hugs its (scaled) text.
+    let area = "AREA MAP";
+    let area_w = font.text_width(area, size);
+    let pad_x = 9.0 * scale;
+    let pad_y = 5.0 * scale;
+    let box_h = (cap_bot - cap_top) * size + pad_y * 2.0;
+    let box_w = area_w + pad_x * 2.0;
+    let box_x = hud_right - box_w;
+    let box_y = bottom - 9.0 * scale - box_h;
+    let area_y = box_y + pad_y - cap_top * size;
+    line(hud_right, last_rule, hud_right, box_y);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.9);
+    outline_rect(box_x, box_y, box_w, box_h);
+    draw_ui_text(font, area, box_x + pad_x, area_y, C_HILITE, false, scale);
 
     if !l.portrait {
+        // Two short registration lines continue below the lower-right corner.
+        sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.9);
+        line(
+            right - 34.0 * scale,
+            bottom + 4.0 * scale,
+            right - 34.0 * scale,
+            bottom + 48.0 * scale,
+        );
+        line(
+            right - 20.0 * scale,
+            bottom + 4.0 * scale,
+            right - 20.0 * scale,
+            bottom + 48.0 * scale,
+        );
+
         label("In", l.in_pos.0, l.in_pos.1, C_LABEL, false);
         label("Out", l.out_pos.0, l.out_pos.1, C_LABEL, false);
 
@@ -1997,7 +2016,6 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     draw_floor1(state, width, height, left, right, top, bottom);
     draw_floor_fade(state, width, height, left, right, top, bottom);
     draw_map_frame(&state.layout);
-    draw_map_overlay(&state.layout);
     draw_map_labels(state.font.as_ref().unwrap(), &state.layout);
     draw_cursor(state, width, height, left, right, top, bottom);
     draw_debug_overlay(state);
