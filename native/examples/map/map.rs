@@ -168,6 +168,7 @@ const C_DIM: (f32, f32, f32) = (0.20, 0.21, 0.21); // #333636 dim chrome
 const C_HILITE: (f32, f32, f32) = (0.80, 0.81, 0.80); // #cccfcc highlight
 const C_ACCENT: (f32, f32, f32) = (0.78, 0.75, 0.60); // #c7c099 player / route
 const C_LINE: (f32, f32, f32) = (0.55, 0.57, 0.57); // #8c9191 panels, markers
+const C_WALL: (f32, f32, f32) = (0.361, 0.376, 0.376); // #5c6060 wall ink (Floor 1)
 const C_LABEL: (f32, f32, f32) = (0.58, 0.58, 0.55); // #94948c room labels
 const C_TITLE: (f32, f32, f32) = (0.72, 0.72, 0.70); // #b8b8b3 title
 const C_ITEM: (f32, f32, f32) = (0.54, 0.40, 0.82); // #8a65d1 item markers
@@ -507,6 +508,7 @@ struct State {
     nav_open: Nav,
     solid: Solid,
     astar: Astar,
+    extra_floors: [Vec<(f32, f32, f32, f32)>; NUM_FLOORS],
     reachable: Vec<u8>,
     path_red: Vec<(f32, f32)>,
     target: Option<usize>,
@@ -1479,6 +1481,33 @@ fn filled_circle(cx: f32, cy: f32, radius: f32) {
     sgl::end();
 }
 
+// Floors 2 and 3 have no traced art, so their walls are a stable set of random
+// squares and rectangles spanning roughly the same area as Floor 1. Deterministic
+// LCG per floor so the layout never changes between frames or runs.
+fn floor_shapes(floor: usize) -> Vec<(f32, f32, f32, f32)> {
+    const COUNT: usize = 22;
+    const MARGIN: f32 = 200.0;
+    let mut seed: u32 = 0x9E37_79B9 ^ (floor as u32).wrapping_mul(0x85EB_CA6B);
+    let mut next = move || {
+        seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        (seed >> 8) as f32 / 16_777_216.0
+    };
+    let mut out = Vec::with_capacity(COUNT);
+    for i in 0..COUNT {
+        // Half the shapes are squares, the rest rectangles.
+        let w = 200.0 + next() * 620.0;
+        let h = if i % 2 == 0 {
+            w
+        } else {
+            150.0 + next() * 520.0
+        };
+        let x = FLOOR1_X + MARGIN + next() * (FLOOR1_W - w - MARGIN * 2.0).max(1.0);
+        let y = FLOOR1_Y + MARGIN + next() * (FLOOR1_H - h - MARGIN * 2.0).max(1.0);
+        out.push((x, y, w, h));
+    }
+    out
+}
+
 // Floor 1 art frame inside the fixed map window, centred and scaled by zoom.
 fn image_size(l: &Layout, zoom: f32) -> (f32, f32) {
     // Landscape fits the floor width; portrait fits the floor height.
@@ -1958,6 +1987,44 @@ fn draw_nav_grid(nav: &Nav, ox: f32, oy: f32, iw: f32, ih: f32) {
     sgl::end();
 }
 
+// Wall rectangles for the floors without traced art, in the same source frame
+// and wall colour as Floor 1 so they pan and zoom identically.
+fn draw_procedural_floor(
+    state: &State,
+    width: f32,
+    height: f32,
+    left: f32,
+    right: f32,
+    top: f32,
+    bottom: f32,
+) {
+    let shapes = &state.extra_floors[state.floor];
+    if shapes.is_empty() {
+        return;
+    }
+    #[allow(non_snake_case)]
+    let (MAP_X, MAP_Y, MAP_W, MAP_H, _, _, _) = state.layout.vars();
+    let clip_x = ((MAP_X - left) / (right - left) * width).clamp(0.0, width);
+    let clip_y = ((MAP_Y - top) / (bottom - top) * height).clamp(0.0, height);
+    let clip_right = ((MAP_X + MAP_W - left) / (right - left) * width).clamp(0.0, width);
+    let clip_bottom = ((MAP_Y + MAP_H - top) / (bottom - top) * height).clamp(0.0, height);
+    sgl::scissor_rectf(
+        clip_x,
+        clip_y,
+        (clip_right - clip_x).max(0.0),
+        (clip_bottom - clip_y).max(0.0),
+        true,
+    );
+    let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y);
+    sgl::c4f(C_WALL.0, C_WALL.1, C_WALL.2, 1.0);
+    for &(x, y, w, h) in shapes {
+        let (x0, y0) = src_to_ref(ox, oy, iw, ih, x, y);
+        let (x1, y1) = src_to_ref(ox, oy, iw, ih, x + w, y + h);
+        outline_rect(x0, y0, x1 - x0, y1 - y0);
+    }
+    sgl::scissor_rectf(0.0, 0.0, width, height, true);
+}
+
 fn draw_floor1(
     state: &State,
     width: f32,
@@ -1967,8 +2034,9 @@ fn draw_floor1(
     top: f32,
     bottom: f32,
 ) {
-    // Only Floor 1 has art for now; Floors 2 and 3 stay blank.
+    // Only Floor 1 has traced art; Floors 2 and 3 draw procedural walls.
     if state.floor != FLOOR1_INDEX {
+        draw_procedural_floor(state, width, height, left, right, top, bottom);
         return;
     }
 
@@ -2612,6 +2680,8 @@ fn main() {
         nav_open: Nav::from_bytes(NAV_OPEN_BIN),
         solid: Solid::from_bytes(SOLID_BIN),
         astar: Astar::new(),
+        // Floors 3 and 2 (index 0/1) get procedural walls; Floor 1 has art.
+        extra_floors: [floor_shapes(0), floor_shapes(1), Vec::new()],
         reachable: Vec::new(),
         path_red: Vec::new(),
         target: None,
@@ -2885,6 +2955,27 @@ mod tests {
             !free_at(wall_x - 7.0),
             "inside the collision radius should be blocked by the wall"
         );
+    }
+
+    #[test]
+    fn procedural_floor_shapes_fill_the_floor_frame() {
+        for floor in [0usize, 1] {
+            let shapes = floor_shapes(floor);
+            assert_eq!(shapes.len(), 22);
+            let mut squares = 0;
+            for &(x, y, w, h) in &shapes {
+                assert!(w > 0.0 && h > 0.0);
+                assert!(x >= FLOOR1_X && y >= FLOOR1_Y);
+                assert!(x + w <= FLOOR1_X + FLOOR1_W);
+                assert!(y + h <= FLOOR1_Y + FLOOR1_H);
+                if (w - h).abs() < 0.01 {
+                    squares += 1;
+                }
+            }
+            assert!(squares > 0, "expected some square shapes");
+            assert_eq!(shapes, floor_shapes(floor), "layout must be deterministic");
+        }
+        assert_ne!(floor_shapes(0), floor_shapes(1), "floors must differ");
     }
 
     #[test]
