@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Build the Floor 1 navigation grid from the traced wall/door/obstacle art.
+"""Build the navigation grids for the traced floors from the Krita source.
+
+Reads the wall/door/obstacle layers straight out of the Krita document (see
+`native/kra_layers.py`).
 
 Impassable: walls, obstacles and locked doors, grown by a clearance so routes
 keep away from them.
@@ -8,12 +11,15 @@ Passable:   unlocked and unknown doors, carved through after the clearance.
 The exterior is flood-filled *before* the doors are carved, so a door on the
 building boundary cannot leak the outside into the walkable area.
 
-Output: `native/assets/floor-1-nav.bin`
-    header: u32 LE cell_px, u32 LE width, u32 LE height
-    body:   width*height bits, row-major, LSB first per byte (1 = walkable)
+Output per floor: `native/assets/floor-N-nav.bin`, `floor-N-nav-open.bin`,
+`floor-N-solid.bin`.
 
-Also writes a preview PNG and a reachability report (Guard Office -> key items),
-flagging items that are only blocked by locked doors.
+    nav / nav-open header: u32 LE cell_px, u32 LE width, u32 LE height
+    body:                  width*height bits, row-major, LSB first per byte
+                           (1 = walkable)
+    solid header:          same, 1 = wall/obstacle/locked door
+
+Also writes a preview PNG and (for Floor 1) a reachability report.
 """
 
 from collections import deque
@@ -22,77 +28,73 @@ from pathlib import Path
 
 from PIL import Image, ImageFilter
 
+from kra_layers import SOURCE, has_floor, read_floor
+
 ROOT = Path(__file__).resolve().parents[1]
-ORIGINALS = ROOT / "artifacts" / "care-center" / "originals"
-OUTPUT = ROOT / "native" / "assets" / "floor-1-nav.bin"
-OUTPUT_OPEN = ROOT / "native" / "assets" / "floor-1-nav-open.bin"
-OUTPUT_SOLID = ROOT / "native" / "assets" / "floor-1-solid.bin"
-PREVIEW = ROOT / "artifacts" / "care-center" / "nav-preview.png"
+OUTPUT = ROOT / "native" / "assets"
+PREVIEW_DIR = ROOT / "artifacts" / "care-center"
 
-# Canonical Floor 1 frame and navigation resolution.
-CROP = (1600, 3420, 1600 + 4750, 3420 + 2730)
-CROP_W, CROP_H = 4750, 2730
+# Canonical floor frames in source-composite pixels (see artifacts/care-center/README.md).
+FLOORS = {
+    1: (1600, 3420, 1600 + 4750, 3420 + 2730),
+    2: (1600, 1500, 1600 + 4750, 1500 + 2240),
+    3: (1600, 0, 1600 + 4750, 0 + 1536),
+}
 CELL_PX = 8
-W = round(CROP_W / CELL_PX)
-H = round(CROP_H / CELL_PX)
-
 # High-resolution solid mask for player collision (1 = wall/obstacle/locked door).
 # The nav grid has to be coarse (it pads for routing); collision wants the real
 # geometry, so it is baked separately at 2 source px per cell.
 SOLID_CELL_PX = 2
-SW = round(CROP_W / SOLID_CELL_PX)
-SH = round(CROP_H / SOLID_CELL_PX)
 ALPHA_THRESHOLD = 30
 CLEARANCE_CELLS = 2
 DOOR_DILATION_CELLS = 1
 
-WALLS = "care-center-full-walls.png"
-OBSTACLES = "care-center-full-obstacles.png"
-LOCKED = "care-center-full-locked_doors.png"
-UNLOCKED = "care-center-full-unlocked_doors.png"
-UNKNOWN = "care-center-full-unknown_doors.png"
+CATEGORIES = ("walls", "obstacles", "locked_doors", "unlocked_doors", "unknown_doors")
 
-PLAYER = (3840.0, 5008.0)  # Guard Office
-KEY_ITEMS = [
-    ("Pantry Key", 3432.0, 3899.0),
-    ("ID Wristband (Level 2)", 4751.0, 4416.0),
-    ("ID Wristband (Level 3)", 6134.0, 4397.0),
-    ("East Wing Keycard", 3309.0, 4590.0),
-    ("Star Quartz", 4658.0, 5138.0),
-    ("West Wing Keycard", 3530.0, 5162.0),
-]
+# Floor 1 reachability anchors, in source-composite pixels. Other floors have
+# no traced items yet, so they only get the grids and a preview.
+PLAYER = {1: (3840.0, 5008.0)}  # Guard Office
+KEY_ITEMS = {
+    1: [
+        ("Pantry Key", 3432.0, 3899.0),
+        ("ID Wristband (Level 2)", 4751.0, 4416.0),
+        ("ID Wristband (Level 3)", 6134.0, 4397.0),
+        ("East Wing Keycard", 3309.0, 4590.0),
+        ("Star Quartz", 4658.0, 5138.0),
+        ("West Wing Keycard", 3530.0, 5162.0),
+    ]
+}
 
 
-def mask(name: str, w: int = W, h: int = H) -> list[bytearray]:
+def mask(floor: int, category: str, crop, w: int, h: int) -> list[bytearray]:
     image = (
-        Image.open(ORIGINALS / name)
+        read_floor(floor, category, crop)
         .convert("RGBA")
-        .crop(CROP)
         .resize((w, h), Image.Resampling.LANCZOS)
     )
     alpha = image.getchannel("A").point(lambda v: 255 if v > ALPHA_THRESHOLD else 0)
     return [bytearray(1 if alpha.getpixel((x, y)) else 0 for x in range(w)) for y in range(h)]
 
 
-def dilate(source: list[bytearray], radius: int) -> list[bytearray]:
+def dilate(source: list[bytearray], radius: int, w: int, h: int) -> list[bytearray]:
     if radius <= 0:
         return source
-    image = Image.new("L", (W, H))
-    image.putdata([255 if source[y][x] else 0 for y in range(H) for x in range(W)])
+    image = Image.new("L", (w, h))
+    image.putdata([255 if source[y][x] else 0 for y in range(h) for x in range(w)])
     image = image.filter(ImageFilter.MaxFilter(radius * 2 + 1))
-    return [bytearray(1 if image.getpixel((x, y)) else 0 for x in range(W)) for y in range(H)]
+    return [bytearray(1 if image.getpixel((x, y)) else 0 for x in range(w)) for y in range(h)]
 
 
-def flood_exterior(free: list[bytearray]) -> list[bytearray]:
-    exterior = [bytearray(W) for _ in range(H)]
+def flood_exterior(free: list[bytearray], w: int, h: int) -> list[bytearray]:
+    exterior = [bytearray(w) for _ in range(h)]
     dq = deque()
-    for x in range(W):
-        for y in (0, H - 1):
+    for x in range(w):
+        for y in (0, h - 1):
             if free[y][x]:
                 exterior[y][x] = 1
                 dq.append((x, y))
-    for y in range(H):
-        for x in (0, W - 1):
+    for y in range(h):
+        for x in (0, w - 1):
             if free[y][x]:
                 exterior[y][x] = 1
                 dq.append((x, y))
@@ -100,21 +102,22 @@ def flood_exterior(free: list[bytearray]) -> list[bytearray]:
         x, y = dq.popleft()
         for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
             nx, ny = x + dx, y + dy
-            if 0 <= nx < W and 0 <= ny < H and free[ny][nx] and not exterior[ny][nx]:
+            if 0 <= nx < w and 0 <= ny < h and free[ny][nx] and not exterior[ny][nx]:
                 exterior[ny][nx] = 1
                 dq.append((nx, ny))
     return exterior
 
 
-def source_to_cell(sx: float, sy: float) -> tuple[int, int]:
+def source_to_cell(crop, sx: float, sy: float, w: int, h: int) -> tuple[int, int]:
+    cw, ch = crop[2] - crop[0], crop[3] - crop[1]
     return (
-        int((sx - CROP[0]) / CROP_W * W),
-        int((sy - CROP[1]) / CROP_H * H),
+        int((sx - crop[0]) / cw * w),
+        int((sy - crop[1]) / ch * h),
     )
 
 
-def nearest_walkable(walk: list[bytearray], cx: int, cy: int):
-    if 0 <= cx < W and 0 <= cy < H and walk[cy][cx]:
+def nearest_walkable(walk: list[bytearray], cx: int, cy: int, w: int, h: int):
+    if 0 <= cx < w and 0 <= cy < h and walk[cy][cx]:
         return (cx, cy)
     for r in range(1, 80):
         for dy in range(-r, r + 1):
@@ -122,12 +125,12 @@ def nearest_walkable(walk: list[bytearray], cx: int, cy: int):
                 if max(abs(dx), abs(dy)) != r:
                     continue
                 x, y = cx + dx, cy + dy
-                if 0 <= x < W and 0 <= y < H and walk[y][x]:
+                if 0 <= x < w and 0 <= y < h and walk[y][x]:
                     return (x, y)
     return None
 
 
-def bfs(walk: list[bytearray], start: tuple[int, int]):
+def bfs(walk: list[bytearray], start: tuple[int, int], w: int, h: int):
     dist = {start: 0}
     came = {}
     dq = deque([start])
@@ -135,31 +138,37 @@ def bfs(walk: list[bytearray], start: tuple[int, int]):
         x, y = dq.popleft()
         for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
             nx, ny = x + dx, y + dy
-            if 0 <= nx < W and 0 <= ny < H and walk[ny][nx] and (nx, ny) not in dist:
+            if 0 <= nx < w and 0 <= ny < h and walk[ny][nx] and (nx, ny) not in dist:
                 dist[(nx, ny)] = dist[(x, y)] + 1
                 came[(nx, ny)] = (x, y)
                 dq.append((nx, ny))
     return dist, came
 
 
-def main() -> None:
-    walls = mask(WALLS)
-    obstacles = mask(OBSTACLES)
-    locked = mask(LOCKED)
-    unlocked = mask(UNLOCKED)
-    unknown = mask(UNKNOWN)
+def build_floor(floor: int, crop) -> None:
+    cw, ch = crop[2] - crop[0], crop[3] - crop[1]
+    w, h = round(cw / CELL_PX), round(ch / CELL_PX)
+    sw, sh = round(cw / SOLID_CELL_PX), round(ch / SOLID_CELL_PX)
+
+    walls = mask(floor, "walls", crop, w, h)
+    obstacles = mask(floor, "obstacles", crop, w, h)
+    locked = mask(floor, "locked_doors", crop, w, h)
+    unlocked = mask(floor, "unlocked_doors", crop, w, h)
+    unknown = mask(floor, "unknown_doors", crop, w, h)
     doors = dilate(
-        [bytearray(1 if unlocked[y][x] or unknown[y][x] else 0 for x in range(W)) for y in range(H)],
+        [bytearray(1 if unlocked[y][x] or unknown[y][x] else 0 for x in range(w)) for y in range(h)],
         DOOR_DILATION_CELLS,
+        w,
+        h,
     )
     # Only open a door where there is actually floor: a door bar drawn across the
     # wall ends must not punch a hole through the wall itself.
     doors = [
         bytearray(
             1 if doors[y][x] and not (walls[y][x] or obstacles[y][x] or locked[y][x]) else 0
-            for x in range(W)
+            for x in range(w)
         )
-        for y in range(H)
+        for y in range(h)
     ]
 
     def build(include_locked: bool) -> list[bytearray]:
@@ -168,71 +177,81 @@ def main() -> None:
                 1
                 if walls[y][x] or obstacles[y][x] or (locked[y][x] and include_locked)
                 else 0
-                for x in range(W)
+                for x in range(w)
             )
-            for y in range(H)
+            for y in range(h)
         ]
-        impassable = dilate(base, CLEARANCE_CELLS)
-        free = [bytearray(0 if impassable[y][x] else 1 for x in range(W)) for y in range(H)]
-        exterior = flood_exterior(free)
+        impassable = dilate(base, CLEARANCE_CELLS, w, h)
+        free = [bytearray(0 if impassable[y][x] else 1 for x in range(w)) for y in range(h)]
+        exterior = flood_exterior(free, w, h)
         return [
             bytearray(
                 1 if ((free[y][x] and not exterior[y][x]) or doors[y][x]) else 0
-                for x in range(W)
+                for x in range(w)
             )
-            for y in range(H)
+            for y in range(h)
         ]
 
     walk = build(include_locked=True)
     walk_unlocked = build(include_locked=False)
 
-    bits = bytearray((W * H + 7) // 8)
-    for y in range(H):
-        for x in range(W):
+    bits = bytearray((w * h + 7) // 8)
+    for y in range(h):
+        for x in range(w):
             if walk[y][x]:
-                i = y * W + x
+                i = y * w + x
                 bits[i >> 3] |= 1 << (i & 7)
-    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_bytes(struct.pack("<III", CELL_PX, W, H) + bytes(bits))
+    OUTPUT.mkdir(parents=True, exist_ok=True)
+    (OUTPUT / f"floor-{floor}-nav.bin").write_bytes(struct.pack("<III", CELL_PX, w, h) + bytes(bits))
 
     # Optimistic grid: same as above but locked doors are passable, so a route
     # can be traced up to (and past) a locked-door blocker for display.
-    open_bits = bytearray((W * H + 7) // 8)
-    for y in range(H):
-        for x in range(W):
+    open_bits = bytearray((w * h + 7) // 8)
+    for y in range(h):
+        for x in range(w):
             if walk_unlocked[y][x]:
-                i = y * W + x
+                i = y * w + x
                 open_bits[i >> 3] |= 1 << (i & 7)
-    OUTPUT_OPEN.write_bytes(struct.pack("<III", CELL_PX, W, H) + bytes(open_bits))
+    (OUTPUT / f"floor-{floor}-nav-open.bin").write_bytes(
+        struct.pack("<III", CELL_PX, w, h) + bytes(open_bits)
+    )
 
     # Solid collision mask at 2px: walls + obstacles + locked doors, no padding.
-    s_walls = mask(WALLS, SW, SH)
-    s_obstacles = mask(OBSTACLES, SW, SH)
-    s_locked = mask(LOCKED, SW, SH)
-    solid_bits = bytearray((SW * SH + 7) // 8)
+    s_walls = mask(floor, "walls", crop, sw, sh)
+    s_obstacles = mask(floor, "obstacles", crop, sw, sh)
+    s_locked = mask(floor, "locked_doors", crop, sw, sh)
+    solid_bits = bytearray((sw * sh + 7) // 8)
     solid_count = 0
-    for y in range(SH):
-        for x in range(SW):
+    for y in range(sh):
+        for x in range(sw):
             if s_walls[y][x] or s_obstacles[y][x] or s_locked[y][x]:
-                i = y * SW + x
+                i = y * sw + x
                 solid_bits[i >> 3] |= 1 << (i & 7)
                 solid_count += 1
-    OUTPUT_SOLID.write_bytes(struct.pack("<III", SOLID_CELL_PX, SW, SH) + bytes(solid_bits))
-    print(f"solid grid {SW}x{SH} cell={SOLID_CELL_PX}px blocked={solid_count}")
-
-    start = nearest_walkable(walk, *source_to_cell(*PLAYER))
-    print(
-        f"nav grid {W}x{H} cell={CELL_PX}px clearance={CLEARANCE_CELLS} "
-        f"door_dilation={DOOR_DILATION_CELLS} walkable={sum(sum(r) for r in walk)}"
+    (OUTPUT / f"floor-{floor}-solid.bin").write_bytes(
+        struct.pack("<III", SOLID_CELL_PX, sw, sh) + bytes(solid_bits)
     )
-    if start is None:
-        print("ERROR: player has no walkable cell")
+    print(f"floor {floor}: nav {w}x{h} cell={CELL_PX}px walkable={sum(sum(r) for r in walk)}")
+    print(f"floor {floor}: solid grid {sw}x{sh} cell={SOLID_CELL_PX}px blocked={solid_count}")
+
+    report(floor, crop, w, h, walk, walk_unlocked, walls)
+    preview(floor, w, h, walk, walls, obstacles, locked, unknown, unlocked)
+
+
+def report(floor, crop, w, h, walk, walk_unlocked, walls) -> None:
+    if floor not in PLAYER:
         return
-    dist, came = bfs(walk, start)
-    dist_unlocked, _ = bfs(walk_unlocked, start) if walk_unlocked[start[1]][start[0]] else ({}, {})
-    print(f"player snap {start} from {source_to_cell(*PLAYER)}")
-    for name, sx, sy in KEY_ITEMS:
-        target = nearest_walkable(walk, *source_to_cell(sx, sy))
+    start = nearest_walkable(walk, *source_to_cell(crop, *PLAYER[floor], w, h), w, h)
+    if start is None:
+        print(f"floor {floor}: ERROR player has no walkable cell")
+        return
+    dist, came = bfs(walk, start, w, h)
+    dist_unlocked, _ = (
+        bfs(walk_unlocked, start, w, h) if walk_unlocked[start[1]][start[0]] else ({}, {})
+    )
+    print(f"floor {floor}: player snap {start}")
+    for name, sx, sy in KEY_ITEMS.get(floor, []):
+        target = nearest_walkable(walk, *source_to_cell(crop, sx, sy, w, h), w, h)
         reachable = target is not None and target in dist
         if reachable:
             clipped = 0
@@ -243,20 +262,23 @@ def main() -> None:
                 node = came[node]
             note = f"reachable steps={dist[target]} through_wall={clipped}"
         else:
-            target_unlocked = nearest_walkable(walk_unlocked, *source_to_cell(sx, sy))
+            target_unlocked = nearest_walkable(
+                walk_unlocked, *source_to_cell(crop, sx, sy, w, h), w, h
+            )
             gated = target_unlocked is not None and target_unlocked in dist_unlocked
             note = "LOCKED-DOOR GATED" if gated else "DISCONNECTED"
-        print(f"  {name:24} cell={source_to_cell(sx, sy)} snap={target} {note}")
+        print(f"  {name:24} cell={source_to_cell(crop, sx, sy, w, h)} snap={target} {note}")
 
-    # Preview (colour-coded by category).
-    preview = Image.new("RGB", (W, H), (12, 12, 16))
-    px = preview.load()
-    for y in range(H):
-        for x in range(W):
+
+def preview(floor, w, h, walk, walls, obstacles, locked, unknown, unlocked) -> None:
+    image = Image.new("RGB", (w, h), (12, 12, 16))
+    px = image.load()
+    for y in range(h):
+        for x in range(w):
             if walk[y][x]:
                 px[x, y] = (30, 60, 70)
-    for y in range(H):
-        for x in range(W):
+    for y in range(h):
+        for x in range(w):
             if walls[y][x]:
                 px[x, y] = (241, 250, 140)
             elif obstacles[y][x]:
@@ -267,22 +289,19 @@ def main() -> None:
                 px[x, y] = (140, 150, 190)
             elif unlocked[y][x]:
                 px[x, y] = (139, 233, 253)
-    demo = nearest_walkable(walk, *source_to_cell(*KEY_ITEMS[1][1:]))
-    if demo is not None and demo in came:
-        c = demo
-        while c != start:
-            px[c[0], c[1]] = (80, 250, 123)
-            c = came[c]
-    px[start[0], start[1]] = (80, 250, 123)
-    for name, sx, sy in KEY_ITEMS:
-        cell = nearest_walkable(walk, *source_to_cell(sx, sy))
-        if cell:
-            px[cell[0], cell[1]] = (189, 147, 249)
-    preview.resize((W * 2, H * 2), Image.Resampling.NEAREST).save(PREVIEW)
-    print(
-        f"wrote {OUTPUT.relative_to(ROOT)}, {OUTPUT_OPEN.relative_to(ROOT)}, "
-        f"{OUTPUT_SOLID.relative_to(ROOT)} and {PREVIEW.relative_to(ROOT)}"
-    )
+    PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
+    path = PREVIEW_DIR / f"floor-{floor}-nav-preview.png"
+    image.resize((w * 2, h * 2), Image.Resampling.NEAREST).save(path)
+    print(f"floor {floor}: wrote {path.relative_to(ROOT)}")
+
+
+def main() -> None:
+    print(f"source {SOURCE.relative_to(ROOT)}")
+    for floor, crop in sorted(FLOORS.items()):
+        if not has_floor(floor):
+            print(f"floor {floor}: no traced layers in the .kra, skipped")
+            continue
+        build_floor(floor, crop)
 
 
 if __name__ == "__main__":

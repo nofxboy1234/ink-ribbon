@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Build the Floor 1 map overlay texture for the Sokol map.
+"""Build the Sokol map overlays for the traced floors.
 
-Composites the hand-traced layers into one raw RGBA texture and recolours each
-to the reference map palette (near-monochrome, low contrast):
+Reads the hand-traced layers straight out of the Krita source document (see
+`native/kra_layers.py`) and composites each floor's layers into one raw RGBA
+texture, recolouring each to the reference map palette (near-monochrome, low
+contrast):
 
     walls            #5c6060
     obstacles        #3a3a3a
@@ -12,33 +14,40 @@ to the reference map palette (near-monochrome, low contrast):
 
 Each layer is a single-category alpha mask, so the source colours are ignored
 and only the alpha channel is used.
+
+Output: `native/assets/floor-N-overlay.rgba` for every floor (blank until traced).
 """
 
 from pathlib import Path
 
 from PIL import Image
 
-ROOT = Path(__file__).resolve().parents[1]
-ORIGINALS = ROOT / "artifacts" / "care-center" / "originals"
-OUTPUT = ROOT / "native" / "assets" / "floor-1-overlay.rgba"
+from kra_layers import SOURCE, read_floor
 
-# Canonical Floor 1 frame in source pixels (see artifacts/care-center/README.md).
-CROP = (1600, 3420, 1600 + 4750, 3420 + 2730)
+ROOT = Path(__file__).resolve().parents[1]
+OUTPUT = ROOT / "native" / "assets"
+
+# Canonical floor frames in source-composite pixels (see artifacts/care-center/README.md).
+FLOORS = {
+    1: (1600, 3420, 1600 + 4750, 3420 + 2730),
+    2: (1600, 1500, 1600 + 4750, 1500 + 2240),
+    3: (1600, 0, 1600 + 4750, 0 + 1536),
+}
 WIDTH = 2048
 
 LAYERS = [
-    ("care-center-full-walls.png", (92, 96, 96)),
-    ("care-center-full-obstacles.png", (58, 58, 58)),
-    ("care-center-full-locked_doors.png", (160, 68, 87)),
-    ("care-center-full-unknown_doors.png", (106, 106, 106)),
-    ("care-center-full-unlocked_doors.png", (78, 160, 170)),
+    ("walls", (92, 96, 96)),
+    ("obstacles", (58, 58, 58)),
+    ("locked_doors", (160, 68, 87)),
+    ("unknown_doors", (106, 106, 106)),
+    ("unlocked_doors", (78, 160, 170)),
 ]
 
 
-def main() -> None:
+def build(floor: int, crop: tuple[int, int, int, int]) -> None:
     canvas = None
-    for name, color in LAYERS:
-        layer = Image.open(ORIGINALS / name).convert("RGBA").crop(CROP)
+    for category, color in LAYERS:
+        layer = read_floor(floor, category, crop)
         height = round(layer.height * WIDTH / layer.width)
         layer = layer.resize((WIDTH, height), Image.Resampling.LANCZOS)
         tinted = Image.new("RGBA", (WIDTH, height), (*color, 0))
@@ -48,12 +57,21 @@ def main() -> None:
         canvas.alpha_composite(tinted)
 
     assert canvas is not None
-    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_bytes(canvas.tobytes())
+    OUTPUT.mkdir(parents=True, exist_ok=True)
+    path = OUTPUT / f"floor-{floor}-overlay.rgba"
+    path.write_bytes(canvas.tobytes())
     print(
-        f"Wrote {OUTPUT.relative_to(ROOT)} "
-        f"({WIDTH}x{canvas.height}, {OUTPUT.stat().st_size} bytes)"
+        f"Wrote {path.relative_to(ROOT)} "
+        f"({WIDTH}x{canvas.height}, {path.stat().st_size} bytes)"
     )
+
+
+def main() -> None:
+    print(f"source {SOURCE.relative_to(ROOT)}")
+    # Always emit every floor: the app embeds all of them, and a floor that has
+    # not been traced yet is written blank so it falls back to procedural walls.
+    for floor, crop in sorted(FLOORS.items()):
+        build(floor, crop)
 
 
 if __name__ == "__main__":

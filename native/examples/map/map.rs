@@ -189,10 +189,26 @@ const FLOOR1_H: f32 = 2730.0;
 // Floor index for "FLOOR 1" (0 = Floor 3, 1 = Floor 2, 2 = Floor 1).
 const FLOOR1_INDEX: usize = 2;
 
-// Hand-traced overlay (walls, obstacles, doors) composited to one raw RGBA texture.
+// Per-floor art frames in source-composite pixels, indexed like `floor`. Floor 3
+// and Floor 2 crops are shorter than Floor 1 (see artifacts/care-center/README.md),
+// so each floor is laid out at its own aspect ratio.
+const FLOOR_FRAMES: [(f32, f32, f32, f32); NUM_FLOORS] = [
+    (1600.0, 0.0, 4750.0, 1536.0),            // Floor 3
+    (1600.0, 1500.0, 4750.0, 2240.0),         // Floor 2
+    (FLOOR1_X, FLOOR1_Y, FLOOR1_W, FLOOR1_H), // Floor 1
+];
+const FLOOR1_FRAME: (f32, f32, f32, f32) = (FLOOR1_X, FLOOR1_Y, FLOOR1_W, FLOOR1_H);
+
+// Hand-traced overlay (walls, obstacles, doors) per floor, composited to one raw
+// RGBA texture by native/prepare-overlay.py. A floor whose trace is still blank
+// falls back to the procedural walls.
 const OVERLAY_W: i32 = 2048;
-const OVERLAY_H: i32 = 1177;
-const OVERLAY_RGBA: &[u8] = include_bytes!("../../assets/floor-1-overlay.rgba");
+const OVERLAY_H: [i32; NUM_FLOORS] = [662, 966, 1177];
+const OVERLAY_RGBA: [&[u8]; NUM_FLOORS] = [
+    include_bytes!("../../assets/floor-3-overlay.rgba"),
+    include_bytes!("../../assets/floor-2-overlay.rgba"),
+    include_bytes!("../../assets/floor-1-overlay.rgba"),
+];
 
 // Polygon "Key Item" positions for Floor 1, in source-composite pixels.
 const KEY_ITEMS: [(&str, f32, f32); 6] = [
@@ -501,7 +517,7 @@ struct State {
     zoom_anchor: Option<ZoomAnchor>,
     pass_action: sg::PassAction,
     pipeline: sgl::Pipeline,
-    overlay_view: sg::View,
+    overlay_views: [sg::View; NUM_FLOORS],
     overlay_sampler: sg::Sampler,
     font: Option<Font>,
     nav: Nav,
@@ -509,6 +525,7 @@ struct State {
     solid: Solid,
     astar: Astar,
     extra_floors: [Vec<(f32, f32, f32, f32)>; NUM_FLOORS],
+    floor_has_art: [bool; NUM_FLOORS],
     reachable: Vec<u8>,
     path_red: Vec<(f32, f32)>,
     target: Option<usize>,
@@ -560,9 +577,15 @@ struct State {
     fps_frames: u32,
 }
 
-fn overlay_texture() -> sg::View {
-    assert_eq!(OVERLAY_RGBA.len(), (OVERLAY_W * OVERLAY_H * 4) as usize);
-    let pixels: Vec<u32> = OVERLAY_RGBA
+// A floor's traced overlay is blank until it has been drawn in Krita; blank
+// floors keep the procedural fallback.
+fn overlay_has_art(rgba: &[u8]) -> bool {
+    rgba.iter().skip(3).step_by(4).any(|&a| a > 0)
+}
+
+fn overlay_texture(rgba: &[u8], width: i32, height: i32) -> sg::View {
+    assert_eq!(rgba.len(), (width * height * 4) as usize);
+    let pixels: Vec<u32> = rgba
         .as_chunks::<4>()
         .0
         .iter()
@@ -571,8 +594,8 @@ fn overlay_texture() -> sg::View {
     let mut data = sg::ImageData::new();
     data.mip_levels[0] = sg::slice_as_range(&pixels);
     let image = sg::make_image(&sg::ImageDesc {
-        width: OVERLAY_W,
-        height: OVERLAY_H,
+        width,
+        height,
         num_slices: 1,
         num_mipmaps: 1,
         data,
@@ -586,6 +609,17 @@ fn overlay_texture() -> sg::View {
         },
         ..Default::default()
     })
+}
+
+// Source frame (x, y, width, height) used to lay the current floor's art inside
+// the map window. Floors with no traced art keep the Floor 1 frame so the
+// procedural fallback pans and zooms exactly as before.
+fn floor_frame(floor: usize, has_art: &[bool; NUM_FLOORS]) -> (f32, f32, f32, f32) {
+    if has_art[floor] {
+        FLOOR_FRAMES[floor]
+    } else {
+        (FLOOR1_X, FLOOR1_Y, FLOOR1_W, FLOOR1_H)
+    }
 }
 
 extern "C" fn init(user_data: *mut ffi::c_void) {
@@ -608,7 +642,9 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
         ..Default::default()
     });
     state.font = Some(Font::new());
-    state.overlay_view = overlay_texture();
+    state.floor_has_art = std::array::from_fn(|i| overlay_has_art(OVERLAY_RGBA[i]));
+    state.overlay_views =
+        std::array::from_fn(|i| overlay_texture(OVERLAY_RGBA[i], OVERLAY_W, OVERLAY_H[i]));
     state.overlay_sampler = sg::make_sampler(&sg::SamplerDesc {
         min_filter: sg::Filter::Linear,
         mag_filter: sg::Filter::Linear,
@@ -994,7 +1030,13 @@ fn hover_item_at(state: &State, cx: f32, cy: f32) -> Option<usize> {
     {
         return None;
     }
-    let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y);
+    let (ox, oy, iw, ih) = map_rect(
+        &state.layout,
+        state.zoom,
+        state.pan_x,
+        state.pan_y,
+        FLOOR1_FRAME,
+    );
     let sx = FLOOR1_X + (cx - ox) * FLOOR1_W / iw;
     let sy = FLOOR1_Y + (cy - oy) * FLOOR1_H / ih;
     KEY_ITEMS.iter().position(|&(_, kx, ky)| {
@@ -1095,7 +1137,13 @@ fn select_at(state: &mut State, x: f32, y: f32) {
     } else {
         (x, y)
     };
-    let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y);
+    let (ox, oy, iw, ih) = map_rect(
+        &state.layout,
+        state.zoom,
+        state.pan_x,
+        state.pan_y,
+        FLOOR1_FRAME,
+    );
     let sx = FLOOR1_X + (hx - ox) * FLOOR1_W / iw;
     let sy = FLOOR1_Y + (hy - oy) * FLOOR1_H / ih;
     let hit = KEY_ITEMS.iter().position(|&(_, kx, ky)| {
@@ -1210,11 +1258,12 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 state.pinch_dist = dist.max(1.0);
                 state.pinch_base_zoom = state.zoom_target;
                 let mid = screen_to_ref(&state.layout, mid_px.0, mid_px.1);
+                let frame = floor_frame(state.floor, &state.floor_has_art);
                 let (ox, oy, iw, ih) =
-                    map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y);
+                    map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
                 state.pinch_src = (
-                    FLOOR1_X + (mid.0 - ox) * FLOOR1_W / iw,
-                    FLOOR1_Y + (mid.1 - oy) * FLOOR1_H / ih,
+                    frame.0 + (mid.0 - ox) * frame.2 / iw,
+                    frame.1 + (mid.1 - oy) * frame.3 / ih,
                 );
                 state.zoom_anchor = Some(ZoomAnchor {
                     src: state.pinch_src,
@@ -1498,20 +1547,27 @@ fn floor_shapes(floor: usize) -> Vec<(f32, f32, f32, f32)> {
     out
 }
 
-// Floor 1 art frame inside the fixed map window, centred and scaled by zoom.
-fn image_size(l: &Layout, zoom: f32) -> (f32, f32) {
+// Floor art frame inside the fixed map window, centred and scaled by zoom.
+fn image_size(l: &Layout, zoom: f32, frame: (f32, f32, f32, f32)) -> (f32, f32) {
+    let (_, _, frame_w, frame_h) = frame;
     // Landscape fits the floor width; portrait fits the floor height.
     if l.portrait {
         let ih = l.map_h * zoom;
-        (ih * FLOOR1_W / FLOOR1_H, ih)
+        (ih * frame_w / frame_h, ih)
     } else {
         let iw = l.map_w * zoom;
-        (iw, iw * FLOOR1_H / FLOOR1_W)
+        (iw, iw * frame_h / frame_w)
     }
 }
 
-fn map_rect(l: &Layout, zoom: f32, pan_x: f32, pan_y: f32) -> (f32, f32, f32, f32) {
-    let (image_width, image_height) = image_size(l, zoom);
+fn map_rect(
+    l: &Layout,
+    zoom: f32,
+    pan_x: f32,
+    pan_y: f32,
+    frame: (f32, f32, f32, f32),
+) -> (f32, f32, f32, f32) {
+    let (image_width, image_height) = image_size(l, zoom, frame);
     let x = l.map_x + (l.map_w - image_width) * 0.5 + pan_x;
     let y = l.map_y + (l.map_h - image_height) * 0.5 + pan_y;
     (x, y, image_width, image_height)
@@ -1529,7 +1585,7 @@ fn capture_zoom_anchor(state: &mut State) {
         state.zoom_anchor = None;
         return;
     }
-    let (ox, oy, iw, ih) = map_rect(&l, state.zoom, state.pan_x, state.pan_y);
+    let (ox, oy, iw, ih) = map_rect(&l, state.zoom, state.pan_x, state.pan_y, FLOOR1_FRAME);
     let sx = FLOOR1_X + (cursor.0 - ox) * FLOOR1_W / iw;
     let sy = FLOOR1_Y + (cursor.1 - oy) * FLOOR1_H / ih;
     state.zoom_anchor = Some(ZoomAnchor {
@@ -1540,11 +1596,18 @@ fn capture_zoom_anchor(state: &mut State) {
 }
 
 // Pan that places `src` at `ref_point` for the given zoom.
-fn anchor_pan(l: &Layout, zoom: f32, src: (f32, f32), ref_point: (f32, f32)) -> (f32, f32) {
-    let (iw, ih) = image_size(l, zoom);
+fn anchor_pan(
+    l: &Layout,
+    zoom: f32,
+    src: (f32, f32),
+    ref_point: (f32, f32),
+    frame: (f32, f32, f32, f32),
+) -> (f32, f32) {
+    let (frame_x, frame_y, frame_w, frame_h) = frame;
+    let (iw, ih) = image_size(l, zoom, frame);
     (
-        ref_point.0 - l.map_x - (l.map_w - iw) * 0.5 - (src.0 - FLOOR1_X) * iw / FLOOR1_W,
-        ref_point.1 - l.map_y - (l.map_h - ih) * 0.5 - (src.1 - FLOOR1_Y) * ih / FLOOR1_H,
+        ref_point.0 - l.map_x - (l.map_w - iw) * 0.5 - (src.0 - frame_x) * iw / frame_w,
+        ref_point.1 - l.map_y - (l.map_h - ih) * 0.5 - (src.1 - frame_y) * ih / frame_h,
     )
 }
 
@@ -2005,7 +2068,8 @@ fn draw_procedural_floor(
         (clip_bottom - clip_y).max(0.0),
         true,
     );
-    let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y);
+    let frame = floor_frame(state.floor, &state.floor_has_art);
+    let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
     sgl::c4f(C_WALL.0, C_WALL.1, C_WALL.2, 1.0);
     for &(x, y, w, h) in shapes {
         let (x0, y0) = src_to_ref(ox, oy, iw, ih, x, y);
@@ -2015,7 +2079,7 @@ fn draw_procedural_floor(
     sgl::scissor_rectf(0.0, 0.0, width, height, true);
 }
 
-fn draw_floor1(
+fn draw_floor(
     state: &State,
     width: f32,
     height: f32,
@@ -2024,8 +2088,8 @@ fn draw_floor1(
     top: f32,
     bottom: f32,
 ) {
-    // Only Floor 1 has traced art; Floors 2 and 3 draw procedural walls.
-    if state.floor != FLOOR1_INDEX {
+    // Floors still waiting to be drawn in Krita keep their procedural fallback.
+    if !state.floor_has_art[state.floor] {
         draw_procedural_floor(state, width, height, left, right, top, bottom);
         return;
     }
@@ -2045,14 +2109,15 @@ fn draw_floor1(
         true,
     );
 
-    let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y);
+    let frame = floor_frame(state.floor, &state.floor_has_art);
+    let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
 
-    if state.show_grid {
+    if state.floor == FLOOR1_INDEX && state.show_grid {
         draw_nav_grid(&state.nav, ox, oy, iw, ih);
     }
 
     sgl::enable_texture();
-    sgl::texture(state.overlay_view, state.overlay_sampler);
+    sgl::texture(state.overlay_views[state.floor], state.overlay_sampler);
     sgl::c4f(1.0, 1.0, 1.0, 1.0);
     sgl::begin_quads();
     sgl::v2f_t2f(ox, oy, 0.0, 0.0);
@@ -2061,6 +2126,12 @@ fn draw_floor1(
     sgl::v2f_t2f(ox, oy + ih, 0.0, 1.0);
     sgl::end();
     sgl::disable_texture();
+
+    // Only Floor 1 is interactive; the other floors are traced art for reference.
+    if state.floor != FLOOR1_INDEX {
+        sgl::scissor_rectf(0.0, 0.0, width, height, true);
+        return;
+    }
 
     // Key item dots: constant screen size (reference units).
     sgl::c4f(C_ITEM.0, C_ITEM.1, C_ITEM.2, 1.0);
@@ -2500,7 +2571,8 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     if let Some(a) = state.zoom_anchor {
         let l = state.layout;
         // Google-Maps style: keep the anchored map point under the cursor.
-        let (pan_x, pan_y) = anchor_pan(&l, state.zoom, a.src, a.cursor_ref);
+        let frame = floor_frame(state.floor, &state.floor_has_art);
+        let (pan_x, pan_y) = anchor_pan(&l, state.zoom, a.src, a.cursor_ref, frame);
         state.pan_x = pan_x;
         state.pan_y = pan_y;
         state.pan_target_x = pan_x;
@@ -2559,13 +2631,8 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     // Limit panning so the map stays within the window.
     {
         let l = state.layout;
-        let (iw, ih) = if l.portrait {
-            let ih = l.map_h * state.zoom;
-            (ih * FLOOR1_W / FLOOR1_H, ih)
-        } else {
-            let iw = l.map_w * state.zoom;
-            (iw, iw * FLOOR1_H / FLOOR1_W)
-        };
+        let frame = floor_frame(state.floor, &state.floor_has_art);
+        let (iw, ih) = image_size(&l, state.zoom, frame);
         let max_x = if iw > l.map_w {
             (iw - l.map_w) * 0.5
         } else {
@@ -2629,7 +2696,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     draw_background_grid(left, right, top, bottom);
     draw_floor_selector(state);
     draw_zoom_selector(state);
-    draw_floor1(state, width, height, left, right, top, bottom);
+    draw_floor(state, width, height, left, right, top, bottom);
     draw_floor_fade(state, width, height, left, right, top, bottom);
     draw_map_frame(&state.layout);
     draw_map_labels(state.font.as_ref().unwrap(), &state.layout);
@@ -2663,15 +2730,16 @@ fn main() {
         zoom_anchor: None,
         pass_action: sg::PassAction::new(),
         pipeline: sgl::Pipeline::new(),
-        overlay_view: sg::View::new(),
+        overlay_views: std::array::from_fn(|_| sg::View::new()),
         overlay_sampler: sg::Sampler::new(),
         font: None,
         nav: Nav::from_bytes(NAV_BIN),
         nav_open: Nav::from_bytes(NAV_OPEN_BIN),
         solid: Solid::from_bytes(SOLID_BIN),
         astar: Astar::new(),
-        // Floors 3 and 2 (index 0/1) get procedural walls; Floor 1 has art.
+        // Floors without traced art get procedural walls; Floor 1 has art.
         extra_floors: [floor_shapes(0), floor_shapes(1), Vec::new()],
+        floor_has_art: [false; NUM_FLOORS],
         reachable: Vec::new(),
         path_red: Vec::new(),
         target: None,
@@ -2826,12 +2894,12 @@ mod tests {
             };
             assert_eq!(l.portrait, portrait);
             let cursor = (l.map_x + l.map_w * 0.3, l.map_y + l.map_h * 0.4);
-            let (ox, oy, iw, ih) = map_rect(&l, DEFAULT_ZOOM, 0.0, 0.0);
+            let (ox, oy, iw, ih) = map_rect(&l, DEFAULT_ZOOM, 0.0, 0.0, FLOOR1_FRAME);
             let sx = FLOOR1_X + (cursor.0 - ox) * FLOOR1_W / iw;
             let sy = FLOOR1_Y + (cursor.1 - oy) * FLOOR1_H / ih;
             // Google style: the anchored point stays under the cursor.
-            let (px, py) = anchor_pan(&l, 1.5, (sx, sy), cursor);
-            let (ox1, oy1, iw1, ih1) = map_rect(&l, 1.5, px, py);
+            let (px, py) = anchor_pan(&l, 1.5, (sx, sy), cursor, FLOOR1_FRAME);
+            let (ox1, oy1, iw1, ih1) = map_rect(&l, 1.5, px, py, FLOOR1_FRAME);
             let (rx, ry) = src_to_ref(ox1, oy1, iw1, ih1, sx, sy);
             assert!(
                 (rx - cursor.0).abs() < 1.0 && (ry - cursor.1).abs() < 1.0,
@@ -2969,6 +3037,36 @@ mod tests {
     }
 
     #[test]
+    fn per_floor_frames_fall_back_until_traced() {
+        let traced = [true; NUM_FLOORS];
+        assert_eq!(floor_frame(FLOOR1_INDEX, &traced), FLOOR1_FRAME);
+        assert_eq!(floor_frame(0, &traced), FLOOR_FRAMES[0]);
+        assert_eq!(floor_frame(1, &traced), FLOOR_FRAMES[1]);
+
+        // An untraced floor keeps the Floor 1 frame for the procedural fallback.
+        let none = [false; NUM_FLOORS];
+        assert_eq!(floor_frame(0, &none), FLOOR1_FRAME);
+
+        // Each floor's on-screen image uses its own aspect ratio.
+        let l = Layout::compute(1280.0, 720.0);
+        for (floor, (_, _, w, h)) in FLOOR_FRAMES.iter().enumerate() {
+            let (iw, ih) = image_size(&l, 1.0, floor_frame(floor, &traced));
+            assert!(
+                (iw / ih - w / h).abs() < 1e-3,
+                "floor {floor} aspect drift: {iw}x{ih}"
+            );
+        }
+    }
+
+    #[test]
+    fn blank_overlays_are_detected() {
+        assert!(!overlay_has_art(&[0, 0, 0, 0, 0, 0, 0, 0]));
+        assert!(!overlay_has_art(&[255, 0, 0, 0, 0, 0, 0, 0]));
+        assert!(overlay_has_art(&[0, 0, 0, 0, 0, 0, 0, 1]));
+        assert!(overlay_has_art(OVERLAY_RGBA[FLOOR1_INDEX]));
+    }
+
+    #[test]
     fn astar_reuse_matches_fresh_searches() {
         let nav = Nav::from_bytes(NAV_BIN);
         let start = snap_source(&nav, PLAYER.0, PLAYER.1).expect("player start");
@@ -3073,7 +3171,7 @@ mod tests {
         let l = Layout::compute(1280.0, 720.0);
         let player = (4000.0, 4600.0);
         let (px, py) = player_center_pan(&l, DEFAULT_ZOOM, player);
-        let (ox, oy, iw, ih) = map_rect(&l, DEFAULT_ZOOM, px, py);
+        let (ox, oy, iw, ih) = map_rect(&l, DEFAULT_ZOOM, px, py, FLOOR1_FRAME);
         let (rx, ry) = src_to_ref(ox, oy, iw, ih, player.0, player.1);
         let (cx, cy) = cursor_center(&l);
         assert!((rx - cx).abs() < 1.0 && (ry - cy).abs() < 1.0);

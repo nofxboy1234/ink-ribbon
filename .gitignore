@@ -2,6 +2,7 @@ node_modules
 dist
 .void
 .wrangler
+__pycache__/
 web/wrangler.jsonc.void-provision.lock
 web/wrangler.jsonc.void-provision.lock.recovery
 *.tsbuildinfo
