@@ -2144,10 +2144,23 @@ fn editor_undo(state: &mut State) {
 fn save_scene(state: &mut State) {
     let bytes = state.scene.to_bytes();
     if save_scene_bytes(&bytes) {
-        set_status(state, format!("saved scene ({} bytes)", bytes.len()));
+        set_status(
+            state,
+            format!("saved {} ({} bytes)", scene_save_label(), bytes.len()),
+        );
     } else {
         set_status(state, "save failed");
     }
+}
+
+#[cfg(target_os = "emscripten")]
+fn scene_save_label() -> &'static str {
+    "scene.bin (download + localStorage)"
+}
+
+#[cfg(not(target_os = "emscripten"))]
+fn scene_save_label() -> &'static str {
+    "assets/scene.bin"
 }
 
 fn load_scene(state: &mut State) {
@@ -2178,7 +2191,14 @@ fn save_scene_bytes(bytes: &[u8]) -> bool {
 
 #[cfg(not(target_os = "emscripten"))]
 fn save_scene_bytes(bytes: &[u8]) -> bool {
-    std::fs::write("scene.bin", bytes).is_ok()
+    // Write the committed source in place when run via the npm scripts (cwd =
+    // native/), otherwise fall back to the working directory.
+    let path = if std::path::Path::new("assets").is_dir() {
+        "assets/scene.bin"
+    } else {
+        "scene.bin"
+    };
+    std::fs::write(path, bytes).is_ok()
 }
 
 fn load_scene_bytes() -> Option<Vec<u8>> {
@@ -2193,7 +2213,9 @@ fn load_scene_bytes() -> Option<Vec<u8>> {
             return None;
         }
     }
-    std::fs::read("scene.bin").ok()
+    std::fs::read("assets/scene.bin")
+        .or_else(|_| std::fs::read("scene.bin"))
+        .ok()
 }
 
 // Panel controls consume the click; returns true if it was handled.
