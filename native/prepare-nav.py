@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Build the navigation grids for the traced floors from the Krita source.
+"""Build the navigation grids for every floor from the Krita source.
 
 Reads the wall/door/obstacle layers straight out of the Krita document (see
-`native/kra_layers.py`).
+`native/kra_layers.py`). A floor that has not been traced yet gets an empty grid
+so the app always has an asset to embed.
 
 Impassable: walls, obstacles and locked doors, grown by a clearance so routes
 keep away from them.
@@ -28,7 +29,7 @@ from pathlib import Path
 
 from PIL import Image, ImageFilter
 
-from kra_layers import SOURCE, has_floor, read_floor
+from kra_layers import SOURCE, read_floor
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "native" / "assets"
@@ -297,10 +298,9 @@ def preview(floor, w, h, walk, walls, obstacles, locked, unknown, unlocked) -> N
 
 def main() -> None:
     print(f"source {SOURCE.relative_to(ROOT)}")
+    # Always emit every floor: the app embeds all of them, and an untraced floor
+    # is written as an empty grid so the build stays valid.
     for floor, crop in sorted(FLOORS.items()):
-        if not has_floor(floor):
-            print(f"floor {floor}: no traced layers in the .kra, skipped")
-            continue
         build_floor(floor, crop)
 
 
