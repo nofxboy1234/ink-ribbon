@@ -210,15 +210,8 @@ const OVERLAY_RGBA: [&[u8]; NUM_FLOORS] = [
     include_bytes!("../../assets/floor-1-overlay.rgba"),
 ];
 
-// Polygon "Key Item" positions for Floor 1, in source-composite pixels.
-const KEY_ITEMS: [(&str, f32, f32); 6] = [
-    ("Pantry Key", 3432.0, 3899.0),
-    ("ID Wristband (Level 2)", 4751.0, 4416.0),
-    ("ID Wristband (Level 3)", 6134.0, 4397.0),
-    ("East Wing Keycard", 3309.0, 4590.0),
-    ("Star Quartz", 4658.0, 5138.0),
-    ("West Wing Keycard", 3530.0, 5162.0),
-];
+// Key item placements baked by native/prepare-items.py from the `item_*` layers.
+const ITEMS_BIN: &[u8] = include_bytes!("../../assets/items.bin");
 const ITEM_RADIUS: f32 = 7.0;
 const CIRCLE_SEGMENTS: usize = 24;
 const CURSOR_RADIUS: f32 = 36.0;
@@ -446,6 +439,43 @@ fn parse_stairs(bytes: &[u8]) -> Vec<Stair> {
     stairs
 }
 
+// A key item baked from an `item_*` layer: display name, floor index and
+// source-composite position.
+struct Item {
+    name: String,
+    floor: usize,
+    pos: (f32, f32),
+}
+
+fn parse_items(bytes: &[u8]) -> Vec<Item> {
+    if bytes.len() < 4 {
+        return Vec::new();
+    }
+    let count = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as usize;
+    let mut items = Vec::with_capacity(count);
+    let mut p = 4;
+    for _ in 0..count {
+        if p + 16 > bytes.len() {
+            break;
+        }
+        let u32_at =
+            |o: usize| u32::from_le_bytes([bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]]);
+        let f32_at =
+            |o: usize| f32::from_le_bytes([bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]]);
+        let floor = u32_at(p) as usize;
+        let pos = (f32_at(p + 4), f32_at(p + 8));
+        let name_len = u32_at(p + 12) as usize;
+        p += 16;
+        if p + name_len > bytes.len() || floor >= NUM_FLOORS {
+            break;
+        }
+        let name = String::from_utf8_lossy(&bytes[p..p + name_len]).into_owned();
+        p += name_len;
+        items.push(Item { name, floor, pos });
+    }
+    items
+}
+
 // True when the primary pointer is coarse (phones, tablets). The sokol Rust
 // bindings expose no touch/pointer capability query, so ask the browser.
 #[cfg(target_os = "emscripten")]
@@ -609,10 +639,12 @@ struct State {
     nav_open: [Nav; NUM_FLOORS],
     solid: [Solid; NUM_FLOORS],
     stairs: Vec<Stair>,
+    items: Vec<Item>,
     astar: Astar,
     extra_floors: [Vec<(f32, f32, f32, f32)>; NUM_FLOORS],
     floor_has_art: [bool; NUM_FLOORS],
-    reachable: Vec<u8>,
+    // Reachable component per floor, computed from where the player is standing.
+    reachable: [Vec<u8>; NUM_FLOORS],
     path_red: Vec<(f32, f32)>,
     target: Option<usize>,
     path: Vec<(f32, f32)>,
@@ -710,7 +742,7 @@ fn floor_frame(floor: usize, has_art: &[bool; NUM_FLOORS]) -> (f32, f32, f32, f3
     if has_art[floor] {
         FLOOR_FRAMES[floor]
     } else {
-        (FLOOR1_X, FLOOR1_Y, FLOOR1_W, FLOOR1_H)
+        FLOOR1_FRAME
     }
 }
 
@@ -776,7 +808,7 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
         state.player = cell_to_source(nav, cell.0, cell.1);
         state.player_cell = Some(cell);
     }
-    state.reachable = match snap_source(nav, state.player.0, state.player.1) {
+    state.reachable[state.player_floor] = match snap_source(nav, state.player.0, state.player.1) {
         Some(start) => reachable_from(nav, start),
         None => Vec::new(),
     };
@@ -1108,24 +1140,24 @@ fn update_player(state: &mut State, delta: f32) {
         }
     }
 
-    // Refresh the route from the player's current cell (realtime). Key items
-    // live on Floor 1, so routing only happens while the player is there.
+    // Refresh the route from the player's current cell (realtime), but only for
+    // a target that lives on the floor the player is standing on.
     let cell = source_to_cell(&state.nav[floor], state.player.0, state.player.1);
     if state.player_cell != Some(cell) {
         state.player_cell = Some(cell);
-        if floor == FLOOR1_INDEX {
-            if let Some(i) = state.target {
+        if let Some(i) = state.target {
+            if state.items[i].floor == floor {
                 let nav = &state.nav[floor];
                 if let Some(start) = snap_source(nav, state.player.0, state.player.1) {
-                    ensure_reachable(state, start);
-                    let (tx, ty) = (KEY_ITEMS[i].1, KEY_ITEMS[i].2);
+                    ensure_reachable(state, floor, start);
+                    let to = state.items[i].pos;
                     let (green, red) = route_to(
                         &mut state.astar,
                         &state.nav[floor],
                         &state.nav_open[floor],
-                        &state.reachable,
+                        &state.reachable[floor],
                         state.player,
-                        (tx, ty),
+                        to,
                     );
                     state.path = green;
                     state.path_red = red;
@@ -1160,25 +1192,18 @@ fn check_stairs(state: &mut State) {
 fn hover_item_at(state: &State, cx: f32, cy: f32) -> Option<usize> {
     #[allow(non_snake_case)]
     let (MAP_X, MAP_Y, MAP_W, MAP_H, _, _, _) = state.layout.vars();
-    if state.floor != FLOOR1_INDEX
-        || cx < MAP_X
-        || cx > MAP_X + MAP_W
-        || cy < MAP_Y
-        || cy > MAP_Y + MAP_H
-    {
+    if cx < MAP_X || cx > MAP_X + MAP_W || cy < MAP_Y || cy > MAP_Y + MAP_H {
         return None;
     }
-    let (ox, oy, iw, ih) = map_rect(
-        &state.layout,
-        state.zoom,
-        state.pan_x,
-        state.pan_y,
-        FLOOR1_FRAME,
-    );
-    let sx = FLOOR1_X + (cx - ox) * FLOOR1_W / iw;
-    let sy = FLOOR1_Y + (cy - oy) * FLOOR1_H / ih;
-    KEY_ITEMS.iter().position(|&(_, kx, ky)| {
-        let (dx, dy) = (sx - kx, sy - ky);
+    let frame = floor_frame(state.floor, &state.floor_has_art);
+    let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
+    let sx = frame.0 + (cx - ox) * frame.2 / iw;
+    let sy = frame.1 + (cy - oy) * frame.3 / ih;
+    state.items.iter().position(|item| {
+        if item.floor != state.floor {
+            return false;
+        }
+        let (dx, dy) = (sx - item.pos.0, sy - item.pos.1);
         dx * dx + dy * dy <= CLICK_RADIUS * CLICK_RADIUS
     })
 }
@@ -1264,8 +1289,8 @@ fn panel_click(state: &mut State, x: f32, y: f32) -> bool {
 fn select_at(state: &mut State, x: f32, y: f32) {
     #[allow(non_snake_case)]
     let (MAP_X, MAP_Y, MAP_W, MAP_H, _, _, _) = state.layout.vars();
-    if state.floor != FLOOR1_INDEX
-        || state.player_floor != FLOOR1_INDEX
+    // Routing needs the player and the item on the floor being viewed.
+    if state.floor != state.player_floor
         || !(MAP_X..MAP_X + MAP_W).contains(&x)
         || !(MAP_Y..MAP_Y + MAP_H).contains(&y)
     {
@@ -1276,17 +1301,15 @@ fn select_at(state: &mut State, x: f32, y: f32) {
     } else {
         (x, y)
     };
-    let (ox, oy, iw, ih) = map_rect(
-        &state.layout,
-        state.zoom,
-        state.pan_x,
-        state.pan_y,
-        FLOOR1_FRAME,
-    );
-    let sx = FLOOR1_X + (hx - ox) * FLOOR1_W / iw;
-    let sy = FLOOR1_Y + (hy - oy) * FLOOR1_H / ih;
-    let hit = KEY_ITEMS.iter().position(|&(_, kx, ky)| {
-        let (dx, dy) = (sx - kx, sy - ky);
+    let frame = floor_frame(state.floor, &state.floor_has_art);
+    let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
+    let sx = frame.0 + (hx - ox) * frame.2 / iw;
+    let sy = frame.1 + (hy - oy) * frame.3 / ih;
+    let hit = state.items.iter().position(|item| {
+        if item.floor != state.floor {
+            return false;
+        }
+        let (dx, dy) = (sx - item.pos.0, sy - item.pos.1);
         dx * dx + dy * dy <= CLICK_RADIUS * CLICK_RADIUS
     });
     match hit {
@@ -1297,19 +1320,18 @@ fn select_at(state: &mut State, x: f32, y: f32) {
         }
         Some(i) => {
             state.target = Some(i);
-            let (tx, ty) = (KEY_ITEMS[i].1, KEY_ITEMS[i].2);
-            if let Some(start) =
-                snap_source(&state.nav[FLOOR1_INDEX], state.player.0, state.player.1)
-            {
-                ensure_reachable(state, start);
+            let floor = state.player_floor;
+            let to = state.items[i].pos;
+            if let Some(start) = snap_source(&state.nav[floor], state.player.0, state.player.1) {
+                ensure_reachable(state, floor, start);
             }
             let (green, red) = route_to(
                 &mut state.astar,
-                &state.nav[FLOOR1_INDEX],
-                &state.nav_open[FLOOR1_INDEX],
-                &state.reachable,
+                &state.nav[floor],
+                &state.nav_open[floor],
+                &state.reachable[floor],
                 state.player,
-                (tx, ty),
+                to,
             );
             state.path = green;
             state.path_red = red;
@@ -1952,10 +1974,10 @@ fn reachable_from(nav: &Nav, start: (i32, i32)) -> Vec<u8> {
 
 // Refresh the reachable set only when the player's cell is not already in it.
 // The nav grid is static, so the player's component never changes by walking.
-fn ensure_reachable(state: &mut State, cell: (i32, i32)) {
-    let nav = &state.nav[FLOOR1_INDEX];
-    if !is_reachable(&state.reachable, nav, cell.0, cell.1) {
-        state.reachable = reachable_from(nav, cell);
+fn ensure_reachable(state: &mut State, floor: usize, cell: (i32, i32)) {
+    let nav = &state.nav[floor];
+    if !is_reachable(&state.reachable[floor], nav, cell.0, cell.1) {
+        state.reachable[floor] = reachable_from(nav, cell);
     }
 }
 
@@ -2129,7 +2151,7 @@ fn draw_cursor(
     line(cx + CURSOR_RADIUS, cy, cx + CURSOR_RADIUS + CURSOR_TICK, cy);
     if let Some(i) = state.hover_item {
         let font = state.font.as_ref().unwrap();
-        let text = KEY_ITEMS[i].0;
+        let text = state.items[i].name.as_str();
         let size = 19.5 * state.layout.text_scale;
         let tx = cx;
         let ty = cy + CURSOR_RADIUS + CURSOR_TICK + 6.0;
@@ -2274,16 +2296,21 @@ fn draw_floor(
     sgl::end();
     sgl::disable_texture();
 
-    // Key items, routes and room labels live on Floor 1 only.
-    if state.floor == FLOOR1_INDEX {
-        // Key item dots: constant screen size (reference units).
-        sgl::c4f(C_ITEM.0, C_ITEM.1, C_ITEM.2, 1.0);
-        for (_name, sx, sy) in KEY_ITEMS {
-            let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, sx, sy);
-            filled_circle(rx, ry, ITEM_RADIUS);
+    // Key item dots: constant screen size, drawn on whichever floor they live on.
+    sgl::c4f(C_ITEM.0, C_ITEM.1, C_ITEM.2, 1.0);
+    for item in &state.items {
+        if item.floor != state.floor {
+            continue;
         }
+        let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, item.pos.0, item.pos.1);
+        filled_circle(rx, ry, ITEM_RADIUS);
+    }
 
-        // Computed route and selected target ring.
+    // Computed route and selected target ring, if the target is on this floor.
+    if state
+        .target
+        .is_some_and(|i| state.items[i].floor == state.floor)
+    {
         if !state.path.is_empty() {
             let route: Vec<(f32, f32)> = state
                 .path
@@ -2302,16 +2329,23 @@ fn draw_floor(
             sgl::c4f(C_LOCK.0, C_LOCK.1, C_LOCK.2, 1.0);
             thick_polyline(&route, PATH_WIDTH);
         }
-        if let Some(i) = state.target {
-            let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, KEY_ITEMS[i].1, KEY_ITEMS[i].2);
-            let color = if state.path_red.is_empty() {
-                C_ROUTE
-            } else {
-                C_LOCK
-            };
-            sgl::c4f(color.0, color.1, color.2, 1.0);
-            outline_circle(rx, ry, ITEM_RADIUS + 4.0);
-        }
+        let i = state.target.unwrap();
+        let (rx, ry) = src_to_ref(
+            frame,
+            ox,
+            oy,
+            iw,
+            ih,
+            state.items[i].pos.0,
+            state.items[i].pos.1,
+        );
+        let color = if state.path_red.is_empty() {
+            C_ROUTE
+        } else {
+            C_LOCK
+        };
+        sgl::c4f(color.0, color.1, color.2, 1.0);
+        outline_circle(rx, ry, ITEM_RADIUS + 4.0);
     }
 
     // Player marker on whichever floor the player actually occupies.
@@ -2825,6 +2859,9 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
                     None => spawn,
                 };
                 state.player_cell = cell;
+                if let Some(c) = cell {
+                    ensure_reachable(state, state.player_floor, c);
+                }
                 state.player_vel = (0.0, 0.0);
                 pan_to_center_player(state);
                 state.follow_target = (state.pan_target_x, state.pan_target_y);
@@ -2899,11 +2936,12 @@ fn main() {
         nav_open: std::array::from_fn(|i| Nav::from_bytes(NAV_OPEN_BINS[i], FLOOR_FRAMES[i])),
         solid: std::array::from_fn(|i| Solid::from_bytes(SOLID_BINS[i], FLOOR_FRAMES[i])),
         stairs: parse_stairs(STAIRS_BIN),
+        items: parse_items(ITEMS_BIN),
         astar: Astar::new(),
         // Floors without traced art get procedural walls; Floor 1 has art.
         extra_floors: [floor_shapes(0), floor_shapes(1), Vec::new()],
         floor_has_art: [false; NUM_FLOORS],
-        reachable: Vec::new(),
+        reachable: std::array::from_fn(|_| Vec::new()),
         path_red: Vec::new(),
         target: None,
         path: Vec::new(),
@@ -2996,6 +3034,16 @@ mod tests {
 
     // Key items that sit behind locked doors are intentionally unreachable.
     const LOCKED_GATED: [&str; 2] = ["ID Wristband (Level 3)", "Star Quartz"];
+    // Legacy reference coordinates, kept to exercise the routing/gating logic
+    // independently of whatever is currently drawn in the Krita item layers.
+    const CHECK_ITEMS: [(&str, f32, f32); 6] = [
+        ("Pantry Key", 3432.0, 3899.0),
+        ("ID Wristband (Level 2)", 4751.0, 4416.0),
+        ("ID Wristband (Level 3)", 6134.0, 4397.0),
+        ("East Wing Keycard", 3309.0, 4590.0),
+        ("Star Quartz", 4658.0, 5138.0),
+        ("West Wing Keycard", 3530.0, 5162.0),
+    ];
 
     #[test]
     fn nav_grid_reachability_matches_locked_doors() {
@@ -3003,7 +3051,7 @@ mod tests {
         let mut astar = Astar::new();
         assert!(nav.w > 0 && nav.h > 0, "nav grid header");
         let start = snap_source(&nav, PLAYER.0, PLAYER.1).expect("player start is walkable");
-        for (name, sx, sy) in KEY_ITEMS {
+        for (name, sx, sy) in CHECK_ITEMS {
             let reachable = snap_source(&nav, sx, sy)
                 .is_some_and(|goal| astar.search(&nav, start, goal).is_some());
             if LOCKED_GATED.contains(&name) {
@@ -3018,7 +3066,7 @@ mod tests {
     fn demo_route_is_axis_aligned() {
         let nav = Nav::from_bytes(NAV_BINS[FLOOR1_INDEX], FLOOR1_FRAME);
         let mut astar = Astar::new();
-        let (_, sx, sy) = KEY_ITEMS[1]; // ID Wristband (Level 2)
+        let (_, sx, sy) = CHECK_ITEMS[1]; // ID Wristband (Level 2)
         let route = compute_path(&mut astar, &nav, PLAYER, (sx, sy));
         assert!(route.len() >= 2, "demo route should have endpoints");
         for pair in route.windows(2) {
@@ -3037,7 +3085,7 @@ mod tests {
         let mut astar = Astar::new();
         let start = snap_source(&nav, PLAYER.0, PLAYER.1).expect("player start");
         let reachable = reachable_from(&nav, start);
-        for (name, sx, sy) in KEY_ITEMS {
+        for (name, sx, sy) in CHECK_ITEMS {
             let (green, red) = route_to(&mut astar, &nav, &nav_open, &reachable, PLAYER, (sx, sy));
             if LOCKED_GATED.contains(&name) {
                 assert!(!red.is_empty(), "{name} should route up to a red blocker");
@@ -3237,7 +3285,7 @@ mod tests {
         let nav = Nav::from_bytes(NAV_BINS[FLOOR1_INDEX], FLOOR1_FRAME);
         let start = snap_source(&nav, PLAYER.0, PLAYER.1).expect("player start");
         let mut reused = Astar::new();
-        for &(_, sx, sy) in KEY_ITEMS.iter() {
+        for &(_, sx, sy) in CHECK_ITEMS.iter() {
             let goal = snap_source(&nav, sx, sy).unwrap();
             // Interleave an unrelated search so stale stamps would show up.
             let _ = reused.search(&nav, goal, start);
@@ -3252,7 +3300,7 @@ mod tests {
         let nav = Nav::from_bytes(NAV_BINS[FLOOR1_INDEX], FLOOR1_FRAME);
         let solid = Solid::from_bytes(SOLID_BINS[FLOOR1_INDEX], FLOOR1_FRAME);
         let mut astar = Astar::new();
-        for (name, sx, sy) in KEY_ITEMS {
+        for (name, sx, sy) in CHECK_ITEMS {
             let route = compute_path(&mut astar, &nav, PLAYER, (sx, sy));
             if route.is_empty() {
                 continue;
@@ -3446,6 +3494,48 @@ mod tests {
                     "stair endpoint {pos:?} on floor {floor} has no walkable cell"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn items_parse_round_trip() {
+        // header count=2, then a floor-2 item and a floor-1 item.
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&2u32.to_le_bytes());
+        for (floor, x, y, name) in [
+            (1u32, 100.0f32, 200.0f32, "ID Wristband (Level 2)"),
+            (2u32, 300.0f32, 400.0f32, "Pantry Key"),
+        ] {
+            let n = name.as_bytes();
+            bytes.extend_from_slice(&floor.to_le_bytes());
+            bytes.extend_from_slice(&x.to_le_bytes());
+            bytes.extend_from_slice(&y.to_le_bytes());
+            bytes.extend_from_slice(&(n.len() as u32).to_le_bytes());
+            bytes.extend_from_slice(n);
+        }
+        let items = parse_items(&bytes);
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].floor, 1);
+        assert_eq!(items[0].name, "ID Wristband (Level 2)");
+        assert_eq!(items[0].pos, (100.0, 200.0));
+        assert_eq!(items[1].floor, 2);
+        assert_eq!(items[1].name, "Pantry Key");
+        assert_eq!(items[1].pos, (300.0, 400.0));
+        assert!(parse_items(&[]).is_empty());
+    }
+
+    #[test]
+    fn item_marks_are_walkable() {
+        let items = parse_items(ITEMS_BIN);
+        let navs: [Nav; NUM_FLOORS] =
+            std::array::from_fn(|i| Nav::from_bytes(NAV_BINS[i], FLOOR_FRAMES[i]));
+        for item in &items {
+            assert!(
+                snap_source(&navs[item.floor], item.pos.0, item.pos.1).is_some(),
+                "item {:?} on floor {} has no walkable cell",
+                item.name,
+                item.floor
+            );
         }
     }
 }
