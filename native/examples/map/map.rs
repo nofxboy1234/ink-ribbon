@@ -726,6 +726,16 @@ enum PendingLink {
     Item(usize, u32),
 }
 
+// A copied editor object, pasted with a fresh id.
+#[derive(Clone)]
+enum Clip {
+    Wall(WallOp),
+    Obstacle(Box2),
+    Door(Door),
+    Stair(StairNode),
+    Item(ItemDef),
+}
+
 // Reference-space toolbar geometry (x, y, w, h per tool button).
 const EDITOR_BAR_Y: f32 = 10.0;
 const EDITOR_BAR_H: f32 = 40.0;
@@ -793,12 +803,15 @@ struct State {
     snap: bool,
     drag_from: Option<(f32, f32)>,
     drag_to: Option<(f32, f32)>,
-    selection: Option<Selection>,
+    selection: Vec<Selection>,
     drag_mode: DragMode,
     drag_orig: Option<SelGeom>,
+    drag_all: Vec<(Selection, SelGeom)>,
     drag_grab: (f32, f32),
     drag_dirty: bool,
     pending_link: Option<PendingLink>,
+    clipboard: Vec<Clip>,
+    rename: Option<String>,
     undo: Vec<Scene>,
     next_id: u32,
     status: String,
@@ -1002,7 +1015,7 @@ fn change_floor(state: &mut State, floor: usize) {
         state.pending_floor = Some(floor);
         state.transition_t = 0.0;
         // Selection indices and link endpoints are floor-local.
-        state.selection = None;
+        state.selection.clear();
         state.pending_link = None;
         state.drag_mode = DragMode::None;
     }
@@ -1645,12 +1658,16 @@ fn editor_erase(state: &mut State, p: (f32, f32)) {
             floor.items.remove(i);
         }
     }
-    state.selection = None;
+    state.selection.clear();
     rebuild_assets(state);
     set_status(state, "erased");
 }
 
 // --- Selection geometry + transforms ---------------------------------------
+
+fn primary_selection(state: &State) -> Option<Selection> {
+    state.selection.last().copied()
+}
 
 fn selection_geom(scene: &Scene, floor_index: usize, sel: Selection) -> Option<SelGeom> {
     let floor = &scene.floors[floor_index];
@@ -1841,66 +1858,108 @@ fn handle_tol(state: &State) -> f32 {
 
 fn start_drag(state: &mut State, mode: DragMode, p: (f32, f32)) {
     state.drag_mode = mode;
-    state.drag_orig = state
+    state.drag_all = state
         .selection
-        .and_then(|s| selection_geom(&state.scene, state.floor, s));
+        .iter()
+        .filter_map(|s| selection_geom(&state.scene, state.floor, *s).map(|g| (*s, g)))
+        .collect();
+    state.drag_orig =
+        primary_selection(state).and_then(|s| selection_geom(&state.scene, state.floor, s));
     let center = state.drag_orig.map(geom_center).unwrap_or(p);
     state.drag_grab = (p.0 - center.0, p.1 - center.1);
     state.drag_dirty = false;
 }
 
 fn apply_drag(state: &mut State, cursor: (f32, f32)) {
-    let (Some(sel), Some(orig)) = (state.selection, state.drag_orig) else {
+    let Some(orig) = state.drag_orig else {
         return;
     };
-    let geom = match state.drag_mode {
+    let floor_index = state.floor;
+    match state.drag_mode {
         DragMode::Move => {
             let c = geom_center(orig);
             let target = (cursor.0 - state.drag_grab.0, cursor.1 - state.drag_grab.1);
-            translate_geom(orig, target.0 - c.0, target.1 - c.1)
+            let (dx, dy) = (target.0 - c.0, target.1 - c.1);
+            if !state.drag_dirty {
+                push_undo(state);
+                state.drag_dirty = true;
+            }
+            for (sel, geom) in &state.drag_all {
+                let moved = translate_geom(*geom, dx, dy);
+                set_selection_geom(&mut state.scene, floor_index, *sel, moved);
+            }
         }
-        DragMode::Scale(corner) => scale_geom(orig, cursor, corner),
-        DragMode::Rotate => rotate_geom(orig, cursor, state.snap),
-        _ => return,
-    };
-    if !state.drag_dirty {
-        push_undo(state);
-        state.drag_dirty = true;
+        DragMode::Scale(corner) => {
+            let Some(sel) = primary_selection(state) else {
+                return;
+            };
+            if !state.drag_dirty {
+                push_undo(state);
+                state.drag_dirty = true;
+            }
+            let geom = scale_geom(orig, cursor, corner);
+            set_selection_geom(&mut state.scene, floor_index, sel, geom);
+        }
+        DragMode::Rotate => {
+            let Some(sel) = primary_selection(state) else {
+                return;
+            };
+            if !state.drag_dirty {
+                push_undo(state);
+                state.drag_dirty = true;
+            }
+            let geom = rotate_geom(orig, cursor, state.snap);
+            set_selection_geom(&mut state.scene, floor_index, sel, geom);
+        }
+        _ => {}
     }
-    let floor_index = state.floor;
-    set_selection_geom(&mut state.scene, floor_index, sel, geom);
 }
 
-fn select_press(state: &mut State, p: (f32, f32)) {
+fn select_press(state: &mut State, p: (f32, f32), shift: bool) {
     let floor_index = state.floor;
     let tol = handle_tol(state);
-    if let Some(sel) = state.selection {
-        if let Some(geom) = selection_geom(&state.scene, floor_index, sel) {
-            if let Some(rh) = geom_rotate_handle(geom) {
-                if ((p.0 - rh.0).powi(2) + (p.1 - rh.1).powi(2)).sqrt() <= tol {
-                    start_drag(state, DragMode::Rotate, p);
+    if !shift {
+        if let Some(sel) = primary_selection(state) {
+            if let Some(geom) = selection_geom(&state.scene, floor_index, sel) {
+                if let Some(rh) = geom_rotate_handle(geom) {
+                    if ((p.0 - rh.0).powi(2) + (p.1 - rh.1).powi(2)).sqrt() <= tol {
+                        start_drag(state, DragMode::Rotate, p);
+                        return;
+                    }
+                }
+                for (i, c) in geom_corners(geom).iter().enumerate() {
+                    if ((p.0 - c.0).powi(2) + (p.1 - c.1).powi(2)).sqrt() <= tol {
+                        start_drag(state, DragMode::Scale(i), p);
+                        return;
+                    }
+                }
+                if geom_hit(geom, p, tol) {
+                    start_drag(state, DragMode::Move, p);
                     return;
                 }
-            }
-            for (i, c) in geom_corners(geom).iter().enumerate() {
-                if ((p.0 - c.0).powi(2) + (p.1 - c.1).powi(2)).sqrt() <= tol {
-                    start_drag(state, DragMode::Scale(i), p);
-                    return;
-                }
-            }
-            if geom_hit(geom, p, tol) {
-                start_drag(state, DragMode::Move, p);
-                return;
             }
         }
     }
     match pick_object(&state.scene, floor_index, p) {
         Some(sel) => {
-            state.selection = Some(sel);
-            start_drag(state, DragMode::Move, p);
+            if shift {
+                if let Some(pos) = state.selection.iter().position(|s| *s == sel) {
+                    state.selection.remove(pos);
+                } else {
+                    state.selection.push(sel);
+                }
+                state.drag_mode = DragMode::None;
+            } else {
+                if !state.selection.contains(&sel) {
+                    state.selection = vec![sel];
+                }
+                start_drag(state, DragMode::Move, p);
+            }
         }
         None => {
-            state.selection = None;
+            if !shift {
+                state.selection.clear();
+            }
             state.drag_mode = DragMode::None;
         }
     }
@@ -1984,6 +2043,136 @@ fn connect_press(state: &mut State, p: (f32, f32)) {
             set_status(state, "item picked - pick a door");
         }
         (_, LinkTarget::Door(_)) => set_status(state, "pick a key item first"),
+    }
+}
+
+fn delete_selection(state: &mut State) {
+    if state.selection.is_empty() {
+        return;
+    }
+    push_undo(state);
+    let selected = state.selection.clone();
+    let floor = &mut state.scene.floors[state.floor];
+    let mut walls = Vec::new();
+    let mut obstacles = Vec::new();
+    let mut doors = Vec::new();
+    let mut stairs = Vec::new();
+    let mut items = Vec::new();
+    for sel in selected {
+        match sel {
+            Selection::Wall(i) => walls.push(i),
+            Selection::Obstacle(i) => obstacles.push(i),
+            Selection::Door(i) => doors.push(i),
+            Selection::Stair(i) => stairs.push(i),
+            Selection::Item(i) => items.push(i),
+        }
+    }
+    remove_desc(&mut floor.walls, walls);
+    remove_desc(&mut floor.obstacles, obstacles);
+    remove_desc(&mut floor.doors, doors);
+    remove_desc(&mut floor.stairs, stairs);
+    remove_desc(&mut floor.items, items);
+    state.selection.clear();
+    rebuild_assets(state);
+    set_status(state, "deleted");
+}
+
+fn remove_desc<T>(vec: &mut Vec<T>, mut indices: Vec<usize>) {
+    indices.sort_unstable_by(|a, b| b.cmp(a));
+    for i in indices {
+        if i < vec.len() {
+            vec.remove(i);
+        }
+    }
+}
+
+fn copy_selection(state: &mut State) {
+    if state.selection.is_empty() {
+        return;
+    }
+    let selected = state.selection.clone();
+    let floor = &state.scene.floors[state.floor];
+    state.clipboard = selected
+        .into_iter()
+        .filter_map(|sel| match sel {
+            Selection::Wall(i) => floor.walls.get(i).map(|w| Clip::Wall(*w)),
+            Selection::Obstacle(i) => floor.obstacles.get(i).map(|o| Clip::Obstacle(*o)),
+            Selection::Door(i) => floor.doors.get(i).map(|d| Clip::Door(*d)),
+            Selection::Stair(i) => floor.stairs.get(i).map(|s| Clip::Stair(*s)),
+            Selection::Item(i) => floor.items.get(i).map(|it| Clip::Item(it.clone())),
+        })
+        .collect();
+    set_status(state, format!("copied {}", state.clipboard.len()));
+}
+
+fn paste_clipboard(state: &mut State, at: Option<(f32, f32)>) {
+    if state.clipboard.is_empty() {
+        set_status(state, "clipboard empty");
+        return;
+    }
+    push_undo(state);
+    let clips = state.clipboard.clone();
+    for (n, clip) in clips.into_iter().enumerate() {
+        let id = state.next_id;
+        state.next_id += 1;
+        let step = n as f32 * 18.0;
+        let floor = &mut state.scene.floors[state.floor];
+        floor.source = FloorSource::Vector;
+        match clip {
+            Clip::Wall(mut w) => {
+                let c = (w.rect.x + w.rect.w * 0.5, w.rect.y + w.rect.h * 0.5);
+                let to = at.unwrap_or((c.0 + 24.0 + step, c.1 + 24.0 + step));
+                w.rect.x += to.0 - c.0;
+                w.rect.y += to.1 - c.1;
+                floor.walls.push(w);
+            }
+            Clip::Obstacle(mut o) => {
+                o.id = id;
+                o.center = at.unwrap_or((o.center.0 + 24.0 + step, o.center.1 + 24.0 + step));
+                floor.obstacles.push(o);
+            }
+            Clip::Door(mut d) => {
+                d.id = id;
+                d.center = at.unwrap_or((d.center.0 + 24.0 + step, d.center.1 + 24.0 + step));
+                floor.doors.push(d);
+            }
+            Clip::Stair(mut s) => {
+                s.id = id;
+                s.pos = at.unwrap_or((s.pos.0 + 24.0 + step, s.pos.1 + 24.0 + step));
+                floor.stairs.push(s);
+            }
+            Clip::Item(mut it) => {
+                it.id = id;
+                it.pos = at.unwrap_or((it.pos.0 + 24.0 + step, it.pos.1 + 24.0 + step));
+                floor.items.push(it);
+            }
+        }
+    }
+    rebuild_assets(state);
+    set_status(state, "pasted");
+}
+
+fn start_rename(state: &mut State) {
+    if let Some(Selection::Item(i)) = primary_selection(state) {
+        if let Some(it) = state.scene.floors[state.floor].items.get(i) {
+            state.rename = Some(it.name.clone());
+            set_status(state, "type a name, Enter to accept");
+        }
+    } else {
+        set_status(state, "select an item to rename");
+    }
+}
+
+fn commit_rename(state: &mut State) {
+    let Some(name) = state.rename.take() else {
+        return;
+    };
+    if let Some(Selection::Item(i)) = primary_selection(state) {
+        if let Some(it) = state.scene.floors[state.floor].items.get_mut(i) {
+            it.name = name;
+        }
+        rebuild_assets(state);
+        set_status(state, "renamed");
     }
 }
 
@@ -2264,7 +2453,9 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 }
                 let src = snap_point(state, ref_to_source(state, (x, y)));
                 match state.tool {
-                    Tool::Select => select_press(state, src),
+                    Tool::Select => {
+                        select_press(state, src, event.modifiers & sapp::MODIFIER_SHIFT != 0)
+                    }
                     Tool::Connect => connect_press(state, src),
                     _ => {
                         state.drag_mode = DragMode::Create;
@@ -2307,6 +2498,7 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 }
                 state.drag_mode = DragMode::None;
                 state.drag_orig = None;
+                state.drag_all.clear();
                 state.drag_dirty = false;
                 state.drag_from = None;
                 state.drag_to = None;
@@ -2463,11 +2655,71 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             capture_zoom_anchor(state);
         }
         sapp::EventType::KeyDown => {
+            // Text entry takes over while renaming an item.
+            if state.rename.is_some() {
+                match event.key_code {
+                    sapp::Keycode::Enter => {
+                        commit_rename(state);
+                        return;
+                    }
+                    sapp::Keycode::Escape => {
+                        state.rename = None;
+                        return;
+                    }
+                    sapp::Keycode::Backspace => {
+                        if let Some(buffer) = state.rename.as_mut() {
+                            buffer.pop();
+                        }
+                        return;
+                    }
+                    _ => {
+                        if (32..127).contains(&event.char_code) {
+                            if let Some(c) = char::from_u32(event.char_code) {
+                                if let Some(buffer) = state.rename.as_mut() {
+                                    if buffer.chars().count() < 40 {
+                                        buffer.push(c);
+                                    }
+                                }
+                            }
+                        }
+                        return;
+                    }
+                }
+            }
             if event.key_code == sapp::Keycode::Tab && !event.key_repeat {
                 set_edit(state, !state.edit);
                 return;
             }
+            let ctrl = event.modifiers & sapp::MODIFIER_CTRL != 0;
             if state.edit {
+                if ctrl {
+                    match event.key_code {
+                        sapp::Keycode::C => {
+                            copy_selection(state);
+                            return;
+                        }
+                        sapp::Keycode::V => {
+                            let at = if state.mouse_in_map {
+                                Some(snap_point(state, ref_to_source(state, state.mouse)))
+                            } else {
+                                None
+                            };
+                            paste_clipboard(state, at);
+                            return;
+                        }
+                        sapp::Keycode::D => {
+                            copy_selection(state);
+                            let at = if state.mouse_in_map {
+                                Some(snap_point(state, ref_to_source(state, state.mouse)))
+                            } else {
+                                None
+                            };
+                            paste_clipboard(state, at);
+                            return;
+                        }
+                        _ => {}
+                    }
+                }
                 if let Some(tool) = tool_from_digit(event.key_code) {
                     state.tool = tool;
                     state.drag_mode = DragMode::None;
@@ -2481,7 +2733,19 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                         set_status(state, "tool LINK");
                         return;
                     }
+                    sapp::Keycode::R if !event.key_repeat => {
+                        start_rename(state);
+                        return;
+                    }
+                    sapp::Keycode::Delete | sapp::Keycode::Backspace => {
+                        delete_selection(state);
+                        return;
+                    }
                     sapp::Keycode::Escape => {
+                        if !state.selection.is_empty() {
+                            state.selection.clear();
+                            return;
+                        }
                         set_edit(state, false);
                         return;
                     }
@@ -3535,7 +3799,39 @@ fn draw_editor(
             }
         }
     }
-    if let Some(sel) = state.selection {
+    // Outline every selected object; handles only for the primary one.
+    for sel in &state.selection {
+        if let Some(geom) = selection_geom(&state.scene, state.floor, *sel) {
+            sgl::c4f(1.0, 1.0, 1.0, 0.55);
+            match geom {
+                SelGeom::Rect { x, y, w, h } => {
+                    let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, x, y);
+                    let (rx1, ry1) = src_to_ref(frame, ox, oy, iw, ih, x + w, y + h);
+                    outline_rect(rx, ry, rx1 - rx, ry1 - ry);
+                }
+                SelGeom::Box { center, size, rot } => {
+                    draw_box_rot(
+                        frame,
+                        ox,
+                        oy,
+                        iw,
+                        ih,
+                        center,
+                        size,
+                        rot,
+                        (1.0, 1.0, 1.0),
+                        0.55,
+                        false,
+                    );
+                }
+                SelGeom::Point { pos } => {
+                    let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, pos.0, pos.1);
+                    outline_circle(rx, ry, 14.0);
+                }
+            }
+        }
+    }
+    if let Some(sel) = primary_selection(state) {
         if let Some(geom) = selection_geom(&state.scene, state.floor, sel) {
             sgl::c4f(1.0, 1.0, 1.0, 0.95);
             for c in geom_corners(geom) {
@@ -3595,7 +3891,7 @@ fn draw_editor(
         );
     }
     let counts = format!(
-        "walls {}  obstacles {}  doors {}  stairs {}  items {}  links {}   [Tab] exit  [Z] undo  [X] clear  [S] save  [L] load  [Space] snap:{}  [C] link",
+        "walls {}  obstacles {}  doors {}  stairs {}  items {}  links {}   [Tab] exit  [Z] undo  [X] clear  [S] save  [L] load  [Space] snap:{}  [C] link  [R] rename  [Del] delete  [Shift+click] multi  [Ctrl+C/V] copy/paste",
         floor.walls.len(),
         floor.obstacles.len(),
         floor.doors.len(),
@@ -3611,8 +3907,20 @@ fn draw_editor(
         EDITOR_BAR_Y + EDITOR_BAR_H + 36.0,
         C_LABEL,
         false,
-        0.85,
+        0.8,
     );
+    if let Some(buffer) = &state.rename {
+        let text = format!("NAME: {buffer}_");
+        draw_ui_text(
+            font,
+            &text,
+            12.0,
+            EDITOR_BAR_Y + EDITOR_BAR_H + 60.0,
+            C_HILITE,
+            false,
+            1.0,
+        );
+    }
 }
 
 // Fade the map window out/in around a floor change.
@@ -4190,12 +4498,15 @@ fn main() {
         snap: true,
         drag_from: None,
         drag_to: None,
-        selection: None,
+        selection: Vec::new(),
         drag_mode: DragMode::None,
         drag_orig: None,
+        drag_all: Vec::new(),
         drag_grab: (0.0, 0.0),
         drag_dirty: false,
         pending_link: None,
+        clipboard: Vec::new(),
+        rename: None,
         undo: Vec::new(),
         next_id,
         status: String::new(),
@@ -4814,6 +5125,13 @@ mod tests {
                 item.floor
             );
         }
+    }
+
+    #[test]
+    fn remove_desc_removes_high_indices_first() {
+        let mut v = vec![0, 1, 2, 3, 4];
+        remove_desc(&mut v, vec![1, 3]);
+        assert_eq!(v, vec![0, 2, 4]);
     }
 
     #[test]
