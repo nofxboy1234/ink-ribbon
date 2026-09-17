@@ -1,9 +1,8 @@
 //! Editable map scene: the vector source of truth for the Sokol map.
 //!
-//! A [`Scene`] is a fixed set of floors, each either still backed by the legacy
-//! baked raster (`FloorSource::LegacyRaster`) or fully authored from vector
-//! objects (`FloorSource::Vector`). `native/src/bake.rs` turns a scene into the
-//! binary assets the running map consumes.
+//! A [`Scene`] is a fixed set of floors, each authored from vector objects.
+//! `native/src/bake.rs` turns a scene into the binary assets the running map
+//! consumes; `scene.bin` is the committed, editable source.
 //!
 //! `scene.bin` layout (all little-endian):
 //!
@@ -13,7 +12,6 @@
 //! u8     floor_count
 //! u8     reserved
 //! floor*:
-//!   u8   source (0 = legacy raster, 1 = vector)
 //!   f32  frame x, y, w, h
 //!   u32  wall_count     -> { u8 mode, f32 x, y, w, h }
 //!   u32  obstacle_count -> { u32 id, f32 cx, cy, sx, sy, rot }
@@ -42,12 +40,6 @@ pub const FLOOR1_H: f32 = FLOOR_FRAMES[FLOOR1_INDEX].3;
 
 const MAGIC: &[u8; 4] = b"IRSC";
 pub const VERSION: u16 = 1;
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum FloorSource {
-    LegacyRaster,
-    Vector,
-}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BoolOp {
@@ -133,7 +125,6 @@ pub enum Link {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Floor {
-    pub source: FloorSource,
     pub frame: Frame,
     pub walls: Vec<WallOp>,
     pub obstacles: Vec<Box2>,
@@ -144,9 +135,8 @@ pub struct Floor {
 }
 
 impl Floor {
-    pub fn legacy(index: usize) -> Floor {
+    pub fn new(index: usize) -> Floor {
         Floor {
-            source: FloorSource::LegacyRaster,
             frame: FLOOR_FRAMES[index],
             walls: Vec::new(),
             obstacles: Vec::new(),
@@ -154,13 +144,6 @@ impl Floor {
             stairs: Vec::new(),
             items: Vec::new(),
             links: Vec::new(),
-        }
-    }
-
-    pub fn vector(index: usize) -> Floor {
-        Floor {
-            source: FloorSource::Vector,
-            ..Floor::legacy(index)
         }
     }
 
@@ -180,11 +163,10 @@ pub struct Scene {
 }
 
 impl Default for Scene {
-    /// All floors still on the legacy raster, with no vector objects.
     fn default() -> Scene {
         Scene {
             version: VERSION,
-            floors: std::array::from_fn(Floor::legacy),
+            floors: std::array::from_fn(Floor::new),
         }
     }
 }
@@ -197,13 +179,6 @@ impl Scene {
         put_u8(&mut out, NUM_FLOORS as u8);
         put_u8(&mut out, 0);
         for floor in &self.floors {
-            put_u8(
-                &mut out,
-                match floor.source {
-                    FloorSource::LegacyRaster => 0,
-                    FloorSource::Vector => 1,
-                },
-            );
             for v in [floor.frame.0, floor.frame.1, floor.frame.2, floor.frame.3] {
                 put_f32(&mut out, v);
             }
@@ -302,13 +277,8 @@ impl Scene {
         if floor_count != NUM_FLOORS {
             return None;
         }
-        let mut floors = std::array::from_fn(Floor::legacy);
+        let mut floors = std::array::from_fn(Floor::new);
         for floor in floors.iter_mut() {
-            floor.source = match c.u8()? {
-                0 => FloorSource::LegacyRaster,
-                1 => FloorSource::Vector,
-                _ => return None,
-            };
             floor.frame = (c.f32()?, c.f32()?, c.f32()?, c.f32()?);
             let n = c.u32()? as usize;
             for _ in 0..n {
@@ -455,17 +425,13 @@ mod tests {
         assert_eq!(&bytes[..4], MAGIC);
         let back = Scene::from_bytes(&bytes).expect("decode");
         assert_eq!(back, scene);
-        assert!(back
-            .floors
-            .iter()
-            .all(|f| f.source == FloorSource::LegacyRaster));
+        assert!(back.floors.iter().all(|f| f.is_empty()));
     }
 
     #[test]
     fn populated_scene_round_trips() {
         let mut scene = Scene::default();
         let floor = &mut scene.floors[FLOOR1_INDEX];
-        floor.source = FloorSource::Vector;
         floor.walls.push(WallOp {
             mode: BoolOp::Add,
             rect: Rect {

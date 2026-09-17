@@ -2,13 +2,12 @@
 //! per-floor overlay RGBA + nav/nav-open/solid grids, plus `stairs.bin` and
 //! `items.bin`.
 //!
-//! The nav algorithm mirrors the original `prepare-nav.py`: impassable geometry
+//! The nav algorithm: impassable geometry
 //! (walls + obstacles + locked doors) is grown by a clearance, the exterior is
 //! flood-filled, and only then are unlocked/unknown doors carved through.
-//! Floors still marked `LegacyRaster` are copied from the supplied fallback.
 
 use crate::raster::Mask;
-use crate::scene::{BoolOp, DoorKind, Floor, FloorSource, Link, Scene, NUM_FLOORS};
+use crate::scene::{BoolOp, DoorKind, Floor, Link, Scene, NUM_FLOORS};
 
 pub const CELL_PX: u32 = 8;
 pub const SOLID_CELL_PX: u32 = 2;
@@ -40,22 +39,28 @@ pub struct BakedBytes {
     pub items: Vec<u8>,
 }
 
-/// Bake `scene`, copying `fallback` for any floor that is still legacy raster
-/// and for stairs/items when the scene defines none.
-pub fn bake(scene: &Scene, fallback: &BakedBytes) -> BakedBytes {
-    let mut out = fallback.clone();
+/// Bake every floor of `scene`, plus its stair links and items.
+pub fn bake(scene: &Scene) -> BakedBytes {
+    let mut out = BakedBytes {
+        overlays: std::array::from_fn(|_| OverlayBytes {
+            rgba: Vec::new(),
+            w: 0,
+            h: 0,
+        }),
+        nav: std::array::from_fn(|_| Vec::new()),
+        nav_open: std::array::from_fn(|_| Vec::new()),
+        solid: std::array::from_fn(|_| Vec::new()),
+        stairs: bake_stairs(scene).unwrap_or_else(empty_bin),
+        items: bake_items(scene).unwrap_or_else(empty_bin),
+    };
     for (index, floor) in scene.floors.iter().enumerate() {
-        if floor.source == FloorSource::Vector {
-            bake_floor(floor, index, &mut out);
-        }
-    }
-    if let Some(stairs) = bake_stairs(scene) {
-        out.stairs = stairs;
-    }
-    if let Some(items) = bake_items(scene) {
-        out.items = items;
+        bake_floor(floor, index, &mut out);
     }
     out
+}
+
+fn empty_bin() -> Vec<u8> {
+    0u32.to_le_bytes().to_vec()
 }
 
 fn bake_floor(floor: &Floor, index: usize, out: &mut BakedBytes) {
@@ -345,37 +350,33 @@ fn bake_items(scene: &Scene) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scene::{Floor, FloorSource, Rect, WallOp};
-
-    fn blank_fallback() -> BakedBytes {
-        BakedBytes {
-            overlays: std::array::from_fn(|_| OverlayBytes {
-                rgba: vec![0; 4],
-                w: 1,
-                h: 1,
-            }),
-            nav: std::array::from_fn(|_| vec![0; 12]),
-            nav_open: std::array::from_fn(|_| vec![0; 12]),
-            solid: std::array::from_fn(|_| vec![0; 12]),
-            stairs: vec![0, 0, 0, 0],
-            items: vec![0, 0, 0, 0],
-        }
-    }
+    use crate::scene::{Floor, Rect, WallOp};
 
     #[test]
-    fn legacy_floors_copy_the_fallback() {
-        let scene = Scene::default();
-        let fallback = blank_fallback();
-        let baked = bake(&scene, &fallback);
-        assert_eq!(baked, fallback);
+    fn empty_scene_bakes_empty_assets() {
+        let baked = bake(&Scene::default());
+        for floor in 0..NUM_FLOORS {
+            assert!(!baked.overlays[floor].rgba.is_empty());
+            // A floor with no walls is entirely exterior -> nothing walkable.
+            assert_eq!(
+                u32::from_le_bytes([
+                    baked.nav[floor][0],
+                    baked.nav[floor][1],
+                    baked.nav[floor][2],
+                    baked.nav[floor][3]
+                ]),
+                CELL_PX
+            );
+        }
+        assert_eq!(baked.stairs, vec![0, 0, 0, 0]);
+        assert_eq!(baked.items, vec![0, 0, 0, 0]);
     }
 
     #[test]
     fn a_wall_ring_leaves_a_walkable_interior() {
         // A hollow square wall in the middle of Floor 1.
         let mut scene = Scene::default();
-        let mut floor = Floor::vector(crate::scene::FLOOR1_INDEX);
-        floor.source = FloorSource::Vector;
+        let mut floor = Floor::new(crate::scene::FLOOR1_INDEX);
         let (fx, fy, _, _) = crate::scene::FLOOR1_FRAME;
         let outer = Rect {
             x: fx + 2000.0,
@@ -398,7 +399,7 @@ mod tests {
         });
         scene.floors[crate::scene::FLOOR1_INDEX] = floor;
 
-        let baked = bake(&scene, &blank_fallback());
+        let baked = bake(&scene);
         let nav = &baked.nav[crate::scene::FLOOR1_INDEX];
         let w = u32::from_le_bytes([nav[4], nav[5], nav[6], nav[7]]) as i32;
         let h = u32::from_le_bytes([nav[8], nav[9], nav[10], nav[11]]) as i32;
@@ -444,7 +445,7 @@ mod tests {
             pos: (10.0, 20.0),
         });
 
-        let baked = bake(&scene, &blank_fallback());
+        let baked = bake(&scene);
         assert_eq!(baked.stairs.len(), 4 + 24);
         assert_eq!(
             u32::from_le_bytes([

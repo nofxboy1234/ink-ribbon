@@ -11,11 +11,11 @@ notes/
 native/target/
 ref/
 
-# Generated/build outputs and large local-only map references.
+# Generated/build outputs and large local-only references.
 target/
 artifacts/interactive-map.mp4
-artifacts/care-center/*.png
-artifacts/care-center/originals/*.png
 native/assets/*.rgba
 native/assets/*.bin
+# scene.bin is the committed map source, not a generated asset.
+!native/assets/scene.bin
 web/public/*.wasm

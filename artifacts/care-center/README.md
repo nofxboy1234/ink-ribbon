@@ -1,24 +1,31 @@
 # Care Center map
 
-Source page: https://www.polygon.com/map/resident-evil-requiem-re9-interactive-maps/
+The Care Center map is authored entirely inside the Sokol map's built-in level
+editor. There is no external art pipeline: `native/assets/scene.bin` is the
+committed source of truth, and the Rust baker (`native/src/bake.rs`) turns it
+into the overlay texture, navigation/collision grids and stair/item data at
+startup.
 
-Original image: https://static0.gamerantimages.com/wordpress/wp-content/uploads/mapimages/Care_Center-8192.png
+## Editing
 
-Downloaded on 2026-09-08. `originals/care-center-full.png` is the original 8192 × 8192 PNG, saved unchanged. Original floor crops are also retained in `originals/`. The viewer's interactive markers are not part of this image; built-in labels, door markings, and dashed connections remain.
+Open the map, press **Tab** to enter edit mode, and use the in-canvas tool bar:
 
-`care-center-full.png` and the four floor images have their exterior background replaced with solid RGB (24, 24, 24). `foreground-mask.png` records protected regions in white. Room interiors and room labels are copied directly from the original, without resampling, enhancement, or AI reconstruction; the source floor headings and inter-floor routes are excluded. A conservative border around the foreground avoids clipping anti-aliased edges; the original textures inside protected regions remain.
+- **SELECT** — click to select, drag to move, corner handles to scale, the top
+  handle to rotate boxes. Shift-click adds to the selection.
+- **WALL+ / WALL-** — drag rectangles; overlapping add/subtract shapes build the
+  wall mask.
+- **OBST / LOCK / OPEN / UNK** — drag obstacle and door boxes.
+- **STAIR** — click to drop a stair endpoint. Use **LINK** (or `C`) to connect
+  two endpoints across floors.
+- **ITEM** — click to drop a key item; **LINK** connects it to doors; **R**
+  renames it.
+- **ERASE** — click near an object to delete it.
 
-The mask explicitly clears exterior pockets enclosed by dashed connections and empty spaces between basement passages and other rooms. Detail detection is limited to the vicinity of traced foreground, so isolated grid specks are not mistaken for room features. Brightened inspection previews are used only for checking; saved maps retain their original foreground brightness.
+Keys: `Z` undo, `X` clear floor, `S` save, `L` load, `Space` snap, `Del` delete,
+`Ctrl+C/V/D` copy/paste/duplicate, `Tab`/`Esc` exit.
 
-The floor images are lossless rectangular crops without resizing, enhancement, or reconstruction. Coordinates below are in source pixels, measured from the upper-left corner.
+Saving writes `scene.bin` (native: working directory; web: download plus
+`localStorage`, which auto-loads next time). Commit the resulting `scene.bin` to
+publish the map.
 
-| Image | X | Y | Width | Height |
-| --- | ---: | ---: | ---: | ---: |
-| floor-3.png | 1600 | 0 | 4750 | 1536 |
-| floor-2.png | 1600 | 1500 | 4750 | 2240 |
-| floor-1.png | 1600 | 3420 | 4750 | 2730 |
-| basement.png | 1600 | 6200 | 4750 | 1992 |
-
-All crops use the same horizontal bounds and omit the source floor headings. Vertical bounds preserve each floor's rooms and stairs. Floor 1 and Floor 2 overlap because their stair connections occupy the same vertical band; small portions of adjacent connections remain. Consult the full image for continuous connections between floors.
-
-Map artwork belongs to its respective rights holders; downloading it does not grant a new license.
+Map artwork belongs to its respective rights holders.
