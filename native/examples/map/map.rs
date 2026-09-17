@@ -604,9 +604,11 @@ enum CursorMode {
     Centered,
 }
 
-// Editor tools. Rect tools are click-dragged; point tools are single clicks.
+// Editor tools. Rect tools are click-dragged, point tools are single clicks;
+// Select transforms and Connect links objects.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Tool {
+    Select,
     WallAdd,
     WallSub,
     Obstacle,
@@ -616,10 +618,12 @@ enum Tool {
     Stair,
     Item,
     Erase,
+    Connect,
 }
 
 impl Tool {
-    const ALL: [Tool; 9] = [
+    const ALL: [Tool; 11] = [
+        Tool::Select,
         Tool::WallAdd,
         Tool::WallSub,
         Tool::Obstacle,
@@ -629,24 +633,28 @@ impl Tool {
         Tool::Stair,
         Tool::Item,
         Tool::Erase,
+        Tool::Connect,
     ];
 
     fn label(self) -> &'static str {
         match self {
-            Tool::WallAdd => "WALL +",
-            Tool::WallSub => "WALL -",
-            Tool::Obstacle => "OBSTACLE",
-            Tool::DoorLocked => "LOCKED",
-            Tool::DoorUnlocked => "UNLOCKED",
-            Tool::DoorUnknown => "UNKNOWN",
+            Tool::Select => "SELECT",
+            Tool::WallAdd => "WALL+",
+            Tool::WallSub => "WALL-",
+            Tool::Obstacle => "OBST",
+            Tool::DoorLocked => "LOCK",
+            Tool::DoorUnlocked => "OPEN",
+            Tool::DoorUnknown => "UNK",
             Tool::Stair => "STAIR",
             Tool::Item => "ITEM",
             Tool::Erase => "ERASE",
+            Tool::Connect => "LINK",
         }
     }
 
     fn color(self) -> (f32, f32, f32) {
         match self {
+            Tool::Select => (0.90, 0.90, 0.90),
             Tool::WallAdd => (0.55, 0.70, 0.55),
             Tool::WallSub => (0.80, 0.40, 0.40),
             Tool::Obstacle => (0.62, 0.62, 0.62),
@@ -656,6 +664,7 @@ impl Tool {
             Tool::Stair => (0.90, 0.80, 0.35),
             Tool::Item => (0.65, 0.45, 0.95),
             Tool::Erase => (0.85, 0.30, 0.30),
+            Tool::Connect => (0.90, 0.65, 0.90),
         }
     }
 
@@ -672,11 +681,56 @@ impl Tool {
     }
 }
 
+// What is currently selected in the editor (index into the viewed floor's vecs).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Selection {
+    Wall(usize),
+    Obstacle(usize),
+    Door(usize),
+    Stair(usize),
+    Item(usize),
+}
+
+// Geometry snapshot of a selected object, used while dragging handles.
+#[derive(Clone, Copy)]
+enum SelGeom {
+    Rect {
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+    },
+    Box {
+        center: (f32, f32),
+        size: (f32, f32),
+        rot: f32,
+    },
+    Point {
+        pos: (f32, f32),
+    },
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DragMode {
+    None,
+    Create,
+    Move,
+    Scale(usize),
+    Rotate,
+}
+
+// First endpoint of a link the Connect tool is building.
+#[derive(Clone, Copy)]
+enum PendingLink {
+    Stair(usize, u32),
+    Item(usize, u32),
+}
+
 // Reference-space toolbar geometry (x, y, w, h per tool button).
 const EDITOR_BAR_Y: f32 = 10.0;
 const EDITOR_BAR_H: f32 = 40.0;
-const EDITOR_BTN_W: f32 = 116.0;
-const EDITOR_BTN_GAP: f32 = 6.0;
+const EDITOR_BTN_W: f32 = 88.0;
+const EDITOR_BTN_GAP: f32 = 4.0;
 
 fn editor_button_rect(index: usize) -> (f32, f32, f32, f32) {
     (
@@ -699,6 +753,7 @@ fn tool_from_digit(k: sapp::Keycode) -> Option<Tool> {
         Num7 => 6,
         Num8 => 7,
         Num9 => 8,
+        Num0 => 9,
         _ => return None,
     };
     Some(Tool::ALL[index])
@@ -738,6 +793,12 @@ struct State {
     snap: bool,
     drag_from: Option<(f32, f32)>,
     drag_to: Option<(f32, f32)>,
+    selection: Option<Selection>,
+    drag_mode: DragMode,
+    drag_orig: Option<SelGeom>,
+    drag_grab: (f32, f32),
+    drag_dirty: bool,
+    pending_link: Option<PendingLink>,
     undo: Vec<Scene>,
     next_id: u32,
     status: String,
@@ -940,6 +1001,10 @@ fn change_floor(state: &mut State, floor: usize) {
     if floor < NUM_FLOORS && floor != state.floor && state.pending_floor.is_none() {
         state.pending_floor = Some(floor);
         state.transition_t = 0.0;
+        // Selection indices and link endpoints are floor-local.
+        state.selection = None;
+        state.pending_link = None;
+        state.drag_mode = DragMode::None;
     }
 }
 
@@ -1521,70 +1586,405 @@ fn dist_to_rect(p: (f32, f32), r: Rect) -> f32 {
     (ox * ox + oy * oy).sqrt()
 }
 
-enum EditHit {
-    Wall(usize),
-    Obstacle(usize),
-    Door(usize),
-    Stair(usize),
-    Item(usize),
+fn pick_object(scene: &Scene, floor_index: usize, p: (f32, f32)) -> Option<Selection> {
+    const REACH: f32 = 44.0;
+    let floor = &scene.floors[floor_index];
+    let mut best: Option<(f32, Selection)> = None;
+    let mut consider = |d: f32, sel: Selection| {
+        if d <= REACH && best.as_ref().is_none_or(|(bd, _)| d < *bd) {
+            best = Some((d, sel));
+        }
+    };
+    for (i, w) in floor.walls.iter().enumerate() {
+        consider(dist_to_rect(p, w.rect), Selection::Wall(i));
+    }
+    for (i, o) in floor.obstacles.iter().enumerate() {
+        consider(
+            dist_to_box(p, o.center, o.size, o.rot),
+            Selection::Obstacle(i),
+        );
+    }
+    for (i, d) in floor.doors.iter().enumerate() {
+        consider(dist_to_box(p, d.center, d.size, d.rot), Selection::Door(i));
+    }
+    for (i, s) in floor.stairs.iter().enumerate() {
+        consider(
+            ((p.0 - s.pos.0).powi(2) + (p.1 - s.pos.1).powi(2)).sqrt(),
+            Selection::Stair(i),
+        );
+    }
+    for (i, it) in floor.items.iter().enumerate() {
+        consider(
+            ((p.0 - it.pos.0).powi(2) + (p.1 - it.pos.1).powi(2)).sqrt(),
+            Selection::Item(i),
+        );
+    }
+    best.map(|(_, sel)| sel)
 }
 
 fn editor_erase(state: &mut State, p: (f32, f32)) {
-    const REACH: f32 = 44.0;
-    let best = {
-        let floor = &state.scene.floors[state.floor];
-        let mut best: Option<(f32, EditHit)> = None;
-        let mut consider = |d: f32, hit: EditHit| {
-            if d <= REACH && best.as_ref().is_none_or(|(bd, _)| d < *bd) {
-                best = Some((d, hit));
-            }
-        };
-        for (i, w) in floor.walls.iter().enumerate() {
-            consider(dist_to_rect(p, w.rect), EditHit::Wall(i));
-        }
-        for (i, o) in floor.obstacles.iter().enumerate() {
-            consider(
-                dist_to_box(p, o.center, o.size, o.rot),
-                EditHit::Obstacle(i),
-            );
-        }
-        for (i, d) in floor.doors.iter().enumerate() {
-            consider(dist_to_box(p, d.center, d.size, d.rot), EditHit::Door(i));
-        }
-        for (i, s) in floor.stairs.iter().enumerate() {
-            let d = ((p.0 - s.pos.0).powi(2) + (p.1 - s.pos.1).powi(2)).sqrt();
-            consider(d, EditHit::Stair(i));
-        }
-        for (i, it) in floor.items.iter().enumerate() {
-            let d = ((p.0 - it.pos.0).powi(2) + (p.1 - it.pos.1).powi(2)).sqrt();
-            consider(d, EditHit::Item(i));
-        }
-        best.map(|(_, hit)| hit)
-    };
-    let Some(hit) = best else {
+    let Some(sel) = pick_object(&state.scene, state.floor, p) else {
         return;
     };
     push_undo(state);
     let floor = &mut state.scene.floors[state.floor];
-    match hit {
-        EditHit::Wall(i) => {
+    match sel {
+        Selection::Wall(i) => {
             floor.walls.remove(i);
         }
-        EditHit::Obstacle(i) => {
+        Selection::Obstacle(i) => {
             floor.obstacles.remove(i);
         }
-        EditHit::Door(i) => {
+        Selection::Door(i) => {
             floor.doors.remove(i);
         }
-        EditHit::Stair(i) => {
+        Selection::Stair(i) => {
             floor.stairs.remove(i);
         }
-        EditHit::Item(i) => {
+        Selection::Item(i) => {
             floor.items.remove(i);
         }
     }
+    state.selection = None;
     rebuild_assets(state);
     set_status(state, "erased");
+}
+
+// --- Selection geometry + transforms ---------------------------------------
+
+fn selection_geom(scene: &Scene, floor_index: usize, sel: Selection) -> Option<SelGeom> {
+    let floor = &scene.floors[floor_index];
+    Some(match sel {
+        Selection::Wall(i) => {
+            let r = floor.walls.get(i)?.rect;
+            SelGeom::Rect {
+                x: r.x,
+                y: r.y,
+                w: r.w,
+                h: r.h,
+            }
+        }
+        Selection::Obstacle(i) => {
+            let o = floor.obstacles.get(i)?;
+            SelGeom::Box {
+                center: o.center,
+                size: o.size,
+                rot: o.rot,
+            }
+        }
+        Selection::Door(i) => {
+            let d = floor.doors.get(i)?;
+            SelGeom::Box {
+                center: d.center,
+                size: d.size,
+                rot: d.rot,
+            }
+        }
+        Selection::Stair(i) => SelGeom::Point {
+            pos: floor.stairs.get(i)?.pos,
+        },
+        Selection::Item(i) => SelGeom::Point {
+            pos: floor.items.get(i)?.pos,
+        },
+    })
+}
+
+fn set_selection_geom(scene: &mut Scene, floor_index: usize, sel: Selection, geom: SelGeom) {
+    let floor = &mut scene.floors[floor_index];
+    match (sel, geom) {
+        (Selection::Wall(i), SelGeom::Rect { x, y, w, h }) => {
+            if let Some(w0) = floor.walls.get_mut(i) {
+                w0.rect = Rect { x, y, w, h };
+            }
+        }
+        (Selection::Obstacle(i), SelGeom::Box { center, size, rot }) => {
+            if let Some(o) = floor.obstacles.get_mut(i) {
+                o.center = center;
+                o.size = size;
+                o.rot = rot;
+            }
+        }
+        (Selection::Door(i), SelGeom::Box { center, size, rot }) => {
+            if let Some(d) = floor.doors.get_mut(i) {
+                d.center = center;
+                d.size = size;
+                d.rot = rot;
+            }
+        }
+        (Selection::Stair(i), SelGeom::Point { pos }) => {
+            if let Some(s) = floor.stairs.get_mut(i) {
+                s.pos = pos;
+            }
+        }
+        (Selection::Item(i), SelGeom::Point { pos }) => {
+            if let Some(it) = floor.items.get_mut(i) {
+                it.pos = pos;
+            }
+        }
+        _ => {}
+    }
+}
+
+fn geom_center(g: SelGeom) -> (f32, f32) {
+    match g {
+        SelGeom::Rect { x, y, w, h } => (x + w * 0.5, y + h * 0.5),
+        SelGeom::Box { center, .. } => center,
+        SelGeom::Point { pos } => pos,
+    }
+}
+
+fn geom_corners(g: SelGeom) -> Vec<(f32, f32)> {
+    match g {
+        SelGeom::Rect { x, y, w, h } => vec![(x, y), (x + w, y), (x, y + h), (x + w, y + h)],
+        SelGeom::Box { center, size, rot } => {
+            let (hw, hh) = (size.0 * 0.5, size.1 * 0.5);
+            let (s, c) = rot.sin_cos();
+            [(-hw, -hh), (hw, -hh), (-hw, hh), (hw, hh)]
+                .iter()
+                .map(|(lx, ly)| (center.0 + lx * c - ly * s, center.1 + lx * s + ly * c))
+                .collect()
+        }
+        SelGeom::Point { .. } => Vec::new(),
+    }
+}
+
+fn geom_rotate_handle(g: SelGeom) -> Option<(f32, f32)> {
+    match g {
+        SelGeom::Box { center, size, rot } => {
+            let (s, c) = rot.sin_cos();
+            let (lx, ly) = (0.0, -size.1 * 0.5 - 28.0);
+            Some((center.0 + lx * c - ly * s, center.1 + lx * s + ly * c))
+        }
+        _ => None,
+    }
+}
+
+fn geom_hit(g: SelGeom, p: (f32, f32), tol: f32) -> bool {
+    match g {
+        SelGeom::Rect { x, y, w, h } => dist_to_rect(p, Rect { x, y, w, h }) <= tol,
+        SelGeom::Box { center, size, rot } => dist_to_box(p, center, size, rot) <= tol,
+        SelGeom::Point { pos } => ((p.0 - pos.0).powi(2) + (p.1 - pos.1).powi(2)).sqrt() <= tol,
+    }
+}
+
+fn translate_geom(g: SelGeom, dx: f32, dy: f32) -> SelGeom {
+    match g {
+        SelGeom::Rect { x, y, w, h } => SelGeom::Rect {
+            x: x + dx,
+            y: y + dy,
+            w,
+            h,
+        },
+        SelGeom::Box { center, size, rot } => SelGeom::Box {
+            center: (center.0 + dx, center.1 + dy),
+            size,
+            rot,
+        },
+        SelGeom::Point { pos } => SelGeom::Point {
+            pos: (pos.0 + dx, pos.1 + dy),
+        },
+    }
+}
+
+fn scale_geom(g: SelGeom, cursor: (f32, f32), corner: usize) -> SelGeom {
+    match g {
+        SelGeom::Rect { x, y, w, h } => {
+            let opp = match corner {
+                0 => (x + w, y + h),
+                1 => (x, y + h),
+                2 => (x + w, y),
+                _ => (x, y),
+            };
+            SelGeom::Rect {
+                x: opp.0.min(cursor.0),
+                y: opp.1.min(cursor.1),
+                w: (cursor.0 - opp.0).abs(),
+                h: (cursor.1 - opp.1).abs(),
+            }
+        }
+        SelGeom::Box { center, rot, .. } => {
+            let (s, c) = rot.sin_cos();
+            let dx = cursor.0 - center.0;
+            let dy = cursor.1 - center.1;
+            let lx = dx * c + dy * s;
+            let ly = -dx * s + dy * c;
+            SelGeom::Box {
+                center,
+                size: ((lx.abs() * 2.0).max(8.0), (ly.abs() * 2.0).max(8.0)),
+                rot,
+            }
+        }
+        other => other,
+    }
+}
+
+fn rotate_geom(g: SelGeom, cursor: (f32, f32), snap: bool) -> SelGeom {
+    match g {
+        SelGeom::Box { center, size, .. } => {
+            let mut rot =
+                (cursor.1 - center.1).atan2(cursor.0 - center.0) + std::f32::consts::FRAC_PI_2;
+            if snap {
+                let step = std::f32::consts::PI / 12.0;
+                rot = (rot / step).round() * step;
+            }
+            SelGeom::Box { center, size, rot }
+        }
+        other => other,
+    }
+}
+
+fn handle_tol(state: &State) -> f32 {
+    let frame = floor_frame(state.floor, &state.floor_has_art);
+    let (_, _, iw, _) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
+    frame.2 / iw * 14.0
+}
+
+fn start_drag(state: &mut State, mode: DragMode, p: (f32, f32)) {
+    state.drag_mode = mode;
+    state.drag_orig = state
+        .selection
+        .and_then(|s| selection_geom(&state.scene, state.floor, s));
+    let center = state.drag_orig.map(geom_center).unwrap_or(p);
+    state.drag_grab = (p.0 - center.0, p.1 - center.1);
+    state.drag_dirty = false;
+}
+
+fn apply_drag(state: &mut State, cursor: (f32, f32)) {
+    let (Some(sel), Some(orig)) = (state.selection, state.drag_orig) else {
+        return;
+    };
+    let geom = match state.drag_mode {
+        DragMode::Move => {
+            let c = geom_center(orig);
+            let target = (cursor.0 - state.drag_grab.0, cursor.1 - state.drag_grab.1);
+            translate_geom(orig, target.0 - c.0, target.1 - c.1)
+        }
+        DragMode::Scale(corner) => scale_geom(orig, cursor, corner),
+        DragMode::Rotate => rotate_geom(orig, cursor, state.snap),
+        _ => return,
+    };
+    if !state.drag_dirty {
+        push_undo(state);
+        state.drag_dirty = true;
+    }
+    let floor_index = state.floor;
+    set_selection_geom(&mut state.scene, floor_index, sel, geom);
+}
+
+fn select_press(state: &mut State, p: (f32, f32)) {
+    let floor_index = state.floor;
+    let tol = handle_tol(state);
+    if let Some(sel) = state.selection {
+        if let Some(geom) = selection_geom(&state.scene, floor_index, sel) {
+            if let Some(rh) = geom_rotate_handle(geom) {
+                if ((p.0 - rh.0).powi(2) + (p.1 - rh.1).powi(2)).sqrt() <= tol {
+                    start_drag(state, DragMode::Rotate, p);
+                    return;
+                }
+            }
+            for (i, c) in geom_corners(geom).iter().enumerate() {
+                if ((p.0 - c.0).powi(2) + (p.1 - c.1).powi(2)).sqrt() <= tol {
+                    start_drag(state, DragMode::Scale(i), p);
+                    return;
+                }
+            }
+            if geom_hit(geom, p, tol) {
+                start_drag(state, DragMode::Move, p);
+                return;
+            }
+        }
+    }
+    match pick_object(&state.scene, floor_index, p) {
+        Some(sel) => {
+            state.selection = Some(sel);
+            start_drag(state, DragMode::Move, p);
+        }
+        None => {
+            state.selection = None;
+            state.drag_mode = DragMode::None;
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum LinkTarget {
+    Stair(u32),
+    Item(u32),
+    Door(u32),
+}
+
+fn pick_link_target(scene: &Scene, floor_index: usize, p: (f32, f32)) -> Option<LinkTarget> {
+    const REACH: f32 = 44.0;
+    let floor = &scene.floors[floor_index];
+    let mut best: Option<(f32, LinkTarget)> = None;
+    let mut consider = |d: f32, t: LinkTarget| {
+        if d <= REACH && best.as_ref().is_none_or(|(bd, _)| d < *bd) {
+            best = Some((d, t));
+        }
+    };
+    for s in &floor.stairs {
+        consider(
+            ((p.0 - s.pos.0).powi(2) + (p.1 - s.pos.1).powi(2)).sqrt(),
+            LinkTarget::Stair(s.id),
+        );
+    }
+    for it in &floor.items {
+        consider(
+            ((p.0 - it.pos.0).powi(2) + (p.1 - it.pos.1).powi(2)).sqrt(),
+            LinkTarget::Item(it.id),
+        );
+    }
+    for d in &floor.doors {
+        consider(
+            dist_to_box(p, d.center, d.size, d.rot),
+            LinkTarget::Door(d.id),
+        );
+    }
+    best.map(|(_, t)| t)
+}
+
+fn connect_press(state: &mut State, p: (f32, f32)) {
+    let floor_index = state.floor;
+    let Some(target) = pick_link_target(&state.scene, floor_index, p) else {
+        state.pending_link = None;
+        set_status(state, "link cleared");
+        return;
+    };
+    match (state.pending_link, target) {
+        (Some(PendingLink::Stair(f, a)), LinkTarget::Stair(b)) => {
+            push_undo(state);
+            state.scene.floors[floor_index].links.push(Link::Stair {
+                a_floor: f as u8,
+                a_id: a,
+                b_floor: floor_index as u8,
+                b_id: b,
+            });
+            state.pending_link = None;
+            rebuild_assets(state);
+            set_status(state, "stairs linked");
+        }
+        (Some(PendingLink::Item(f, a)), LinkTarget::Door(d)) => {
+            push_undo(state);
+            state.scene.floors[floor_index].links.push(Link::KeyDoor {
+                item_floor: f as u8,
+                item_id: a,
+                door_floor: floor_index as u8,
+                door_id: d,
+            });
+            state.pending_link = None;
+            rebuild_assets(state);
+            set_status(state, "key -> door linked");
+        }
+        (_, LinkTarget::Stair(id)) => {
+            state.pending_link = Some(PendingLink::Stair(floor_index, id));
+            set_status(state, "stair picked - pick another");
+        }
+        (_, LinkTarget::Item(id)) => {
+            state.pending_link = Some(PendingLink::Item(floor_index, id));
+            set_status(state, "item picked - pick a door");
+        }
+        (_, LinkTarget::Door(_)) => set_status(state, "pick a key item first"),
+    }
 }
 
 fn editor_clear_floor(state: &mut State) {
@@ -1822,9 +2222,20 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             state.circle_cursor_hidden = false;
             state.mouse_in_map = in_map(&state.layout, (mx, my));
             if state.edit {
-                if state.drag_from.is_some() {
-                    let src = ref_to_source(state, (mx, my));
-                    state.drag_to = Some(snap_point(state, src));
+                match state.drag_mode {
+                    DragMode::Create => {
+                        let src = ref_to_source(state, (mx, my));
+                        state.drag_to = Some(snap_point(state, src));
+                    }
+                    DragMode::Move | DragMode::Scale(_) => {
+                        let src = snap_point(state, ref_to_source(state, (mx, my)));
+                        apply_drag(state, src);
+                    }
+                    DragMode::Rotate => {
+                        let src = ref_to_source(state, (mx, my));
+                        apply_drag(state, src);
+                    }
+                    DragMode::None => {}
                 }
                 return;
             }
@@ -1847,12 +2258,20 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             if state.edit {
                 if let Some(i) = editor_toolbar_hit(x, y) {
                     state.tool = Tool::ALL[i];
+                    state.drag_mode = DragMode::None;
                     set_status(state, format!("tool {}", state.tool.label()));
                     return;
                 }
                 let src = snap_point(state, ref_to_source(state, (x, y)));
-                state.drag_from = Some(src);
-                state.drag_to = Some(src);
+                match state.tool {
+                    Tool::Select => select_press(state, src),
+                    Tool::Connect => connect_press(state, src),
+                    _ => {
+                        state.drag_mode = DragMode::Create;
+                        state.drag_from = Some(src);
+                        state.drag_to = Some(src);
+                    }
+                }
                 return;
             }
             if panel_click(state, x, y) {
@@ -1865,16 +2284,32 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
         }
         sapp::EventType::MouseUp => {
             if state.edit {
-                if let Some(a) = state.drag_from.take() {
-                    let b = state.drag_to.take().unwrap_or(a);
-                    if state.tool == Tool::Erase {
-                        editor_erase(state, a);
-                    } else if state.tool.is_rect() {
-                        place_rect(state, a, b);
-                    } else {
-                        place_point(state, a);
+                match state.drag_mode {
+                    DragMode::Create => {
+                        if let Some(a) = state.drag_from.take() {
+                            let b = state.drag_to.take().unwrap_or(a);
+                            if state.tool == Tool::Erase {
+                                editor_erase(state, a);
+                            } else if state.tool.is_rect() {
+                                place_rect(state, a, b);
+                            } else {
+                                place_point(state, a);
+                            }
+                        }
                     }
+                    DragMode::Move | DragMode::Scale(_) | DragMode::Rotate => {
+                        if state.drag_dirty {
+                            rebuild_assets(state);
+                            set_status(state, "updated");
+                        }
+                    }
+                    DragMode::None => {}
                 }
+                state.drag_mode = DragMode::None;
+                state.drag_orig = None;
+                state.drag_dirty = false;
+                state.drag_from = None;
+                state.drag_to = None;
                 return;
             }
             let was_drag = state.moved;
@@ -2035,10 +2470,17 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             if state.edit {
                 if let Some(tool) = tool_from_digit(event.key_code) {
                     state.tool = tool;
+                    state.drag_mode = DragMode::None;
                     set_status(state, format!("tool {}", tool.label()));
                     return;
                 }
                 match event.key_code {
+                    sapp::Keycode::C if !event.key_repeat => {
+                        state.tool = Tool::Connect;
+                        state.drag_mode = DragMode::None;
+                        set_status(state, "tool LINK");
+                        return;
+                    }
                     sapp::Keycode::Escape => {
                         set_edit(state, false);
                         return;
@@ -3045,27 +3487,19 @@ fn draw_editor(
         sgl::c4f(0.95, 0.85, 0.35, 1.0);
         outline_circle(rx, ry, 11.0);
         filled_circle(rx, ry, 3.0);
-    }
-    for link in &floor.links {
-        if let Link::Stair {
-            a_floor,
-            a_id,
-            b_floor,
-            b_id,
-        } = *link
-        {
-            if a_floor as usize == state.floor {
-                let a = floor.stairs.iter().find(|s| s.id == a_id);
-                let b = state.scene.floors[b_floor as usize]
-                    .stairs
-                    .iter()
-                    .find(|s| s.id == b_id);
-                if let (Some(a), Some(b)) = (a, b) {
-                    let (ax, ay) = src_to_ref(frame, ox, oy, iw, ih, a.pos.0, a.pos.1);
-                    let (bx, by) = src_to_ref(frame, ox, oy, iw, ih, b.pos.0, b.pos.1);
-                    sgl::c4f(0.95, 0.85, 0.35, 0.6);
-                    line(ax, ay, bx, by);
-                }
+        let linked = floor.links.iter().any(|l| {
+            matches!(l, Link::Stair { a_floor, a_id, b_floor, b_id }
+                if (*a_floor as usize == state.floor && *a_id == s.id)
+                    || (*b_floor as usize == state.floor && *b_id == s.id))
+        });
+        if linked {
+            sgl::c4f(0.40, 1.0, 0.50, 1.0);
+            filled_circle(rx, ry, 6.0);
+        }
+        if let Some(PendingLink::Stair(pf, pid)) = state.pending_link {
+            if pf == state.floor && pid == s.id {
+                sgl::c4f(1.0, 1.0, 1.0, 1.0);
+                outline_circle(rx, ry, 16.0);
             }
         }
     }
@@ -3073,6 +3507,51 @@ fn draw_editor(
         let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, it.pos.0, it.pos.1);
         sgl::c4f(C_ITEM.0, C_ITEM.1, C_ITEM.2, 1.0);
         filled_circle(rx, ry, ITEM_RADIUS);
+        if let Some(PendingLink::Item(pf, pid)) = state.pending_link {
+            if pf == state.floor && pid == it.id {
+                sgl::c4f(1.0, 1.0, 1.0, 1.0);
+                outline_circle(rx, ry, ITEM_RADIUS + 6.0);
+            }
+        }
+    }
+    // Key -> door links on this floor, plus the selected object's handles.
+    for link in &floor.links {
+        if let Link::KeyDoor {
+            item_floor,
+            item_id,
+            door_floor,
+            door_id,
+        } = *link
+        {
+            if item_floor as usize == state.floor && door_floor as usize == state.floor {
+                let item = floor.items.iter().find(|i| i.id == item_id);
+                let door = floor.doors.iter().find(|d| d.id == door_id);
+                if let (Some(i), Some(d)) = (item, door) {
+                    let (ix, iy) = src_to_ref(frame, ox, oy, iw, ih, i.pos.0, i.pos.1);
+                    let (dx, dy) = src_to_ref(frame, ox, oy, iw, ih, d.center.0, d.center.1);
+                    sgl::c4f(0.90, 0.65, 0.90, 0.7);
+                    line(ix, iy, dx, dy);
+                }
+            }
+        }
+    }
+    if let Some(sel) = state.selection {
+        if let Some(geom) = selection_geom(&state.scene, state.floor, sel) {
+            sgl::c4f(1.0, 1.0, 1.0, 0.95);
+            for c in geom_corners(geom) {
+                let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, c.0, c.1);
+                rect(rx - 4.0, ry - 4.0, 8.0, 8.0);
+            }
+            if let Some(rh) = geom_rotate_handle(geom) {
+                let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, rh.0, rh.1);
+                let center = geom_center(geom);
+                let (cx, cy) = src_to_ref(frame, ox, oy, iw, ih, center.0, center.1);
+                sgl::c4f(1.0, 1.0, 1.0, 0.5);
+                line(cx, cy, rx, ry);
+                sgl::c4f(0.40, 0.80, 1.0, 1.0);
+                filled_circle(rx, ry, 6.0);
+            }
+        }
     }
     if let (Some(a), Some(b)) = (state.drag_from, state.drag_to) {
         if state.tool.is_rect() {
@@ -3116,12 +3595,13 @@ fn draw_editor(
         );
     }
     let counts = format!(
-        "walls {}  obstacles {}  doors {}  stairs {}  items {}   [Tab] exit  [Z] undo  [X] clear  [S] save  [L] load  [Space] snap:{}",
+        "walls {}  obstacles {}  doors {}  stairs {}  items {}  links {}   [Tab] exit  [Z] undo  [X] clear  [S] save  [L] load  [Space] snap:{}  [C] link",
         floor.walls.len(),
         floor.obstacles.len(),
         floor.doors.len(),
         floor.stairs.len(),
         floor.items.len(),
+        floor.links.len(),
         if state.snap { "on" } else { "off" }
     );
     draw_ui_text(
@@ -3710,6 +4190,12 @@ fn main() {
         snap: true,
         drag_from: None,
         drag_to: None,
+        selection: None,
+        drag_mode: DragMode::None,
+        drag_orig: None,
+        drag_grab: (0.0, 0.0),
+        drag_dirty: false,
+        pending_link: None,
         undo: Vec::new(),
         next_id,
         status: String::new(),
@@ -4327,6 +4813,37 @@ mod tests {
                 item.name,
                 item.floor
             );
+        }
+    }
+
+    #[test]
+    fn editor_geometry_helpers() {
+        let rect = SelGeom::Rect {
+            x: 0.0,
+            y: 0.0,
+            w: 100.0,
+            h: 50.0,
+        };
+        // Drag the top-left corner to (200, 200); the opposite corner is fixed.
+        match scale_geom(rect, (200.0, 200.0), 0) {
+            SelGeom::Rect { x, y, w, h } => {
+                assert_eq!((x, y, w, h), (100.0, 50.0, 100.0, 150.0))
+            }
+            _ => panic!("rect scale returned a non-rect"),
+        }
+        match translate_geom(rect, 10.0, -5.0) {
+            SelGeom::Rect { x, y, .. } => assert_eq!((x, y), (10.0, -5.0)),
+            _ => panic!("rect translate returned a non-rect"),
+        }
+        let b = SelGeom::Box {
+            center: (0.0, 0.0),
+            size: (100.0, 50.0),
+            rot: 0.0,
+        };
+        // Cursor straight above the centre -> rotation 0 (snapped).
+        match rotate_geom(b, (0.0, -10.0), true) {
+            SelGeom::Box { rot, .. } => assert!(rot.abs() < 1e-3),
+            _ => panic!("box rotate returned a non-box"),
         }
     }
 }

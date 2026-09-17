@@ -416,4 +416,63 @@ mod tests {
         );
         assert!(!bit(0, 0), "outside the building should be exterior");
     }
+
+    #[test]
+    fn scene_links_bake_into_stairs_and_items() {
+        use crate::scene::{ItemDef, ItemKind, Link, StairNode};
+        let mut scene = Scene::default();
+        let f1 = crate::scene::FLOOR1_INDEX;
+        let f2 = 1;
+        scene.floors[f1].stairs.push(StairNode {
+            id: 1,
+            pos: (100.0, 200.0),
+        });
+        scene.floors[f2].stairs.push(StairNode {
+            id: 2,
+            pos: (300.0, 400.0),
+        });
+        scene.floors[f1].links.push(Link::Stair {
+            a_floor: f1 as u8,
+            a_id: 1,
+            b_floor: f2 as u8,
+            b_id: 2,
+        });
+        scene.floors[f1].items.push(ItemDef {
+            id: 5,
+            kind: ItemKind::Key,
+            name: "Key".into(),
+            pos: (10.0, 20.0),
+        });
+
+        let baked = bake(&scene, &blank_fallback());
+        assert_eq!(baked.stairs.len(), 4 + 24);
+        assert_eq!(
+            u32::from_le_bytes([
+                baked.stairs[0],
+                baked.stairs[1],
+                baked.stairs[2],
+                baked.stairs[3]
+            ]),
+            1
+        );
+        assert_eq!(baked.items.len(), 4 + 4 + 4 + 4 + 4 + 3);
+        assert_eq!(
+            u32::from_le_bytes([
+                baked.items[0],
+                baked.items[1],
+                baked.items[2],
+                baked.items[3]
+            ]),
+            1
+        );
+        assert_eq!(
+            u32::from_le_bytes([
+                baked.items[4],
+                baked.items[5],
+                baked.items[6],
+                baked.items[7]
+            ]),
+            f1 as u32
+        );
+    }
 }
