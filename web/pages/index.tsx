@@ -42,7 +42,28 @@ export default function HomePage(_props: Props) {
             dangerouslySetInnerHTML={{
               __html:
                 "var Module = { canvas: document.getElementById('map-canvas'), locateFile: function (path) { return '/' + path; } };" +
-                "window.inkRibbonSetFloor = function (floor) { window.dispatchEvent(new CustomEvent('ink-ribbon:floor', { detail: floor })); };",
+                "window.inkRibbonSetFloor = function (floor) { window.dispatchEvent(new CustomEvent('ink-ribbon:floor', { detail: floor })); };" +
+                "window.inkRibbonPersistScene = function () {" +
+                "  try {" +
+                "    var data = Module.FS.readFile('/scene.bin', { encoding: 'binary' });" +
+                "    var bin = ''; for (var i = 0; i < data.length; i++) bin += String.fromCharCode(data[i]);" +
+                "    localStorage.setItem('ink-ribbon-scene', btoa(bin));" +
+                "    var blob = new Blob([data], { type: 'application/octet-stream' });" +
+                "    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'scene.bin'; a.click();" +
+                "    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);" +
+                "    return 1;" +
+                "  } catch (e) { console.error(e); return 0; }" +
+                "};" +
+                "window.inkRibbonLoadScene = function () {" +
+                "  try {" +
+                "    var b64 = localStorage.getItem('ink-ribbon-scene');" +
+                "    if (!b64) return 0;" +
+                "    var bin = atob(b64); var arr = new Uint8Array(bin.length);" +
+                "    for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);" +
+                "    Module.FS.writeFile('/scene.bin', arr);" +
+                "    return 1;" +
+                "  } catch (e) { console.error(e); return 0; }" +
+                "};",
             }}
           />
           <script src="/map.js" />

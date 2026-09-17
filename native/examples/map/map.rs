@@ -1,12 +1,17 @@
 use std::ffi;
 
+use ink_ribbon_native::bake::{bake, BakedBytes, OverlayBytes};
+use ink_ribbon_native::scene::{
+    BoolOp, Box2, Door, DoorKind, FloorSource, ItemDef, ItemKind, Link, Rect, Scene, StairNode,
+    WallOp, FLOOR1_FRAME, FLOOR1_H, FLOOR1_INDEX, FLOOR1_W, FLOOR1_X, FLOOR1_Y, FLOOR_FRAMES,
+    NUM_FLOORS,
+};
 use sokol::{app as sapp, gfx as sg, gl as sgl, glue as sglue};
 
 const ZOOM_MIN: f32 = 0.7;
 const ZOOM_MAX: f32 = 1.6;
 const DEFAULT_ZOOM: f32 = 1.15;
 const PAN_MARGIN: f32 = 700.0;
-const NUM_FLOORS: usize = 3;
 
 // All layout geometry, resolved for the current orientation. Landscape uses a
 // 1920x1080 reference; portrait is its transpose (1080x1920).
@@ -180,25 +185,6 @@ const C_LOCK: (f32, f32, f32) = (0.63, 0.27, 0.34); // #a04457 locked-door red
 const BACKGROUND: (f32, f32, f32) = (0.047, 0.047, 0.047); // #0c0c0c
 const GRID_RGB: (f32, f32, f32) = (0.10, 0.10, 0.10); // backing grid
 
-// Floor 1 frame in source-composite pixels (see artifacts/care-center/README.md).
-const FLOOR1_X: f32 = 1600.0;
-const FLOOR1_Y: f32 = 3420.0;
-const FLOOR1_W: f32 = 4750.0;
-const FLOOR1_H: f32 = 2730.0;
-
-// Floor index for "FLOOR 1" (0 = Floor 3, 1 = Floor 2, 2 = Floor 1).
-const FLOOR1_INDEX: usize = 2;
-
-// Per-floor art frames in source-composite pixels, indexed like `floor`. Floor 3
-// and Floor 2 crops are shorter than Floor 1 (see artifacts/care-center/README.md),
-// so each floor is laid out at its own aspect ratio.
-const FLOOR_FRAMES: [(f32, f32, f32, f32); NUM_FLOORS] = [
-    (1600.0, 0.0, 4750.0, 1536.0),            // Floor 3
-    (1600.0, 1500.0, 4750.0, 2240.0),         // Floor 2
-    (FLOOR1_X, FLOOR1_Y, FLOOR1_W, FLOOR1_H), // Floor 1
-];
-const FLOOR1_FRAME: (f32, f32, f32, f32) = (FLOOR1_X, FLOOR1_Y, FLOOR1_W, FLOOR1_H);
-
 // Hand-traced overlay (walls, obstacles, doors) per floor, composited to one raw
 // RGBA texture by native/prepare-overlay.py. A floor whose trace is still blank
 // falls back to the procedural walls.
@@ -313,11 +299,11 @@ struct Nav {
     w: i32,
     h: i32,
     frame: (f32, f32, f32, f32),
-    bits: &'static [u8],
+    bits: Vec<u8>,
 }
 
 impl Nav {
-    fn from_bytes(bytes: &'static [u8], frame: (f32, f32, f32, f32)) -> Nav {
+    fn from_bytes(bytes: &[u8], frame: (f32, f32, f32, f32)) -> Nav {
         // header: u32 LE cell_px, u32 LE width, u32 LE height
         let w = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]) as i32;
         let h = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]) as i32;
@@ -325,7 +311,7 @@ impl Nav {
             w,
             h,
             frame,
-            bits: &bytes[12..],
+            bits: bytes[12..].to_vec(),
         }
     }
 
@@ -344,11 +330,11 @@ struct Solid {
     w: i32,
     h: i32,
     frame: (f32, f32, f32, f32),
-    bits: &'static [u8],
+    bits: Vec<u8>,
 }
 
 impl Solid {
-    fn from_bytes(bytes: &'static [u8], frame: (f32, f32, f32, f32)) -> Solid {
+    fn from_bytes(bytes: &[u8], frame: (f32, f32, f32, f32)) -> Solid {
         // header: u32 LE cell_px, u32 LE width, u32 LE height
         let w = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]) as i32;
         let h = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]) as i32;
@@ -356,7 +342,7 @@ impl Solid {
             w,
             h,
             frame,
-            bits: &bytes[12..],
+            bits: bytes[12..].to_vec(),
         }
     }
 
@@ -618,6 +604,106 @@ enum CursorMode {
     Centered,
 }
 
+// Editor tools. Rect tools are click-dragged; point tools are single clicks.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Tool {
+    WallAdd,
+    WallSub,
+    Obstacle,
+    DoorLocked,
+    DoorUnlocked,
+    DoorUnknown,
+    Stair,
+    Item,
+    Erase,
+}
+
+impl Tool {
+    const ALL: [Tool; 9] = [
+        Tool::WallAdd,
+        Tool::WallSub,
+        Tool::Obstacle,
+        Tool::DoorLocked,
+        Tool::DoorUnlocked,
+        Tool::DoorUnknown,
+        Tool::Stair,
+        Tool::Item,
+        Tool::Erase,
+    ];
+
+    fn label(self) -> &'static str {
+        match self {
+            Tool::WallAdd => "WALL +",
+            Tool::WallSub => "WALL -",
+            Tool::Obstacle => "OBSTACLE",
+            Tool::DoorLocked => "LOCKED",
+            Tool::DoorUnlocked => "UNLOCKED",
+            Tool::DoorUnknown => "UNKNOWN",
+            Tool::Stair => "STAIR",
+            Tool::Item => "ITEM",
+            Tool::Erase => "ERASE",
+        }
+    }
+
+    fn color(self) -> (f32, f32, f32) {
+        match self {
+            Tool::WallAdd => (0.55, 0.70, 0.55),
+            Tool::WallSub => (0.80, 0.40, 0.40),
+            Tool::Obstacle => (0.62, 0.62, 0.62),
+            Tool::DoorLocked => (0.80, 0.35, 0.45),
+            Tool::DoorUnlocked => (0.35, 0.70, 0.78),
+            Tool::DoorUnknown => (0.62, 0.62, 0.70),
+            Tool::Stair => (0.90, 0.80, 0.35),
+            Tool::Item => (0.65, 0.45, 0.95),
+            Tool::Erase => (0.85, 0.30, 0.30),
+        }
+    }
+
+    fn is_rect(self) -> bool {
+        matches!(
+            self,
+            Tool::WallAdd
+                | Tool::WallSub
+                | Tool::Obstacle
+                | Tool::DoorLocked
+                | Tool::DoorUnlocked
+                | Tool::DoorUnknown
+        )
+    }
+}
+
+// Reference-space toolbar geometry (x, y, w, h per tool button).
+const EDITOR_BAR_Y: f32 = 10.0;
+const EDITOR_BAR_H: f32 = 40.0;
+const EDITOR_BTN_W: f32 = 116.0;
+const EDITOR_BTN_GAP: f32 = 6.0;
+
+fn editor_button_rect(index: usize) -> (f32, f32, f32, f32) {
+    (
+        10.0 + index as f32 * (EDITOR_BTN_W + EDITOR_BTN_GAP),
+        EDITOR_BAR_Y,
+        EDITOR_BTN_W,
+        EDITOR_BAR_H,
+    )
+}
+
+fn tool_from_digit(k: sapp::Keycode) -> Option<Tool> {
+    use sapp::Keycode::*;
+    let index = match k {
+        Num1 => 0,
+        Num2 => 1,
+        Num3 => 2,
+        Num4 => 3,
+        Num5 => 4,
+        Num6 => 5,
+        Num7 => 6,
+        Num8 => 7,
+        Num9 => 8,
+        _ => return None,
+    };
+    Some(Tool::ALL[index])
+}
+
 // Zoom-to-cursor anchor: keeps a map point under the circle cursor and pulls it
 // to the map centre as the zoom completes.
 #[derive(Clone, Copy)]
@@ -634,6 +720,8 @@ struct State {
     pipeline: sgl::Pipeline,
     overlay_views: [sg::View; NUM_FLOORS],
     overlay_sampler: sg::Sampler,
+    // CPU-side baked overlay bytes, kept so textures can be (re)created on apply.
+    overlay_data: [OverlayBytes; NUM_FLOORS],
     font: Option<Font>,
     nav: [Nav; NUM_FLOORS],
     nav_open: [Nav; NUM_FLOORS],
@@ -643,6 +731,17 @@ struct State {
     astar: Astar,
     extra_floors: [Vec<(f32, f32, f32, f32)>; NUM_FLOORS],
     floor_has_art: [bool; NUM_FLOORS],
+    // --- Editor ---
+    scene: Scene,
+    edit: bool,
+    tool: Tool,
+    snap: bool,
+    drag_from: Option<(f32, f32)>,
+    drag_to: Option<(f32, f32)>,
+    undo: Vec<Scene>,
+    next_id: u32,
+    status: String,
+    status_t: f32,
     // Reachable component per floor, computed from where the player is standing.
     reachable: [Vec<u8>; NUM_FLOORS],
     path_red: Vec<(f32, f32)>,
@@ -707,6 +806,25 @@ fn overlay_has_art(rgba: &[u8]) -> bool {
     rgba.iter().skip(3).step_by(4).any(|&a| a > 0)
 }
 
+// The baked assets compiled into the binary, used as the default map and as the
+// fallback for floors that have not been redrawn as vector objects yet. Built
+// once; re-baking on every edit reuses it.
+fn embedded_bytes() -> &'static BakedBytes {
+    static FALLBACK: std::sync::OnceLock<BakedBytes> = std::sync::OnceLock::new();
+    FALLBACK.get_or_init(|| BakedBytes {
+        overlays: std::array::from_fn(|i| OverlayBytes {
+            rgba: OVERLAY_RGBA[i].to_vec(),
+            w: OVERLAY_W,
+            h: OVERLAY_H[i],
+        }),
+        nav: std::array::from_fn(|i| NAV_BINS[i].to_vec()),
+        nav_open: std::array::from_fn(|i| NAV_OPEN_BINS[i].to_vec()),
+        solid: std::array::from_fn(|i| SOLID_BINS[i].to_vec()),
+        stairs: STAIRS_BIN.to_vec(),
+        items: ITEMS_BIN.to_vec(),
+    })
+}
+
 fn overlay_texture(rgba: &[u8], width: i32, height: i32) -> sg::View {
     assert_eq!(rgba.len(), (width * height * 4) as usize);
     let pixels: Vec<u32> = rgba
@@ -766,9 +884,11 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
         ..Default::default()
     });
     state.font = Some(Font::new());
-    state.floor_has_art = std::array::from_fn(|i| overlay_has_art(OVERLAY_RGBA[i]));
-    state.overlay_views =
-        std::array::from_fn(|i| overlay_texture(OVERLAY_RGBA[i], OVERLAY_W, OVERLAY_H[i]));
+    state.floor_has_art = std::array::from_fn(|i| overlay_has_art(&state.overlay_data[i].rgba));
+    state.overlay_views = std::array::from_fn(|i| {
+        let o = &state.overlay_data[i];
+        overlay_texture(&o.rgba, o.w, o.h)
+    });
     state.overlay_sampler = sg::make_sampler(&sg::SamplerDesc {
         min_filter: sg::Filter::Linear,
         mag_filter: sg::Filter::Linear,
@@ -1068,8 +1188,8 @@ fn can_stand(nav: &Nav, solid: &Solid, sx: f32, sy: f32) -> bool {
 // direction, and circle collision that slides along walls.
 fn update_player(state: &mut State, delta: f32) {
     // The player only exists on their own floor; viewing another floor is
-    // read-only until they take stairs back.
-    if state.floor != state.player_floor {
+    // read-only until they take stairs back. Editing pauses the player.
+    if state.edit || state.floor != state.player_floor {
         return;
     }
     let floor = state.player_floor;
@@ -1207,6 +1327,353 @@ fn hover_item_at(state: &State, cx: f32, cy: f32) -> Option<usize> {
         dx * dx + dy * dy <= CLICK_RADIUS * CLICK_RADIUS
     })
 }
+// ---------------------------------------------------------------------------
+// Editor
+// ---------------------------------------------------------------------------
+
+fn set_status(state: &mut State, msg: impl Into<String>) {
+    state.status = msg.into();
+    state.status_t = 3.0;
+}
+
+fn push_undo(state: &mut State) {
+    state.undo.push(state.scene.clone());
+    if state.undo.len() > 64 {
+        state.undo.remove(0);
+    }
+}
+
+fn set_edit(state: &mut State, on: bool) {
+    state.edit = on;
+    let hide = if on {
+        false
+    } else {
+        state.cursor_mode == CursorMode::Free
+    };
+    if hide != state.os_cursor_hidden {
+        set_cursor_hidden(hide);
+        state.os_cursor_hidden = hide;
+    }
+    state.dragging = false;
+    state.drag_from = None;
+    state.drag_to = None;
+    state.recentre = false;
+    set_status(state, if on { "EDIT MODE" } else { "PLAY MODE" });
+}
+
+// Reference coords -> source-composite pixels on the viewed floor.
+fn ref_to_source(state: &State, p: (f32, f32)) -> (f32, f32) {
+    let frame = floor_frame(state.floor, &state.floor_has_art);
+    let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
+    (
+        frame.0 + (p.0 - ox) * frame.2 / iw,
+        frame.1 + (p.1 - oy) * frame.3 / ih,
+    )
+}
+
+fn snap_point(state: &State, p: (f32, f32)) -> (f32, f32) {
+    if !state.snap {
+        return p;
+    }
+    const GRID: f32 = 16.0;
+    ((p.0 / GRID).round() * GRID, (p.1 / GRID).round() * GRID)
+}
+
+fn max_id(scene: &Scene) -> u32 {
+    let mut max = 0;
+    for floor in &scene.floors {
+        for o in &floor.obstacles {
+            max = max.max(o.id);
+        }
+        for d in &floor.doors {
+            max = max.max(d.id);
+        }
+        for s in &floor.stairs {
+            max = max.max(s.id);
+        }
+        for it in &floor.items {
+            max = max.max(it.id);
+        }
+    }
+    max
+}
+
+// Re-bake the scene and swap the running map's assets in place.
+fn rebuild_assets(state: &mut State) {
+    let baked = bake(&state.scene, embedded_bytes());
+    let BakedBytes {
+        overlays,
+        nav,
+        nav_open,
+        solid,
+        stairs,
+        items,
+    } = baked;
+    state.nav = std::array::from_fn(|i| Nav::from_bytes(&nav[i], FLOOR_FRAMES[i]));
+    state.nav_open = std::array::from_fn(|i| Nav::from_bytes(&nav_open[i], FLOOR_FRAMES[i]));
+    state.solid = std::array::from_fn(|i| Solid::from_bytes(&solid[i], FLOOR_FRAMES[i]));
+    state.stairs = parse_stairs(&stairs);
+    state.items = parse_items(&items);
+    for (i, overlay) in overlays.into_iter().enumerate() {
+        sg::destroy_view(state.overlay_views[i]);
+        state.floor_has_art[i] = overlay_has_art(&overlay.rgba);
+        state.overlay_views[i] = overlay_texture(&overlay.rgba, overlay.w, overlay.h);
+        state.overlay_data[i] = overlay;
+    }
+    // Navigation changed: reset reachability and re-snap the player.
+    state.reachable = std::array::from_fn(|_| Vec::new());
+    state.target = None;
+    state.path.clear();
+    state.path_red.clear();
+    let pf = state.player_floor;
+    if let Some(cell) = snap_source(&state.nav[pf], state.player.0, state.player.1) {
+        state.player = cell_to_source(&state.nav[pf], cell.0, cell.1);
+        state.player_cell = Some(cell);
+        state.reachable[pf] = reachable_from(&state.nav[pf], cell);
+    }
+}
+
+fn place_rect(state: &mut State, a: (f32, f32), b: (f32, f32)) {
+    let x = a.0.min(b.0);
+    let y = a.1.min(b.1);
+    let w = (b.0 - a.0).abs();
+    let h = (b.1 - a.1).abs();
+    if w < 4.0 || h < 4.0 {
+        return;
+    }
+    push_undo(state);
+    let id = state.next_id;
+    state.next_id += 1;
+    let tool = state.tool;
+    let floor = &mut state.scene.floors[state.floor];
+    floor.source = FloorSource::Vector;
+    let center = (x + w * 0.5, y + h * 0.5);
+    match tool {
+        Tool::WallAdd | Tool::WallSub => floor.walls.push(WallOp {
+            mode: if tool == Tool::WallAdd {
+                BoolOp::Add
+            } else {
+                BoolOp::Sub
+            },
+            rect: Rect { x, y, w, h },
+        }),
+        Tool::Obstacle => floor.obstacles.push(Box2 {
+            id,
+            center,
+            size: (w, h),
+            rot: 0.0,
+        }),
+        Tool::DoorLocked | Tool::DoorUnlocked | Tool::DoorUnknown => {
+            let kind = match tool {
+                Tool::DoorLocked => DoorKind::Locked,
+                Tool::DoorUnlocked => DoorKind::Unlocked,
+                _ => DoorKind::Unknown,
+            };
+            floor.doors.push(Door {
+                id,
+                kind,
+                center,
+                size: (w, h),
+                rot: 0.0,
+            });
+        }
+        _ => {}
+    }
+    rebuild_assets(state);
+    set_status(state, format!("{} placed", tool.label()));
+}
+
+fn place_point(state: &mut State, p: (f32, f32)) {
+    push_undo(state);
+    let id = state.next_id;
+    state.next_id += 1;
+    let tool = state.tool;
+    let floor = &mut state.scene.floors[state.floor];
+    floor.source = FloorSource::Vector;
+    match tool {
+        Tool::Stair => floor.stairs.push(StairNode { id, pos: p }),
+        Tool::Item => floor.items.push(ItemDef {
+            id,
+            kind: ItemKind::Key,
+            name: format!("Item {id}"),
+            pos: p,
+        }),
+        _ => {}
+    }
+    rebuild_assets(state);
+    set_status(state, format!("{} placed", tool.label()));
+}
+
+fn dist_to_box(p: (f32, f32), c: (f32, f32), s: (f32, f32), rot: f32) -> f32 {
+    let (sin, cos) = rot.sin_cos();
+    let dx = p.0 - c.0;
+    let dy = p.1 - c.1;
+    let lx = dx * cos + dy * sin;
+    let ly = -dx * sin + dy * cos;
+    let ox = (lx.abs() - s.0 * 0.5).max(0.0);
+    let oy = (ly.abs() - s.1 * 0.5).max(0.0);
+    (ox * ox + oy * oy).sqrt()
+}
+
+fn dist_to_rect(p: (f32, f32), r: Rect) -> f32 {
+    let ox = (r.x - p.0).max(p.0 - (r.x + r.w)).max(0.0);
+    let oy = (r.y - p.1).max(p.1 - (r.y + r.h)).max(0.0);
+    (ox * ox + oy * oy).sqrt()
+}
+
+enum EditHit {
+    Wall(usize),
+    Obstacle(usize),
+    Door(usize),
+    Stair(usize),
+    Item(usize),
+}
+
+fn editor_erase(state: &mut State, p: (f32, f32)) {
+    const REACH: f32 = 44.0;
+    let best = {
+        let floor = &state.scene.floors[state.floor];
+        let mut best: Option<(f32, EditHit)> = None;
+        let mut consider = |d: f32, hit: EditHit| {
+            if d <= REACH && best.as_ref().is_none_or(|(bd, _)| d < *bd) {
+                best = Some((d, hit));
+            }
+        };
+        for (i, w) in floor.walls.iter().enumerate() {
+            consider(dist_to_rect(p, w.rect), EditHit::Wall(i));
+        }
+        for (i, o) in floor.obstacles.iter().enumerate() {
+            consider(
+                dist_to_box(p, o.center, o.size, o.rot),
+                EditHit::Obstacle(i),
+            );
+        }
+        for (i, d) in floor.doors.iter().enumerate() {
+            consider(dist_to_box(p, d.center, d.size, d.rot), EditHit::Door(i));
+        }
+        for (i, s) in floor.stairs.iter().enumerate() {
+            let d = ((p.0 - s.pos.0).powi(2) + (p.1 - s.pos.1).powi(2)).sqrt();
+            consider(d, EditHit::Stair(i));
+        }
+        for (i, it) in floor.items.iter().enumerate() {
+            let d = ((p.0 - it.pos.0).powi(2) + (p.1 - it.pos.1).powi(2)).sqrt();
+            consider(d, EditHit::Item(i));
+        }
+        best.map(|(_, hit)| hit)
+    };
+    let Some(hit) = best else {
+        return;
+    };
+    push_undo(state);
+    let floor = &mut state.scene.floors[state.floor];
+    match hit {
+        EditHit::Wall(i) => {
+            floor.walls.remove(i);
+        }
+        EditHit::Obstacle(i) => {
+            floor.obstacles.remove(i);
+        }
+        EditHit::Door(i) => {
+            floor.doors.remove(i);
+        }
+        EditHit::Stair(i) => {
+            floor.stairs.remove(i);
+        }
+        EditHit::Item(i) => {
+            floor.items.remove(i);
+        }
+    }
+    rebuild_assets(state);
+    set_status(state, "erased");
+}
+
+fn editor_clear_floor(state: &mut State) {
+    push_undo(state);
+    let floor = &mut state.scene.floors[state.floor];
+    floor.source = FloorSource::Vector;
+    floor.walls.clear();
+    floor.obstacles.clear();
+    floor.doors.clear();
+    floor.stairs.clear();
+    floor.items.clear();
+    floor.links.clear();
+    rebuild_assets(state);
+    set_status(state, "floor cleared");
+}
+
+fn editor_toolbar_hit(x: f32, y: f32) -> Option<usize> {
+    for i in 0..Tool::ALL.len() {
+        let (bx, by, bw, bh) = editor_button_rect(i);
+        if (bx..bx + bw).contains(&x) && (by..by + bh).contains(&y) {
+            return Some(i);
+        }
+    }
+    None
+}
+
+fn editor_undo(state: &mut State) {
+    if let Some(prev) = state.undo.pop() {
+        state.scene = prev;
+        rebuild_assets(state);
+        set_status(state, "undo");
+    }
+}
+
+fn save_scene(state: &mut State) {
+    let bytes = state.scene.to_bytes();
+    if save_scene_bytes(&bytes) {
+        set_status(state, format!("saved scene ({} bytes)", bytes.len()));
+    } else {
+        set_status(state, "save failed");
+    }
+}
+
+fn load_scene(state: &mut State) {
+    match load_scene_bytes().and_then(|b| Scene::from_bytes(&b)) {
+        Some(scene) => {
+            push_undo(state);
+            state.scene = scene;
+            state.next_id = max_id(&state.scene) + 1;
+            rebuild_assets(state);
+            set_status(state, "scene loaded");
+        }
+        None => set_status(state, "no scene found"),
+    }
+}
+
+#[cfg(target_os = "emscripten")]
+fn save_scene_bytes(bytes: &[u8]) -> bool {
+    if std::fs::write("/scene.bin", bytes).is_err() {
+        return false;
+    }
+    extern "C" {
+        fn emscripten_run_script(script: *const ffi::c_char);
+    }
+    let script = b"window.inkRibbonPersistScene && window.inkRibbonPersistScene();\0";
+    unsafe { emscripten_run_script(script.as_ptr() as *const ffi::c_char) };
+    true
+}
+
+#[cfg(not(target_os = "emscripten"))]
+fn save_scene_bytes(bytes: &[u8]) -> bool {
+    std::fs::write("scene.bin", bytes).is_ok()
+}
+
+fn load_scene_bytes() -> Option<Vec<u8>> {
+    #[cfg(target_os = "emscripten")]
+    {
+        extern "C" {
+            fn emscripten_run_script_int(script: *const ffi::c_char) -> i32;
+        }
+        let script = b"window.inkRibbonLoadScene ? window.inkRibbonLoadScene() : 0\0";
+        let ok = unsafe { emscripten_run_script_int(script.as_ptr() as *const ffi::c_char) };
+        if ok == 0 {
+            return None;
+        }
+    }
+    std::fs::read("scene.bin").ok()
+}
+
 // Panel controls consume the click; returns true if it was handled.
 fn panel_click(state: &mut State, x: f32, y: f32) -> bool {
     let l = state.layout;
@@ -1353,13 +1820,20 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             let (mx, my) = screen_to_ref(&state.layout, event.mouse_x, event.mouse_y);
             state.mouse = (mx, my);
             state.circle_cursor_hidden = false;
+            state.mouse_in_map = in_map(&state.layout, (mx, my));
+            if state.edit {
+                if state.drag_from.is_some() {
+                    let src = ref_to_source(state, (mx, my));
+                    state.drag_to = Some(snap_point(state, src));
+                }
+                return;
+            }
             if state.dragging {
                 if (mx - state.down_ref.0).abs() > 6.0 || (my - state.down_ref.1).abs() > 6.0 {
                     state.moved = true;
                 }
                 drag_by(state, event.mouse_dx, event.mouse_dy);
             }
-            state.mouse_in_map = in_map(&state.layout, (mx, my));
             if state.cursor_mode == CursorMode::Free && state.mouse_in_map {
                 state.cursor = clamp_to_map(&state.layout, state.mouse);
             }
@@ -1370,6 +1844,17 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             if state.cursor_mode == CursorMode::Free {
                 state.cursor = clamp_to_map(&state.layout, (x, y));
             }
+            if state.edit {
+                if let Some(i) = editor_toolbar_hit(x, y) {
+                    state.tool = Tool::ALL[i];
+                    set_status(state, format!("tool {}", state.tool.label()));
+                    return;
+                }
+                let src = snap_point(state, ref_to_source(state, (x, y)));
+                state.drag_from = Some(src);
+                state.drag_to = Some(src);
+                return;
+            }
             if panel_click(state, x, y) {
                 state.dragging = false;
             } else {
@@ -1379,6 +1864,19 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             }
         }
         sapp::EventType::MouseUp => {
+            if state.edit {
+                if let Some(a) = state.drag_from.take() {
+                    let b = state.drag_to.take().unwrap_or(a);
+                    if state.tool == Tool::Erase {
+                        editor_erase(state, a);
+                    } else if state.tool.is_rect() {
+                        place_rect(state, a, b);
+                    } else {
+                        place_point(state, a);
+                    }
+                }
+                return;
+            }
             let was_drag = state.moved;
             state.dragging = false;
             if !was_drag {
@@ -1529,63 +2027,104 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             state.recentre = false;
             capture_zoom_anchor(state);
         }
-        sapp::EventType::KeyDown => match event.key_code {
-            sapp::Keycode::F1 if !event.key_repeat => state.debug_mode = !state.debug_mode,
-            sapp::Keycode::G if !event.key_repeat => state.show_grid = !state.show_grid,
-            sapp::Keycode::M if !event.key_repeat => {
-                state.cursor_mode = match state.cursor_mode {
-                    CursorMode::Free => CursorMode::Centered,
-                    CursorMode::Centered => CursorMode::Free,
-                };
-                let hide = state.cursor_mode == CursorMode::Free;
-                if hide != state.os_cursor_hidden {
-                    set_cursor_hidden(hide);
-                    state.os_cursor_hidden = hide;
+        sapp::EventType::KeyDown => {
+            if event.key_code == sapp::Keycode::Tab && !event.key_repeat {
+                set_edit(state, !state.edit);
+                return;
+            }
+            if state.edit {
+                if let Some(tool) = tool_from_digit(event.key_code) {
+                    state.tool = tool;
+                    set_status(state, format!("tool {}", tool.label()));
+                    return;
+                }
+                match event.key_code {
+                    sapp::Keycode::Escape => {
+                        set_edit(state, false);
+                        return;
+                    }
+                    sapp::Keycode::Z => {
+                        editor_undo(state);
+                        return;
+                    }
+                    sapp::Keycode::S => {
+                        save_scene(state);
+                        return;
+                    }
+                    sapp::Keycode::L => {
+                        load_scene(state);
+                        return;
+                    }
+                    sapp::Keycode::X => {
+                        editor_clear_floor(state);
+                        return;
+                    }
+                    sapp::Keycode::Space if !event.key_repeat => {
+                        state.snap = !state.snap;
+                        set_status(state, if state.snap { "snap on" } else { "snap off" });
+                        return;
+                    }
+                    _ => {}
                 }
             }
-            sapp::Keycode::F if !event.key_repeat => recenter_on_player(state),
-            sapp::Keycode::Q => {
-                state.arrow_up_t = 0.001;
-                let floor = (state.floor + NUM_FLOORS - 1) % NUM_FLOORS;
-                change_floor(state, floor);
+            match event.key_code {
+                sapp::Keycode::F1 if !event.key_repeat => state.debug_mode = !state.debug_mode,
+                sapp::Keycode::G if !event.key_repeat => state.show_grid = !state.show_grid,
+                sapp::Keycode::M if !event.key_repeat => {
+                    state.cursor_mode = match state.cursor_mode {
+                        CursorMode::Free => CursorMode::Centered,
+                        CursorMode::Centered => CursorMode::Free,
+                    };
+                    let hide = state.cursor_mode == CursorMode::Free;
+                    if hide != state.os_cursor_hidden {
+                        set_cursor_hidden(hide);
+                        state.os_cursor_hidden = hide;
+                    }
+                }
+                sapp::Keycode::F if !event.key_repeat => recenter_on_player(state),
+                sapp::Keycode::Q => {
+                    state.arrow_up_t = 0.001;
+                    let floor = (state.floor + NUM_FLOORS - 1) % NUM_FLOORS;
+                    change_floor(state, floor);
+                }
+                sapp::Keycode::E => {
+                    state.arrow_down_t = 0.001;
+                    let floor = (state.floor + 1) % NUM_FLOORS;
+                    change_floor(state, floor);
+                }
+                sapp::Keycode::Up => {
+                    state.holding[0] = true;
+                    state.recentre = true;
+                    state.circle_cursor_hidden = true;
+                }
+                sapp::Keycode::Down => {
+                    state.holding[1] = true;
+                    state.recentre = true;
+                    state.circle_cursor_hidden = true;
+                }
+                sapp::Keycode::Left => {
+                    state.holding[2] = true;
+                    state.recentre = true;
+                    state.circle_cursor_hidden = true;
+                }
+                sapp::Keycode::Right => {
+                    state.holding[3] = true;
+                    state.recentre = true;
+                    state.circle_cursor_hidden = true;
+                }
+                sapp::Keycode::Equal | sapp::Keycode::KpAdd => {
+                    state.zoom_target = (state.zoom_target + 0.12).min(ZOOM_MAX);
+                    state.recentre = false;
+                    capture_zoom_anchor(state);
+                }
+                sapp::Keycode::Minus | sapp::Keycode::KpSubtract => {
+                    state.zoom_target = (state.zoom_target - 0.12).max(ZOOM_MIN);
+                    state.recentre = false;
+                    capture_zoom_anchor(state);
+                }
+                _ => {}
             }
-            sapp::Keycode::E => {
-                state.arrow_down_t = 0.001;
-                let floor = (state.floor + 1) % NUM_FLOORS;
-                change_floor(state, floor);
-            }
-            sapp::Keycode::Up => {
-                state.holding[0] = true;
-                state.recentre = true;
-                state.circle_cursor_hidden = true;
-            }
-            sapp::Keycode::Down => {
-                state.holding[1] = true;
-                state.recentre = true;
-                state.circle_cursor_hidden = true;
-            }
-            sapp::Keycode::Left => {
-                state.holding[2] = true;
-                state.recentre = true;
-                state.circle_cursor_hidden = true;
-            }
-            sapp::Keycode::Right => {
-                state.holding[3] = true;
-                state.recentre = true;
-                state.circle_cursor_hidden = true;
-            }
-            sapp::Keycode::Equal | sapp::Keycode::KpAdd => {
-                state.zoom_target = (state.zoom_target + 0.12).min(ZOOM_MAX);
-                state.recentre = false;
-                capture_zoom_anchor(state);
-            }
-            sapp::Keycode::Minus | sapp::Keycode::KpSubtract => {
-                state.zoom_target = (state.zoom_target - 0.12).max(ZOOM_MIN);
-                state.recentre = false;
-                capture_zoom_anchor(state);
-            }
-            _ => {}
-        },
+        }
         sapp::EventType::KeyUp => match event.key_code {
             sapp::Keycode::Up => state.holding[0] = false,
             sapp::Keycode::Down => state.holding[1] = false,
@@ -2398,6 +2937,204 @@ fn draw_floor(
     sgl::scissor_rectf(0.0, 0.0, width, height, true);
 }
 
+// A rotated box in reference space, for edit-mode obstacles/doors.
+#[allow(clippy::too_many_arguments)]
+fn draw_box_rot(
+    frame: (f32, f32, f32, f32),
+    ox: f32,
+    oy: f32,
+    iw: f32,
+    ih: f32,
+    center: (f32, f32),
+    size: (f32, f32),
+    rot: f32,
+    color: (f32, f32, f32),
+    alpha: f32,
+    fill: bool,
+) {
+    let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, center.0, center.1);
+    let w = size.0 * iw / frame.2;
+    let h = size.1 * ih / frame.3;
+    sgl::push_matrix();
+    sgl::translate(rx, ry, 0.0);
+    sgl::rotate(rot, 0.0, 0.0, 1.0);
+    sgl::c4f(color.0, color.1, color.2, alpha);
+    if fill {
+        rect(-w * 0.5, -h * 0.5, w, h);
+    } else {
+        outline_rect(-w * 0.5, -h * 0.5, w, h);
+    }
+    sgl::pop_matrix();
+}
+
+// Edit-mode overlay: vector objects for the viewed floor plus the tool bar.
+fn draw_editor(
+    state: &State,
+    width: f32,
+    height: f32,
+    left: f32,
+    right: f32,
+    top: f32,
+    bottom: f32,
+) {
+    let font = state.font.as_ref().unwrap();
+    let frame = floor_frame(state.floor, &state.floor_has_art);
+    let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
+    let floor = &state.scene.floors[state.floor];
+
+    #[allow(non_snake_case)]
+    let (MAP_X, MAP_Y, MAP_W, MAP_H, _, _, _) = state.layout.vars();
+    let clip_x = ((MAP_X - left) / (right - left) * width).clamp(0.0, width);
+    let clip_y = ((MAP_Y - top) / (bottom - top) * height).clamp(0.0, height);
+    let clip_right = ((MAP_X + MAP_W - left) / (right - left) * width).clamp(0.0, width);
+    let clip_bottom = ((MAP_Y + MAP_H - top) / (bottom - top) * height).clamp(0.0, height);
+    sgl::scissor_rectf(
+        clip_x,
+        clip_y,
+        (clip_right - clip_x).max(0.0),
+        (clip_bottom - clip_y).max(0.0),
+        true,
+    );
+
+    for w in &floor.walls {
+        let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, w.rect.x, w.rect.y);
+        let (rx1, ry1) = src_to_ref(
+            frame,
+            ox,
+            oy,
+            iw,
+            ih,
+            w.rect.x + w.rect.w,
+            w.rect.y + w.rect.h,
+        );
+        let c = if w.mode == BoolOp::Add {
+            (0.55, 0.70, 0.55)
+        } else {
+            (0.85, 0.35, 0.35)
+        };
+        sgl::c4f(c.0, c.1, c.2, 0.9);
+        outline_rect(rx, ry, rx1 - rx, ry1 - ry);
+    }
+    for o in &floor.obstacles {
+        draw_box_rot(
+            frame,
+            ox,
+            oy,
+            iw,
+            ih,
+            o.center,
+            o.size,
+            o.rot,
+            (0.62, 0.62, 0.62),
+            0.35,
+            true,
+        );
+    }
+    for d in &floor.doors {
+        let c = match d.kind {
+            DoorKind::Locked => (0.85, 0.35, 0.45),
+            DoorKind::Unlocked => (0.35, 0.75, 0.85),
+            DoorKind::Unknown => (0.65, 0.65, 0.75),
+        };
+        draw_box_rot(
+            frame, ox, oy, iw, ih, d.center, d.size, d.rot, c, 0.85, true,
+        );
+    }
+    for s in &floor.stairs {
+        let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, s.pos.0, s.pos.1);
+        sgl::c4f(0.95, 0.85, 0.35, 1.0);
+        outline_circle(rx, ry, 11.0);
+        filled_circle(rx, ry, 3.0);
+    }
+    for link in &floor.links {
+        if let Link::Stair {
+            a_floor,
+            a_id,
+            b_floor,
+            b_id,
+        } = *link
+        {
+            if a_floor as usize == state.floor {
+                let a = floor.stairs.iter().find(|s| s.id == a_id);
+                let b = state.scene.floors[b_floor as usize]
+                    .stairs
+                    .iter()
+                    .find(|s| s.id == b_id);
+                if let (Some(a), Some(b)) = (a, b) {
+                    let (ax, ay) = src_to_ref(frame, ox, oy, iw, ih, a.pos.0, a.pos.1);
+                    let (bx, by) = src_to_ref(frame, ox, oy, iw, ih, b.pos.0, b.pos.1);
+                    sgl::c4f(0.95, 0.85, 0.35, 0.6);
+                    line(ax, ay, bx, by);
+                }
+            }
+        }
+    }
+    for it in &floor.items {
+        let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, it.pos.0, it.pos.1);
+        sgl::c4f(C_ITEM.0, C_ITEM.1, C_ITEM.2, 1.0);
+        filled_circle(rx, ry, ITEM_RADIUS);
+    }
+    if let (Some(a), Some(b)) = (state.drag_from, state.drag_to) {
+        if state.tool.is_rect() {
+            let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, a.0.min(b.0), a.1.min(b.1));
+            let (rx1, ry1) = src_to_ref(frame, ox, oy, iw, ih, a.0.max(b.0), a.1.max(b.1));
+            let c = state.tool.color();
+            sgl::c4f(c.0, c.1, c.2, 0.9);
+            outline_rect(rx, ry, rx1 - rx, ry1 - ry);
+        }
+    }
+    sgl::scissor_rectf(0.0, 0.0, width, height, true);
+
+    for (i, tool) in Tool::ALL.iter().enumerate() {
+        let (bx, by, bw, bh) = editor_button_rect(i);
+        let active = *tool == state.tool;
+        sgl::c4f(0.08, 0.08, 0.10, 0.9);
+        rect(bx, by, bw, bh);
+        let c = tool.color();
+        sgl::c4f(c.0, c.1, c.2, if active { 1.0 } else { 0.55 });
+        outline_rect(bx, by, bw, bh);
+        draw_ui_text(
+            font,
+            tool.label(),
+            bx + 7.0,
+            by + 12.0,
+            if active { C_HILITE } else { C_LABEL },
+            false,
+            0.8,
+        );
+    }
+
+    if state.status_t > 0.0 {
+        draw_ui_text(
+            font,
+            &state.status,
+            12.0,
+            EDITOR_BAR_Y + EDITOR_BAR_H + 12.0,
+            C_HILITE,
+            false,
+            1.0,
+        );
+    }
+    let counts = format!(
+        "walls {}  obstacles {}  doors {}  stairs {}  items {}   [Tab] exit  [Z] undo  [X] clear  [S] save  [L] load  [Space] snap:{}",
+        floor.walls.len(),
+        floor.obstacles.len(),
+        floor.doors.len(),
+        floor.stairs.len(),
+        floor.items.len(),
+        if state.snap { "on" } else { "off" }
+    );
+    draw_ui_text(
+        font,
+        &counts,
+        12.0,
+        EDITOR_BAR_Y + EDITOR_BAR_H + 36.0,
+        C_LABEL,
+        false,
+        0.85,
+    );
+}
+
 // Fade the map window out/in around a floor change.
 fn draw_floor_fade(
     state: &State,
@@ -2775,6 +3512,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     let stick_mag = (state.stick_vec.0.powi(2) + state.stick_vec.1.powi(2)).sqrt();
     let has_input = stick_mag > 0.0 || state.holding.iter().any(|&held| held);
     let following = (has_input || state.recentre)
+        && !state.edit
         && state.floor == state.player_floor
         && state.zoom_anchor.is_none()
         && !state.dragging
@@ -2873,6 +3611,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
         }
     }
     state.fps_elapsed += delta;
+    state.status_t = (state.status_t - delta).max(0.0);
     state.fps_frames += 1;
     if state.fps_elapsed >= 0.25 {
         state.fps = state.fps_frames as f32 / state.fps_elapsed.max(0.0001);
@@ -2896,6 +3635,9 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     draw_floor_selector(state);
     draw_zoom_selector(state);
     draw_floor(state, width, height, left, right, top, bottom);
+    if state.edit {
+        draw_editor(state, width, height, left, right, top, bottom);
+    }
     draw_floor_fade(state, width, height, left, right, top, bottom);
     draw_map_frame(&state.layout);
     draw_map_labels(state.font.as_ref().unwrap(), &state.layout);
@@ -2924,6 +3666,26 @@ extern "C" fn cleanup(user_data: *mut ffi::c_void) {
 }
 
 fn main() {
+    // Load a saved scene if there is one; otherwise start from the embedded
+    // raster fallback. Vector floors are re-baked, legacy floors keep the
+    // compiled-in Krita/Python output.
+    let scene = load_scene_bytes()
+        .and_then(|b| Scene::from_bytes(&b))
+        .unwrap_or_default();
+    let next_id = max_id(&scene) + 1;
+    let baked = bake(&scene, embedded_bytes());
+    let BakedBytes {
+        overlays,
+        nav,
+        nav_open,
+        solid,
+        stairs,
+        items,
+    } = baked;
+    let nav = std::array::from_fn(|i| Nav::from_bytes(&nav[i], FLOOR_FRAMES[i]));
+    let nav_open = std::array::from_fn(|i| Nav::from_bytes(&nav_open[i], FLOOR_FRAMES[i]));
+    let solid = std::array::from_fn(|i| Solid::from_bytes(&solid[i], FLOOR_FRAMES[i]));
+
     let state = Box::new(State {
         layout: Layout::compute(1920.0, 1080.0),
         zoom_anchor: None,
@@ -2931,16 +3693,27 @@ fn main() {
         pipeline: sgl::Pipeline::new(),
         overlay_views: std::array::from_fn(|_| sg::View::new()),
         overlay_sampler: sg::Sampler::new(),
+        overlay_data: overlays,
         font: None,
-        nav: std::array::from_fn(|i| Nav::from_bytes(NAV_BINS[i], FLOOR_FRAMES[i])),
-        nav_open: std::array::from_fn(|i| Nav::from_bytes(NAV_OPEN_BINS[i], FLOOR_FRAMES[i])),
-        solid: std::array::from_fn(|i| Solid::from_bytes(SOLID_BINS[i], FLOOR_FRAMES[i])),
-        stairs: parse_stairs(STAIRS_BIN),
-        items: parse_items(ITEMS_BIN),
+        nav,
+        nav_open,
+        solid,
+        stairs: parse_stairs(&stairs),
+        items: parse_items(&items),
         astar: Astar::new(),
         // Floors without traced art get procedural walls; Floor 1 has art.
         extra_floors: [floor_shapes(0), floor_shapes(1), Vec::new()],
         floor_has_art: [false; NUM_FLOORS],
+        scene,
+        edit: false,
+        tool: Tool::WallAdd,
+        snap: true,
+        drag_from: None,
+        drag_to: None,
+        undo: Vec::new(),
+        next_id,
+        status: String::new(),
+        status_t: 0.0,
         reachable: std::array::from_fn(|_| Vec::new()),
         path_red: Vec::new(),
         target: None,
