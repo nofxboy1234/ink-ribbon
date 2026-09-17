@@ -30,6 +30,7 @@ CATEGORIES = {
     "locked_doors",
     "unlocked_doors",
     "unknown_doors",
+    "stairs",
 }
 
 
@@ -87,15 +88,27 @@ def has_floor(floor: int, kra: Path = SOURCE) -> bool:
     return f"floor_{floor}_walls" in names or f"floor{floor}_walls" in names
 
 
-def _layer_file(z: zipfile.ZipFile, layer_name: str) -> str:
+def _layer_info(z: zipfile.ZipFile, layer_name: str) -> tuple[str, int, int]:
+    """Return (filename, offset_x, offset_y) for a named layer.
+
+    Tile coordinates in the layer stream are relative to the layer's own origin;
+    Krita stores the layer's canvas placement as the x/y offset on the tag, so a
+    moved layer (e.g. dragged with the Move tool) must be shifted by it.
+    """
     maindoc = z.read("maindoc.xml").decode("utf-8", "replace")
-    for pat in (
-        r'<layer\b[^>]*filename="([^"]+)"[^>]*name="' + re.escape(layer_name) + r'"',
-        r'<layer\b[^>]*name="' + re.escape(layer_name) + r'"[^>]*filename="([^"]+)"',
-    ):
-        m = re.search(pat, maindoc)
-        if m:
-            return m.group(1)
+    for m in re.finditer(r"<layer\b[^>]*>", maindoc):
+        tag = m.group(0)
+        name = re.search(r'\bname="([^"]+)"', tag)
+        if name is None or name.group(1) != layer_name:
+            continue
+        filename = re.search(r'\bfilename="([^"]+)"', tag)
+        offset_x = re.search(r'\bx="(-?\d+)"', tag)
+        offset_y = re.search(r'\by="(-?\d+)"', tag)
+        return (
+            filename.group(1) if filename else "",
+            int(offset_x.group(1)) if offset_x else 0,
+            int(offset_y.group(1)) if offset_y else 0,
+        )
     raise KeyError(f"layer {layer_name!r} not found")
 
 
@@ -106,7 +119,8 @@ def read_layer_crop(
     bx, by, br, bb = box
     cw, ch = br - bx, bb - by
     with zipfile.ZipFile(kra) as z:
-        raw = z.read(f"Unnamed/layers/{_layer_file(z, layer_name)}")
+        filename, offset_x, offset_y = _layer_info(z, layer_name)
+        raw = z.read(f"Unnamed/layers/{filename}")
 
     header = re.match(
         rb"VERSION 2\nTILEWIDTH (\d+)\nTILEHEIGHT (\d+)\nPIXELSIZE (\d+)\nDATA (\d+)\n",
@@ -124,7 +138,10 @@ def read_layer_crop(
     for _ in range(count):
         end = raw.index(b"\n", pos)
         tx, ty, comp, size = raw[pos:end].decode().split(",")
-        tx, ty, size = int(tx), int(ty), int(size)
+        # Tile coordinates are layer-local; place them on the canvas.
+        tx = int(tx) + offset_x
+        ty = int(ty) + offset_y
+        size = int(size)
         pos = end + 1
         blob = raw[pos : pos + size]
         pos += size

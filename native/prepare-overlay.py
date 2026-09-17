@@ -7,13 +7,15 @@ texture, recolouring each to the reference map palette (near-monochrome, low
 contrast):
 
     walls            #5c6060
+    stairs           #787e7e
     obstacles        #3a3a3a
     locked_doors     #a04457
     unknown_doors    #6a6a6a
     unlocked_doors   #4ea0aa
 
 Each layer is a single-category alpha mask, so the source colours are ignored
-and only the alpha channel is used.
+and only the alpha channel is used. `stairs` is texture only and is never read
+by the navigation/collision bake, so it stays walkable.
 
 Output: `native/assets/floor-N-overlay.rgba` for every floor (blank until traced).
 """
@@ -36,6 +38,8 @@ FLOORS = {
 WIDTH = 2048
 
 LAYERS = [
+    # Texture only; deliberately excluded from prepare-nav.py so stairs are walkable.
+    ("stairs", (120, 126, 126)),
     ("walls", (92, 96, 96)),
     ("obstacles", (58, 58, 58)),
     ("locked_doors", (160, 68, 87)),
