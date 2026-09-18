@@ -410,17 +410,18 @@ fn parse_items(bytes: &[u8]) -> Vec<Item> {
     let mut items = Vec::with_capacity(count);
     let mut p = 4;
     for _ in 0..count {
-        if p + 16 > bytes.len() {
+        if p + 20 > bytes.len() {
             break;
         }
         let u32_at =
             |o: usize| u32::from_le_bytes([bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]]);
         let f32_at =
             |o: usize| f32::from_le_bytes([bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]]);
-        let floor = u32_at(p) as usize;
-        let pos = (f32_at(p + 4), f32_at(p + 8));
-        let name_len = u32_at(p + 12) as usize;
-        p += 16;
+        // id (unused at runtime) then floor, position and name.
+        let floor = u32_at(p + 4) as usize;
+        let pos = (f32_at(p + 8), f32_at(p + 12));
+        let name_len = u32_at(p + 16) as usize;
+        p += 20;
         if p + name_len > bytes.len() || floor >= NUM_FLOORS {
             break;
         }
@@ -693,6 +694,7 @@ enum DragMode {
 enum PendingLink {
     Stair(usize, u32),
     Item(usize, u32),
+    Door(usize, u32),
 }
 
 // A copied editor object, pasted with a fresh id.
@@ -783,6 +785,13 @@ struct State {
     next_id: u32,
     status: String,
     status_t: f32,
+    // --- Player progress, kept out of the authored scene ---
+    collected: Vec<u32>,         // item ids picked up
+    revealed: Vec<(usize, u32)>, // (floor, door id) that revealed
+    unlocked: Vec<(usize, u32)>, // (floor, door id) unlocked with a key
+    inventory: Vec<ItemDef>,
+    inventory_open: bool,
+    inventory_selected: usize,
     // Reachable component per floor, computed from where the player is standing.
     reachable: [Vec<u8>; NUM_FLOORS],
     path_red: Vec<(f32, f32)>,
@@ -952,15 +961,17 @@ fn change_floor(state: &mut State, floor: usize) {
     if floor < NUM_FLOORS && floor != state.floor && state.pending_floor.is_none() {
         state.pending_floor = Some(floor);
         state.transition_t = 0.0;
-        // Selection indices and link endpoints are floor-local.
+        // Selection indices are floor-local, but a pending link stores its own
+        // floor, so it survives a floor change (needed to link stairs across
+        // floors).
         state.selection.clear();
-        state.pending_link = None;
         state.drag_mode = DragMode::None;
     }
 }
 
 fn take_stairs(state: &mut State, to_floor: usize, to_pos: (f32, f32)) {
-    if to_floor >= NUM_FLOORS || state.pending_floor.is_some() {
+    // Stair links only ever join different floors.
+    if to_floor >= NUM_FLOORS || to_floor == state.player_floor || state.pending_floor.is_some() {
         return;
     }
     state.player_floor = to_floor;
@@ -1302,7 +1313,13 @@ fn update_player(state: &mut State, delta: f32) {
         }
     }
 
-    // Taking a stair X wins over anything else this frame.
+    // Reveal nearby unknown doors and pick up items, then take stairs.
+    let mut dirty = false;
+    dirty |= reveal_doors(state);
+    dirty |= pickup_items(state);
+    if dirty {
+        rebuild_assets(state);
+    }
     check_stairs(state);
 }
 
@@ -1374,6 +1391,8 @@ fn set_edit(state: &mut State, on: bool) {
     state.drag_from = None;
     state.drag_to = None;
     state.recentre = false;
+    // Editing bakes the authored scene; playing bakes the progress overrides.
+    rebuild_assets(state);
     set_status(state, if on { "EDIT MODE" } else { "PLAY MODE" });
 }
 
@@ -1414,9 +1433,491 @@ fn max_id(scene: &Scene) -> u32 {
     max
 }
 
+// One "grid" for gameplay ranges: the 32px background grid.
+const GRID_UNIT: f32 = 32.0;
+const PICKUP_RADIUS: f32 = 16.0; // half a grid
+const UNLOCK_RADIUS: f32 = 16.0; // half a grid
+
+fn is_collected(state: &State, id: u32) -> bool {
+    state.collected.contains(&id)
+}
+
+fn is_revealed(state: &State, floor: usize, id: u32) -> bool {
+    state.revealed.contains(&(floor, id))
+}
+
+fn is_unlocked(state: &State, floor: usize, id: u32) -> bool {
+    state.unlocked.contains(&(floor, id))
+}
+
+// The door kind after applying player-progress overrides.
+fn effective_door_kind(state: &State, floor: usize, id: u32) -> Option<DoorKind> {
+    let door = state.scene.floors[floor]
+        .doors
+        .iter()
+        .find(|d| d.id == id)?;
+    Some(if is_unlocked(state, floor, id) {
+        DoorKind::Unlocked
+    } else if is_revealed(state, floor, id) {
+        door.reveals_as
+    } else {
+        door.kind
+    })
+}
+
+// A clone of the authored scene with reveals/unlocks/pickups applied. Baking
+// this keeps gameplay progress out of the saved scene.
+fn effective_scene(state: &State) -> Scene {
+    let mut scene = state.scene.clone();
+    for (fi, floor) in scene.floors.iter_mut().enumerate() {
+        for d in floor.doors.iter_mut() {
+            if is_unlocked(state, fi, d.id) {
+                d.kind = DoorKind::Unlocked;
+            } else if is_revealed(state, fi, d.id) {
+                d.kind = d.reveals_as;
+            }
+        }
+        floor.items.retain(|it| !is_collected(state, it.id));
+    }
+    scene
+}
+
+// True when any collected key is linked to this door.
+fn door_has_inventory_key(state: &State, floor: usize, door_id: u32) -> bool {
+    state
+        .scene
+        .floors
+        .iter()
+        .flat_map(|f| f.links.iter())
+        .any(|l| {
+            matches!(l, Link::KeyDoor { item_id, door_floor, door_id: did, .. }
+                if *door_floor as usize == floor
+                    && *did == door_id
+                    && state.inventory.iter().any(|it| it.id == *item_id))
+        })
+}
+
+// Drop a key once every door it is linked to is Unlocked (keys with no links
+// are kept).
+fn prune_satisfied_keys(state: &mut State) {
+    let mut remove: Vec<u32> = Vec::new();
+    for item in &state.inventory {
+        let mut linked = 0;
+        let mut all_unlocked = true;
+        for floor in 0..NUM_FLOORS {
+            for l in &state.scene.floors[floor].links {
+                if let Link::KeyDoor {
+                    item_id,
+                    door_floor,
+                    door_id,
+                    ..
+                } = *l
+                {
+                    if item_id != item.id {
+                        continue;
+                    }
+                    linked += 1;
+                    if effective_door_kind(state, door_floor as usize, door_id)
+                        != Some(DoorKind::Unlocked)
+                    {
+                        all_unlocked = false;
+                    }
+                }
+            }
+        }
+        if linked > 0 && all_unlocked {
+            remove.push(item.id);
+        }
+    }
+    state.inventory.retain(|it| !remove.contains(&it.id));
+    if state.inventory_selected >= state.inventory.len() {
+        state.inventory_selected = state.inventory.len().saturating_sub(1);
+    }
+}
+
+// Reveal Unknown doors the player is standing near. Returns true if anything
+// changed (caller re-bakes once).
+fn reveal_doors(state: &mut State) -> bool {
+    let floor = state.player_floor;
+    #[allow(clippy::type_complexity)]
+    let pending: Vec<(u32, (f32, f32), (f32, f32), f32)> = state.scene.floors[floor]
+        .doors
+        .iter()
+        .filter(|d| d.kind == DoorKind::Unknown && !is_revealed(state, floor, d.id))
+        .filter(|d| dist_to_box(state.player, d.center, d.size, d.rot) <= GRID_UNIT)
+        .map(|d| (d.id, d.center, d.size, d.rot))
+        .collect();
+    let changed = !pending.is_empty();
+    for (id, _, _, _) in pending {
+        state.revealed.push((floor, id));
+    }
+    if changed {
+        // A reveal to Unlocked can complete a key's doors.
+        prune_satisfied_keys(state);
+        set_status(state, "a door came into view");
+    }
+    changed
+}
+
+// Collect key items the player touches.
+fn pickup_items(state: &mut State) -> bool {
+    let floor = state.player_floor;
+    let near: Vec<ItemDef> = state.scene.floors[floor]
+        .items
+        .iter()
+        .filter(|it| !is_collected(state, it.id))
+        .filter(|it| {
+            ((state.player.0 - it.pos.0).powi(2) + (state.player.1 - it.pos.1).powi(2)).sqrt()
+                <= PICKUP_RADIUS
+        })
+        .cloned()
+        .collect();
+    let changed = !near.is_empty();
+    for it in near {
+        set_status(state, format!("picked up {}", it.name));
+        state.collected.push(it.id);
+        state.inventory.push(it);
+    }
+    changed
+}
+
+// Space near a locked door: unlock it if a collected key is linked to it.
+fn try_unlock(state: &mut State) {
+    let floor = state.player_floor;
+    let mut best: Option<(f32, u32)> = None;
+    for d in &state.scene.floors[floor].doors {
+        if effective_door_kind(state, floor, d.id) != Some(DoorKind::Locked) {
+            continue;
+        }
+        let dist = dist_to_box(state.player, d.center, d.size, d.rot);
+        if dist > UNLOCK_RADIUS || !door_has_inventory_key(state, floor, d.id) {
+            continue;
+        }
+        if best.is_none_or(|(bd, _)| dist < bd) {
+            best = Some((dist, d.id));
+        }
+    }
+    match best {
+        Some((_, id)) => {
+            state.unlocked.push((floor, id));
+            prune_satisfied_keys(state);
+            rebuild_assets(state);
+            set_status(state, "unlocked");
+        }
+        None => {
+            // A nearby locked door without the key, or nothing in range.
+            let near_locked = state.scene.floors[floor].doors.iter().any(|d| {
+                effective_door_kind(state, floor, d.id) == Some(DoorKind::Locked)
+                    && dist_to_box(state.player, d.center, d.size, d.rot) <= UNLOCK_RADIUS
+            });
+            set_status(
+                state,
+                if near_locked {
+                    "no key for this door"
+                } else {
+                    "nothing to unlock"
+                },
+            );
+        }
+    }
+}
+
+// Centre of a nearby locked door the player could unlock, for the HUD prompt.
+fn nearby_unlockable(state: &State) -> Option<(f32, f32)> {
+    let floor = state.player_floor;
+    state.scene.floors[floor]
+        .doors
+        .iter()
+        .filter(|d| effective_door_kind(state, floor, d.id) == Some(DoorKind::Locked))
+        .filter(|d| dist_to_box(state.player, d.center, d.size, d.rot) <= UNLOCK_RADIUS)
+        .filter(|d| door_has_inventory_key(state, floor, d.id))
+        .map(|d| d.center)
+        .next()
+}
+
+// --- Inventory HUD ---------------------------------------------------------
+
+const INV_COLS: usize = 4;
+const INV_ROWS: usize = 4;
+const INV_SLOT: f32 = 56.0;
+const INV_GAP: f32 = 8.0;
+const INV_DETAIL_H: f32 = 56.0;
+
+fn inventory_panel(l: &Layout) -> (f32, f32, f32, f32) {
+    let w = INV_COLS as f32 * INV_SLOT + (INV_COLS as f32 + 1.0) * INV_GAP;
+    let grid_h = INV_ROWS as f32 * INV_SLOT + (INV_ROWS as f32 + 1.0) * INV_GAP;
+    let h = grid_h + INV_DETAIL_H + INV_GAP;
+    (l.ref_w * 0.5 - w * 0.5, l.ref_h * 0.5 - h * 0.5, w, h)
+}
+
+fn inventory_slot_rect(l: &Layout, index: usize) -> (f32, f32, f32, f32) {
+    let (px, py, _, _) = inventory_panel(l);
+    let col = index % INV_COLS;
+    let row = index / INV_COLS;
+    (
+        px + INV_GAP + col as f32 * (INV_SLOT + INV_GAP),
+        py + INV_GAP + row as f32 * (INV_SLOT + INV_GAP),
+        INV_SLOT,
+        INV_SLOT,
+    )
+}
+
+fn inventory_detail_rect(l: &Layout) -> (f32, f32, f32, f32) {
+    let (px, py, pw, ph) = inventory_panel(l);
+    let y = py + ph - INV_GAP - INV_DETAIL_H;
+    (px + INV_GAP, y, pw - INV_GAP * 2.0, INV_DETAIL_H)
+}
+
+fn inventory_hit(state: &State, x: f32, y: f32) -> Option<usize> {
+    if !state.inventory_open {
+        return None;
+    }
+    for i in 0..INV_COLS * INV_ROWS {
+        let (sx, sy, sw, sh) = inventory_slot_rect(&state.layout, i);
+        if (sx..sx + sw).contains(&x) && (sy..sy + sh).contains(&y) {
+            return Some(i);
+        }
+    }
+    None
+}
+
+fn nav_inventory(state: &mut State, delta: i32) {
+    let n = state.inventory.len();
+    if n == 0 {
+        state.inventory_selected = 0;
+        return;
+    }
+    let cur = state.inventory_selected as i32;
+    state.inventory_selected = (cur + delta).clamp(0, n as i32 - 1) as usize;
+}
+
+fn draw_inventory(state: &State, font: &Font) {
+    if !state.inventory_open {
+        return;
+    }
+    let l = &state.layout;
+    let (px, py, pw, ph) = inventory_panel(l);
+    sgl::c4f(0.05, 0.05, 0.07, 0.94);
+    rect(px, py, pw, ph);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.8);
+    outline_rect(px, py, pw, ph);
+    draw_ui_text(
+        font,
+        "INVENTORY",
+        px + 12.0,
+        py - 26.0,
+        C_HILITE,
+        false,
+        1.0,
+    );
+
+    for i in 0..INV_COLS * INV_ROWS {
+        let (sx, sy, sw, sh) = inventory_slot_rect(l, i);
+        sgl::c4f(0.10, 0.10, 0.13, 0.9);
+        rect(sx, sy, sw, sh);
+        let selected = i == state.inventory_selected && !state.inventory.is_empty();
+        if selected {
+            sgl::c4f(1.0, 1.0, 1.0, 1.0);
+        } else {
+            sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.5);
+        }
+        outline_rect(sx, sy, sw, sh);
+        if state.inventory.get(i).is_some() {
+            sgl::c4f(C_ITEM.0, C_ITEM.1, C_ITEM.2, 1.0);
+            filled_circle(sx + sw * 0.5, sy + sh * 0.5, 15.0);
+        }
+    }
+
+    let (dx, dy, dw, dh) = inventory_detail_rect(l);
+    sgl::c4f(0.08, 0.08, 0.11, 0.95);
+    rect(dx, dy, dw, dh);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.6);
+    outline_rect(dx, dy, dw, dh);
+    match state.inventory.get(state.inventory_selected) {
+        Some(item) => {
+            sgl::c4f(C_ITEM.0, C_ITEM.1, C_ITEM.2, 1.0);
+            filled_circle(dx + 30.0, dy + dh * 0.5, 18.0);
+            draw_ui_text(
+                font,
+                &item.name,
+                dx + 60.0,
+                dy + dh * 0.5 - 10.0,
+                C_HILITE,
+                false,
+                1.0,
+            );
+        }
+        None => draw_ui_text(
+            font,
+            "(no items)",
+            dx + 16.0,
+            dy + dh * 0.5 - 10.0,
+            C_LABEL,
+            false,
+            1.0,
+        ),
+    }
+}
+
+// --- Door properties popup (editor) ---------------------------------------
+
+#[derive(Clone, Copy)]
+enum DoorPopupHit {
+    Kind(DoorKind),
+    Reveals(DoorKind),
+}
+
+fn selected_door_index(state: &State) -> Option<usize> {
+    if let Some(Selection::Door(i)) = primary_selection(state) {
+        if state.scene.floors[state.floor].doors.get(i).is_some() {
+            return Some(i);
+        }
+    }
+    None
+}
+
+#[allow(clippy::type_complexity)]
+fn door_popup_buttons(
+    state: &State,
+) -> Option<(
+    Vec<((f32, f32, f32, f32), DoorPopupHit)>,
+    (f32, f32, f32, f32),
+)> {
+    let i = selected_door_index(state)?;
+    let door = state.scene.floors[state.floor].doors.get(i)?;
+    #[allow(non_snake_case)]
+    let (MAP_X, MAP_Y, _, _, _, _, _) = state.layout.vars();
+    let px = MAP_X + 16.0;
+    let py = MAP_Y + 16.0;
+    let (bw, bh, gap) = (96.0, 32.0, 6.0);
+    let row1 = py + 36.0;
+    let mut buttons = Vec::new();
+    for (n, kind) in [DoorKind::Locked, DoorKind::Unlocked, DoorKind::Unknown]
+        .into_iter()
+        .enumerate()
+    {
+        buttons.push((
+            (px + 8.0 + n as f32 * (bw + gap), row1, bw, bh),
+            DoorPopupHit::Kind(kind),
+        ));
+    }
+    let mut h = 36.0 + bh + 12.0;
+    if door.kind == DoorKind::Unknown {
+        let row2 = row1 + bh + 26.0;
+        for (n, kind) in [DoorKind::Locked, DoorKind::Unlocked]
+            .into_iter()
+            .enumerate()
+        {
+            buttons.push((
+                (px + 8.0 + n as f32 * (bw + gap), row2, bw, bh),
+                DoorPopupHit::Reveals(kind),
+            ));
+        }
+        h = 36.0 + bh + 26.0 + bh + 12.0;
+    }
+    let panel = (px, py, 16.0 + 3.0 * bw + 2.0 * gap, h);
+    Some((buttons, panel))
+}
+
+fn door_popup_hit(state: &State, x: f32, y: f32) -> Option<DoorPopupHit> {
+    let (buttons, panel) = door_popup_buttons(state)?;
+    if !(panel.0..panel.0 + panel.2).contains(&x) || !(panel.1..panel.1 + panel.3).contains(&y) {
+        return None;
+    }
+    buttons
+        .into_iter()
+        .find(|(r, _)| (r.0..r.0 + r.2).contains(&x) && (r.1..r.1 + r.3).contains(&y))
+        .map(|(_, hit)| hit)
+}
+
+fn apply_door_popup(state: &mut State, hit: DoorPopupHit) {
+    let Some(i) = selected_door_index(state) else {
+        return;
+    };
+    push_undo(state);
+    let door = &mut state.scene.floors[state.floor].doors[i];
+    match hit {
+        DoorPopupHit::Kind(kind) => door.kind = kind,
+        DoorPopupHit::Reveals(kind) => door.reveals_as = kind,
+    }
+    rebuild_assets(state);
+    set_status(state, "door updated");
+}
+
+fn draw_door_popup(state: &State, font: &Font) {
+    let Some((buttons, panel)) = door_popup_buttons(state) else {
+        return;
+    };
+    let door = &state.scene.floors[state.floor].doors[selected_door_index(state).unwrap()];
+    sgl::c4f(0.05, 0.05, 0.07, 0.95);
+    rect(panel.0, panel.1, panel.2, panel.3);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.8);
+    outline_rect(panel.0, panel.1, panel.2, panel.3);
+    draw_ui_text(
+        font,
+        &format!("DOOR {}", door.id),
+        panel.0 + 12.0,
+        panel.1 + 10.0,
+        C_HILITE,
+        false,
+        0.95,
+    );
+    let active_kind = |k: DoorKind| door.kind == k;
+    for (r, hit) in &buttons {
+        let (label, active) = match *hit {
+            DoorPopupHit::Kind(k) => (door_kind_label(k), active_kind(k)),
+            DoorPopupHit::Reveals(k) => (door_kind_label(k), door.reveals_as == k),
+        };
+        sgl::c4f(0.10, 0.10, 0.13, 0.95);
+        rect(r.0, r.1, r.2, r.3);
+        if active {
+            sgl::c4f(1.0, 1.0, 1.0, 1.0);
+        } else {
+            sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.6);
+        }
+        outline_rect(r.0, r.1, r.2, r.3);
+        draw_ui_text(
+            font,
+            label,
+            r.0 + 8.0,
+            r.1 + 8.0,
+            if active { C_HILITE } else { C_LABEL },
+            false,
+            0.85,
+        );
+    }
+    if door.kind == DoorKind::Unknown {
+        // Label the reveal row (sits between the two rows).
+        let row2_y = buttons.last().map(|(r, _)| r.1).unwrap_or(panel.1);
+        draw_ui_text(
+            font,
+            "reveals as:",
+            panel.0 + 12.0,
+            row2_y - 22.0,
+            C_LABEL,
+            false,
+            0.85,
+        );
+    }
+}
+
+fn door_kind_label(kind: DoorKind) -> &'static str {
+    match kind {
+        DoorKind::Locked => "LOCKED",
+        DoorKind::Unlocked => "UNLOCKED",
+        DoorKind::Unknown => "UNKNOWN",
+    }
+}
+
 // Re-bake the scene and swap the running map's assets in place.
 fn rebuild_assets(state: &mut State) {
-    let baked = bake(&state.scene);
+    // Editing shows the authored map; playing shows the progress overrides.
+    let scene = if state.edit {
+        state.scene.clone()
+    } else {
+        effective_scene(state)
+    };
+    let baked = bake(&scene);
     let BakedBytes {
         overlays,
         nav,
@@ -1486,6 +1987,7 @@ fn place_rect(state: &mut State, a: (f32, f32), b: (f32, f32)) {
             floor.doors.push(Door {
                 id,
                 kind,
+                reveals_as: DoorKind::Locked,
                 center,
                 size: (w, h),
                 rot: 0.0,
@@ -1894,8 +2396,12 @@ fn select_press(state: &mut State, p: (f32, f32), shift: bool) {
         None => {
             if !shift {
                 state.selection.clear();
+                // Empty space: a left drag pans the map instead of doing nothing.
+                state.drag_mode = DragMode::None;
+                state.dragging = true;
+            } else {
+                state.drag_mode = DragMode::None;
             }
-            state.drag_mode = DragMode::None;
         }
     }
 }
@@ -1946,28 +2452,29 @@ fn connect_press(state: &mut State, p: (f32, f32)) {
     };
     match (state.pending_link, target) {
         (Some(PendingLink::Stair(f, a)), LinkTarget::Stair(b)) => {
-            push_undo(state);
-            state.scene.floors[floor_index].links.push(Link::Stair {
-                a_floor: f as u8,
-                a_id: a,
-                b_floor: floor_index as u8,
-                b_id: b,
-            });
-            state.pending_link = None;
-            rebuild_assets(state);
-            set_status(state, "stairs linked");
+            // A stair link joins two different floors (and never a node to itself).
+            if f == floor_index {
+                state.pending_link = None;
+                set_status(state, "stairs must be on different floors");
+            } else {
+                push_undo(state);
+                state.scene.floors[floor_index].links.push(Link::Stair {
+                    a_floor: f as u8,
+                    a_id: a,
+                    b_floor: floor_index as u8,
+                    b_id: b,
+                });
+                state.pending_link = None;
+                rebuild_assets(state);
+                set_status(state, "stairs linked");
+            }
         }
+        // Key <-> door links work in either click order.
         (Some(PendingLink::Item(f, a)), LinkTarget::Door(d)) => {
-            push_undo(state);
-            state.scene.floors[floor_index].links.push(Link::KeyDoor {
-                item_floor: f as u8,
-                item_id: a,
-                door_floor: floor_index as u8,
-                door_id: d,
-            });
-            state.pending_link = None;
-            rebuild_assets(state);
-            set_status(state, "key -> door linked");
+            link_key_door(state, floor_index, f, a, floor_index, d);
+        }
+        (Some(PendingLink::Door(f, d)), LinkTarget::Item(a)) => {
+            link_key_door(state, floor_index, floor_index, a, f, d);
         }
         (_, LinkTarget::Stair(id)) => {
             state.pending_link = Some(PendingLink::Stair(floor_index, id));
@@ -1977,8 +2484,43 @@ fn connect_press(state: &mut State, p: (f32, f32)) {
             state.pending_link = Some(PendingLink::Item(floor_index, id));
             set_status(state, "item picked - pick a door");
         }
-        (_, LinkTarget::Door(_)) => set_status(state, "pick a key item first"),
+        (_, LinkTarget::Door(id)) => {
+            state.pending_link = Some(PendingLink::Door(floor_index, id));
+            set_status(state, "door picked - pick a key item");
+        }
     }
+}
+
+// Link a key item to a door and re-bake. Floors are stored per endpoint.
+fn link_key_door(
+    state: &mut State,
+    floor_index: usize,
+    item_floor: usize,
+    item_id: u32,
+    door_floor: usize,
+    door_id: u32,
+) {
+    // Ignore an identical link so a key linked to several doors stays clean.
+    let duplicate = state.scene.floors.iter().any(|f| {
+        f.links.iter().any(|l| {
+            matches!(l, Link::KeyDoor { item_id: iid, door_floor: df, door_id: did, .. }
+                if *iid == item_id && *df as usize == door_floor && *did == door_id)
+        })
+    });
+    state.pending_link = None;
+    if duplicate {
+        set_status(state, "already linked");
+        return;
+    }
+    push_undo(state);
+    state.scene.floors[floor_index].links.push(Link::KeyDoor {
+        item_floor: item_floor as u8,
+        item_id,
+        door_floor: door_floor as u8,
+        door_id,
+    });
+    rebuild_assets(state);
+    set_status(state, "key <-> door linked");
 }
 
 fn delete_selection(state: &mut State) {
@@ -2366,6 +2908,15 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             state.circle_cursor_hidden = false;
             state.mouse_in_map = in_map(&state.layout, (mx, my));
             if state.edit {
+                // Panning: middle/right drag anywhere, or a left drag that did
+                // not start on a tool/object (Select on empty space).
+                if state.dragging {
+                    if (mx - state.down_ref.0).abs() > 6.0 || (my - state.down_ref.1).abs() > 6.0 {
+                        state.moved = true;
+                    }
+                    drag_by(state, event.mouse_dx, event.mouse_dy);
+                    return;
+                }
                 match state.drag_mode {
                     DragMode::Create => {
                         let src = ref_to_source(state, (mx, my));
@@ -2400,10 +2951,33 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 state.cursor = clamp_to_map(&state.layout, (x, y));
             }
             if state.edit {
+                state.down_ref = (x, y);
+                state.moved = false;
+                // Middle/right button pans the map.
+                if event.mouse_button != sapp::Mousebutton::Left {
+                    state.dragging = true;
+                    return;
+                }
                 if let Some(i) = editor_toolbar_hit(x, y) {
                     state.tool = Tool::ALL[i];
                     state.drag_mode = DragMode::None;
                     set_status(state, format!("tool {}", state.tool.label()));
+                    return;
+                }
+                // Door properties popup consumes clicks inside it.
+                if door_popup_buttons(state).is_some() {
+                    if let Some(hit) = door_popup_hit(state, x, y) {
+                        apply_door_popup(state, hit);
+                    }
+                    if door_popup_buttons(state).is_some_and(|(_, panel)| {
+                        (panel.0..panel.0 + panel.2).contains(&x)
+                            && (panel.1..panel.1 + panel.3).contains(&y)
+                    }) {
+                        return;
+                    }
+                }
+                // Floor selector / zoom bar still work while editing.
+                if panel_click(state, x, y) {
                     return;
                 }
                 let src = snap_point(state, ref_to_source(state, (x, y)));
@@ -2420,6 +2994,10 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 }
                 return;
             }
+            if let Some(slot) = inventory_hit(state, x, y) {
+                state.inventory_selected = slot.min(state.inventory.len().saturating_sub(1));
+                return;
+            }
             if panel_click(state, x, y) {
                 state.dragging = false;
             } else {
@@ -2430,6 +3008,10 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
         }
         sapp::EventType::MouseUp => {
             if state.edit {
+                if state.dragging {
+                    state.dragging = false;
+                    return;
+                }
                 match state.drag_mode {
                     DragMode::Create => {
                         if let Some(a) = state.drag_from.take() {
@@ -2729,6 +3311,26 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 }
             }
             match event.key_code {
+                sapp::Keycode::I if !event.key_repeat => {
+                    state.inventory_open = !state.inventory_open;
+                    set_status(
+                        state,
+                        if state.inventory_open {
+                            "inventory open"
+                        } else {
+                            "inventory closed"
+                        },
+                    );
+                }
+                sapp::Keycode::Space if !state.edit && !event.key_repeat => try_unlock(state),
+                sapp::Keycode::Left if state.inventory_open => nav_inventory(state, -1),
+                sapp::Keycode::Right if state.inventory_open => nav_inventory(state, 1),
+                sapp::Keycode::Up if state.inventory_open => {
+                    nav_inventory(state, -(INV_COLS as i32))
+                }
+                sapp::Keycode::Down if state.inventory_open => {
+                    nav_inventory(state, INV_COLS as i32)
+                }
                 sapp::Keycode::F1 if !event.key_repeat => state.debug_mode = !state.debug_mode,
                 sapp::Keycode::G if !event.key_repeat => state.show_grid = !state.show_grid,
                 sapp::Keycode::M if !event.key_repeat => {
@@ -3510,6 +4112,19 @@ fn draw_floor(
             sgl::end();
         }
         draw_player_marker(state, px, py, marker_ref);
+
+        // Unlock prompt for a nearby locked door the player holds a key for.
+        if !state.edit {
+            if let Some(center) = nearby_unlockable(state) {
+                let (hx, hy) = src_to_ref(frame, ox, oy, iw, ih, center.0, center.1);
+                let font = state.font.as_ref().unwrap();
+                let text = "SPACE: unlock";
+                let width = font.text_width(text, 19.5);
+                let tx = (hx - width * 0.5).clamp(MAP_X, MAP_X + MAP_W - width);
+                draw_gradient_rect(tx - 8.0, hy - 34.0, width + 16.0, 26.0, 0.85, 8.0);
+                draw_ui_text(font, text, tx, hy - 30.0, C_HILITE, false, 1.0);
+            }
+        }
     }
 
     // Room names, centred on their position (Floor 1 only).
@@ -3634,6 +4249,23 @@ fn draw_editor(
         draw_box_rot(
             frame, ox, oy, iw, ih, d.center, d.size, d.rot, c, 0.85, true,
         );
+        if let Some(PendingLink::Door(pf, pid)) = state.pending_link {
+            if pf == state.floor && pid == d.id {
+                draw_box_rot(
+                    frame,
+                    ox,
+                    oy,
+                    iw,
+                    ih,
+                    d.center,
+                    (d.size.0 + 16.0, d.size.1 + 16.0),
+                    d.rot,
+                    (1.0, 1.0, 1.0),
+                    1.0,
+                    false,
+                );
+            }
+        }
     }
     for s in &floor.stairs {
         let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, s.pos.0, s.pos.1);
@@ -3780,7 +4412,7 @@ fn draw_editor(
         );
     }
     let counts = format!(
-        "walls {}  obstacles {}  doors {}  stairs {}  items {}  links {}   [Tab] exit  [Z] undo  [X] clear  [S] save  [L] load  [Space] snap:{}  [C] link  [R] rename  [Del] delete  [Shift+click] multi  [Ctrl+C/V] copy/paste",
+        "walls {}  obstacles {}  doors {}  stairs {}  items {}  links {}   [Tab] exit  [Z] undo  [X] clear  [S] save  [L] load  [Space] snap:{}  [C] link  [R] rename  [Del] delete  [Shift+click] multi  [Ctrl+C/V] copy/paste  [right/middle drag] pan",
         floor.walls.len(),
         floor.obstacles.len(),
         floor.doors.len(),
@@ -3810,6 +4442,24 @@ fn draw_editor(
             1.0,
         );
     }
+    if let Some(pending) = state.pending_link {
+        let what = match pending {
+            PendingLink::Stair(..) => "another stair (any floor)",
+            PendingLink::Item(..) => "a door",
+            PendingLink::Door(..) => "a key item",
+        };
+        let text = format!("LINK: pick {what}  (click empty space to cancel)");
+        draw_ui_text(
+            font,
+            &text,
+            12.0,
+            EDITOR_BAR_Y + EDITOR_BAR_H + 84.0,
+            (0.90, 0.65, 0.90),
+            false,
+            0.95,
+        );
+    }
+    draw_door_popup(state, font);
 }
 
 // Fade the map window out/in around a floor change.
@@ -4318,6 +4968,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     draw_floor_fade(state, width, height, left, right, top, bottom);
     draw_map_frame(&state.layout);
     draw_map_labels(state.font.as_ref().unwrap(), &state.layout);
+    draw_inventory(state, state.font.as_ref().unwrap());
     draw_cursor(state, width, height, left, right, top, bottom);
     draw_stick(state);
     draw_debug_overlay(state);
@@ -4392,6 +5043,12 @@ fn main() {
         pending_link: None,
         clipboard: Vec::new(),
         rename: None,
+        collected: Vec::new(),
+        revealed: Vec::new(),
+        unlocked: Vec::new(),
+        inventory: Vec::new(),
+        inventory_open: false,
+        inventory_selected: 0,
         undo: Vec::new(),
         next_id,
         status: String::new(),
@@ -4783,11 +5440,12 @@ mod tests {
         // header count=2, then a floor-2 item and a floor-1 item.
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&2u32.to_le_bytes());
-        for (floor, x, y, name) in [
-            (1u32, 100.0f32, 200.0f32, "ID Wristband (Level 2)"),
-            (2u32, 300.0f32, 400.0f32, "Pantry Key"),
+        for (id, floor, x, y, name) in [
+            (7u32, 1u32, 100.0f32, 200.0f32, "ID Wristband (Level 2)"),
+            (9u32, 2u32, 300.0f32, 400.0f32, "Pantry Key"),
         ] {
             let n = name.as_bytes();
+            bytes.extend_from_slice(&id.to_le_bytes());
             bytes.extend_from_slice(&floor.to_le_bytes());
             bytes.extend_from_slice(&x.to_le_bytes());
             bytes.extend_from_slice(&y.to_le_bytes());

@@ -95,13 +95,13 @@ fn bake_floor(floor: &Floor, index: usize, out: &mut BakedBytes) {
         );
     }
 
-    let (mut locked, mut unlocked, mut unknown) =
-        (Mask::new(w, h), Mask::new(w, h), Mask::new(w, h));
+    // Unknown doors block until revealed, so they join the locked mask; only
+    // Unlocked doors are carved through.
+    let (mut locked, mut unlocked) = (Mask::new(w, h), Mask::new(w, h));
     for d in &floor.doors {
         let target = match d.kind {
-            DoorKind::Locked => &mut locked,
+            DoorKind::Locked | DoorKind::Unknown => &mut locked,
             DoorKind::Unlocked => &mut unlocked,
-            DoorKind::Unknown => &mut unknown,
         };
         target.fill_box(
             (d.center.0 - fx) * sx,
@@ -113,8 +113,8 @@ fn bake_floor(floor: &Floor, index: usize, out: &mut BakedBytes) {
         );
     }
 
-    // Doors are carved through, but only where there is no real geometry.
-    let mut doors = or(&unlocked, &unknown).dilate(DOOR_DILATION_CELLS);
+    // Unlocked doors are carved through, but only where there is no real geometry.
+    let mut doors = unlocked.dilate(DOOR_DILATION_CELLS);
     for y in 0..h {
         for x in 0..w {
             if doors.get(x, y) && (walls.get(x, y) || obstacles.get(x, y) || locked.get(x, y)) {
@@ -155,7 +155,7 @@ fn bake_floor(floor: &Floor, index: usize, out: &mut BakedBytes) {
         );
     }
     for d in &floor.doors {
-        if d.kind == DoorKind::Locked {
+        if matches!(d.kind, DoorKind::Locked | DoorKind::Unknown) {
             solid.fill_box(
                 (d.center.0 - fx) * ssx,
                 (d.center.1 - fy) * ssy,
@@ -324,20 +324,23 @@ fn bake_stairs(scene: &Scene) -> Option<Vec<u8>> {
 }
 
 fn bake_items(scene: &Scene) -> Option<Vec<u8>> {
-    let mut records: Vec<(usize, &str, (f32, f32))> = Vec::new();
+    // (floor, id, name, pos); the id lets the runtime match a collected item to
+    // its KeyDoor links.
+    let mut records: Vec<(usize, u32, &str, (f32, f32))> = Vec::new();
     for (index, floor) in scene.floors.iter().enumerate() {
         for item in &floor.items {
-            records.push((index, item.name.as_str(), item.pos));
+            records.push((index, item.id, item.name.as_str(), item.pos));
         }
     }
     if records.is_empty() {
         return None;
     }
-    records.sort_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+    records.sort_by_key(|r| (r.0, r.1));
     let mut out = Vec::new();
     out.extend_from_slice(&(records.len() as u32).to_le_bytes());
-    for (floor, name, pos) in records {
+    for (floor, id, name, pos) in records {
         let name = name.as_bytes();
+        out.extend_from_slice(&(id).to_le_bytes());
         out.extend_from_slice(&(floor as u32).to_le_bytes());
         out.extend_from_slice(&pos.0.to_le_bytes());
         out.extend_from_slice(&pos.1.to_le_bytes());
@@ -456,7 +459,8 @@ mod tests {
             ]),
             1
         );
-        assert_eq!(baked.items.len(), 4 + 4 + 4 + 4 + 4 + 3);
+        // record: id(4) floor(4) x(4) y(4) name_len(4) + "Key"(3)
+        assert_eq!(baked.items.len(), 4 + 4 + 4 + 4 + 4 + 4 + 3);
         assert_eq!(
             u32::from_le_bytes([
                 baked.items[0],
@@ -473,7 +477,52 @@ mod tests {
                 baked.items[6],
                 baked.items[7]
             ]),
+            5
+        );
+        assert_eq!(
+            u32::from_le_bytes([
+                baked.items[8],
+                baked.items[9],
+                baked.items[10],
+                baked.items[11]
+            ]),
             f1 as u32
+        );
+    }
+
+    #[test]
+    fn unknown_doors_block_until_revealed() {
+        use crate::scene::{Door, DoorKind, FLOOR1_FRAME};
+        let mut scene = Scene::default();
+        let (fx, fy, _, _) = FLOOR1_FRAME;
+        let f1 = crate::scene::FLOOR1_INDEX;
+        scene.floors[f1].doors.push(Door {
+            id: 1,
+            kind: DoorKind::Unknown,
+            reveals_as: DoorKind::Unlocked,
+            center: (fx + 2000.0, fy + 1200.0),
+            size: (80.0, 16.0),
+            rot: 0.0,
+        });
+        let blocked = bake(&scene);
+        let revealed = {
+            let mut s = scene.clone();
+            s.floors[f1].doors[0].kind = DoorKind::Unlocked;
+            bake(&s)
+        };
+
+        let nav = &blocked.nav[f1];
+        let w = u32::from_le_bytes([nav[4], nav[5], nav[6], nav[7]]) as i32;
+        let walkable = |b: &[u8], x: i32, y: i32| {
+            let i = (y * w + x) as usize;
+            (b[12 + (i >> 3)] >> (i & 7)) & 1 == 1
+        };
+        let (cx, cy) = (((2000.0) / 8.0) as i32, ((1200.0) / 8.0) as i32);
+        // Unresolved Unknown blocks; revealed-Unlocked is carved through.
+        assert!(!walkable(nav, cx, cy), "unknown door should block");
+        assert!(
+            walkable(&revealed.nav[f1], cx, cy),
+            "revealed unlocked door should be walkable"
         );
     }
 }

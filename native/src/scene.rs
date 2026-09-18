@@ -39,7 +39,8 @@ pub const FLOOR1_W: f32 = FLOOR_FRAMES[FLOOR1_INDEX].2;
 pub const FLOOR1_H: f32 = FLOOR_FRAMES[FLOOR1_INDEX].3;
 
 const MAGIC: &[u8; 4] = b"IRSC";
-pub const VERSION: u16 = 1;
+/// v1 stored doors without `reveals_as`; v2 adds it. Reading still accepts v1.
+pub const VERSION: u16 = 2;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BoolOp {
@@ -86,6 +87,9 @@ pub struct Box2 {
 pub struct Door {
     pub id: u32,
     pub kind: DoorKind,
+    /// What an `Unknown` door becomes when the player gets close. Ignored for
+    /// doors that are already Locked/Unlocked.
+    pub reveals_as: DoorKind,
     pub center: (f32, f32),
     pub size: (f32, f32),
     pub rot: f32,
@@ -213,6 +217,14 @@ impl Scene {
                         DoorKind::Unknown => 2,
                     },
                 );
+                put_u8(
+                    &mut out,
+                    match d.reveals_as {
+                        DoorKind::Locked => 0,
+                        DoorKind::Unlocked => 1,
+                        DoorKind::Unknown => 2,
+                    },
+                );
                 for v in [d.center.0, d.center.1, d.size.0, d.size.1, d.rot] {
                     put_f32(&mut out, v);
                 }
@@ -315,9 +327,21 @@ impl Scene {
                     2 => DoorKind::Unknown,
                     _ => return None,
                 };
+                // v1 had no reveals_as; default it to Locked.
+                let reveals_as = if version >= 2 {
+                    match c.u8()? {
+                        0 => DoorKind::Locked,
+                        1 => DoorKind::Unlocked,
+                        2 => DoorKind::Unknown,
+                        _ => return None,
+                    }
+                } else {
+                    DoorKind::Locked
+                };
                 floor.doors.push(Door {
                     id,
                     kind,
+                    reveals_as,
                     center: (c.f32()?, c.f32()?),
                     size: (c.f32()?, c.f32()?),
                     rot: c.f32()?,
@@ -459,6 +483,7 @@ mod tests {
         floor.doors.push(Door {
             id: 3,
             kind: DoorKind::Locked,
+            reveals_as: DoorKind::Unlocked,
             center: (2100.0, 4100.0),
             size: (48.0, 12.0),
             rot: 0.0,
@@ -496,5 +521,40 @@ mod tests {
         assert!(Scene::from_bytes(b"nope").is_none());
         let bytes = Scene::default().to_bytes();
         assert!(Scene::from_bytes(&bytes[..bytes.len() - 1]).is_none());
+    }
+
+    #[test]
+    fn v1_scene_defaults_reveals_as_locked() {
+        // Hand-build a version-1 scene with one door (no reveals_as byte).
+        let mut b = Vec::new();
+        b.extend_from_slice(MAGIC);
+        put_u16(&mut b, 1);
+        put_u8(&mut b, NUM_FLOORS as u8);
+        put_u8(&mut b, 0);
+        for (index, &frame) in FLOOR_FRAMES.iter().enumerate() {
+            for v in [frame.0, frame.1, frame.2, frame.3] {
+                put_f32(&mut b, v);
+            }
+            put_u32(&mut b, 0); // walls
+            put_u32(&mut b, 0); // obstacles
+            if index == FLOOR1_INDEX {
+                put_u32(&mut b, 1); // doors
+                put_u32(&mut b, 7); // id
+                put_u8(&mut b, 0); // kind Locked
+                for v in [100.0f32, 200.0, 10.0, 4.0, 0.0] {
+                    put_f32(&mut b, v);
+                }
+            } else {
+                put_u32(&mut b, 0);
+            }
+            put_u32(&mut b, 0); // stairs
+            put_u32(&mut b, 0); // items
+            put_u32(&mut b, 0); // links
+        }
+        let scene = Scene::from_bytes(&b).expect("v1 should parse");
+        assert_eq!(scene.version, 1);
+        let door = scene.floors[FLOOR1_INDEX].doors[0];
+        assert_eq!(door.kind, DoorKind::Locked);
+        assert_eq!(door.reveals_as, DoorKind::Locked);
     }
 }
