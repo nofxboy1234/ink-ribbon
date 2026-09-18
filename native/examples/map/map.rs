@@ -6,6 +6,7 @@ use ink_ribbon_native::scene::{
     BoolOp, Box2, Door, DoorKind, ItemDef, ItemKind, Link, Rect, Scene, StairNode, WallOp,
     FLOOR1_INDEX, FLOOR_FRAMES, NUM_FLOORS,
 };
+use ink_ribbon_native::walls::{wall_edges, EdgeDir, WallEdge};
 use sokol::{app as sapp, gfx as sg, gl as sgl, glue as sglue};
 
 const ZOOM_MIN: f32 = 0.7;
@@ -179,6 +180,12 @@ const C_ITEM: (f32, f32, f32) = (0.54, 0.40, 0.82); // #8a65d1 item markers
 const C_ROUTE: (f32, f32, f32) = (0.63, 0.90, 0.67); // #a0e6aa route green
 const C_FLOOR_YELLOW: (f32, f32, f32) = (0.55, 0.52, 0.14); // selected floor border
 const C_LOCK: (f32, f32, f32) = (0.63, 0.27, 0.34); // #a04457 locked-door red
+
+// Wall faces (from ref/map_ref.png): dim on the up/left sides, bright on the
+// down/right sides. Each is a 4px line drawn inward from the union boundary.
+const C_WALL_DIM: (f32, f32, f32) = (52.0 / 255.0, 57.0 / 255.0, 61.0 / 255.0); // #34393d
+const C_WALL_BRIGHT: (f32, f32, f32) = (79.0 / 255.0, 85.0 / 255.0, 84.0 / 255.0); // #4f5554
+const WALL_LINE_PX: f32 = 4.0;
 
 // Near-black background and faint map backing grid.
 const BACKGROUND: (f32, f32, f32) = (0.047, 0.047, 0.047); // #0c0c0c
@@ -797,6 +804,8 @@ struct State {
     nav: [Nav; NUM_FLOORS],
     nav_open: [Nav; NUM_FLOORS],
     solid: [Solid; NUM_FLOORS],
+    wall_edges: [Vec<WallEdge>; NUM_FLOORS],
+    wall_edges_dirty: bool,
     stairs: Vec<Stair>,
     items: Vec<Item>,
     astar: Astar,
@@ -2382,6 +2391,8 @@ fn rebuild_assets(state: &mut State) {
     state.solid = std::array::from_fn(|i| Solid::from_bytes(&solid[i], FLOOR_FRAMES[i]));
     state.stairs = parse_stairs(&stairs);
     state.items = parse_items(&items);
+    state.wall_edges = std::array::from_fn(|i| wall_edges(&scene.floors[i]));
+    state.wall_edges_dirty = false;
     for (i, overlay) in overlays.into_iter().enumerate() {
         sg::destroy_view(state.overlay_views[i]);
         state.overlay_views[i] = overlay_texture(&overlay.rgba, overlay.w, overlay.h);
@@ -2800,6 +2811,9 @@ fn apply_drag(state: &mut State, cursor: (f32, f32)) {
             set_selection_geom(&mut state.scene, floor_index, sel, geom);
         }
         _ => {}
+    }
+    if state.drag_dirty {
+        state.wall_edges_dirty = true;
     }
 }
 
@@ -4834,6 +4848,33 @@ fn draw_floor(
     sgl::end();
     sgl::disable_texture();
 
+    // Wall union boundary: dim up/left faces, bright down/right faces. Thickness
+    // is in source pixels so the lines scale with the map like the baked art.
+    let edges = &state.wall_edges[state.floor];
+    if !edges.is_empty() {
+        let sx = iw / frame.2;
+        let sy = ih / frame.3;
+        let tx = WALL_LINE_PX * sx;
+        let ty = WALL_LINE_PX * sy;
+        sgl::begin_quads();
+        for e in edges {
+            let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, e.x0, e.y0);
+            let (rx1, ry1) = src_to_ref(frame, ox, oy, iw, ih, e.x1, e.y1);
+            let (x, y, w, h, color) = match e.dir {
+                EdgeDir::Up => (rx, ry, rx1 - rx, ty, C_WALL_DIM),
+                EdgeDir::Down => (rx, ry - ty, rx1 - rx, ty, C_WALL_BRIGHT),
+                EdgeDir::Left => (rx, ry, tx, ry1 - ry, C_WALL_DIM),
+                EdgeDir::Right => (rx - tx, ry, tx, ry1 - ry, C_WALL_BRIGHT),
+            };
+            sgl::c4f(color.0, color.1, color.2, 1.0);
+            sgl::v2f(x, y);
+            sgl::v2f(x + w, y);
+            sgl::v2f(x + w, y + h);
+            sgl::v2f(x, y + h);
+        }
+        sgl::end();
+    }
+
     // Items and typewriters, constant screen size, on whichever floor they live.
     for item in &state.items {
         if item.floor != state.floor {
@@ -5008,25 +5049,6 @@ fn draw_editor(
         true,
     );
 
-    for w in &floor.walls {
-        let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, w.rect.x, w.rect.y);
-        let (rx1, ry1) = src_to_ref(
-            frame,
-            ox,
-            oy,
-            iw,
-            ih,
-            w.rect.x + w.rect.w,
-            w.rect.y + w.rect.h,
-        );
-        let c = if w.mode == BoolOp::Add {
-            (0.55, 0.70, 0.55)
-        } else {
-            (0.85, 0.35, 0.35)
-        };
-        sgl::c4f(c.0, c.1, c.2, 0.9);
-        outline_rect(rx, ry, rx1 - rx, ry1 - ry);
-    }
     for o in &floor.obstacles {
         draw_box_rot(
             frame,
@@ -5754,6 +5776,13 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
         state.fps_frames = 0;
     }
 
+    // A transform drag changed the walls: re-extract the boundary once, here,
+    // rather than rebuilding the whole bake every frame.
+    if state.wall_edges_dirty {
+        state.wall_edges[state.floor] = wall_edges(&state.scene.floors[state.floor]);
+        state.wall_edges_dirty = false;
+    }
+
     let width = sapp::widthf();
     let height = sapp::heightf();
     let (left, right, top, bottom) = reference_projection(&state.layout, width, height);
@@ -5821,6 +5850,8 @@ fn main() {
     let nav = std::array::from_fn(|i| Nav::from_bytes(&nav[i], FLOOR_FRAMES[i]));
     let nav_open = std::array::from_fn(|i| Nav::from_bytes(&nav_open[i], FLOOR_FRAMES[i]));
     let solid = std::array::from_fn(|i| Solid::from_bytes(&solid[i], FLOOR_FRAMES[i]));
+    let wall_edges: [Vec<WallEdge>; NUM_FLOORS] =
+        std::array::from_fn(|i| wall_edges(&scene.floors[i]));
 
     let state = Box::new(State {
         layout: Layout::compute(1920.0, 1080.0),
@@ -5834,6 +5865,8 @@ fn main() {
         nav,
         nav_open,
         solid,
+        wall_edges,
+        wall_edges_dirty: false,
         stairs: parse_stairs(&stairs),
         items: parse_items(&items),
         astar: Astar::new(),

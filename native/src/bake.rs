@@ -15,7 +15,6 @@ pub const CLEARANCE_CELLS: i32 = 2;
 pub const DOOR_DILATION_CELLS: i32 = 1;
 pub const OVERLAY_WIDTH: i32 = 2048;
 
-pub const TINT_WALLS: (u8, u8, u8) = (92, 96, 96);
 pub const TINT_STAIRS: (u8, u8, u8) = (120, 126, 126);
 pub const TINT_OBSTACLES: (u8, u8, u8) = (58, 58, 58);
 pub const TINT_LOCKED: (u8, u8, u8) = (160, 68, 87);
@@ -209,19 +208,8 @@ fn bake_overlay(floor: &Floor, fx: f32, fy: f32, fw: f32, fh: f32) -> OverlayByt
     let sy = h as f32 / fh;
     let mut canvas = vec![0u8; (w * h * 4) as usize];
 
-    let mut walls = Mask::new(w, h);
-    for op in &floor.walls {
-        let on = op.mode == BoolOp::Add;
-        walls.fill_rect(
-            (op.rect.x - fx) * sx,
-            (op.rect.y - fy) * sy,
-            op.rect.w * sx,
-            op.rect.h * sy,
-            on,
-        );
-    }
-    composite(&mut canvas, w, &walls, TINT_WALLS);
-
+    // Walls are not baked: the app draws them as vector double-lines (see
+    // native/src/walls.rs).
     let mut obstacles = Mask::new(w, h);
     for o in &floor.obstacles {
         obstacles.fill_box(
