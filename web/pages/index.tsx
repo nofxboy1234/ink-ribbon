@@ -63,6 +63,27 @@ export default function HomePage(_props: Props) {
                 "    Module.FS.writeFile('/scene.bin', arr);" +
                 "    return 1;" +
                 "  } catch (e) { console.error(e); return 0; }" +
+                "};" +
+                "window.inkRibbonPersistSlot = function (n) {" +
+                "  try {" +
+                "    var data = Module.FS.readFile('/save-' + n + '.bin', { encoding: 'binary' });" +
+                "    var bin = ''; for (var i = 0; i < data.length; i++) bin += String.fromCharCode(data[i]);" +
+                "    localStorage.setItem('ink-ribbon-save-' + n, btoa(bin));" +
+                "    return 1;" +
+                "  } catch (e) { console.error(e); return 0; }" +
+                "};" +
+                "window.inkRibbonLoadSlot = function (n) {" +
+                "  try {" +
+                "    var b64 = localStorage.getItem('ink-ribbon-save-' + n);" +
+                "    if (!b64) return 0;" +
+                "    var bin = atob(b64); var arr = new Uint8Array(bin.length);" +
+                "    for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);" +
+                "    Module.FS.writeFile('/save-' + n + '.bin', arr);" +
+                "    return 1;" +
+                "  } catch (e) { console.error(e); return 0; }" +
+                "};" +
+                "window.inkRibbonHasSlot = function (n) {" +
+                "  try { return localStorage.getItem('ink-ribbon-save-' + n) ? 1 : 0; } catch (e) { return 0; }" +
                 "};",
             }}
           />

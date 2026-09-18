@@ -4,4 +4,5 @@
 
 pub mod bake;
 pub mod raster;
+pub mod save;
 pub mod scene;

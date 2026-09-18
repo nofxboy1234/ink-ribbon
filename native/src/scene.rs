@@ -58,6 +58,33 @@ pub enum DoorKind {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ItemKind {
     Key,
+    InkRibbon,
+    /// A fixed interactable (save point), not collected on touch.
+    Typewriter,
+}
+
+impl ItemKind {
+    pub fn to_u8(self) -> u8 {
+        match self {
+            ItemKind::Key => 0,
+            ItemKind::InkRibbon => 1,
+            ItemKind::Typewriter => 2,
+        }
+    }
+
+    pub fn from_u8(v: u8) -> Option<ItemKind> {
+        match v {
+            0 => Some(ItemKind::Key),
+            1 => Some(ItemKind::InkRibbon),
+            2 => Some(ItemKind::Typewriter),
+            _ => None,
+        }
+    }
+
+    /// Whether touching this item picks it up.
+    pub fn is_collectible(self) -> bool {
+        matches!(self, ItemKind::Key | ItemKind::InkRibbon)
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -238,7 +265,7 @@ impl Scene {
             put_u32(&mut out, floor.items.len() as u32);
             for it in &floor.items {
                 put_u32(&mut out, it.id);
-                put_u8(&mut out, 0); // ItemKind::Key
+                put_u8(&mut out, it.kind.to_u8());
                 put_f32(&mut out, it.pos.0);
                 put_f32(&mut out, it.pos.1);
                 let name = it.name.as_bytes();
@@ -357,13 +384,13 @@ impl Scene {
             let n = c.u32()? as usize;
             for _ in 0..n {
                 let id = c.u32()?;
-                c.u8()?; // kind (Key only for now)
+                let kind = ItemKind::from_u8(c.u8()?)?;
                 let pos = (c.f32()?, c.f32()?);
                 let len = c.u16()? as usize;
                 let name = String::from_utf8_lossy(c.take(len)?).into_owned();
                 floor.items.push(ItemDef {
                     id,
-                    kind: ItemKind::Key,
+                    kind,
                     name,
                     pos,
                 });

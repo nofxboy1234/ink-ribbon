@@ -7,7 +7,7 @@
 //! flood-filled, and only then are unlocked/unknown doors carved through.
 
 use crate::raster::Mask;
-use crate::scene::{BoolOp, DoorKind, Floor, Link, Scene, NUM_FLOORS};
+use crate::scene::{BoolOp, DoorKind, Floor, ItemKind, Link, Scene, NUM_FLOORS};
 
 pub const CELL_PX: u32 = 8;
 pub const SOLID_CELL_PX: u32 = 2;
@@ -323,13 +323,15 @@ fn bake_stairs(scene: &Scene) -> Option<Vec<u8>> {
     Some(out)
 }
 
+#[allow(clippy::type_complexity)]
 fn bake_items(scene: &Scene) -> Option<Vec<u8>> {
-    // (floor, id, name, pos); the id lets the runtime match a collected item to
-    // its KeyDoor links.
-    let mut records: Vec<(usize, u32, &str, (f32, f32))> = Vec::new();
+    // (floor, id, kind, name, pos); the id lets the runtime match a collected
+    // item to its KeyDoor links, and the kind separates keys, ink-ribbons and
+    // typewriters.
+    let mut records: Vec<(usize, u32, ItemKind, &str, (f32, f32))> = Vec::new();
     for (index, floor) in scene.floors.iter().enumerate() {
         for item in &floor.items {
-            records.push((index, item.id, item.name.as_str(), item.pos));
+            records.push((index, item.id, item.kind, item.name.as_str(), item.pos));
         }
     }
     if records.is_empty() {
@@ -338,10 +340,11 @@ fn bake_items(scene: &Scene) -> Option<Vec<u8>> {
     records.sort_by_key(|r| (r.0, r.1));
     let mut out = Vec::new();
     out.extend_from_slice(&(records.len() as u32).to_le_bytes());
-    for (floor, id, name, pos) in records {
+    for (floor, id, kind, name, pos) in records {
         let name = name.as_bytes();
-        out.extend_from_slice(&(id).to_le_bytes());
+        out.extend_from_slice(&id.to_le_bytes());
         out.extend_from_slice(&(floor as u32).to_le_bytes());
+        out.push(kind.to_u8());
         out.extend_from_slice(&pos.0.to_le_bytes());
         out.extend_from_slice(&pos.1.to_le_bytes());
         out.extend_from_slice(&(name.len() as u32).to_le_bytes());
@@ -459,8 +462,8 @@ mod tests {
             ]),
             1
         );
-        // record: id(4) floor(4) x(4) y(4) name_len(4) + "Key"(3)
-        assert_eq!(baked.items.len(), 4 + 4 + 4 + 4 + 4 + 4 + 3);
+        // record: id(4) floor(4) kind(1) x(4) y(4) name_len(4) + "Key"(3)
+        assert_eq!(baked.items.len(), 4 + 4 + 4 + 1 + 4 + 4 + 4 + 3);
         assert_eq!(
             u32::from_le_bytes([
                 baked.items[0],

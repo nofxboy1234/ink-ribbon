@@ -1,6 +1,7 @@
 use std::ffi;
 
 use ink_ribbon_native::bake::{bake, BakedBytes, OverlayBytes};
+use ink_ribbon_native::save::{format_unix_utc, PlayerSave};
 use ink_ribbon_native::scene::{
     BoolOp, Box2, Door, DoorKind, ItemDef, ItemKind, Link, Rect, Scene, StairNode, WallOp,
     FLOOR1_INDEX, FLOOR_FRAMES, NUM_FLOORS,
@@ -397,6 +398,7 @@ fn parse_stairs(bytes: &[u8]) -> Vec<Stair> {
 // A key item baked from an `item_*` layer: display name, floor index and
 // source-composite position.
 struct Item {
+    kind: ItemKind,
     name: String,
     floor: usize,
     pos: (f32, f32),
@@ -410,24 +412,32 @@ fn parse_items(bytes: &[u8]) -> Vec<Item> {
     let mut items = Vec::with_capacity(count);
     let mut p = 4;
     for _ in 0..count {
-        if p + 20 > bytes.len() {
+        // record: id(4) floor(4) kind(1) x(4) y(4) name_len(4) + name
+        if p + 21 > bytes.len() {
             break;
         }
         let u32_at =
             |o: usize| u32::from_le_bytes([bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]]);
         let f32_at =
             |o: usize| f32::from_le_bytes([bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]]);
-        // id (unused at runtime) then floor, position and name.
         let floor = u32_at(p + 4) as usize;
-        let pos = (f32_at(p + 8), f32_at(p + 12));
-        let name_len = u32_at(p + 16) as usize;
-        p += 20;
+        let Some(kind) = ItemKind::from_u8(bytes[p + 8]) else {
+            break;
+        };
+        let pos = (f32_at(p + 9), f32_at(p + 13));
+        let name_len = u32_at(p + 17) as usize;
+        p += 21;
         if p + name_len > bytes.len() || floor >= NUM_FLOORS {
             break;
         }
         let name = String::from_utf8_lossy(&bytes[p..p + name_len]).into_owned();
         p += name_len;
-        items.push(Item { name, floor, pos });
+        items.push(Item {
+            kind,
+            name,
+            floor,
+            pos,
+        });
     }
     items
 }
@@ -707,6 +717,31 @@ enum Clip {
     Item(ItemDef),
 }
 
+// Modal overlay state. All menus freeze gameplay while open.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Menu {
+    None,
+    Pause,
+    SaveSlots,
+    LoadSlots,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Confirm {
+    Overwrite(usize),
+    Quit,
+}
+
+const SAVE_SLOTS: usize = 8;
+
+#[derive(Clone, Copy)]
+struct SlotMeta {
+    saved_at: u64,
+    play_time: f32,
+    floor: usize,
+    items: usize,
+}
+
 // Reference-space toolbar geometry (x, y, w, h per tool button).
 const EDITOR_BAR_Y: f32 = 10.0;
 const EDITOR_BAR_H: f32 = 40.0;
@@ -792,6 +827,15 @@ struct State {
     inventory: Vec<ItemDef>,
     inventory_open: bool,
     inventory_selected: usize,
+    // Editor: kind used for newly placed items.
+    item_kind: ItemKind,
+    // Menus, saving and playtime.
+    play_time: f32,
+    menu: Menu,
+    menu_index: usize,
+    confirm: Option<Confirm>,
+    confirm_index: usize,
+    slot_meta: [Option<SlotMeta>; SAVE_SLOTS],
     // Reachable component per floor, computed from where the player is standing.
     reachable: [Vec<u8>; NUM_FLOORS],
     path_red: Vec<(f32, f32)>,
@@ -1137,6 +1181,19 @@ fn facing_vector(facing: f32) -> (f32, f32) {
     (facing.sin(), -facing.cos())
 }
 
+// Interaction priority: lower is better — nearer, and more in front of the
+// player. `distance` is passed in so box targets can use their own metric.
+fn facing_score(player: (f32, f32), facing: f32, target: (f32, f32), distance: f32) -> f32 {
+    let (dx, dy) = (target.0 - player.0, target.1 - player.1);
+    let len = (dx * dx + dy * dy).sqrt();
+    if len < 1e-3 {
+        return distance;
+    }
+    let f = facing_vector(facing);
+    let align = (f.0 * dx + f.1 * dy) / len;
+    distance - FACING_WEIGHT * align
+}
+
 fn wrap_angle(a: f32) -> f32 {
     let tau = std::f32::consts::TAU;
     let mut a = a;
@@ -1313,11 +1370,9 @@ fn update_player(state: &mut State, delta: f32) {
         }
     }
 
-    // Reveal nearby unknown doors and pick up items, then take stairs.
-    let mut dirty = false;
-    dirty |= reveal_doors(state);
-    dirty |= pickup_items(state);
-    if dirty {
+    // Reveal nearby unknown doors, then take stairs. Items are picked up with
+    // Space (see `interact`).
+    if reveal_doors(state) {
         rebuild_assets(state);
     }
     check_stairs(state);
@@ -1435,8 +1490,10 @@ fn max_id(scene: &Scene) -> u32 {
 
 // One "grid" for gameplay ranges: the 32px background grid.
 const GRID_UNIT: f32 = 32.0;
-const PICKUP_RADIUS: f32 = 16.0; // half a grid
-const UNLOCK_RADIUS: f32 = 16.0; // half a grid
+// Prompt + Space range: a visible gap away from the interactable.
+const INTERACT_RADIUS: f32 = 48.0;
+// How much facing toward a target improves its score (source px of distance).
+const FACING_WEIGHT: f32 = 20.0;
 
 fn is_collected(state: &State, id: u32) -> bool {
     state.collected.contains(&id)
@@ -1530,8 +1587,10 @@ fn prune_satisfied_keys(state: &mut State) {
         }
     }
     state.inventory.retain(|it| !remove.contains(&it.id));
-    if state.inventory_selected >= state.inventory.len() {
-        state.inventory_selected = state.inventory.len().saturating_sub(1);
+    // Selection can rest on any slot (including empty ones), so only keep it in
+    // range of the grid.
+    if state.inventory_selected >= INV_COLS * INV_ROWS {
+        state.inventory_selected = INV_COLS * INV_ROWS - 1;
     }
 }
 
@@ -1559,80 +1618,131 @@ fn reveal_doors(state: &mut State) -> bool {
     changed
 }
 
-// Collect key items the player touches.
-fn pickup_items(state: &mut State) -> bool {
-    let floor = state.player_floor;
-    let near: Vec<ItemDef> = state.scene.floors[floor]
-        .items
-        .iter()
-        .filter(|it| !is_collected(state, it.id))
-        .filter(|it| {
-            ((state.player.0 - it.pos.0).powi(2) + (state.player.1 - it.pos.1).powi(2)).sqrt()
-                <= PICKUP_RADIUS
-        })
-        .cloned()
-        .collect();
-    let changed = !near.is_empty();
-    for it in near {
-        set_status(state, format!("picked up {}", it.name));
-        state.collected.push(it.id);
-        state.inventory.push(it);
-    }
-    changed
+fn dist(a: (f32, f32), b: (f32, f32)) -> f32 {
+    ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2)).sqrt()
 }
 
-// Space near a locked door: unlock it if a collected key is linked to it.
-fn try_unlock(state: &mut State) {
-    let floor = state.player_floor;
-    let mut best: Option<(f32, u32)> = None;
-    for d in &state.scene.floors[floor].doors {
-        if effective_door_kind(state, floor, d.id) != Some(DoorKind::Locked) {
-            continue;
-        }
-        let dist = dist_to_box(state.player, d.center, d.size, d.rot);
-        if dist > UNLOCK_RADIUS || !door_has_inventory_key(state, floor, d.id) {
-            continue;
-        }
-        if best.is_none_or(|(bd, _)| dist < bd) {
-            best = Some((dist, d.id));
+// Something the player can act on with Space when standing near it.
+enum Interaction {
+    Typewriter((f32, f32)),
+    Item {
+        id: u32,
+        name: String,
+        pos: (f32, f32),
+    },
+    Door {
+        id: u32,
+        pos: (f32, f32),
+    },
+}
+
+impl Interaction {
+    fn pos(&self) -> (f32, f32) {
+        match self {
+            Interaction::Typewriter(p) => *p,
+            Interaction::Item { pos, .. } => *pos,
+            Interaction::Door { pos, .. } => *pos,
         }
     }
-    match best {
-        Some((_, id)) => {
-            state.unlocked.push((floor, id));
-            prune_satisfied_keys(state);
-            rebuild_assets(state);
-            set_status(state, "unlocked");
+
+    fn label(&self) -> String {
+        match self {
+            Interaction::Typewriter(_) => "SPACE: save".to_string(),
+            Interaction::Item { name, .. } => format!("SPACE: pick up {name}"),
+            Interaction::Door { .. } => "SPACE: unlock".to_string(),
         }
-        None => {
-            // A nearby locked door without the key, or nothing in range.
-            let near_locked = state.scene.floors[floor].doors.iter().any(|d| {
-                effective_door_kind(state, floor, d.id) == Some(DoorKind::Locked)
-                    && dist_to_box(state.player, d.center, d.size, d.rot) <= UNLOCK_RADIUS
-            });
-            set_status(
-                state,
-                if near_locked {
-                    "no key for this door"
-                } else {
-                    "nothing to unlock"
+    }
+}
+
+// The interactable the player is most facing and closest to, within range.
+// Exact ties prefer typewriter > item > door.
+fn interaction_target(state: &State) -> Option<Interaction> {
+    let floor = state.player_floor;
+    let mut best: Option<(f32, u8, Interaction)> = None;
+    let mut consider = |distance: f32, score: f32, rank: u8, inter: Interaction| {
+        if distance <= INTERACT_RADIUS
+            && best
+                .as_ref()
+                .is_none_or(|(bs, br, _)| (score, rank) < (*bs, *br))
+        {
+            best = Some((score, rank, inter));
+        }
+    };
+    for it in &state.scene.floors[floor].items {
+        match it.kind {
+            ItemKind::Typewriter => {
+                let d = dist(state.player, it.pos);
+                consider(
+                    d,
+                    facing_score(state.player, state.facing, it.pos, d),
+                    0,
+                    Interaction::Typewriter(it.pos),
+                );
+            }
+            k if k.is_collectible() && !is_collected(state, it.id) => {
+                let d = dist(state.player, it.pos);
+                consider(
+                    d,
+                    facing_score(state.player, state.facing, it.pos, d),
+                    1,
+                    Interaction::Item {
+                        id: it.id,
+                        name: it.name.clone(),
+                        pos: it.pos,
+                    },
+                );
+            }
+            _ => {}
+        }
+    }
+    for door in &state.scene.floors[floor].doors {
+        if effective_door_kind(state, floor, door.id) == Some(DoorKind::Locked)
+            && door_has_inventory_key(state, floor, door.id)
+        {
+            let d = dist_to_box(state.player, door.center, door.size, door.rot);
+            consider(
+                d,
+                facing_score(state.player, state.facing, door.center, d),
+                2,
+                Interaction::Door {
+                    id: door.id,
+                    pos: door.center,
                 },
             );
         }
     }
+    best.map(|(_, _, inter)| inter)
 }
 
-// Centre of a nearby locked door the player could unlock, for the HUD prompt.
-fn nearby_unlockable(state: &State) -> Option<(f32, f32)> {
+fn collect_item(state: &mut State, id: u32, name: &str) {
     let floor = state.player_floor;
-    state.scene.floors[floor]
-        .doors
+    let Some(item) = state.scene.floors[floor]
+        .items
         .iter()
-        .filter(|d| effective_door_kind(state, floor, d.id) == Some(DoorKind::Locked))
-        .filter(|d| dist_to_box(state.player, d.center, d.size, d.rot) <= UNLOCK_RADIUS)
-        .filter(|d| door_has_inventory_key(state, floor, d.id))
-        .map(|d| d.center)
-        .next()
+        .find(|it| it.id == id)
+        .cloned()
+    else {
+        return;
+    };
+    state.collected.push(id);
+    state.inventory.push(item);
+    rebuild_assets(state);
+    set_status(state, format!("picked up {name}"));
+}
+
+// Unlock a specific locked door the player holds a key for.
+fn unlock_door(state: &mut State, id: u32) {
+    let floor = state.player_floor;
+    if effective_door_kind(state, floor, id) != Some(DoorKind::Locked)
+        || !door_has_inventory_key(state, floor, id)
+    {
+        set_status(state, "can't unlock this door");
+        return;
+    }
+    state.unlocked.push((floor, id));
+    prune_satisfied_keys(state);
+    rebuild_assets(state);
+    set_status(state, "unlocked");
 }
 
 // --- Inventory HUD ---------------------------------------------------------
@@ -1681,14 +1791,55 @@ fn inventory_hit(state: &State, x: f32, y: f32) -> Option<usize> {
     None
 }
 
-fn nav_inventory(state: &mut State, delta: i32) {
-    let n = state.inventory.len();
+fn wrap(i: usize, delta: i32, n: usize) -> usize {
     if n == 0 {
-        state.inventory_selected = 0;
-        return;
+        0
+    } else {
+        (i as i32 + delta).rem_euclid(n as i32) as usize
     }
-    let cur = state.inventory_selected as i32;
-    state.inventory_selected = (cur + delta).clamp(0, n as i32 - 1) as usize;
+}
+
+fn nav_inventory(state: &mut State, delta: i32) {
+    state.inventory_selected = wrap(state.inventory_selected, delta, INV_COLS * INV_ROWS);
+}
+
+fn draw_item_marker(cx: f32, cy: f32, kind: ItemKind, scale: f32) {
+    match kind {
+        ItemKind::Key => {
+            sgl::c4f(C_ITEM.0, C_ITEM.1, C_ITEM.2, 1.0);
+            filled_circle(cx, cy, ITEM_RADIUS * scale);
+        }
+        ItemKind::InkRibbon => {
+            let (w, h) = (22.0 * scale, 8.0 * scale);
+            sgl::c4f(0.90, 0.86, 0.62, 1.0);
+            rect(cx - w * 0.5, cy - h * 0.5, w, h);
+            sgl::c4f(0.55, 0.35, 0.55, 1.0);
+            rect(cx - w * 0.5, cy - 1.0 * scale, w, 2.0 * scale);
+        }
+        ItemKind::Typewriter => {
+            sgl::c4f(0.72, 0.74, 0.78, 1.0);
+            rect(
+                cx - 12.0 * scale,
+                cy - 4.0 * scale,
+                24.0 * scale,
+                14.0 * scale,
+            );
+            sgl::c4f(0.92, 0.92, 0.90, 1.0);
+            rect(
+                cx - 9.0 * scale,
+                cy - 13.0 * scale,
+                18.0 * scale,
+                9.0 * scale,
+            );
+            sgl::c4f(0.30, 0.30, 0.34, 1.0);
+            rect(
+                cx - 12.0 * scale,
+                cy + 8.0 * scale,
+                24.0 * scale,
+                3.0 * scale,
+            );
+        }
+    }
 }
 
 fn draw_inventory(state: &State, font: &Font) {
@@ -1715,16 +1866,15 @@ fn draw_inventory(state: &State, font: &Font) {
         let (sx, sy, sw, sh) = inventory_slot_rect(l, i);
         sgl::c4f(0.10, 0.10, 0.13, 0.9);
         rect(sx, sy, sw, sh);
-        let selected = i == state.inventory_selected && !state.inventory.is_empty();
+        let selected = i == state.inventory_selected;
         if selected {
             sgl::c4f(1.0, 1.0, 1.0, 1.0);
         } else {
             sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.5);
         }
         outline_rect(sx, sy, sw, sh);
-        if state.inventory.get(i).is_some() {
-            sgl::c4f(C_ITEM.0, C_ITEM.1, C_ITEM.2, 1.0);
-            filled_circle(sx + sw * 0.5, sy + sh * 0.5, 15.0);
+        if let Some(item) = state.inventory.get(i) {
+            draw_item_marker(sx + sw * 0.5, sy + sh * 0.5, item.kind, 1.0);
         }
     }
 
@@ -1735,8 +1885,7 @@ fn draw_inventory(state: &State, font: &Font) {
     outline_rect(dx, dy, dw, dh);
     match state.inventory.get(state.inventory_selected) {
         Some(item) => {
-            sgl::c4f(C_ITEM.0, C_ITEM.1, C_ITEM.2, 1.0);
-            filled_circle(dx + 30.0, dy + dh * 0.5, 18.0);
+            draw_item_marker(dx + 30.0, dy + dh * 0.5, item.kind, 1.6);
             draw_ui_text(
                 font,
                 &item.name,
@@ -1749,13 +1898,198 @@ fn draw_inventory(state: &State, font: &Font) {
         }
         None => draw_ui_text(
             font,
-            "(no items)",
+            "(empty)",
             dx + 16.0,
             dy + dh * 0.5 - 10.0,
             C_LABEL,
             false,
             1.0,
         ),
+    }
+}
+
+// --- Modal menus (pause, save slots) --------------------------------------
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MenuHit {
+    Entry(usize),
+    Yes,
+    No,
+}
+
+fn menu_rows(state: &State) -> usize {
+    match state.menu {
+        Menu::Pause => pause_entry_count(),
+        Menu::SaveSlots | Menu::LoadSlots => SAVE_SLOTS,
+        Menu::None => 0,
+    }
+}
+
+fn menu_panel(l: &Layout, rows: usize) -> (f32, f32, f32, f32) {
+    let w = 660.0;
+    let h = 56.0 + rows as f32 * 46.0 + 16.0;
+    (l.ref_w * 0.5 - w * 0.5, l.ref_h * 0.5 - h * 0.5, w, h)
+}
+
+fn menu_row_rect(l: &Layout, rows: usize, i: usize) -> (f32, f32, f32, f32) {
+    let (px, py, pw, _) = menu_panel(l, rows);
+    (px + 16.0, py + 56.0 + i as f32 * 46.0, pw - 32.0, 40.0)
+}
+
+fn confirm_panel(l: &Layout) -> (f32, f32, f32, f32) {
+    let w = 520.0;
+    let h = 170.0;
+    (l.ref_w * 0.5 - w * 0.5, l.ref_h * 0.5 - h * 0.5, w, h)
+}
+
+#[allow(clippy::type_complexity)]
+fn confirm_buttons(l: &Layout) -> ((f32, f32, f32, f32), (f32, f32, f32, f32)) {
+    let (px, py, pw, ph) = confirm_panel(l);
+    let bw = 160.0;
+    let bh = 44.0;
+    let by = py + ph - bh - 20.0;
+    (
+        (px + pw * 0.5 - bw - 10.0, by, bw, bh),
+        (px + pw * 0.5 + 10.0, by, bw, bh),
+    )
+}
+
+fn menu_hit(state: &State, x: f32, y: f32) -> Option<MenuHit> {
+    let l = &state.layout;
+    if state.confirm.is_some() {
+        let (yes, no) = confirm_buttons(l);
+        let inside = |r: (f32, f32, f32, f32)| {
+            (r.0..r.0 + r.2).contains(&x) && (r.1..r.1 + r.3).contains(&y)
+        };
+        if inside(yes) {
+            return Some(MenuHit::Yes);
+        }
+        if inside(no) {
+            return Some(MenuHit::No);
+        }
+        return None;
+    }
+    let rows = menu_rows(state);
+    if rows == 0 {
+        return None;
+    }
+    for i in 0..rows {
+        let r = menu_row_rect(l, rows, i);
+        if (r.0..r.0 + r.2).contains(&x) && (r.1..r.1 + r.3).contains(&y) {
+            return Some(MenuHit::Entry(i));
+        }
+    }
+    None
+}
+
+fn draw_menu(state: &State, font: &Font) {
+    if state.menu == Menu::None && state.confirm.is_none() {
+        return;
+    }
+    let l = &state.layout;
+    sgl::c4f(0.0, 0.0, 0.0, 0.55);
+    rect(0.0, 0.0, l.ref_w, l.ref_h);
+
+    if let Some(c) = state.confirm {
+        let (px, py, pw, ph) = confirm_panel(l);
+        sgl::c4f(0.05, 0.05, 0.07, 0.98);
+        rect(px, py, pw, ph);
+        sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.85);
+        outline_rect(px, py, pw, ph);
+        let msg = match c {
+            Confirm::Overwrite(slot) => format!("Overwrite slot {}?", slot + 1),
+            Confirm::Quit => "Quit the game?".to_string(),
+        };
+        draw_ui_text(font, &msg, px + 24.0, py + 40.0, C_HILITE, true, 1.0);
+        let (yes, no) = confirm_buttons(l);
+        for (n, (r, label)) in [(yes, "YES"), (no, "NO")].into_iter().enumerate() {
+            let selected = n == state.confirm_index;
+            sgl::c4f(0.12, 0.12, 0.16, 0.95);
+            rect(r.0, r.1, r.2, r.3);
+            if selected {
+                sgl::c4f(1.0, 1.0, 1.0, 1.0);
+            } else {
+                sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.7);
+            }
+            outline_rect(r.0, r.1, r.2, r.3);
+            draw_ui_text(
+                font,
+                label,
+                r.0 + 56.0,
+                r.1 + 12.0,
+                if selected { C_HILITE } else { C_LABEL },
+                false,
+                1.0,
+            );
+        }
+        return;
+    }
+
+    let rows = menu_rows(state);
+    let (px, py, pw, _) = menu_panel(l, rows);
+    sgl::c4f(0.05, 0.05, 0.07, 0.97);
+    rect(px, py, pw, menu_panel(l, rows).3);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.85);
+    outline_rect(px, py, pw, menu_panel(l, rows).3);
+
+    let title = match state.menu {
+        Menu::Pause => "PAUSED",
+        Menu::SaveSlots => "SAVE - CHOOSE A SLOT",
+        Menu::LoadSlots => "LOAD - CHOOSE A SLOT",
+        Menu::None => "",
+    };
+    draw_ui_text(font, title, px + 20.0, py + 18.0, C_HILITE, false, 1.0);
+
+    for i in 0..rows {
+        let r = menu_row_rect(l, rows, i);
+        let selected = i == state.menu_index;
+        sgl::c4f(0.10, 0.10, 0.13, 0.95);
+        rect(r.0, r.1, r.2, r.3);
+        if selected {
+            sgl::c4f(1.0, 1.0, 1.0, 1.0);
+        } else {
+            sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.5);
+        }
+        outline_rect(r.0, r.1, r.2, r.3);
+        match state.menu {
+            Menu::Pause => {
+                let label = ["RESUME", "LOAD", "EXIT"][i.min(2)];
+                draw_ui_text(font, label, r.0 + 16.0, r.1 + 10.0, C_HILITE, false, 1.0);
+            }
+            Menu::SaveSlots | Menu::LoadSlots => {
+                draw_ui_text(
+                    font,
+                    &format!("SLOT {}", i + 1),
+                    r.0 + 16.0,
+                    r.1 + 10.0,
+                    C_LABEL,
+                    false,
+                    1.0,
+                );
+                let detail = match state.slot_meta[i] {
+                    Some(m) => format!(
+                        "{}   {}   F{}   {} items",
+                        format_unix_utc(m.saved_at),
+                        format_play_time(m.play_time),
+                        m.floor + 1,
+                        m.items
+                    ),
+                    None => "empty".to_string(),
+                };
+                let dim = state.slot_meta[i].is_none()
+                    || (state.menu == Menu::LoadSlots && state.slot_meta[i].is_none());
+                draw_ui_text(
+                    font,
+                    &detail,
+                    r.0 + 200.0,
+                    r.1 + 10.0,
+                    if dim { C_LABEL } else { C_HILITE },
+                    false,
+                    0.95,
+                );
+            }
+            Menu::None => {}
+        }
     }
 }
 
@@ -1909,6 +2243,123 @@ fn door_kind_label(kind: DoorKind) -> &'static str {
     }
 }
 
+// --- Item properties popup (editor) ---------------------------------------
+
+#[derive(Clone, Copy)]
+enum ItemPopupHit {
+    Kind(ItemKind),
+}
+
+fn selected_item_index(state: &State) -> Option<usize> {
+    if let Some(Selection::Item(i)) = primary_selection(state) {
+        if state.scene.floors[state.floor].items.get(i).is_some() {
+            return Some(i);
+        }
+    }
+    None
+}
+
+#[allow(clippy::type_complexity)]
+fn item_popup_buttons(
+    state: &State,
+) -> Option<(
+    Vec<((f32, f32, f32, f32), ItemPopupHit)>,
+    (f32, f32, f32, f32),
+)> {
+    let i = selected_item_index(state)?;
+    let _ = state.scene.floors[state.floor].items.get(i)?;
+    #[allow(non_snake_case)]
+    let (MAP_X, MAP_Y, _, _, _, _, _) = state.layout.vars();
+    let px = MAP_X + 16.0;
+    let py = MAP_Y + 16.0;
+    let (bw, bh, gap) = (96.0, 32.0, 6.0);
+    let row = py + 36.0;
+    let mut buttons = Vec::new();
+    for (n, kind) in [ItemKind::Key, ItemKind::InkRibbon, ItemKind::Typewriter]
+        .into_iter()
+        .enumerate()
+    {
+        buttons.push((
+            (px + 8.0 + n as f32 * (bw + gap), row, bw, bh),
+            ItemPopupHit::Kind(kind),
+        ));
+    }
+    let panel = (px, py, 16.0 + 3.0 * bw + 2.0 * gap, 36.0 + bh + 12.0);
+    Some((buttons, panel))
+}
+
+fn item_popup_hit(state: &State, x: f32, y: f32) -> Option<ItemPopupHit> {
+    let (buttons, panel) = item_popup_buttons(state)?;
+    if !(panel.0..panel.0 + panel.2).contains(&x) || !(panel.1..panel.1 + panel.3).contains(&y) {
+        return None;
+    }
+    buttons
+        .into_iter()
+        .find(|(r, _)| (r.0..r.0 + r.2).contains(&x) && (r.1..r.1 + r.3).contains(&y))
+        .map(|(_, hit)| hit)
+}
+
+fn apply_item_popup(state: &mut State, hit: ItemPopupHit) {
+    let Some(i) = selected_item_index(state) else {
+        return;
+    };
+    let ItemPopupHit::Kind(kind) = hit;
+    push_undo(state);
+    state.scene.floors[state.floor].items[i].kind = kind;
+    state.item_kind = kind;
+    rebuild_assets(state);
+    set_status(state, "item kind updated");
+}
+
+fn draw_item_popup(state: &State, font: &Font) {
+    let Some((buttons, panel)) = item_popup_buttons(state) else {
+        return;
+    };
+    let item = &state.scene.floors[state.floor].items[selected_item_index(state).unwrap()];
+    sgl::c4f(0.05, 0.05, 0.07, 0.95);
+    rect(panel.0, panel.1, panel.2, panel.3);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.8);
+    outline_rect(panel.0, panel.1, panel.2, panel.3);
+    draw_ui_text(
+        font,
+        &format!("ITEM {}  {}", item.id, item.name),
+        panel.0 + 12.0,
+        panel.1 + 10.0,
+        C_HILITE,
+        false,
+        0.9,
+    );
+    for (r, hit) in &buttons {
+        let ItemPopupHit::Kind(kind) = *hit;
+        let active = item.kind == kind;
+        sgl::c4f(0.10, 0.10, 0.13, 0.95);
+        rect(r.0, r.1, r.2, r.3);
+        if active {
+            sgl::c4f(1.0, 1.0, 1.0, 1.0);
+        } else {
+            sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.6);
+        }
+        outline_rect(r.0, r.1, r.2, r.3);
+        draw_ui_text(
+            font,
+            item_kind_label(kind),
+            r.0 + 8.0,
+            r.1 + 8.0,
+            if active { C_HILITE } else { C_LABEL },
+            false,
+            0.8,
+        );
+    }
+}
+
+fn item_kind_label(kind: ItemKind) -> &'static str {
+    match kind {
+        ItemKind::Key => "KEY",
+        ItemKind::InkRibbon => "INK RIBBON",
+        ItemKind::Typewriter => "TYPEWRITER",
+    }
+}
+
 // Re-bake the scene and swap the running map's assets in place.
 fn rebuild_assets(state: &mut State) {
     // Editing shows the authored map; playing shows the progress overrides.
@@ -2009,7 +2460,7 @@ fn place_point(state: &mut State, p: (f32, f32)) {
         Tool::Stair => floor.stairs.push(StairNode { id, pos: p }),
         Tool::Item => floor.items.push(ItemDef {
             id,
-            kind: ItemKind::Key,
+            kind: state.item_kind,
             name: format!("Item {id}"),
             pos: p,
         }),
@@ -2760,6 +3211,288 @@ fn load_scene_bytes() -> Option<Vec<u8>> {
         .ok()
 }
 
+// --- Save slots ------------------------------------------------------------
+
+#[cfg(not(target_os = "emscripten"))]
+fn slot_path(slot: usize) -> String {
+    format!("saves/slot-{}.bin", slot + 1)
+}
+
+#[cfg(target_os = "emscripten")]
+fn slot_guest_path(slot: usize) -> String {
+    format!("/save-{}.bin", slot + 1)
+}
+
+#[cfg(target_os = "emscripten")]
+fn run_script(script: String) {
+    extern "C" {
+        fn emscripten_run_script(s: *const ffi::c_char);
+    }
+    if let Ok(c) = ffi::CString::new(script) {
+        unsafe { emscripten_run_script(c.as_ptr()) };
+    }
+}
+
+#[cfg(target_os = "emscripten")]
+fn run_script_int(script: String) -> i32 {
+    extern "C" {
+        fn emscripten_run_script_int(s: *const ffi::c_char) -> i32;
+    }
+    match ffi::CString::new(script) {
+        Ok(c) => unsafe { emscripten_run_script_int(c.as_ptr()) },
+        Err(_) => 0,
+    }
+}
+
+#[cfg(target_os = "emscripten")]
+fn save_slot_bytes(slot: usize, bytes: &[u8]) -> bool {
+    if std::fs::write(slot_guest_path(slot), bytes).is_err() {
+        return false;
+    }
+    run_script(format!("window.inkRibbonPersistSlot({})", slot + 1));
+    true
+}
+
+#[cfg(not(target_os = "emscripten"))]
+fn save_slot_bytes(slot: usize, bytes: &[u8]) -> bool {
+    if std::fs::create_dir_all("saves").is_err() {
+        return false;
+    }
+    std::fs::write(slot_path(slot), bytes).is_ok()
+}
+
+#[cfg(target_os = "emscripten")]
+fn load_slot_bytes(slot: usize) -> Option<Vec<u8>> {
+    if run_script_int(format!("window.inkRibbonLoadSlot({})", slot + 1)) == 0 {
+        return None;
+    }
+    std::fs::read(slot_guest_path(slot)).ok()
+}
+
+#[cfg(not(target_os = "emscripten"))]
+fn load_slot_bytes(slot: usize) -> Option<Vec<u8>> {
+    std::fs::read(slot_path(slot)).ok()
+}
+
+#[cfg(target_os = "emscripten")]
+fn slot_exists(slot: usize) -> bool {
+    run_script_int(format!("window.inkRibbonHasSlot({})", slot + 1)) != 0
+}
+
+#[cfg(not(target_os = "emscripten"))]
+fn slot_exists(slot: usize) -> bool {
+    std::path::Path::new(&slot_path(slot)).is_file()
+}
+
+fn now_unix() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+fn format_play_time(t: f32) -> String {
+    let s = t.max(0.0) as u64;
+    format!("{:02}:{:02}:{:02}", s / 3600, (s % 3600) / 60, s % 60)
+}
+
+fn refresh_slot_meta(state: &mut State) {
+    for slot in 0..SAVE_SLOTS {
+        state.slot_meta[slot] = if slot_exists(slot) {
+            load_slot_bytes(slot)
+                .and_then(|b| PlayerSave::from_bytes(&b))
+                .map(|s| SlotMeta {
+                    saved_at: s.saved_at,
+                    play_time: s.play_time,
+                    floor: s.player_floor,
+                    items: s.inventory.len(),
+                })
+        } else {
+            None
+        };
+    }
+}
+
+fn open_menu(state: &mut State, menu: Menu) {
+    state.menu = menu;
+    state.menu_index = 0;
+    state.confirm = None;
+    state.confirm_index = 0;
+    state.inventory_open = false;
+    if matches!(menu, Menu::SaveSlots | Menu::LoadSlots) {
+        refresh_slot_meta(state);
+    }
+}
+
+fn ink_ribbon_count(state: &State) -> usize {
+    state
+        .inventory
+        .iter()
+        .filter(|it| it.kind == ItemKind::InkRibbon)
+        .count()
+}
+
+// Space in play mode: act on the nearest interactable.
+fn interact(state: &mut State) {
+    match interaction_target(state) {
+        Some(Interaction::Typewriter(_)) => {
+            if ink_ribbon_count(state) == 0 {
+                set_status(state, "need an ink-ribbon to save");
+                return;
+            }
+            open_menu(state, Menu::SaveSlots);
+            set_status(state, "choose a slot to save");
+        }
+        Some(Interaction::Item { id, name, .. }) => collect_item(state, id, &name),
+        Some(Interaction::Door { id, .. }) => unlock_door(state, id),
+        None => set_status(state, "nothing to interact with"),
+    }
+}
+
+fn door_exists(state: &State, floor: usize, id: u32) -> bool {
+    state
+        .scene
+        .floors
+        .get(floor)
+        .is_some_and(|f| f.doors.iter().any(|d| d.id == id))
+}
+
+fn do_save(state: &mut State, slot: usize) {
+    // Each save consumes one ink-ribbon; consume before snapshotting so the
+    // saved inventory reflects the cost.
+    let Some(idx) = state
+        .inventory
+        .iter()
+        .position(|it| it.kind == ItemKind::InkRibbon)
+    else {
+        set_status(state, "need an ink-ribbon to save");
+        return;
+    };
+    let ribbon = state.inventory.remove(idx);
+    let save = PlayerSave {
+        player_floor: state.player_floor,
+        player: state.player,
+        collected: state.collected.clone(),
+        revealed: state.revealed.clone(),
+        unlocked: state.unlocked.clone(),
+        inventory: state.inventory.clone(),
+        play_time: state.play_time,
+        saved_at: now_unix(),
+    };
+    if !save_slot_bytes(slot, &save.to_bytes()) {
+        state.inventory.insert(idx, ribbon);
+        set_status(state, "save failed");
+        return;
+    }
+    refresh_slot_meta(state);
+    state.menu = Menu::None;
+    set_status(state, format!("saved to slot {}", slot + 1));
+}
+
+fn apply_save(state: &mut State, save: PlayerSave) {
+    let floor = save.player_floor.min(NUM_FLOORS - 1);
+    state.player_floor = floor;
+    state.floor = floor;
+    state.player = save.player;
+    state.collected = save.collected;
+    state.revealed = save
+        .revealed
+        .into_iter()
+        .filter(|(f, id)| door_exists(state, *f, *id))
+        .collect();
+    state.unlocked = save
+        .unlocked
+        .into_iter()
+        .filter(|(f, id)| door_exists(state, *f, *id))
+        .collect();
+    state.inventory = save.inventory;
+    state.inventory_selected = 0;
+    state.play_time = save.play_time;
+    state.target = None;
+    state.path.clear();
+    state.path_red.clear();
+    state.menu = Menu::None;
+    state.inventory_open = false;
+    state.pending_floor = None;
+    state.pending_spawn = None;
+    state.transition_t = 0.0;
+    state.stair_lock = false;
+    rebuild_assets(state);
+    notify_floor(floor);
+    if let Some(cell) = snap_source(&state.nav[floor], state.player.0, state.player.1) {
+        state.player = cell_to_source(&state.nav[floor], cell.0, cell.1);
+        state.player_cell = Some(cell);
+        state.reachable[floor] = reachable_from(&state.nav[floor], cell);
+    }
+    pan_to_center_player(state);
+    state.follow_target = (state.pan_target_x, state.pan_target_y);
+    state.recentre = false;
+}
+
+fn do_load(state: &mut State, slot: usize) {
+    let Some(save) = load_slot_bytes(slot).and_then(|b| PlayerSave::from_bytes(&b)) else {
+        set_status(state, "load failed");
+        return;
+    };
+    apply_save(state, save);
+    set_status(state, format!("loaded slot {}", slot + 1));
+}
+
+fn pause_entry_count() -> usize {
+    if cfg!(target_os = "emscripten") {
+        2
+    } else {
+        3
+    }
+}
+
+fn menu_activate(state: &mut State) {
+    match state.menu {
+        Menu::Pause => match state.menu_index {
+            0 => state.menu = Menu::None,
+            1 => open_menu(state, Menu::LoadSlots),
+            _ => {
+                state.confirm = Some(Confirm::Quit);
+                state.confirm_index = 0;
+            }
+        },
+        Menu::SaveSlots => {
+            let slot = state.menu_index.min(SAVE_SLOTS - 1);
+            if state.slot_meta[slot].is_some() {
+                state.confirm = Some(Confirm::Overwrite(slot));
+                state.confirm_index = 0;
+            } else {
+                do_save(state, slot);
+            }
+        }
+        Menu::LoadSlots => {
+            let slot = state.menu_index.min(SAVE_SLOTS - 1);
+            if state.slot_meta[slot].is_some() {
+                do_load(state, slot);
+            }
+        }
+        Menu::None => {}
+    }
+}
+
+fn confirm_activate(state: &mut State, yes: bool) {
+    let Some(c) = state.confirm.take() else {
+        return;
+    };
+    if !yes {
+        return;
+    }
+    match c {
+        Confirm::Overwrite(slot) => do_save(state, slot),
+        Confirm::Quit => {
+            #[cfg(not(target_os = "emscripten"))]
+            sapp::request_quit();
+            #[cfg(target_os = "emscripten")]
+            set_status(state, "exit is unavailable in the browser");
+        }
+    }
+}
+
 // Panel controls consume the click; returns true if it was handled.
 fn panel_click(state: &mut State, x: f32, y: f32) -> bool {
     let l = state.layout;
@@ -2964,12 +3697,23 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                     set_status(state, format!("tool {}", state.tool.label()));
                     return;
                 }
-                // Door properties popup consumes clicks inside it.
+                // Door / item properties popups consume clicks inside them.
                 if door_popup_buttons(state).is_some() {
                     if let Some(hit) = door_popup_hit(state, x, y) {
                         apply_door_popup(state, hit);
                     }
                     if door_popup_buttons(state).is_some_and(|(_, panel)| {
+                        (panel.0..panel.0 + panel.2).contains(&x)
+                            && (panel.1..panel.1 + panel.3).contains(&y)
+                    }) {
+                        return;
+                    }
+                }
+                if item_popup_buttons(state).is_some() {
+                    if let Some(hit) = item_popup_hit(state, x, y) {
+                        apply_item_popup(state, hit);
+                    }
+                    if item_popup_buttons(state).is_some_and(|(_, panel)| {
                         (panel.0..panel.0 + panel.2).contains(&x)
                             && (panel.1..panel.1 + panel.3).contains(&y)
                     }) {
@@ -2994,8 +3738,23 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 }
                 return;
             }
+            if let Some(hit) = menu_hit(state, x, y) {
+                match hit {
+                    MenuHit::Entry(i) => {
+                        state.menu_index = i;
+                        menu_activate(state);
+                    }
+                    MenuHit::Yes => confirm_activate(state, true),
+                    MenuHit::No => confirm_activate(state, false),
+                }
+                return;
+            }
+            if state.menu != Menu::None || state.confirm.is_some() {
+                // Clicking outside an open menu does nothing.
+                return;
+            }
             if let Some(slot) = inventory_hit(state, x, y) {
-                state.inventory_selected = slot.min(state.inventory.len().saturating_sub(1));
+                state.inventory_selected = slot;
                 return;
             }
             if panel_click(state, x, y) {
@@ -3223,6 +3982,54 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                     }
                 }
             }
+            // Inventory navigation (play mode).
+            if state.inventory_open && !state.edit {
+                match event.key_code {
+                    sapp::Keycode::Left => nav_inventory(state, -1),
+                    sapp::Keycode::Right => nav_inventory(state, 1),
+                    sapp::Keycode::Up => nav_inventory(state, -(INV_COLS as i32)),
+                    sapp::Keycode::Down => nav_inventory(state, INV_COLS as i32),
+                    sapp::Keycode::Escape | sapp::Keycode::I => {
+                        state.inventory_open = false;
+                        set_status(state, "inventory closed");
+                    }
+                    _ => {}
+                }
+                return;
+            }
+            // Menus take over in play mode while open.
+            if !state.edit && (state.confirm.is_some() || state.menu != Menu::None) {
+                if state.confirm.is_some() {
+                    match event.key_code {
+                        sapp::Keycode::Left
+                        | sapp::Keycode::Up
+                        | sapp::Keycode::Right
+                        | sapp::Keycode::Down => {
+                            state.confirm_index = wrap(state.confirm_index, 1, 2);
+                        }
+                        sapp::Keycode::Enter | sapp::Keycode::Space => {
+                            confirm_activate(state, state.confirm_index == 0)
+                        }
+                        sapp::Keycode::Y => confirm_activate(state, true),
+                        sapp::Keycode::N | sapp::Keycode::Escape => confirm_activate(state, false),
+                        _ => {}
+                    }
+                    return;
+                }
+                let rows = menu_rows(state);
+                match event.key_code {
+                    sapp::Keycode::Up => {
+                        state.menu_index = wrap(state.menu_index, -1, rows);
+                    }
+                    sapp::Keycode::Down => {
+                        state.menu_index = wrap(state.menu_index, 1, rows);
+                    }
+                    sapp::Keycode::Enter | sapp::Keycode::Space => menu_activate(state),
+                    sapp::Keycode::Escape => state.menu = Menu::None,
+                    _ => {}
+                }
+                return;
+            }
             if event.key_code == sapp::Keycode::Tab && !event.key_repeat {
                 set_edit(state, !state.edit);
                 return;
@@ -3311,7 +4118,7 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 }
             }
             match event.key_code {
-                sapp::Keycode::I if !event.key_repeat => {
+                sapp::Keycode::I if !state.edit && !event.key_repeat => {
                     state.inventory_open = !state.inventory_open;
                     set_status(
                         state,
@@ -3322,15 +4129,10 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                         },
                     );
                 }
-                sapp::Keycode::Space if !state.edit && !event.key_repeat => try_unlock(state),
-                sapp::Keycode::Left if state.inventory_open => nav_inventory(state, -1),
-                sapp::Keycode::Right if state.inventory_open => nav_inventory(state, 1),
-                sapp::Keycode::Up if state.inventory_open => {
-                    nav_inventory(state, -(INV_COLS as i32))
+                sapp::Keycode::Escape if !state.edit && !event.key_repeat => {
+                    open_menu(state, Menu::Pause);
                 }
-                sapp::Keycode::Down if state.inventory_open => {
-                    nav_inventory(state, INV_COLS as i32)
-                }
+                sapp::Keycode::Space if !state.edit && !event.key_repeat => interact(state),
                 sapp::Keycode::F1 if !event.key_repeat => state.debug_mode = !state.debug_mode,
                 sapp::Keycode::G if !event.key_repeat => state.show_grid = !state.show_grid,
                 sapp::Keycode::M if !event.key_repeat => {
@@ -4032,14 +4834,13 @@ fn draw_floor(
     sgl::end();
     sgl::disable_texture();
 
-    // Key item dots: constant screen size, drawn on whichever floor they live on.
-    sgl::c4f(C_ITEM.0, C_ITEM.1, C_ITEM.2, 1.0);
+    // Items and typewriters, constant screen size, on whichever floor they live.
     for item in &state.items {
         if item.floor != state.floor {
             continue;
         }
         let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, item.pos.0, item.pos.1);
-        filled_circle(rx, ry, ITEM_RADIUS);
+        draw_item_marker(rx, ry, item.kind, 1.0);
     }
 
     // Computed route and selected target ring, if the target is on this floor.
@@ -4113,16 +4914,17 @@ fn draw_floor(
         }
         draw_player_marker(state, px, py, marker_ref);
 
-        // Unlock prompt for a nearby locked door the player holds a key for.
+        // Interaction prompt for the nearest item / typewriter / door.
         if !state.edit {
-            if let Some(center) = nearby_unlockable(state) {
+            if let Some(inter) = interaction_target(state) {
+                let center = inter.pos();
                 let (hx, hy) = src_to_ref(frame, ox, oy, iw, ih, center.0, center.1);
                 let font = state.font.as_ref().unwrap();
-                let text = "SPACE: unlock";
-                let width = font.text_width(text, 19.5);
+                let text = inter.label();
+                let width = font.text_width(&text, 19.5);
                 let tx = (hx - width * 0.5).clamp(MAP_X, MAP_X + MAP_W - width);
                 draw_gradient_rect(tx - 8.0, hy - 34.0, width + 16.0, 26.0, 0.85, 8.0);
-                draw_ui_text(font, text, tx, hy - 30.0, C_HILITE, false, 1.0);
+                draw_ui_text(font, &text, tx, hy - 30.0, C_HILITE, false, 1.0);
             }
         }
     }
@@ -4290,8 +5092,7 @@ fn draw_editor(
     }
     for it in &floor.items {
         let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, it.pos.0, it.pos.1);
-        sgl::c4f(C_ITEM.0, C_ITEM.1, C_ITEM.2, 1.0);
-        filled_circle(rx, ry, ITEM_RADIUS);
+        draw_item_marker(rx, ry, it.kind, 1.0);
         if let Some(PendingLink::Item(pf, pid)) = state.pending_link {
             if pf == state.floor && pid == it.id {
                 sgl::c4f(1.0, 1.0, 1.0, 1.0);
@@ -4460,6 +5261,7 @@ fn draw_editor(
         );
     }
     draw_door_popup(state, font);
+    draw_item_popup(state, font);
 }
 
 // Fade the map window out/in around a floor change.
@@ -4813,7 +5615,12 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
         state.camera_ready = true;
     }
     state.time += delta;
-    update_player(state, delta);
+    // Modal menus (and the inventory) freeze gameplay and playtime.
+    let frozen = state.menu != Menu::None || state.inventory_open;
+    if !frozen {
+        state.play_time += delta;
+        update_player(state, delta);
+    }
     let ease = (delta * 14.0).min(1.0);
     state.zoom += (state.zoom_target - state.zoom) * ease;
     if let Some(a) = state.zoom_anchor {
@@ -4840,6 +5647,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     let has_input = stick_mag > 0.0 || state.holding.iter().any(|&held| held);
     let following = (has_input || state.recentre)
         && !state.edit
+        && !frozen
         && state.floor == state.player_floor
         && state.zoom_anchor.is_none()
         && !state.dragging
@@ -4969,6 +5777,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     draw_map_frame(&state.layout);
     draw_map_labels(state.font.as_ref().unwrap(), &state.layout);
     draw_inventory(state, state.font.as_ref().unwrap());
+    draw_menu(state, state.font.as_ref().unwrap());
     draw_cursor(state, width, height, left, right, top, bottom);
     draw_stick(state);
     draw_debug_overlay(state);
@@ -5049,6 +5858,13 @@ fn main() {
         inventory: Vec::new(),
         inventory_open: false,
         inventory_selected: 0,
+        item_kind: ItemKind::Key,
+        play_time: 0.0,
+        menu: Menu::None,
+        menu_index: 0,
+        confirm: None,
+        confirm_index: 0,
+        slot_meta: [None; SAVE_SLOTS],
         undo: Vec::new(),
         next_id,
         status: String::new(),
@@ -5202,6 +6018,30 @@ mod tests {
         assert!(
             down.0.abs() < 1e-6 && down.1 > 0.99,
             "180 deg should point down"
+        );
+    }
+
+    #[test]
+    fn facing_score_prefers_ahead_and_nearer() {
+        let player = (100.0, 100.0);
+        // Facing up (0 rad): ahead is -y.
+        let ahead = (100.0, 70.0);
+        let behind = (100.0, 130.0);
+        let side = (130.0, 100.0);
+        let s_ahead = facing_score(player, 0.0, ahead, dist(player, ahead));
+        let s_behind = facing_score(player, 0.0, behind, dist(player, behind));
+        let s_side = facing_score(player, 0.0, side, dist(player, side));
+        assert!(s_ahead < s_side, "ahead should beat an equidistant side");
+        assert!(
+            s_ahead < s_behind,
+            "ahead should beat an equidistant behind"
+        );
+        // Equally in front: the nearer one wins.
+        let near = (100.0, 90.0);
+        let far = (100.0, 60.0);
+        assert!(
+            facing_score(player, 0.0, near, dist(player, near))
+                < facing_score(player, 0.0, far, dist(player, far))
         );
     }
 
@@ -5440,13 +6280,28 @@ mod tests {
         // header count=2, then a floor-2 item and a floor-1 item.
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&2u32.to_le_bytes());
-        for (id, floor, x, y, name) in [
-            (7u32, 1u32, 100.0f32, 200.0f32, "ID Wristband (Level 2)"),
-            (9u32, 2u32, 300.0f32, 400.0f32, "Pantry Key"),
+        for (id, floor, kind, x, y, name) in [
+            (
+                7u32,
+                1u32,
+                ItemKind::Key,
+                100.0f32,
+                200.0f32,
+                "ID Wristband (Level 2)",
+            ),
+            (
+                9u32,
+                2u32,
+                ItemKind::InkRibbon,
+                300.0f32,
+                400.0f32,
+                "Pantry Key",
+            ),
         ] {
             let n = name.as_bytes();
             bytes.extend_from_slice(&id.to_le_bytes());
             bytes.extend_from_slice(&floor.to_le_bytes());
+            bytes.push(kind.to_u8());
             bytes.extend_from_slice(&x.to_le_bytes());
             bytes.extend_from_slice(&y.to_le_bytes());
             bytes.extend_from_slice(&(n.len() as u32).to_le_bytes());
@@ -5454,9 +6309,11 @@ mod tests {
         }
         let items = parse_items(&bytes);
         assert_eq!(items.len(), 2);
+        assert_eq!(items[0].kind, ItemKind::Key);
         assert_eq!(items[0].floor, 1);
         assert_eq!(items[0].name, "ID Wristband (Level 2)");
         assert_eq!(items[0].pos, (100.0, 200.0));
+        assert_eq!(items[1].kind, ItemKind::InkRibbon);
         assert_eq!(items[1].floor, 2);
         assert_eq!(items[1].name, "Pantry Key");
         assert_eq!(items[1].pos, (300.0, 400.0));
@@ -5468,6 +6325,19 @@ mod tests {
         let mut v = vec![0, 1, 2, 3, 4];
         remove_desc(&mut v, vec![1, 3]);
         assert_eq!(v, vec![0, 2, 4]);
+    }
+
+    #[test]
+    fn wrap_cycles_both_ways() {
+        // Menu rows of 3.
+        assert_eq!(wrap(2, 1, 3), 0);
+        assert_eq!(wrap(0, -1, 3), 2);
+        // Inventory grid of 16.
+        assert_eq!(wrap(15, 1, 16), 0);
+        assert_eq!(wrap(0, -1, 16), 15);
+        assert_eq!(wrap(0, -4, 16), 12);
+        // Empty is safe.
+        assert_eq!(wrap(0, 1, 0), 0);
     }
 
     #[test]

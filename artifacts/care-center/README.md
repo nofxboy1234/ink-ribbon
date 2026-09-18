@@ -24,6 +24,11 @@ Open the map, press **Tab** to enter edit mode, and use the in-canvas tool bar:
 Keys: `Z` undo, `X` clear floor, `S` save, `L` load, `Space` snap, `Del` delete,
 `Ctrl+C/V/D` copy/paste/duplicate, `Tab`/`Esc` exit.
 
+In play mode: `Esc` opens/closes the pause menu, `I` toggles the inventory
+(`Esc` closes it), `Space` interacts (unlock a linked door, or save at a
+typewriter when holding an ink-ribbon), and arrow keys navigate menus, the
+inventory and confirmation prompts.
+
 Saving writes `scene.bin` (native: working directory; web: download plus
 `localStorage`, which auto-loads next time). Commit the resulting `scene.bin` to
 publish the map.

@@ -18,4 +18,6 @@ native/assets/*.rgba
 native/assets/*.bin
 # scene.bin is the committed map source, not a generated asset.
 !native/assets/scene.bin
+# Player save slots are local play data.
+native/saves/
 web/public/*.wasm
