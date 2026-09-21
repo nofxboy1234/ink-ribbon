@@ -187,7 +187,7 @@ const C_LOCK: (f32, f32, f32) = (0.63, 0.27, 0.34); // #a04457 locked-door red
 // (ref/map_ref.png). The band thickness lives in scene::ROOM_WALL_PX.
 const C_WALL_OUTER: (f32, f32, f32) = (79.0 / 255.0, 85.0 / 255.0, 84.0 / 255.0); // #4f5554
 const C_WALL_INNER: (f32, f32, f32) = (52.0 / 255.0, 57.0 / 255.0, 61.0 / 255.0); // #34393d
-const WALL_LINE_PX: f32 = 6.0;
+const WALL_LINE_PX: f32 = 7.3;
 
 // Near-black background and faint map backing grid.
 const BACKGROUND: (f32, f32, f32) = (0.047, 0.047, 0.047); // #0c0c0c
@@ -4919,11 +4919,31 @@ fn draw_floor(
         for e in &plan.edges {
             let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, e.x0, e.y0);
             let (rx1, ry1) = src_to_ref(frame, ox, oy, iw, ih, e.x1, e.y1);
+            // The line sits inside the wall band: on the filled side for the
+            // outer (union) contour, on the unfilled side for the inner one.
             let (x, y, w, h) = match e.dir {
-                EdgeDir::Up => (rx, ry, rx1 - rx, ty),
-                EdgeDir::Down => (rx, ry - ty, rx1 - rx, ty),
-                EdgeDir::Left => (rx, ry, tx, ry1 - ry),
-                EdgeDir::Right => (rx - tx, ry, tx, ry1 - ry),
+                EdgeDir::Up | EdgeDir::Down => {
+                    let y = if matches!(
+                        (e.dir, e.inset),
+                        (EdgeDir::Up, false) | (EdgeDir::Down, true)
+                    ) {
+                        ry
+                    } else {
+                        ry - ty
+                    };
+                    (rx, y, rx1 - rx, ty)
+                }
+                EdgeDir::Left | EdgeDir::Right => {
+                    let x = if matches!(
+                        (e.dir, e.inset),
+                        (EdgeDir::Left, false) | (EdgeDir::Right, true)
+                    ) {
+                        rx
+                    } else {
+                        rx - tx
+                    };
+                    (x, ry, tx, ry1 - ry)
+                }
             };
             let c = if e.inset { C_WALL_INNER } else { C_WALL_OUTER };
             sgl::c4f(c.0, c.1, c.2, 1.0);
@@ -4933,6 +4953,11 @@ fn draw_floor(
             sgl::v2f(x, y + h);
         }
         for c in &plan.corners {
+            let (dx, dy) = if c.inset {
+                (-c.sx, -c.sy)
+            } else {
+                (c.sx, c.sy)
+            };
             let (x0, y0) = src_to_ref(frame, ox, oy, iw, ih, c.x, c.y);
             let (x1, y1) = src_to_ref(
                 frame,
@@ -4940,8 +4965,8 @@ fn draw_floor(
                 oy,
                 iw,
                 ih,
-                c.x + c.sx * WALL_LINE_PX,
-                c.y + c.sy * WALL_LINE_PX,
+                c.x + dx * WALL_LINE_PX,
+                c.y + dy * WALL_LINE_PX,
             );
             let (x, w) = (x0.min(x1), (x1 - x0).abs());
             let (y, h) = (y0.min(y1), (y1 - y0).abs());
