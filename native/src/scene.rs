@@ -42,6 +42,10 @@ const MAGIC: &[u8; 4] = b"IRSC";
 /// v1 stored doors without `reveals_as`; v2 adds it. Reading still accepts v1.
 pub const VERSION: u16 = 2;
 
+/// Thickness in source pixels of the wall band drawn inside each room rectangle
+/// (the gap between the two parallel lines).
+pub const ROOM_WALL_PX: f32 = 20.0;
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BoolOp {
     Add,
@@ -184,6 +188,39 @@ impl Floor {
             && self.doors.is_empty()
             && self.stairs.is_empty()
             && self.items.is_empty()
+    }
+
+    /// A drawn rectangle is a room. Rooms union, so overlapping rectangles merge
+    /// into one space with no internal wall. The wall band is the outer boundary
+    /// of that union minus its inset ([`interior_ops`]).
+    pub fn wall_ops(&self) -> Vec<(BoolOp, Rect)> {
+        self.walls.iter().map(|w| (w.mode, w.rect)).collect()
+    }
+
+    /// The walkable interior: the room union eroded by the wall band. Erosion
+    /// distributes over union, so each `Add` room shrinks and each `Sub` grows.
+    pub fn interior_ops(&self) -> Vec<(BoolOp, Rect)> {
+        self.walls
+            .iter()
+            .filter_map(|w| {
+                let off = if w.mode == BoolOp::Add {
+                    ROOM_WALL_PX
+                } else {
+                    -ROOM_WALL_PX
+                };
+                let r = inset_rect(w.rect, off);
+                (r.w > 0.0 && r.h > 0.0).then_some((w.mode, r))
+            })
+            .collect()
+    }
+}
+
+fn inset_rect(r: Rect, t: f32) -> Rect {
+    Rect {
+        x: r.x + t,
+        y: r.y + t,
+        w: r.w - 2.0 * t,
+        h: r.h - 2.0 * t,
     }
 }
 

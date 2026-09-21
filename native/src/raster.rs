@@ -48,6 +48,11 @@ impl Mask {
         }
     }
 
+    /// True if any cell is set.
+    pub fn any(&self) -> bool {
+        self.bits.iter().any(|&b| b != 0)
+    }
+
     /// Fill (or clear) an axis-aligned rectangle in mask cells.
     pub fn fill_rect(&mut self, x: f32, y: f32, w: f32, h: f32, on: bool) {
         let x0 = x.floor() as i32;
@@ -86,28 +91,71 @@ impl Mask {
         }
     }
 
+    /// Square min-filter erosion by `radius` cells: a cell stays set only if
+    /// every neighbour within `radius` is set.
+    pub fn erode(&self, radius: i32) -> Mask {
+        if radius <= 0 {
+            return self.clone();
+        }
+        self.not().dilate(radius).not()
+    }
+
+    /// Complement of every cell.
+    pub fn not(&self) -> Mask {
+        let mut out = Mask::new(self.w, self.h);
+        for y in 0..self.h {
+            for x in 0..self.w {
+                out.set(x, y, !self.get(x, y));
+            }
+        }
+        out
+    }
+
     pub fn or_with(&mut self, other: &Mask) {
         for i in 0..self.bits.len().min(other.bits.len()) {
             self.bits[i] |= other.bits[i];
         }
     }
 
-    /// Square max-filter dilation by `radius` cells.
+    /// Clear every cell that is set in `other`.
+    pub fn subtract(&mut self, other: &Mask) {
+        for i in 0..self.bits.len().min(other.bits.len()) {
+            self.bits[i] &= !other.bits[i];
+        }
+    }
+
+    /// Square max-filter dilation by `radius` cells. Separable (a horizontal then
+    /// a vertical pass), so a large radius stays cheap.
     pub fn dilate(&self, radius: i32) -> Mask {
         if radius <= 0 {
             return self.clone();
         }
+        let mut tmp = Mask::new(self.w, self.h);
+        for y in 0..self.h {
+            for x in 0..self.w {
+                let mut on = false;
+                for dx in -radius..=radius {
+                    let xx = x + dx;
+                    if xx >= 0 && xx < self.w && self.get(xx, y) {
+                        on = true;
+                        break;
+                    }
+                }
+                tmp.set(x, y, on);
+            }
+        }
         let mut out = Mask::new(self.w, self.h);
         for y in 0..self.h {
             for x in 0..self.w {
-                if !self.get(x, y) {
-                    continue;
-                }
+                let mut on = false;
                 for dy in -radius..=radius {
-                    for dx in -radius..=radius {
-                        out.set(x + dx, y + dy, true);
+                    let yy = y + dy;
+                    if yy >= 0 && yy < self.h && tmp.get(x, yy) {
+                        on = true;
+                        break;
                     }
                 }
+                out.set(x, y, on);
             }
         }
         out

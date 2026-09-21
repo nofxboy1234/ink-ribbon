@@ -13,6 +13,11 @@ pub const CELL_PX: u32 = 8;
 pub const SOLID_CELL_PX: u32 = 2;
 pub const CLEARANCE_CELLS: i32 = 2;
 pub const DOOR_DILATION_CELLS: i32 = 1;
+// Before the exterior flood-fill, the geometry is closed by this much so that
+// doorways and corridor mouths don't let the "outside" leak into the rooms. The
+// radius must exceed half the widest opening but stay under the gap to the map
+// frame.
+pub const SEAL_CELLS: i32 = 16;
 pub const OVERLAY_WIDTH: i32 = 2048;
 
 pub const TINT_STAIRS: (u8, u8, u8) = (120, 126, 126);
@@ -70,17 +75,7 @@ fn bake_floor(floor: &Floor, index: usize, out: &mut BakedBytes) {
     let sx = w as f32 / fw;
     let sy = h as f32 / fh;
 
-    let mut walls = Mask::new(w, h);
-    for op in &floor.walls {
-        let on = op.mode == BoolOp::Add;
-        walls.fill_rect(
-            (op.rect.x - fx) * sx,
-            (op.rect.y - fy) * sy,
-            op.rect.w * sx,
-            op.rect.h * sy,
-            on,
-        );
-    }
+    let walls = wall_band_mask(floor, fx, fy, sx, sy, w, h);
 
     let mut obstacles = Mask::new(w, h);
     for o in &floor.obstacles {
@@ -132,17 +127,7 @@ fn bake_floor(floor: &Floor, index: usize, out: &mut BakedBytes) {
     let sw = (fw / SOLID_CELL_PX as f32).round() as i32;
     let sh = (fh / SOLID_CELL_PX as f32).round() as i32;
     let (ssx, ssy) = (sw as f32 / fw, sh as f32 / fh);
-    let mut solid = Mask::new(sw, sh);
-    for op in &floor.walls {
-        let on = op.mode == BoolOp::Add;
-        solid.fill_rect(
-            (op.rect.x - fx) * ssx,
-            (op.rect.y - fy) * ssy,
-            op.rect.w * ssx,
-            op.rect.h * ssy,
-            on,
-        );
-    }
+    let mut solid = wall_band_mask(floor, fx, fy, ssx, ssy, sw, sh);
     for o in &floor.obstacles {
         solid.fill_box(
             (o.center.0 - fx) * ssx,
@@ -170,6 +155,27 @@ fn bake_floor(floor: &Floor, index: usize, out: &mut BakedBytes) {
     out.overlays[index] = bake_overlay(floor, fx, fy, fw, fh);
 }
 
+/// The wall band: the room union (`Add` minus `Sub`) minus its eroded interior.
+fn wall_band_mask(floor: &Floor, fx: f32, fy: f32, sx: f32, sy: f32, w: i32, h: i32) -> Mask {
+    let fill = |mask: &mut Mask, ops: &[(BoolOp, crate::scene::Rect)]| {
+        for (mode, r) in ops {
+            mask.fill_rect(
+                (r.x - fx) * sx,
+                (r.y - fy) * sy,
+                r.w * sx,
+                r.h * sy,
+                *mode == BoolOp::Add,
+            );
+        }
+    };
+    let mut walls = Mask::new(w, h);
+    fill(&mut walls, &floor.wall_ops());
+    let mut interior = Mask::new(w, h);
+    fill(&mut interior, &floor.interior_ops());
+    walls.subtract(&interior);
+    walls
+}
+
 fn build_walk(
     walls: &Mask,
     obstacles: &Mask,
@@ -183,14 +189,13 @@ fn build_walk(
     if include_locked {
         base = or(&base, locked);
     }
-    let impassable = base.dilate(CLEARANCE_CELLS);
-    let mut free = Mask::new(w, h);
-    for y in 0..h {
-        for x in 0..w {
-            free.set(x, y, !impassable.get(x, y));
-        }
-    }
-    let exterior = free.flood_from_border();
+    let free = base.dilate(CLEARANCE_CELLS).not();
+    // Close the wall network into a solid footprint before deciding what the
+    // "outside" is, so the exterior flood can't leak through doorways or corridor
+    // mouths into the rooms. Navigation still uses the unsealed `free`, so those
+    // gaps stay walkable.
+    let sealed = base.dilate(SEAL_CELLS).erode(SEAL_CELLS);
+    let exterior = sealed.not().flood_from_border();
     let mut walk = Mask::new(w, h);
     for y in 0..h {
         for x in 0..w {
@@ -367,12 +372,12 @@ mod tests {
     }
 
     #[test]
-    fn a_wall_ring_leaves_a_walkable_interior() {
-        // A hollow square wall in the middle of Floor 1.
+    fn a_room_rectangle_is_walkable_inside() {
+        // A drawn rectangle is a room: walkable floor inside its wall band.
         let mut scene = Scene::default();
         let mut floor = Floor::new(crate::scene::FLOOR1_INDEX);
         let (fx, fy, _, _) = crate::scene::FLOOR1_FRAME;
-        let outer = Rect {
+        let room = Rect {
             x: fx + 2000.0,
             y: fy + 1000.0,
             w: 600.0,
@@ -380,36 +385,94 @@ mod tests {
         };
         floor.walls.push(WallOp {
             mode: BoolOp::Add,
-            rect: outer,
-        });
-        floor.walls.push(WallOp {
-            mode: BoolOp::Sub,
-            rect: Rect {
-                x: outer.x + 40.0,
-                y: outer.y + 40.0,
-                w: outer.w - 80.0,
-                h: outer.h - 80.0,
-            },
+            rect: room,
         });
         scene.floors[crate::scene::FLOOR1_INDEX] = floor;
 
         let baked = bake(&scene);
         let nav = &baked.nav[crate::scene::FLOOR1_INDEX];
         let w = u32::from_le_bytes([nav[4], nav[5], nav[6], nav[7]]) as i32;
-        let h = u32::from_le_bytes([nav[8], nav[9], nav[10], nav[11]]) as i32;
-        assert_eq!(w, 594);
-        assert_eq!(h, 341);
         let bit = |x: i32, y: i32| {
             let i = (y * w + x) as usize;
             (nav[12 + (i >> 3)] >> (i & 7)) & 1 == 1
         };
-        // Interior of the ring is walkable; the wall band and the outside are not.
-        let interior = ((outer.x + 300.0 - fx) / 8.0, (outer.y + 300.0 - fy) / 8.0);
+        let cell = |sx: f32, sy: f32| {
+            (
+                ((sx - fx) / CELL_PX as f32) as i32,
+                ((sy - fy) / CELL_PX as f32) as i32,
+            )
+        };
+        let (ix, iy) = cell(room.x + 300.0, room.y + 300.0);
+        let (bx, by) = cell(room.x + 4.0, room.y + 300.0);
+        // Inside is walkable; the band edge and the outside are not.
+        assert!(bit(ix, iy), "room interior should be walkable");
+        assert!(!bit(bx, by), "the wall band should not be walkable");
+        assert!(!bit(0, 0), "outside the room should be exterior");
+    }
+
+    #[test]
+    fn overlapping_rooms_are_one_walkable_space() {
+        // A second room over the first's right edge merges with it.
+        let mut scene = Scene::default();
+        let mut floor = Floor::new(crate::scene::FLOOR1_INDEX);
+        let (fx, fy, _, _) = crate::scene::FLOOR1_FRAME;
+        floor.walls.push(WallOp {
+            mode: BoolOp::Add,
+            rect: Rect {
+                x: fx + 2000.0,
+                y: fy + 1000.0,
+                w: 600.0,
+                h: 600.0,
+            },
+        });
+        floor.walls.push(WallOp {
+            mode: BoolOp::Add,
+            rect: Rect {
+                x: fx + 2500.0,
+                y: fy + 1200.0,
+                w: 400.0,
+                h: 200.0,
+            },
+        });
+        scene.floors[crate::scene::FLOOR1_INDEX] = floor;
+
+        let nav = &bake(&scene).nav[crate::scene::FLOOR1_INDEX];
+        let w = u32::from_le_bytes([nav[4], nav[5], nav[6], nav[7]]) as i32;
+        let bit = |sx: f32, sy: f32| {
+            let x = ((sx - fx) / CELL_PX as f32) as i32;
+            let y = ((sy - fy) / CELL_PX as f32) as i32;
+            let i = (y * w + x) as usize;
+            (nav[12 + (i >> 3)] >> (i & 7)) & 1 == 1
+        };
+        assert!(bit(fx + 2300.0, fy + 1300.0), "first room interior");
+        assert!(bit(fx + 2700.0, fy + 1300.0), "second room interior");
+        assert!(bit(fx + 2540.0, fy + 1300.0), "rooms should connect");
+        assert!(!bit(fx + 2200.0, fy + 1010.0), "wall band");
+    }
+
+    #[test]
+    fn a_rectangle_thinner_than_the_band_is_solid_wall() {
+        // Too thin to hold a room floor, so it is just a wall: nothing walkable.
+        let mut scene = Scene::default();
+        let mut floor = Floor::new(crate::scene::FLOOR1_INDEX);
+        let (fx, fy, _, _) = crate::scene::FLOOR1_FRAME;
+        floor.walls.push(WallOp {
+            mode: BoolOp::Add,
+            rect: Rect {
+                x: fx + 2000.0,
+                y: fy + 1000.0,
+                w: 400.0,
+                h: 12.0,
+            },
+        });
+        scene.floors[crate::scene::FLOOR1_INDEX] = floor;
+
+        let nav = &bake(&scene).nav[crate::scene::FLOOR1_INDEX];
+        let any = (12..nav.len()).any(|i| nav[i] != 0);
         assert!(
-            bit(interior.0 as i32, interior.1 as i32),
-            "ring interior should be walkable"
+            !any,
+            "a sub-band rectangle should not create walkable floor"
         );
-        assert!(!bit(0, 0), "outside the building should be exterior");
     }
 
     #[test]

@@ -1,11 +1,12 @@
-//! Exact boundary extraction for the wall union.
+//! Boundary extraction for the wall union.
 //!
 //! Walls are axis-aligned rectangles with an ordered `Add`/`Sub` boolean. The
-//! map draws them as a floor-plan double line: a dim face on the up/left sides
-//! and a bright face on the down/right sides, with internal edges (where quads
-//! overlap or abut) removed. This module turns the boolean into that boundary.
+//! map draws them as a thin double line: the outline of the union, plus the
+//! outline of the union eroded by a small gap, so a thick wall block still reads
+//! as two close parallel lines. Internal edges (where quads overlap or abut) and
+//! gaps at corners are handled here.
 
-use crate::scene::{BoolOp, Floor};
+use crate::scene::{BoolOp, Floor, Rect};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum EdgeDir {
@@ -24,45 +25,77 @@ pub struct WallEdge {
     pub y0: f32,
     pub x1: f32,
     pub y1: f32,
+    /// True for the inset copy (the inner line), false for the union outline.
+    pub inset: bool,
 }
 
-/// The exact boundary of the wall union as merged axis-aligned segments.
-pub fn wall_edges(floor: &Floor) -> Vec<WallEdge> {
+/// A miter fill at a boundary vertex, as a unit square scaled by the line
+/// thickness: spans `x .. x + sx*t` and `y .. y + sy*t` with `sx`/`sy` ±1.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct WallCorner {
+    pub x: f32,
+    pub y: f32,
+    pub sx: f32,
+    pub sy: f32,
+    pub inset: bool,
+}
+
+#[derive(Clone, PartialEq, Debug, Default)]
+pub struct WallPlan {
+    pub edges: Vec<WallEdge>,
+    pub corners: Vec<WallCorner>,
+}
+
+/// The wall lines for a floor: the room union's boundary (outer, brighter) plus
+/// the boundary of its eroded interior (inner, dimmer). Because rooms union,
+/// overlapping rectangles merge and leave no internal wall.
+pub fn wall_plan(floor: &Floor) -> WallPlan {
+    let mut plan = boundary(&floor.wall_ops());
+    let mut inner = boundary(&floor.interior_ops());
+    for e in &mut inner.edges {
+        e.inset = true;
+    }
+    for c in &mut inner.corners {
+        c.inset = true;
+    }
+    plan.edges.extend(inner.edges);
+    plan.corners.extend(inner.corners);
+    plan
+}
+
+/// Boundary of an ordered `Add`/`Sub` rectangle set, as merged faces plus miter
+/// corners.
+fn boundary(ops: &[(BoolOp, Rect)]) -> WallPlan {
     // Coordinate compression: every rectangle edge becomes a grid line, so each
     // cell is uniformly inside or outside the union.
     let mut xs: Vec<f32> = Vec::new();
     let mut ys: Vec<f32> = Vec::new();
-    for w in &floor.walls {
-        xs.push(w.rect.x);
-        xs.push(w.rect.x + w.rect.w);
-        ys.push(w.rect.y);
-        ys.push(w.rect.y + w.rect.h);
+    for (_, r) in ops {
+        xs.push(r.x);
+        xs.push(r.x + r.w);
+        ys.push(r.y);
+        ys.push(r.y + r.h);
     }
     xs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     ys.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     xs.dedup();
     ys.dedup();
     if xs.len() < 2 || ys.len() < 2 {
-        return Vec::new();
+        return WallPlan::default();
     }
     let nx = xs.len() - 1;
     let ny = ys.len() - 1;
 
-    let filled = |cx: f32, cy: f32| {
-        let mut on = false;
-        for w in &floor.walls {
-            let r = w.rect;
-            if cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h {
-                on = w.mode == BoolOp::Add;
-            }
-        }
-        on
-    };
-
     let cell = |j: usize, i: usize| -> bool {
         let cx = (xs[i] + xs[i + 1]) * 0.5;
         let cy = (ys[j] + ys[j + 1]) * 0.5;
-        filled(cx, cy)
+        let mut on = false;
+        for (mode, r) in ops {
+            if cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h {
+                on = *mode == BoolOp::Add;
+            }
+        }
+        on
     };
 
     let mut edges = Vec::new();
@@ -89,6 +122,7 @@ pub fn wall_edges(floor: &Floor) -> Vec<WallEdge> {
                             y0: y,
                             x1: xs[i],
                             y1: y,
+                            inset: false,
                         });
                         start = None;
                     }
@@ -120,6 +154,7 @@ pub fn wall_edges(floor: &Floor) -> Vec<WallEdge> {
                             y0: ys[s],
                             x1: x,
                             y1: ys[j],
+                            inset: false,
                         });
                         start = None;
                     }
@@ -129,13 +164,74 @@ pub fn wall_edges(floor: &Floor) -> Vec<WallEdge> {
         }
     }
 
-    edges
+    let corners = miter_corners(&edges);
+    WallPlan { edges, corners }
+}
+
+// At every vertex where a horizontal and a vertical face meet, fill the square
+// on the wall side of both. Convex corners already overlap there; concave
+// corners (and T-junctions) leave a gap, which these fill.
+fn miter_corners(edges: &[WallEdge]) -> Vec<WallCorner> {
+    let horizontal = |d: EdgeDir| matches!(d, EdgeDir::Up | EdgeDir::Down);
+    let mut corners = Vec::new();
+    for h in edges.iter().filter(|e| horizontal(e.dir)) {
+        let sy = if h.dir == EdgeDir::Up { 1.0 } else { -1.0 };
+        for (px, py) in [(h.x0, h.y0), (h.x1, h.y1)] {
+            for v in edges.iter().filter(|e| !horizontal(e.dir)) {
+                if v.x0 != px {
+                    continue;
+                }
+                let (vy0, vy1) = (v.y0.min(v.y1), v.y0.max(v.y1));
+                if py < vy0 || py > vy1 {
+                    continue;
+                }
+                let sx = if v.dir == EdgeDir::Left { 1.0 } else { -1.0 };
+                corners.push(WallCorner {
+                    x: px,
+                    y: py,
+                    sx,
+                    sy,
+                    inset: false,
+                });
+            }
+        }
+    }
+    // A vertical face can also dead-end onto a horizontal face's interior.
+    for v in edges.iter().filter(|e| !horizontal(e.dir)) {
+        let sx = if v.dir == EdgeDir::Left { 1.0 } else { -1.0 };
+        for (px, py) in [(v.x0, v.y0), (v.x1, v.y1)] {
+            for h in edges.iter().filter(|e| horizontal(e.dir)) {
+                if h.y0 != py {
+                    continue;
+                }
+                let (hx0, hx1) = (h.x0.min(h.x1), h.x0.max(h.x1));
+                if px < hx0 || px > hx1 {
+                    continue;
+                }
+                let sy = if h.dir == EdgeDir::Up { 1.0 } else { -1.0 };
+                corners.push(WallCorner {
+                    x: px,
+                    y: py,
+                    sx,
+                    sy,
+                    inset: false,
+                });
+            }
+        }
+    }
+    corners.sort_by(|a, b| {
+        (a.x, a.y, a.sx, a.sy)
+            .partial_cmp(&(b.x, b.y, b.sx, b.sy))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    corners.dedup();
+    corners
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scene::{BoolOp, Floor, Rect, WallOp, FLOOR1_INDEX};
+    use crate::scene::{Floor, WallOp, FLOOR1_INDEX, ROOM_WALL_PX};
 
     fn rect(x: f32, y: f32, w: f32, h: f32) -> Rect {
         Rect { x, y, w, h }
@@ -152,55 +248,109 @@ mod tests {
             rect: r,
         }
     }
+    fn ops(ws: &[WallOp]) -> Vec<(BoolOp, Rect)> {
+        ws.iter().map(|w| (w.mode, w.rect)).collect()
+    }
 
     fn count(edges: &[WallEdge], dir: EdgeDir) -> usize {
         edges.iter().filter(|e| e.dir == dir).count()
     }
 
     #[test]
-    fn single_rect_has_four_faces() {
+    fn a_room_draws_two_parallel_lines() {
         let mut floor = Floor::new(FLOOR1_INDEX);
-        floor.walls.push(add(rect(0.0, 0.0, 100.0, 40.0)));
-        let e = wall_edges(&floor);
-        assert_eq!(e.len(), 4);
-        assert_eq!(count(&e, EdgeDir::Up), 1);
-        assert_eq!(count(&e, EdgeDir::Down), 1);
-        assert_eq!(count(&e, EdgeDir::Left), 1);
-        assert_eq!(count(&e, EdgeDir::Right), 1);
+        floor.walls.push(add(rect(0.0, 0.0, 200.0, 120.0)));
+        let plan = wall_plan(&floor);
+        // Outer contour plus the inset (room) contour.
+        assert_eq!(plan.edges.len(), 8);
+        assert_eq!(count(&plan.edges, EdgeDir::Up), 2);
+        let mut ys: Vec<(f32, bool)> = plan
+            .edges
+            .iter()
+            .filter(|e| matches!(e.dir, EdgeDir::Up | EdgeDir::Down))
+            .map(|e| (e.y0, e.inset))
+            .collect();
+        ys.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        ys.dedup();
+        // Outer lines at the rect edges (bright); inner lines inset by the band
+        // (dim).
+        assert_eq!(
+            ys,
+            vec![
+                (0.0, false),
+                (ROOM_WALL_PX, true),
+                (120.0 - ROOM_WALL_PX, true),
+                (120.0, false),
+            ]
+        );
     }
 
     #[test]
-    fn abutting_rects_drop_the_shared_edge() {
+    fn a_room_thinner_than_the_band_is_solid() {
         let mut floor = Floor::new(FLOOR1_INDEX);
-        floor.walls.push(add(rect(0.0, 0.0, 100.0, 40.0)));
-        floor.walls.push(add(rect(100.0, 0.0, 100.0, 40.0)));
-        let e = wall_edges(&floor);
-        // A 200x40 bar: two long faces plus two end caps.
-        assert_eq!(e.len(), 4, "internal shared edge must be gone: {e:?}");
-        assert_eq!(count(&e, EdgeDir::Up), 1);
-        assert_eq!(count(&e, EdgeDir::Down), 1);
+        floor.walls.push(add(rect(0.0, 0.0, 20.0, 100.0)));
+        let plan = wall_plan(&floor);
+        // No room floor, so the whole rect is wall: a single outline.
+        assert_eq!(plan.edges.len(), 4);
+        assert_eq!(plan.corners.len(), 4);
     }
 
     #[test]
-    fn overlapping_rects_union_cleanly() {
+    fn overlapping_rooms_merge_without_an_internal_wall() {
         let mut floor = Floor::new(FLOOR1_INDEX);
-        floor.walls.push(add(rect(0.0, 0.0, 100.0, 40.0)));
-        floor.walls.push(add(rect(50.0, 0.0, 100.0, 40.0)));
-        let e = wall_edges(&floor);
-        assert_eq!(e.len(), 4);
+        floor.walls.push(add(rect(0.0, 0.0, 200.0, 200.0)));
+        floor.walls.push(add(rect(150.0, 50.0, 200.0, 100.0)));
+        let plan = wall_plan(&floor);
+        // The second room's left edge falls inside the first: no wall there.
+        let internal = plan
+            .edges
+            .iter()
+            .any(|e| matches!(e.dir, EdgeDir::Left | EdgeDir::Right) && e.x0 == 150.0);
+        assert!(
+            !internal,
+            "overlapping rooms must not leave an internal wall"
+        );
+    }
+
+    #[test]
+    fn union_boundary_drops_shared_and_internal_edges() {
+        // Two abutting bars -> one outline (the low-level boolean still unions).
+        let plan = boundary(&ops(&[
+            add(rect(0.0, 0.0, 100.0, 40.0)),
+            add(rect(100.0, 0.0, 100.0, 40.0)),
+        ]));
+        assert_eq!(plan.edges.len(), 4);
+        assert_eq!(count(&plan.edges, EdgeDir::Up), 1);
+        assert_eq!(plan.corners.len(), 4);
+
+        // Overlapping bars union the same way.
+        let plan = boundary(&ops(&[
+            add(rect(0.0, 0.0, 100.0, 40.0)),
+            add(rect(50.0, 0.0, 100.0, 40.0)),
+        ]));
+        assert_eq!(plan.edges.len(), 4);
     }
 
     #[test]
     fn sub_carves_a_hole() {
-        let mut floor = Floor::new(FLOOR1_INDEX);
-        floor.walls.push(add(rect(0.0, 0.0, 100.0, 100.0)));
-        floor.walls.push(sub(rect(40.0, 40.0, 20.0, 20.0)));
-        let e = wall_edges(&floor);
+        let plan = boundary(&ops(&[
+            add(rect(0.0, 0.0, 100.0, 100.0)),
+            sub(rect(40.0, 40.0, 20.0, 20.0)),
+        ]));
         // Outer boundary (4) plus the four faces of the hole.
-        assert_eq!(e.len(), 8, "hole boundary expected: {e:?}");
-        assert_eq!(count(&e, EdgeDir::Up), 2);
-        assert_eq!(count(&e, EdgeDir::Down), 2);
-        assert_eq!(count(&e, EdgeDir::Left), 2);
-        assert_eq!(count(&e, EdgeDir::Right), 2);
+        assert_eq!(plan.edges.len(), 8);
+        assert_eq!(count(&plan.edges, EdgeDir::Up), 2);
+        assert_eq!(plan.corners.len(), 8);
+    }
+
+    #[test]
+    fn a_sub_room_carve_keeps_the_remaining_wall() {
+        // A room with a Sub carved out of one edge: the band gains an opening.
+        let mut floor = Floor::new(FLOOR1_INDEX);
+        floor.walls.push(add(rect(0.0, 0.0, 200.0, 200.0)));
+        floor.walls.push(sub(rect(80.0, -10.0, 40.0, 40.0)));
+        let plan = wall_plan(&floor);
+        // Still an outer and inner contour, now with extra faces round the gap.
+        assert!(plan.edges.len() > 8);
     }
 }
