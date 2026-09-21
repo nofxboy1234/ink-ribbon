@@ -1,6 +1,6 @@
 use std::ffi;
 
-use ink_ribbon_native::bake::{bake, BakedBytes, OverlayBytes};
+use ink_ribbon_native::bake::{bake, bake_floor_grids, BakedBytes, OverlayBytes};
 use ink_ribbon_native::save::{format_unix_utc, PlayerSave};
 use ink_ribbon_native::scene::{
     BoolOp, Box2, Door, DoorKind, ItemDef, ItemKind, Link, Rect, Scene, StairNode, WallOp,
@@ -437,6 +437,7 @@ fn parse_stairs(bytes: &[u8]) -> Vec<Stair> {
 // A key item baked from an `item_*` layer: display name, floor index and
 // source-composite position.
 struct Item {
+    id: u32,
     kind: ItemKind,
     name: String,
     floor: usize,
@@ -459,6 +460,7 @@ fn parse_items(bytes: &[u8]) -> Vec<Item> {
             |o: usize| u32::from_le_bytes([bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]]);
         let f32_at =
             |o: usize| f32::from_le_bytes([bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]]);
+        let id = u32_at(p);
         let floor = u32_at(p + 4) as usize;
         let Some(kind) = ItemKind::from_u8(bytes[p + 8]) else {
             break;
@@ -472,6 +474,7 @@ fn parse_items(bytes: &[u8]) -> Vec<Item> {
         let name = String::from_utf8_lossy(&bytes[p..p + name_len]).into_owned();
         p += name_len;
         items.push(Item {
+            id,
             kind,
             name,
             floor,
@@ -707,7 +710,7 @@ impl Tool {
 }
 
 // What is currently selected in the editor (index into the viewed floor's vecs).
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Selection {
     Wall(usize),
     Partition(usize),
@@ -1424,7 +1427,7 @@ fn update_player(state: &mut State, delta: f32) {
     // Reveal nearby unknown doors, then take stairs. Items are picked up with
     // Space (see `interact`).
     if reveal_doors(state) {
-        rebuild_assets(state);
+        rebuild_gameplay(state);
     }
     check_stairs(state);
 }
@@ -1541,8 +1544,9 @@ fn max_id(scene: &Scene) -> u32 {
 
 // One "grid" for gameplay ranges: the 32px background grid.
 const GRID_UNIT: f32 = 32.0;
-// Prompt + Space range: a visible gap away from the interactable.
-const INTERACT_RADIUS: f32 = 48.0;
+// Every interaction and prompt (and the unknown-door reveal) appears within
+// 3 background grid units of the player centre.
+const INTERACT_RADIUS: f32 = GRID_UNIT * 3.0;
 // How much facing toward a target improves its score (source px of distance).
 const FACING_WEIGHT: f32 = 20.0;
 
@@ -1649,16 +1653,18 @@ fn prune_satisfied_keys(state: &mut State) {
 // changed (caller re-bakes once).
 fn reveal_doors(state: &mut State) -> bool {
     let floor = state.player_floor;
-    #[allow(clippy::type_complexity)]
-    let pending: Vec<(u32, (f32, f32), (f32, f32), f32)> = state.scene.floors[floor]
+    let pending: Vec<u32> = state.scene.floors[floor]
         .doors
         .iter()
         .filter(|d| d.kind == DoorKind::Unknown && !is_revealed(state, floor, d.id))
-        .filter(|d| dist_to_box(state.player, d.center, d.size, d.rot) <= GRID_UNIT)
-        .map(|d| (d.id, d.center, d.size, d.rot))
+        .filter(|d| {
+            dist_to_box(state.player, d.center, (DOOR_LONG_PX, DOOR_THICK_PX), d.rot)
+                <= INTERACT_RADIUS
+        })
+        .map(|d| d.id)
         .collect();
     let changed = !pending.is_empty();
-    for (id, _, _, _) in pending {
+    for id in pending {
         state.revealed.push((floor, id));
     }
     if changed {
@@ -1782,7 +1788,12 @@ fn collect_item(state: &mut State, id: u32, name: &str) {
     };
     state.collected.push(id);
     state.inventory.push(item);
-    rebuild_assets(state);
+    // Items don't affect the nav/solid grids or the overlays, so just drop the
+    // picked-up item from the baked list instead of re-baking everything.
+    state.items.retain(|it| it.id != id);
+    state.target = None;
+    state.path.clear();
+    state.path_red.clear();
     set_status(state, format!("picked up {name}"));
 }
 
@@ -1797,7 +1808,8 @@ fn unlock_door(state: &mut State, id: u32) {
     }
     state.unlocked.push((floor, id));
     prune_satisfied_keys(state);
-    rebuild_assets(state);
+    // The door's nav/solid opening changed, but the overlays did not.
+    rebuild_gameplay(state);
     set_status(state, "unlocked");
 }
 
@@ -2433,11 +2445,7 @@ fn rebuild_assets(state: &mut State) {
         stairs,
         items,
     } = baked;
-    state.nav = std::array::from_fn(|i| Nav::from_bytes(&nav[i], FLOOR_FRAMES[i]));
-    state.nav_open = std::array::from_fn(|i| Nav::from_bytes(&nav_open[i], FLOOR_FRAMES[i]));
-    state.solid = std::array::from_fn(|i| Solid::from_bytes(&solid[i], FLOOR_FRAMES[i]));
-    state.stairs = parse_stairs(&stairs);
-    state.items = parse_items(&items);
+    apply_gameplay(state, nav, nav_open, solid, stairs, items);
     state.wall_plans = std::array::from_fn(|i| wall_plan(&scene.floors[i]));
     state.wall_plans_dirty = false;
     for (i, overlay) in overlays.into_iter().enumerate() {
@@ -2445,6 +2453,42 @@ fn rebuild_assets(state: &mut State) {
         state.overlay_views[i] = overlay_texture(&overlay.rgba, overlay.w, overlay.h);
         state.overlay_data[i] = overlay;
     }
+    reset_navigation(state);
+}
+
+/// Re-bake only the player's floor nav/solid for a progress change (a door
+/// revealing/unlocking). The overlays never change with progress, so their 2048px
+/// textures are left alone, and no other floor's geometry changed.
+fn rebuild_gameplay(state: &mut State) {
+    let scene = if state.edit {
+        state.scene.clone()
+    } else {
+        effective_scene(state)
+    };
+    let f = state.player_floor;
+    let (nav, nav_open, solid) = bake_floor_grids(&scene, f);
+    state.nav[f] = Nav::from_bytes(&nav, FLOOR_FRAMES[f]);
+    state.nav_open[f] = Nav::from_bytes(&nav_open, FLOOR_FRAMES[f]);
+    state.solid[f] = Solid::from_bytes(&solid, FLOOR_FRAMES[f]);
+    reset_navigation(state);
+}
+
+fn apply_gameplay(
+    state: &mut State,
+    nav: [Vec<u8>; NUM_FLOORS],
+    nav_open: [Vec<u8>; NUM_FLOORS],
+    solid: [Vec<u8>; NUM_FLOORS],
+    stairs: Vec<u8>,
+    items: Vec<u8>,
+) {
+    state.nav = std::array::from_fn(|i| Nav::from_bytes(&nav[i], FLOOR_FRAMES[i]));
+    state.nav_open = std::array::from_fn(|i| Nav::from_bytes(&nav_open[i], FLOOR_FRAMES[i]));
+    state.solid = std::array::from_fn(|i| Solid::from_bytes(&solid[i], FLOOR_FRAMES[i]));
+    state.stairs = parse_stairs(&stairs);
+    state.items = parse_items(&items);
+}
+
+fn reset_navigation(state: &mut State) {
     // Navigation changed: reset reachability and re-snap the player.
     state.reachable = std::array::from_fn(|_| Vec::new());
     state.target = None;
@@ -2604,43 +2648,65 @@ fn dist_to_rect(p: (f32, f32), r: Rect) -> f32 {
 fn pick_object(scene: &Scene, floor_index: usize, p: (f32, f32)) -> Option<Selection> {
     const REACH: f32 = 44.0;
     let floor = &scene.floors[floor_index];
-    let mut best: Option<(f32, Selection)> = None;
-    let mut consider = |d: f32, sel: Selection| {
-        if d <= REACH && best.as_ref().is_none_or(|(bd, _)| d < *bd) {
-            best = Some((d, sel));
+    // Nearest wins; when several contain the cursor (a room and the things
+    // inside it all have distance 0) the smallest wins, so inner objects are
+    // selectable.
+    let mut best: Option<(f32, f32, Selection)> = None;
+    let mut consider = |d: f32, area: f32, sel: Selection| {
+        if d > REACH {
+            return;
+        }
+        let better = match best {
+            None => true,
+            Some((bd, ba, _)) => d < bd - 0.01 || ((d - bd).abs() <= 0.01 && area < ba),
+        };
+        if better {
+            best = Some((d, area, sel));
         }
     };
     for (i, w) in floor.walls.iter().enumerate() {
-        consider(dist_to_rect(p, w.rect), Selection::Wall(i));
+        consider(
+            dist_to_rect(p, w.rect),
+            w.rect.w * w.rect.h,
+            Selection::Wall(i),
+        );
     }
     for (i, w) in floor.partitions.iter().enumerate() {
-        consider(dist_to_rect(p, w.rect), Selection::Partition(i));
+        consider(
+            dist_to_rect(p, w.rect),
+            w.rect.w * w.rect.h,
+            Selection::Partition(i),
+        );
     }
     for (i, o) in floor.obstacles.iter().enumerate() {
         consider(
             dist_to_box(p, o.center, o.size, o.rot),
+            o.size.0 * o.size.1,
             Selection::Obstacle(i),
         );
     }
     for (i, d) in floor.doors.iter().enumerate() {
         consider(
             dist_to_box(p, d.center, (DOOR_LONG_PX, DOOR_THICK_PX), d.rot),
+            DOOR_LONG_PX * DOOR_THICK_PX,
             Selection::Door(i),
         );
     }
     for (i, s) in floor.stairs.iter().enumerate() {
         consider(
             ((p.0 - s.pos.0).powi(2) + (p.1 - s.pos.1).powi(2)).sqrt(),
+            0.0,
             Selection::Stair(i),
         );
     }
     for (i, it) in floor.items.iter().enumerate() {
         consider(
             ((p.0 - it.pos.0).powi(2) + (p.1 - it.pos.1).powi(2)).sqrt(),
+            0.0,
             Selection::Item(i),
         );
     }
-    best.map(|(_, sel)| sel)
+    best.map(|(_, _, sel)| sel)
 }
 
 fn editor_erase(state: &mut State, p: (f32, f32)) {
@@ -2947,6 +3013,7 @@ fn apply_drag(state: &mut State, cursor: (f32, f32)) {
 fn select_press(state: &mut State, p: (f32, f32), shift: bool) {
     let floor_index = state.floor;
     let tol = handle_tol(state);
+    let hit = pick_object(&state.scene, floor_index, p);
     if !shift {
         if let Some(sel) = primary_selection(state) {
             if let Some(geom) = selection_geom(&state.scene, floor_index, sel) {
@@ -2962,14 +3029,17 @@ fn select_press(state: &mut State, p: (f32, f32), shift: bool) {
                         return;
                     }
                 }
-                if geom_hit(geom, p, tol) {
+                // Only move the current selection when the click actually
+                // targets it; otherwise a click on an object inside a selected
+                // room would move the room instead of selecting that object.
+                if hit == Some(sel) && geom_hit(geom, p, tol) {
                     start_drag(state, DragMode::Move, p);
                     return;
                 }
             }
         }
     }
-    match pick_object(&state.scene, floor_index, p) {
+    match hit {
         Some(sel) => {
             if shift {
                 if let Some(pos) = state.selection.iter().position(|s| *s == sel) {
@@ -3028,7 +3098,7 @@ fn pick_link_target(scene: &Scene, floor_index: usize, p: (f32, f32)) -> Option<
     }
     for d in &floor.doors {
         consider(
-            dist_to_box(p, d.center, d.size, d.rot),
+            dist_to_box(p, d.center, (DOOR_LONG_PX, DOOR_THICK_PX), d.rot),
             LinkTarget::Door(d.id),
         );
     }
@@ -5236,17 +5306,26 @@ fn draw_floor(
 // Door props: a flat rect at the fixed size, on top of the wall lines.
 fn draw_doors(state: &State, frame: (f32, f32, f32, f32), ox: f32, oy: f32, iw: f32, ih: f32) {
     for d in &state.scene.floors[state.floor].doors {
-        draw_door(frame, ox, oy, iw, ih, d, 1.0);
+        // Play mode shows revealed/unlocked state; editing shows the authored kind.
+        let kind = if state.edit {
+            d.kind
+        } else {
+            effective_door_kind(state, state.floor, d.id).unwrap_or(d.kind)
+        };
+        draw_door(frame, ox, oy, iw, ih, d.center, d.rot, kind, 1.0);
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_door(
     frame: (f32, f32, f32, f32),
     ox: f32,
     oy: f32,
     iw: f32,
     ih: f32,
-    d: &Door,
+    center: (f32, f32),
+    rot: f32,
+    kind: DoorKind,
     alpha: f32,
 ) {
     draw_box_rot(
@@ -5255,10 +5334,10 @@ fn draw_door(
         oy,
         iw,
         ih,
-        d.center,
+        center,
         (DOOR_LONG_PX, DOOR_THICK_PX),
-        d.rot,
-        door_color(d.kind),
+        rot,
+        door_color(kind),
         alpha,
         true,
     );
@@ -5471,15 +5550,7 @@ fn draw_editor(
     // Snapped door prop preview while hovering a wall.
     if let Some((cx, cy, rot)) = state.door_preview {
         if let Some(kind) = door_kind_for_tool(state.tool) {
-            let d = Door {
-                id: 0,
-                kind,
-                reveals_as: DoorKind::Locked,
-                center: (cx, cy),
-                size: (DOOR_LONG_PX, DOOR_THICK_PX),
-                rot,
-            };
-            draw_door(frame, ox, oy, iw, ih, &d, 0.6);
+            draw_door(frame, ox, oy, iw, ih, (cx, cy), rot, kind, 0.6);
         }
     }
     sgl::scissor_rectf(0.0, 0.0, width, height, true);
@@ -6275,6 +6346,48 @@ mod tests {
     use ink_ribbon_native::scene::{
         Floor, FLOOR1_FRAME, FLOOR1_H, FLOOR1_INDEX, FLOOR1_W, FLOOR1_X, FLOOR1_Y,
     };
+
+    #[test]
+    fn picking_prefers_objects_inside_a_room() {
+        let mut scene = Scene::default();
+        let floor = &mut scene.floors[FLOOR1_INDEX];
+        floor.walls.push(WallOp {
+            mode: BoolOp::Add,
+            rect: Rect {
+                x: 0.0,
+                y: 0.0,
+                w: 600.0,
+                h: 600.0,
+            },
+        });
+        floor.obstacles.push(Box2 {
+            id: 1,
+            center: (300.0, 300.0),
+            size: (64.0, 64.0),
+            rot: 0.0,
+        });
+        floor.doors.push(Door {
+            id: 2,
+            kind: DoorKind::Unlocked,
+            reveals_as: DoorKind::Locked,
+            center: (200.0, 0.0),
+            size: (DOOR_LONG_PX, DOOR_THICK_PX),
+            rot: 0.0,
+        });
+        // Empty room space picks the room; the smaller objects win when hit.
+        assert_eq!(
+            pick_object(&scene, FLOOR1_INDEX, (100.0, 100.0)),
+            Some(Selection::Wall(0))
+        );
+        assert_eq!(
+            pick_object(&scene, FLOOR1_INDEX, (300.0, 300.0)),
+            Some(Selection::Obstacle(0))
+        );
+        assert_eq!(
+            pick_object(&scene, FLOOR1_INDEX, (200.0, 0.0)),
+            Some(Selection::Door(0))
+        );
+    }
 
     #[test]
     fn door_snaps_to_the_nearest_wall() {

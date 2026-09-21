@@ -125,37 +125,39 @@ impl Mask {
     }
 
     /// Square max-filter dilation by `radius` cells. Separable (a horizontal then
-    /// a vertical pass), so a large radius stays cheap.
+    /// a vertical pass), and each pass uses a prefix-sum sliding window so the
+    /// cost is O(w*h) regardless of radius.
     pub fn dilate(&self, radius: i32) -> Mask {
         if radius <= 0 {
             return self.clone();
         }
+        let r = radius as usize;
         let mut tmp = Mask::new(self.w, self.h);
+        let w = self.w as usize;
+        let mut prefix = vec![0u32; w + 1];
         for y in 0..self.h {
+            prefix[0] = 0;
             for x in 0..self.w {
-                let mut on = false;
-                for dx in -radius..=radius {
-                    let xx = x + dx;
-                    if xx >= 0 && xx < self.w && self.get(xx, y) {
-                        on = true;
-                        break;
-                    }
-                }
-                tmp.set(x, y, on);
+                prefix[x as usize + 1] = prefix[x as usize] + u32::from(self.get(x, y));
+            }
+            for x in 0..self.w {
+                let x0 = (x as usize).saturating_sub(r);
+                let x1 = ((x as usize) + r + 1).min(w);
+                tmp.set(x, y, prefix[x1] > prefix[x0]);
             }
         }
         let mut out = Mask::new(self.w, self.h);
-        for y in 0..self.h {
-            for x in 0..self.w {
-                let mut on = false;
-                for dy in -radius..=radius {
-                    let yy = y + dy;
-                    if yy >= 0 && yy < self.h && tmp.get(x, yy) {
-                        on = true;
-                        break;
-                    }
-                }
-                out.set(x, y, on);
+        let h = self.h as usize;
+        let mut prefix = vec![0u32; h + 1];
+        for x in 0..self.w {
+            prefix[0] = 0;
+            for y in 0..self.h {
+                prefix[y as usize + 1] = prefix[y as usize] + u32::from(tmp.get(x, y));
+            }
+            for y in 0..self.h {
+                let y0 = (y as usize).saturating_sub(r);
+                let y1 = ((y as usize) + r + 1).min(h);
+                out.set(x, y, prefix[y1] > prefix[y0]);
             }
         }
         out

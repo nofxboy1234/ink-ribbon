@@ -45,14 +45,38 @@ pub struct BakedBytes {
     pub items: Vec<u8>,
 }
 
+/// Everything except the overlays: the nav/solid grids, stairs and items. Split
+/// out so progress changes (a door revealing/unlocking, an item pickup) can be
+/// re-baked without re-rasterising and re-uploading the 2048px overlay textures.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct GameplayBytes {
+    pub nav: [Vec<u8>; NUM_FLOORS],
+    pub nav_open: [Vec<u8>; NUM_FLOORS],
+    pub solid: [Vec<u8>; NUM_FLOORS],
+    pub stairs: Vec<u8>,
+    pub items: Vec<u8>,
+}
+
 /// Bake every floor of `scene`, plus its stair links and items.
 pub fn bake(scene: &Scene) -> BakedBytes {
-    let mut out = BakedBytes {
-        overlays: std::array::from_fn(|_| OverlayBytes {
-            rgba: Vec::new(),
-            w: 0,
-            h: 0,
-        }),
+    let gameplay = bake_gameplay(scene);
+    let overlays = std::array::from_fn(|index| {
+        let (fx, fy, fw, fh) = scene.floors[index].frame;
+        bake_overlay(&scene.floors[index], fx, fy, fw, fh)
+    });
+    BakedBytes {
+        overlays,
+        nav: gameplay.nav,
+        nav_open: gameplay.nav_open,
+        solid: gameplay.solid,
+        stairs: gameplay.stairs,
+        items: gameplay.items,
+    }
+}
+
+/// Bake the nav/solid grids, stairs and items, skipping the overlay textures.
+pub fn bake_gameplay(scene: &Scene) -> GameplayBytes {
+    let mut out = GameplayBytes {
         nav: std::array::from_fn(|_| Vec::new()),
         nav_open: std::array::from_fn(|_| Vec::new()),
         solid: std::array::from_fn(|_| Vec::new()),
@@ -69,7 +93,20 @@ fn empty_bin() -> Vec<u8> {
     0u32.to_le_bytes().to_vec()
 }
 
-fn bake_floor(floor: &Floor, index: usize, out: &mut BakedBytes) {
+fn bake_floor(floor: &Floor, index: usize, out: &mut GameplayBytes) {
+    let (nav, nav_open, solid) = floor_grids(floor);
+    out.nav[index] = nav;
+    out.nav_open[index] = nav_open;
+    out.solid[index] = solid;
+}
+
+/// Nav, nav-open and solid bytes for one floor. Exposed so a progress change on
+/// a single floor (a door revealing/unlocking) can be re-baked alone.
+pub fn bake_floor_grids(scene: &Scene, index: usize) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    floor_grids(&scene.floors[index])
+}
+
+fn floor_grids(floor: &Floor) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
     let (fx, fy, fw, fh) = floor.frame;
 
     let w = (fw / CELL_PX as f32).round() as i32;
@@ -110,8 +147,8 @@ fn bake_floor(floor: &Floor, index: usize, out: &mut BakedBytes) {
     let walk = build_walk(&walls, &obstacles, &locked, &doors, true, w, h);
     let walk_open = build_walk(&walls, &obstacles, &locked, &doors, false, w, h);
 
-    out.nav[index] = walk.to_bytes(CELL_PX);
-    out.nav_open[index] = walk_open.to_bytes(CELL_PX);
+    let nav = walk.to_bytes(CELL_PX);
+    let nav_open = walk_open.to_bytes(CELL_PX);
 
     // Solid collision mask at 2px: walls + obstacles + locked doors, no padding.
     let sw = (fw / SOLID_CELL_PX as f32).round() as i32;
@@ -140,9 +177,8 @@ fn bake_floor(floor: &Floor, index: usize, out: &mut BakedBytes) {
             );
         }
     }
-    out.solid[index] = solid.to_bytes(SOLID_CELL_PX);
-
-    out.overlays[index] = bake_overlay(floor, fx, fy, fw, fh);
+    let solid = solid.to_bytes(SOLID_CELL_PX);
+    (nav, nav_open, solid)
 }
 
 /// The wall band: the room union (`Add` minus `Sub`) minus its eroded interior,
