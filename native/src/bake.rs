@@ -7,7 +7,9 @@
 //! flood-filled, and only then are unlocked/unknown doors carved through.
 
 use crate::raster::Mask;
-use crate::scene::{BoolOp, DoorKind, Floor, ItemKind, Link, Scene, NUM_FLOORS};
+use crate::scene::{
+    BoolOp, DoorKind, Floor, ItemKind, Link, Scene, DOOR_LONG_PX, DOOR_THICK_PX, NUM_FLOORS,
+};
 
 pub const CELL_PX: u32 = 8;
 pub const SOLID_CELL_PX: u32 = 2;
@@ -90,22 +92,10 @@ fn bake_floor(floor: &Floor, index: usize, out: &mut BakedBytes) {
     }
 
     // Unknown doors block until revealed, so they join the locked mask; only
-    // Unlocked doors are carved through.
-    let (mut locked, mut unlocked) = (Mask::new(w, h), Mask::new(w, h));
-    for d in &floor.doors {
-        let target = match d.kind {
-            DoorKind::Locked | DoorKind::Unknown => &mut locked,
-            DoorKind::Unlocked => &mut unlocked,
-        };
-        target.fill_box(
-            (d.center.0 - fx) * sx,
-            (d.center.1 - fy) * sy,
-            d.size.0 * sx,
-            d.size.1 * sy,
-            d.rot,
-            true,
-        );
-    }
+    // Locked/unknown doors block; unlocked doors are carved through.
+    let mut locked = door_mask(floor, fx, fy, sx, sy, w, h, DoorKind::Locked);
+    locked.or_with(&door_mask(floor, fx, fy, sx, sy, w, h, DoorKind::Unknown));
+    let unlocked = door_mask(floor, fx, fy, sx, sy, w, h, DoorKind::Unlocked);
 
     // Unlocked doors are carved through, but only where there is no real geometry.
     let mut doors = unlocked.dilate(DOOR_DILATION_CELLS);
@@ -143,8 +133,8 @@ fn bake_floor(floor: &Floor, index: usize, out: &mut BakedBytes) {
             solid.fill_box(
                 (d.center.0 - fx) * ssx,
                 (d.center.1 - fy) * ssy,
-                d.size.0 * ssx,
-                d.size.1 * ssy,
+                DOOR_LONG_PX * ssx,
+                DOOR_THICK_PX * ssy,
                 d.rot,
                 true,
             );
@@ -155,7 +145,8 @@ fn bake_floor(floor: &Floor, index: usize, out: &mut BakedBytes) {
     out.overlays[index] = bake_overlay(floor, fx, fy, fw, fh);
 }
 
-/// The wall band: the room union (`Add` minus `Sub`) minus its eroded interior.
+/// The wall band: the room union (`Add` minus `Sub`) minus its eroded interior,
+/// plus interior partitions. Unlocked doors cut an opening through it.
 fn wall_band_mask(floor: &Floor, fx: f32, fy: f32, sx: f32, sy: f32, w: i32, h: i32) -> Mask {
     let fill = |mask: &mut Mask, ops: &[(BoolOp, crate::scene::Rect)]| {
         for (mode, r) in ops {
@@ -173,7 +164,41 @@ fn wall_band_mask(floor: &Floor, fx: f32, fy: f32, sx: f32, sy: f32, w: i32, h: 
     let mut interior = Mask::new(w, h);
     fill(&mut interior, &floor.interior_ops());
     walls.subtract(&interior);
+    // Interior partitions block their whole rect.
+    let mut partitions = Mask::new(w, h);
+    fill(&mut partitions, &floor.partition_ops());
+    walls.or_with(&partitions);
+    walls.subtract(&door_mask(floor, fx, fy, sx, sy, w, h, DoorKind::Unlocked));
     walls
+}
+
+/// The door prop rects of one kind, at the fixed prop size.
+#[allow(clippy::too_many_arguments)]
+fn door_mask(
+    floor: &Floor,
+    fx: f32,
+    fy: f32,
+    sx: f32,
+    sy: f32,
+    w: i32,
+    h: i32,
+    kind: DoorKind,
+) -> Mask {
+    let mut mask = Mask::new(w, h);
+    for d in &floor.doors {
+        if d.kind != kind {
+            continue;
+        }
+        mask.fill_box(
+            (d.center.0 - fx) * sx,
+            (d.center.1 - fy) * sy,
+            DOOR_LONG_PX * sx,
+            DOOR_THICK_PX * sy,
+            d.rot,
+            true,
+        );
+    }
+    mask
 }
 
 fn build_walk(
@@ -228,26 +253,7 @@ fn bake_overlay(floor: &Floor, fx: f32, fy: f32, fw: f32, fh: f32) -> OverlayByt
     }
     composite(&mut canvas, w, &obstacles, TINT_OBSTACLES);
 
-    for (kind, tint) in [
-        (DoorKind::Locked, TINT_LOCKED),
-        (DoorKind::Unknown, TINT_UNKNOWN),
-        (DoorKind::Unlocked, TINT_UNLOCKED),
-    ] {
-        let mut mask = Mask::new(w, h);
-        for d in &floor.doors {
-            if d.kind == kind {
-                mask.fill_box(
-                    (d.center.0 - fx) * sx,
-                    (d.center.1 - fy) * sy,
-                    d.size.0 * sx,
-                    d.size.1 * sy,
-                    d.rot,
-                    true,
-                );
-            }
-        }
-        composite(&mut canvas, w, &mask, tint);
-    }
+    // Doors are drawn as vector props (see the map example), not baked here.
 
     OverlayBytes { rgba: canvas, w, h }
 }
@@ -349,7 +355,7 @@ fn bake_items(scene: &Scene) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scene::{Floor, Rect, WallOp};
+    use crate::scene::{Door, Floor, Rect, WallOp};
 
     #[test]
     fn empty_scene_bakes_empty_assets() {
@@ -472,6 +478,58 @@ mod tests {
         assert!(
             !any,
             "a sub-band rectangle should not create walkable floor"
+        );
+    }
+
+    #[test]
+    fn an_unlocked_door_opens_the_wall_band() {
+        let mut scene = Scene::default();
+        let mut floor = Floor::new(crate::scene::FLOOR1_INDEX);
+        let (fx, fy, fw, fh) = crate::scene::FLOOR1_FRAME;
+        let room = Rect {
+            x: fx + 2000.0,
+            y: fy + 1000.0,
+            w: 600.0,
+            h: 600.0,
+        };
+        floor.walls.push(WallOp {
+            mode: BoolOp::Add,
+            rect: room,
+        });
+        floor.doors.push(Door {
+            id: 1,
+            kind: DoorKind::Unlocked,
+            reveals_as: DoorKind::Locked,
+            center: (room.x + 300.0, room.y),
+            size: (DOOR_LONG_PX, DOOR_THICK_PX),
+            rot: 0.0,
+        });
+        scene.floors[crate::scene::FLOOR1_INDEX] = floor;
+
+        let w = (fw / CELL_PX as f32).round() as i32;
+        let h = (fh / CELL_PX as f32).round() as i32;
+        let band = wall_band_mask(
+            &scene.floors[crate::scene::FLOOR1_INDEX],
+            fx,
+            fy,
+            w as f32 / fw,
+            h as f32 / fh,
+            w,
+            h,
+        );
+        let at = |sx: f32, sy: f32| {
+            band.get(
+                ((sx - fx) / CELL_PX as f32) as i32,
+                ((sy - fy) / CELL_PX as f32) as i32,
+            )
+        };
+        assert!(
+            !at(room.x + 300.0, room.y + 6.0),
+            "unlocked door opens the band"
+        );
+        assert!(
+            at(room.x + 30.0, room.y + 6.0),
+            "wall away from the door stays solid"
         );
     }
 

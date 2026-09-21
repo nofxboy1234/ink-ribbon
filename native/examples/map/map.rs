@@ -4,9 +4,9 @@ use ink_ribbon_native::bake::{bake, BakedBytes, OverlayBytes};
 use ink_ribbon_native::save::{format_unix_utc, PlayerSave};
 use ink_ribbon_native::scene::{
     BoolOp, Box2, Door, DoorKind, ItemDef, ItemKind, Link, Rect, Scene, StairNode, WallOp,
-    FLOOR1_INDEX, FLOOR_FRAMES, NUM_FLOORS,
+    DOOR_LONG_PX, DOOR_THICK_PX, FLOOR1_INDEX, FLOOR_FRAMES, NUM_FLOORS, ROOM_WALL_PX,
 };
-use ink_ribbon_native::walls::{wall_plan, EdgeDir, WallPlan};
+use ink_ribbon_native::walls::{wall_plan, EdgeDir, WallPlan, WallTone};
 use sokol::{app as sapp, gfx as sg, gl as sgl, glue as sglue};
 
 const ZOOM_MIN: f32 = 0.7;
@@ -188,6 +188,26 @@ const C_LOCK: (f32, f32, f32) = (0.63, 0.27, 0.34); // #a04457 locked-door red
 const C_WALL_OUTER: (f32, f32, f32) = (79.0 / 255.0, 85.0 / 255.0, 84.0 / 255.0); // #4f5554
 const C_WALL_INNER: (f32, f32, f32) = (52.0 / 255.0, 57.0 / 255.0, 61.0 / 255.0); // #34393d
 const WALL_LINE_PX: f32 = 7.3;
+
+// Door props (ref/map_ref.png): flat rectangles at a fixed size.
+const C_DOOR_UNLOCKED: (f32, f32, f32) = (115.0 / 255.0, 163.0 / 255.0, 182.0 / 255.0); // #73a3b6
+const C_DOOR_LOCKED: (f32, f32, f32) = (0.63, 0.27, 0.34); // #a04457
+const C_DOOR_UNKNOWN: (f32, f32, f32) = (0.55, 0.55, 0.60);
+
+fn wall_tone_color(tone: WallTone) -> (f32, f32, f32) {
+    match tone {
+        WallTone::Outer => C_WALL_OUTER,
+        WallTone::Inner | WallTone::Interior => C_WALL_INNER,
+    }
+}
+
+fn door_color(kind: DoorKind) -> (f32, f32, f32) {
+    match kind {
+        DoorKind::Unlocked => C_DOOR_UNLOCKED,
+        DoorKind::Locked => C_DOOR_LOCKED,
+        DoorKind::Unknown => C_DOOR_UNKNOWN,
+    }
+}
 
 // Near-black background and faint map backing grid.
 const BACKGROUND: (f32, f32, f32) = (0.047, 0.047, 0.047); // #0c0c0c
@@ -610,6 +630,7 @@ enum Tool {
     Select,
     WallAdd,
     WallSub,
+    Wall,
     Obstacle,
     DoorLocked,
     DoorUnlocked,
@@ -621,10 +642,11 @@ enum Tool {
 }
 
 impl Tool {
-    const ALL: [Tool; 11] = [
+    const ALL: [Tool; 12] = [
         Tool::Select,
         Tool::WallAdd,
         Tool::WallSub,
+        Tool::Wall,
         Tool::Obstacle,
         Tool::DoorLocked,
         Tool::DoorUnlocked,
@@ -640,6 +662,7 @@ impl Tool {
             Tool::Select => "SELECT",
             Tool::WallAdd => "WALL+",
             Tool::WallSub => "WALL-",
+            Tool::Wall => "WALL",
             Tool::Obstacle => "OBST",
             Tool::DoorLocked => "LOCK",
             Tool::DoorUnlocked => "OPEN",
@@ -656,6 +679,7 @@ impl Tool {
             Tool::Select => (0.90, 0.90, 0.90),
             Tool::WallAdd => (0.55, 0.70, 0.55),
             Tool::WallSub => (0.80, 0.40, 0.40),
+            Tool::Wall => (0.45, 0.50, 0.55),
             Tool::Obstacle => (0.62, 0.62, 0.62),
             Tool::DoorLocked => (0.80, 0.35, 0.45),
             Tool::DoorUnlocked => (0.35, 0.70, 0.78),
@@ -670,12 +694,14 @@ impl Tool {
     fn is_rect(self) -> bool {
         matches!(
             self,
-            Tool::WallAdd
-                | Tool::WallSub
-                | Tool::Obstacle
-                | Tool::DoorLocked
-                | Tool::DoorUnlocked
-                | Tool::DoorUnknown
+            Tool::WallAdd | Tool::WallSub | Tool::Wall | Tool::Obstacle
+        )
+    }
+
+    fn is_door(self) -> bool {
+        matches!(
+            self,
+            Tool::DoorLocked | Tool::DoorUnlocked | Tool::DoorUnknown
         )
     }
 }
@@ -684,6 +710,7 @@ impl Tool {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Selection {
     Wall(usize),
+    Partition(usize),
     Obstacle(usize),
     Door(usize),
     Stair(usize),
@@ -730,6 +757,7 @@ enum PendingLink {
 #[derive(Clone)]
 enum Clip {
     Wall(WallOp),
+    Partition(WallOp),
     Obstacle(Box2),
     Door(Door),
     Stair(StairNode),
@@ -828,6 +856,8 @@ struct State {
     snap: bool,
     drag_from: Option<(f32, f32)>,
     drag_to: Option<(f32, f32)>,
+    // Snapped door prop under the cursor while a door tool is active.
+    door_preview: Option<(f32, f32, f32)>,
     selection: Vec<Selection>,
     drag_mode: DragMode,
     drag_orig: Option<SelGeom>,
@@ -1720,7 +1750,12 @@ fn interaction_target(state: &State) -> Option<Interaction> {
         if effective_door_kind(state, floor, door.id) == Some(DoorKind::Locked)
             && door_has_inventory_key(state, floor, door.id)
         {
-            let d = dist_to_box(state.player, door.center, door.size, door.rot);
+            let d = dist_to_box(
+                state.player,
+                door.center,
+                (DOOR_LONG_PX, DOOR_THICK_PX),
+                door.rot,
+            );
             consider(
                 d,
                 facing_score(state.player, state.facing, door.center, d),
@@ -2446,31 +2481,87 @@ fn place_rect(state: &mut State, a: (f32, f32), b: (f32, f32)) {
             },
             rect: Rect { x, y, w, h },
         }),
+        Tool::Wall => floor.partitions.push(WallOp {
+            mode: BoolOp::Add,
+            rect: Rect { x, y, w, h },
+        }),
         Tool::Obstacle => floor.obstacles.push(Box2 {
             id,
             center,
             size: (w, h),
             rot: 0.0,
         }),
-        Tool::DoorLocked | Tool::DoorUnlocked | Tool::DoorUnknown => {
-            let kind = match tool {
-                Tool::DoorLocked => DoorKind::Locked,
-                Tool::DoorUnlocked => DoorKind::Unlocked,
-                _ => DoorKind::Unknown,
-            };
-            floor.doors.push(Door {
-                id,
-                kind,
-                reveals_as: DoorKind::Locked,
-                center,
-                size: (w, h),
-                rot: 0.0,
-            });
-        }
         _ => {}
     }
     rebuild_assets(state);
     set_status(state, format!("{} placed", tool.label()));
+}
+
+/// The door prop for the active tool, if any.
+fn door_kind_for_tool(tool: Tool) -> Option<DoorKind> {
+    match tool {
+        Tool::DoorLocked => Some(DoorKind::Locked),
+        Tool::DoorUnlocked => Some(DoorKind::Unlocked),
+        Tool::DoorUnknown => Some(DoorKind::Unknown),
+        _ => None,
+    }
+}
+
+// How close the cursor must be to a wall to drop a door.
+const DOOR_SNAP_RADIUS: f32 = 50.0;
+
+/// The nearest wall the cursor can drop a door into, as `(centre, rot)`. The
+/// door sits on the wall centreline, aligned with the wall.
+fn snap_door_to_wall(state: &State, p: (f32, f32)) -> Option<(f32, f32, f32)> {
+    snap_door_in(&state.wall_plans[state.floor], p)
+}
+
+fn snap_door_in(plan: &WallPlan, p: (f32, f32)) -> Option<(f32, f32, f32)> {
+    let half = ROOM_WALL_PX * 0.5;
+    let mut best: Option<(f32, (f32, f32, f32))> = None;
+    for e in &plan.edges {
+        // The wall is on the filled side for outer/interior edges, on the
+        // unfilled side for the room's inner edge.
+        let on_filled = e.tone != WallTone::Inner;
+        let (center, rot) = match e.dir {
+            EdgeDir::Up | EdgeDir::Down => {
+                let x = p.0.clamp(e.x0.min(e.x1), e.x0.max(e.x1));
+                let down = matches!(e.dir, EdgeDir::Up) == on_filled;
+                let y = if down { e.y0 + half } else { e.y0 - half };
+                ((x, y), 0.0)
+            }
+            EdgeDir::Left | EdgeDir::Right => {
+                let y = p.1.clamp(e.y0.min(e.y1), e.y0.max(e.y1));
+                let right = matches!(e.dir, EdgeDir::Left) == on_filled;
+                let x = if right { e.x0 + half } else { e.x0 - half };
+                ((x, y), std::f32::consts::FRAC_PI_2)
+            }
+        };
+        let d = ((p.0 - center.0).powi(2) + (p.1 - center.1).powi(2)).sqrt();
+        if d <= DOOR_SNAP_RADIUS && best.as_ref().is_none_or(|(bd, _)| d < *bd) {
+            best = Some((d, (center.0, center.1, rot)));
+        }
+    }
+    best.map(|(_, v)| v)
+}
+
+fn place_door(state: &mut State, center: (f32, f32), rot: f32) {
+    let Some(kind) = door_kind_for_tool(state.tool) else {
+        return;
+    };
+    push_undo(state);
+    let id = state.next_id;
+    state.next_id += 1;
+    state.scene.floors[state.floor].doors.push(Door {
+        id,
+        kind,
+        reveals_as: DoorKind::Locked,
+        center,
+        size: (DOOR_LONG_PX, DOOR_THICK_PX),
+        rot,
+    });
+    rebuild_assets(state);
+    set_status(state, format!("{} placed", state.tool.label()));
 }
 
 fn place_point(state: &mut State, p: (f32, f32)) {
@@ -2522,6 +2613,9 @@ fn pick_object(scene: &Scene, floor_index: usize, p: (f32, f32)) -> Option<Selec
     for (i, w) in floor.walls.iter().enumerate() {
         consider(dist_to_rect(p, w.rect), Selection::Wall(i));
     }
+    for (i, w) in floor.partitions.iter().enumerate() {
+        consider(dist_to_rect(p, w.rect), Selection::Partition(i));
+    }
     for (i, o) in floor.obstacles.iter().enumerate() {
         consider(
             dist_to_box(p, o.center, o.size, o.rot),
@@ -2529,7 +2623,10 @@ fn pick_object(scene: &Scene, floor_index: usize, p: (f32, f32)) -> Option<Selec
         );
     }
     for (i, d) in floor.doors.iter().enumerate() {
-        consider(dist_to_box(p, d.center, d.size, d.rot), Selection::Door(i));
+        consider(
+            dist_to_box(p, d.center, (DOOR_LONG_PX, DOOR_THICK_PX), d.rot),
+            Selection::Door(i),
+        );
     }
     for (i, s) in floor.stairs.iter().enumerate() {
         consider(
@@ -2555,6 +2652,9 @@ fn editor_erase(state: &mut State, p: (f32, f32)) {
     match sel {
         Selection::Wall(i) => {
             floor.walls.remove(i);
+        }
+        Selection::Partition(i) => {
+            floor.partitions.remove(i);
         }
         Selection::Obstacle(i) => {
             floor.obstacles.remove(i);
@@ -2592,6 +2692,15 @@ fn selection_geom(scene: &Scene, floor_index: usize, sel: Selection) -> Option<S
                 h: r.h,
             }
         }
+        Selection::Partition(i) => {
+            let r = floor.partitions.get(i)?.rect;
+            SelGeom::Rect {
+                x: r.x,
+                y: r.y,
+                w: r.w,
+                h: r.h,
+            }
+        }
         Selection::Obstacle(i) => {
             let o = floor.obstacles.get(i)?;
             SelGeom::Box {
@@ -2604,7 +2713,7 @@ fn selection_geom(scene: &Scene, floor_index: usize, sel: Selection) -> Option<S
             let d = floor.doors.get(i)?;
             SelGeom::Box {
                 center: d.center,
-                size: d.size,
+                size: (DOOR_LONG_PX, DOOR_THICK_PX),
                 rot: d.rot,
             }
         }
@@ -2625,6 +2734,11 @@ fn set_selection_geom(scene: &mut Scene, floor_index: usize, sel: Selection, geo
                 w0.rect = Rect { x, y, w, h };
             }
         }
+        (Selection::Partition(i), SelGeom::Rect { x, y, w, h }) => {
+            if let Some(w0) = floor.partitions.get_mut(i) {
+                w0.rect = Rect { x, y, w, h };
+            }
+        }
         (Selection::Obstacle(i), SelGeom::Box { center, size, rot }) => {
             if let Some(o) = floor.obstacles.get_mut(i) {
                 o.center = center;
@@ -2632,10 +2746,11 @@ fn set_selection_geom(scene: &mut Scene, floor_index: usize, sel: Selection, geo
                 o.rot = rot;
             }
         }
-        (Selection::Door(i), SelGeom::Box { center, size, rot }) => {
+        (Selection::Door(i), SelGeom::Box { center, rot, .. }) => {
             if let Some(d) = floor.doors.get_mut(i) {
+                // Doors keep their fixed prop size; only position/rotation move.
                 d.center = center;
-                d.size = size;
+                d.size = (DOOR_LONG_PX, DOOR_THICK_PX);
                 d.rot = rot;
             }
         }
@@ -3008,6 +3123,7 @@ fn delete_selection(state: &mut State) {
     let selected = state.selection.clone();
     let floor = &mut state.scene.floors[state.floor];
     let mut walls = Vec::new();
+    let mut partitions = Vec::new();
     let mut obstacles = Vec::new();
     let mut doors = Vec::new();
     let mut stairs = Vec::new();
@@ -3015,6 +3131,7 @@ fn delete_selection(state: &mut State) {
     for sel in selected {
         match sel {
             Selection::Wall(i) => walls.push(i),
+            Selection::Partition(i) => partitions.push(i),
             Selection::Obstacle(i) => obstacles.push(i),
             Selection::Door(i) => doors.push(i),
             Selection::Stair(i) => stairs.push(i),
@@ -3022,6 +3139,7 @@ fn delete_selection(state: &mut State) {
         }
     }
     remove_desc(&mut floor.walls, walls);
+    remove_desc(&mut floor.partitions, partitions);
     remove_desc(&mut floor.obstacles, obstacles);
     remove_desc(&mut floor.doors, doors);
     remove_desc(&mut floor.stairs, stairs);
@@ -3050,6 +3168,7 @@ fn copy_selection(state: &mut State) {
         .into_iter()
         .filter_map(|sel| match sel {
             Selection::Wall(i) => floor.walls.get(i).map(|w| Clip::Wall(*w)),
+            Selection::Partition(i) => floor.partitions.get(i).map(|w| Clip::Partition(*w)),
             Selection::Obstacle(i) => floor.obstacles.get(i).map(|o| Clip::Obstacle(*o)),
             Selection::Door(i) => floor.doors.get(i).map(|d| Clip::Door(*d)),
             Selection::Stair(i) => floor.stairs.get(i).map(|s| Clip::Stair(*s)),
@@ -3078,6 +3197,13 @@ fn paste_clipboard(state: &mut State, at: Option<(f32, f32)>) {
                 w.rect.x += to.0 - c.0;
                 w.rect.y += to.1 - c.1;
                 floor.walls.push(w);
+            }
+            Clip::Partition(mut w) => {
+                let c = (w.rect.x + w.rect.w * 0.5, w.rect.y + w.rect.h * 0.5);
+                let to = at.unwrap_or((c.0 + 24.0 + step, c.1 + 24.0 + step));
+                w.rect.x += to.0 - c.0;
+                w.rect.y += to.1 - c.1;
+                floor.partitions.push(w);
             }
             Clip::Obstacle(mut o) => {
                 o.id = id;
@@ -3676,6 +3802,13 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                     drag_by(state, event.mouse_dx, event.mouse_dy);
                     return;
                 }
+                // Door tools preview the snapped prop under the cursor.
+                let src = ref_to_source(state, (mx, my));
+                state.door_preview = if state.tool.is_door() {
+                    snap_door_to_wall(state, src)
+                } else {
+                    None
+                };
                 match state.drag_mode {
                     DragMode::Create => {
                         let src = ref_to_source(state, (mx, my));
@@ -3720,6 +3853,7 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 if let Some(i) = editor_toolbar_hit(x, y) {
                     state.tool = Tool::ALL[i];
                     state.drag_mode = DragMode::None;
+                    state.door_preview = None;
                     set_status(state, format!("tool {}", state.tool.label()));
                     return;
                 }
@@ -3756,6 +3890,12 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                         select_press(state, src, event.modifiers & sapp::MODIFIER_SHIFT != 0)
                     }
                     Tool::Connect => connect_press(state, src),
+                    t if t.is_door() => {
+                        // Click-to-place into the wall under the cursor.
+                        if let Some((cx, cy, rot)) = snap_door_to_wall(state, src) {
+                            place_door(state, (cx, cy), rot);
+                        }
+                    }
                     _ => {
                         state.drag_mode = DragMode::Create;
                         state.drag_from = Some(src);
@@ -4906,9 +5046,9 @@ fn draw_floor(
     sgl::end();
     sgl::disable_texture();
 
-    // Wall faces: the union outline (brighter) plus an inset copy (dimmer),
-    // with miter squares at the corners. Thickness is in source pixels so the
-    // lines scale with the map like the baked art.
+    // Wall faces: room walls draw an outer (brighter) and inner (dimmer) line;
+    // interior partitions draw dim on both, all with miter corners. Thickness is
+    // in source pixels so the lines scale with the map like the baked art.
     let plan = &state.wall_plans[state.floor];
     if !plan.edges.is_empty() {
         let sx = iw / frame.2;
@@ -4919,23 +5059,22 @@ fn draw_floor(
         for e in &plan.edges {
             let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, e.x0, e.y0);
             let (rx1, ry1) = src_to_ref(frame, ox, oy, iw, ih, e.x1, e.y1);
-            // The line sits inside the wall band: on the filled side for the
-            // outer (union) contour, on the unfilled side for the inner one.
+            // Insets sit on the wall side: the filled side for the outer contour
+            // and partitions, the unfilled side for the room's inner contour.
+            let inset = e.tone == WallTone::Inner;
             let (x, y, w, h) = match e.dir {
                 EdgeDir::Up | EdgeDir::Down => {
-                    let y = if matches!(
-                        (e.dir, e.inset),
-                        (EdgeDir::Up, false) | (EdgeDir::Down, true)
-                    ) {
-                        ry
-                    } else {
-                        ry - ty
-                    };
+                    let y =
+                        if matches!((e.dir, inset), (EdgeDir::Up, false) | (EdgeDir::Down, true)) {
+                            ry
+                        } else {
+                            ry - ty
+                        };
                     (rx, y, rx1 - rx, ty)
                 }
                 EdgeDir::Left | EdgeDir::Right => {
                     let x = if matches!(
-                        (e.dir, e.inset),
+                        (e.dir, inset),
                         (EdgeDir::Left, false) | (EdgeDir::Right, true)
                     ) {
                         rx
@@ -4945,7 +5084,7 @@ fn draw_floor(
                     (x, ry, tx, ry1 - ry)
                 }
             };
-            let c = if e.inset { C_WALL_INNER } else { C_WALL_OUTER };
+            let c = wall_tone_color(e.tone);
             sgl::c4f(c.0, c.1, c.2, 1.0);
             sgl::v2f(x, y);
             sgl::v2f(x + w, y);
@@ -4953,7 +5092,7 @@ fn draw_floor(
             sgl::v2f(x, y + h);
         }
         for c in &plan.corners {
-            let (dx, dy) = if c.inset {
+            let (dx, dy) = if c.tone == WallTone::Inner {
                 (-c.sx, -c.sy)
             } else {
                 (c.sx, c.sy)
@@ -4970,7 +5109,7 @@ fn draw_floor(
             );
             let (x, w) = (x0.min(x1), (x1 - x0).abs());
             let (y, h) = (y0.min(y1), (y1 - y0).abs());
-            let col = if c.inset { C_WALL_INNER } else { C_WALL_OUTER };
+            let col = wall_tone_color(c.tone);
             sgl::c4f(col.0, col.1, col.2, 1.0);
             sgl::v2f(x, y);
             sgl::v2f(x + w, y);
@@ -4979,6 +5118,9 @@ fn draw_floor(
         }
         sgl::end();
     }
+
+    // Door props sit on top of the wall lines so they read as openings.
+    draw_doors(state, frame, ox, oy, iw, ih);
 
     // Items and typewriters, constant screen size, on whichever floor they live.
     for item in &state.items {
@@ -5091,6 +5233,37 @@ fn draw_floor(
 }
 
 // A rotated box in reference space, for edit-mode obstacles/doors.
+// Door props: a flat rect at the fixed size, on top of the wall lines.
+fn draw_doors(state: &State, frame: (f32, f32, f32, f32), ox: f32, oy: f32, iw: f32, ih: f32) {
+    for d in &state.scene.floors[state.floor].doors {
+        draw_door(frame, ox, oy, iw, ih, d, 1.0);
+    }
+}
+
+fn draw_door(
+    frame: (f32, f32, f32, f32),
+    ox: f32,
+    oy: f32,
+    iw: f32,
+    ih: f32,
+    d: &Door,
+    alpha: f32,
+) {
+    draw_box_rot(
+        frame,
+        ox,
+        oy,
+        iw,
+        ih,
+        d.center,
+        (DOOR_LONG_PX, DOOR_THICK_PX),
+        d.rot,
+        door_color(d.kind),
+        alpha,
+        true,
+    );
+}
+
 #[allow(clippy::too_many_arguments)]
 fn draw_box_rot(
     frame: (f32, f32, f32, f32),
@@ -5165,14 +5338,7 @@ fn draw_editor(
         );
     }
     for d in &floor.doors {
-        let c = match d.kind {
-            DoorKind::Locked => (0.85, 0.35, 0.45),
-            DoorKind::Unlocked => (0.35, 0.75, 0.85),
-            DoorKind::Unknown => (0.65, 0.65, 0.75),
-        };
-        draw_box_rot(
-            frame, ox, oy, iw, ih, d.center, d.size, d.rot, c, 0.85, true,
-        );
+        // Door props are drawn by draw_floor; here only the pending-link ring.
         if let Some(PendingLink::Door(pf, pid)) = state.pending_link {
             if pf == state.floor && pid == d.id {
                 draw_box_rot(
@@ -5182,7 +5348,7 @@ fn draw_editor(
                     iw,
                     ih,
                     d.center,
-                    (d.size.0 + 16.0, d.size.1 + 16.0),
+                    (DOOR_LONG_PX + 16.0, DOOR_THICK_PX + 16.0),
                     d.rot,
                     (1.0, 1.0, 1.0),
                     1.0,
@@ -5300,6 +5466,20 @@ fn draw_editor(
             let c = state.tool.color();
             sgl::c4f(c.0, c.1, c.2, 0.9);
             outline_rect(rx, ry, rx1 - rx, ry1 - ry);
+        }
+    }
+    // Snapped door prop preview while hovering a wall.
+    if let Some((cx, cy, rot)) = state.door_preview {
+        if let Some(kind) = door_kind_for_tool(state.tool) {
+            let d = Door {
+                id: 0,
+                kind,
+                reveals_as: DoorKind::Locked,
+                center: (cx, cy),
+                size: (DOOR_LONG_PX, DOOR_THICK_PX),
+                rot,
+            };
+            draw_door(frame, ox, oy, iw, ih, &d, 0.6);
         }
     }
     sgl::scissor_rectf(0.0, 0.0, width, height, true);
@@ -5975,6 +6155,7 @@ fn main() {
         snap: true,
         drag_from: None,
         drag_to: None,
+        door_preview: None,
         selection: Vec::new(),
         drag_mode: DragMode::None,
         drag_orig: None,
@@ -6091,7 +6272,37 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ink_ribbon_native::scene::{FLOOR1_FRAME, FLOOR1_H, FLOOR1_W, FLOOR1_X, FLOOR1_Y};
+    use ink_ribbon_native::scene::{
+        Floor, FLOOR1_FRAME, FLOOR1_H, FLOOR1_INDEX, FLOOR1_W, FLOOR1_X, FLOOR1_Y,
+    };
+
+    #[test]
+    fn door_snaps_to_the_nearest_wall() {
+        let mut floor = Floor::new(FLOOR1_INDEX);
+        floor.walls.push(WallOp {
+            mode: BoolOp::Add,
+            rect: Rect {
+                x: 0.0,
+                y: 0.0,
+                w: 400.0,
+                h: 400.0,
+            },
+        });
+        let plan = wall_plan(&floor);
+        // Just inside the top wall -> horizontal door on the wall centreline.
+        let s = snap_door_in(&plan, (200.0, 5.0)).expect("snap to top wall");
+        assert_eq!(s.2, 0.0);
+        assert!(
+            (s.1 - ROOM_WALL_PX * 0.5).abs() < 0.01,
+            "centre y = {}",
+            s.1
+        );
+        // Near the left wall -> vertical door.
+        let s = snap_door_in(&plan, (5.0, 200.0)).expect("snap to left wall");
+        assert!((s.2 - std::f32::consts::FRAC_PI_2).abs() < 0.01);
+        // Far from any wall -> no snap.
+        assert!(snap_door_in(&plan, (200.0, 200.0)).is_none());
+    }
 
     #[test]
     fn zoom_anchor_keeps_point_under_cursor() {

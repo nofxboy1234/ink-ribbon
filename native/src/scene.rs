@@ -39,12 +39,18 @@ pub const FLOOR1_W: f32 = FLOOR_FRAMES[FLOOR1_INDEX].2;
 pub const FLOOR1_H: f32 = FLOOR_FRAMES[FLOOR1_INDEX].3;
 
 const MAGIC: &[u8; 4] = b"IRSC";
-/// v1 stored doors without `reveals_as`; v2 adds it. Reading still accepts v1.
-pub const VERSION: u16 = 2;
+/// v1 stored doors without `reveals_as`; v2 adds it; v3 adds interior-wall
+/// partitions. Reading still accepts v1/v2.
+pub const VERSION: u16 = 3;
 
 /// Thickness in source pixels of the wall band drawn inside each room rectangle
 /// (the gap between the two parallel lines).
 pub const ROOM_WALL_PX: f32 = 20.0;
+
+/// A door prop is a fixed-size rectangle: 62x22 reference px over a ~16px band,
+/// i.e. 3.875 x 1.375 of the wall band.
+pub const DOOR_LONG_PX: f32 = ROOM_WALL_PX * 3.875;
+pub const DOOR_THICK_PX: f32 = ROOM_WALL_PX * 1.375;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BoolOp {
@@ -162,6 +168,9 @@ pub enum Link {
 pub struct Floor {
     pub frame: Frame,
     pub walls: Vec<WallOp>,
+    /// Interior-wall partitions (v3): walls placed inside rooms. Rendered dim on
+    /// both lines and blocking, unlike room walls.
+    pub partitions: Vec<WallOp>,
     pub obstacles: Vec<Box2>,
     pub doors: Vec<Door>,
     pub stairs: Vec<StairNode>,
@@ -174,6 +183,7 @@ impl Floor {
         Floor {
             frame: FLOOR_FRAMES[index],
             walls: Vec::new(),
+            partitions: Vec::new(),
             obstacles: Vec::new(),
             doors: Vec::new(),
             stairs: Vec::new(),
@@ -184,10 +194,16 @@ impl Floor {
 
     pub fn is_empty(&self) -> bool {
         self.walls.is_empty()
+            && self.partitions.is_empty()
             && self.obstacles.is_empty()
             && self.doors.is_empty()
             && self.stairs.is_empty()
             && self.items.is_empty()
+    }
+
+    /// The partition ops, as the same ordered `Add`/`Sub` boolean as rooms.
+    pub fn partition_ops(&self) -> Vec<(BoolOp, Rect)> {
+        self.partitions.iter().map(|w| (w.mode, w.rect)).collect()
     }
 
     /// A drawn rectangle is a room. Rooms union, so overlapping rectangles merge
@@ -243,7 +259,9 @@ impl Scene {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut out = Vec::new();
         out.extend_from_slice(MAGIC);
-        put_u16(&mut out, self.version);
+        // Always write the current format version, even for a scene loaded from
+        // an older one, so the bytes match what we emit below.
+        put_u16(&mut out, VERSION);
         put_u8(&mut out, NUM_FLOORS as u8);
         put_u8(&mut out, 0);
         for floor in &self.floors {
@@ -252,6 +270,19 @@ impl Scene {
             }
             put_u32(&mut out, floor.walls.len() as u32);
             for w in &floor.walls {
+                put_u8(
+                    &mut out,
+                    match w.mode {
+                        BoolOp::Add => 0,
+                        BoolOp::Sub => 1,
+                    },
+                );
+                for v in [w.rect.x, w.rect.y, w.rect.w, w.rect.h] {
+                    put_f32(&mut out, v);
+                }
+            }
+            put_u32(&mut out, floor.partitions.len() as u32);
+            for w in &floor.partitions {
                 put_u8(
                     &mut out,
                     match w.mode {
@@ -373,6 +404,26 @@ impl Scene {
                     },
                 });
             }
+            // v3 added interior-wall partitions.
+            if version >= 3 {
+                let n = c.u32()? as usize;
+                for _ in 0..n {
+                    let mode = match c.u8()? {
+                        0 => BoolOp::Add,
+                        1 => BoolOp::Sub,
+                        _ => return None,
+                    };
+                    floor.partitions.push(WallOp {
+                        mode,
+                        rect: Rect {
+                            x: c.f32()?,
+                            y: c.f32()?,
+                            w: c.f32()?,
+                            h: c.f32()?,
+                        },
+                    });
+                }
+            }
             let n = c.u32()? as usize;
             for _ in 0..n {
                 floor.obstacles.push(Box2 {
@@ -392,7 +443,7 @@ impl Scene {
                     _ => return None,
                 };
                 // v1 had no reveals_as; default it to Locked.
-                let reveals_as = if version >= 2 {
+                let reveals_as = if version >= 3 {
                     match c.u8()? {
                         0 => DoorKind::Locked,
                         1 => DoorKind::Unlocked,
@@ -517,6 +568,32 @@ mod tests {
     }
 
     #[test]
+    fn saving_always_writes_the_current_version() {
+        // A scene loaded from an older file keeps that `version`; saving must
+        // still emit the current format (the bytes always include partitions).
+        let mut scene = Scene {
+            version: 1,
+            ..Scene::default()
+        };
+        scene.floors[FLOOR1_INDEX].partitions.push(WallOp {
+            mode: BoolOp::Add,
+            rect: Rect {
+                x: 10.0,
+                y: 20.0,
+                w: 30.0,
+                h: 40.0,
+            },
+        });
+        let bytes = scene.to_bytes();
+        assert_eq!(u16::from_le_bytes([bytes[4], bytes[5]]), VERSION);
+        let back = Scene::from_bytes(&bytes).expect("decode");
+        assert_eq!(
+            back.floors[FLOOR1_INDEX].partitions,
+            scene.floors[FLOOR1_INDEX].partitions
+        );
+    }
+
+    #[test]
     fn populated_scene_round_trips() {
         let mut scene = Scene::default();
         let floor = &mut scene.floors[FLOOR1_INDEX];
@@ -536,6 +613,15 @@ mod tests {
                 y: 3420.0,
                 w: 20.0,
                 h: 40.0,
+            },
+        });
+        floor.partitions.push(WallOp {
+            mode: BoolOp::Add,
+            rect: Rect {
+                x: 1700.0,
+                y: 3420.0,
+                w: 120.0,
+                h: 20.0,
             },
         });
         floor.obstacles.push(Box2 {

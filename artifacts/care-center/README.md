@@ -12,9 +12,15 @@ Open the map, press **Tab** to enter edit mode, and use the in-canvas tool bar:
 
 - **SELECT** — click to select, drag to move, corner handles to scale, the top
   handle to rotate boxes. Shift-click adds to the selection.
-- **WALL+ / WALL-** — drag rectangles; overlapping add/subtract shapes build the
-  wall mask.
-- **OBST / LOCK / OPEN / UNK** — drag obstacle and door boxes.
+- **WALL+ / WALL-** — drag rectangles; a rectangle is a room (walkable inside,
+  its wall drawn as a double line). Overlapping rooms union, so shared walls
+  vanish. `WALL-` carves.
+- **WALL** — drag a thin rectangle to place an interior partition inside a room;
+  it renders dim on both lines and blocks.
+- **LOCK / OPEN / UNK** — pick the door kind, then hover a wall: the snapped door
+  prop previews where it will land; click to drop it into the wall. Doors are a
+  fixed size and unlockable doors open the wall for movement.
+- **OBST** — drag an obstacle box.
 - **STAIR** — click to drop a stair endpoint. Use **LINK** (or `C`) to connect
   two endpoints across floors.
 - **ITEM** — click to drop a key item; **LINK** connects it to doors; **R**

@@ -1,10 +1,9 @@
 //! Boundary extraction for the wall union.
 //!
-//! Walls are axis-aligned rectangles with an ordered `Add`/`Sub` boolean. The
-//! map draws them as a thin double line: the outline of the union, plus the
-//! outline of the union eroded by a small gap, so a thick wall block still reads
-//! as two close parallel lines. Internal edges (where quads overlap or abut) and
-//! gaps at corners are handled here.
+//! Walls are axis-aligned rectangles with an ordered `Add`/`Sub` boolean. Room
+//! walls draw as a thin double line (the union outline plus its eroded interior,
+//! brighter outside). Interior partitions draw dim on both lines. Internal edges
+//! (where quads overlap or abut) and gaps at corners are handled here.
 
 use crate::scene::{BoolOp, Floor, Rect};
 
@@ -16,6 +15,17 @@ pub enum EdgeDir {
     Right,
 }
 
+/// How a wall line is shaded.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum WallTone {
+    /// Room wall facing away from the room (brighter).
+    Outer,
+    /// Room wall facing the room (dimmer).
+    Inner,
+    /// Interior partition (dim on both lines).
+    Interior,
+}
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct WallEdge {
     pub dir: EdgeDir,
@@ -25,8 +35,7 @@ pub struct WallEdge {
     pub y0: f32,
     pub x1: f32,
     pub y1: f32,
-    /// True for the inset copy (the inner line), false for the union outline.
-    pub inset: bool,
+    pub tone: WallTone,
 }
 
 /// A miter fill at a boundary vertex, as a unit square scaled by the line
@@ -37,7 +46,7 @@ pub struct WallCorner {
     pub y: f32,
     pub sx: f32,
     pub sy: f32,
-    pub inset: bool,
+    pub tone: WallTone,
 }
 
 #[derive(Clone, PartialEq, Debug, Default)]
@@ -47,20 +56,30 @@ pub struct WallPlan {
 }
 
 /// The wall lines for a floor: the room union's boundary (outer, brighter) plus
-/// the boundary of its eroded interior (inner, dimmer). Because rooms union,
-/// overlapping rectangles merge and leave no internal wall.
+/// the boundary of its eroded interior (inner, dimmer), plus any interior
+/// partitions (dim on both lines). Because rooms union, overlapping rectangles
+/// merge and leave no internal wall.
 pub fn wall_plan(floor: &Floor) -> WallPlan {
     let mut plan = boundary(&floor.wall_ops());
     let mut inner = boundary(&floor.interior_ops());
-    for e in &mut inner.edges {
-        e.inset = true;
-    }
-    for c in &mut inner.corners {
-        c.inset = true;
-    }
+    set_tone(&mut inner, WallTone::Inner);
     plan.edges.extend(inner.edges);
     plan.corners.extend(inner.corners);
+
+    let mut partitions = boundary(&floor.partition_ops());
+    set_tone(&mut partitions, WallTone::Interior);
+    plan.edges.extend(partitions.edges);
+    plan.corners.extend(partitions.corners);
     plan
+}
+
+fn set_tone(plan: &mut WallPlan, tone: WallTone) {
+    for e in &mut plan.edges {
+        e.tone = tone;
+    }
+    for c in &mut plan.corners {
+        c.tone = tone;
+    }
 }
 
 /// Boundary of an ordered `Add`/`Sub` rectangle set, as merged faces plus miter
@@ -122,7 +141,7 @@ fn boundary(ops: &[(BoolOp, Rect)]) -> WallPlan {
                             y0: y,
                             x1: xs[i],
                             y1: y,
-                            inset: false,
+                            tone: WallTone::Outer,
                         });
                         start = None;
                     }
@@ -154,7 +173,7 @@ fn boundary(ops: &[(BoolOp, Rect)]) -> WallPlan {
                             y0: ys[s],
                             x1: x,
                             y1: ys[j],
-                            inset: false,
+                            tone: WallTone::Outer,
                         });
                         start = None;
                     }
@@ -191,7 +210,7 @@ fn miter_corners(edges: &[WallEdge]) -> Vec<WallCorner> {
                     y: py,
                     sx,
                     sy,
-                    inset: false,
+                    tone: WallTone::Outer,
                 });
             }
         }
@@ -214,7 +233,7 @@ fn miter_corners(edges: &[WallEdge]) -> Vec<WallCorner> {
                     y: py,
                     sx,
                     sy,
-                    inset: false,
+                    tone: WallTone::Outer,
                 });
             }
         }
@@ -264,11 +283,11 @@ mod tests {
         // Outer contour plus the inset (room) contour.
         assert_eq!(plan.edges.len(), 8);
         assert_eq!(count(&plan.edges, EdgeDir::Up), 2);
-        let mut ys: Vec<(f32, bool)> = plan
+        let mut ys: Vec<(f32, WallTone)> = plan
             .edges
             .iter()
             .filter(|e| matches!(e.dir, EdgeDir::Up | EdgeDir::Down))
-            .map(|e| (e.y0, e.inset))
+            .map(|e| (e.y0, e.tone))
             .collect();
         ys.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
         ys.dedup();
@@ -277,12 +296,22 @@ mod tests {
         assert_eq!(
             ys,
             vec![
-                (0.0, false),
-                (ROOM_WALL_PX, true),
-                (120.0 - ROOM_WALL_PX, true),
-                (120.0, false),
+                (0.0, WallTone::Outer),
+                (ROOM_WALL_PX, WallTone::Inner),
+                (120.0 - ROOM_WALL_PX, WallTone::Inner),
+                (120.0, WallTone::Outer),
             ]
         );
+    }
+
+    #[test]
+    fn a_partition_is_dim_on_both_lines() {
+        let mut floor = Floor::new(FLOOR1_INDEX);
+        floor.partitions.push(add(rect(0.0, 0.0, 200.0, 60.0)));
+        let plan = wall_plan(&floor);
+        assert!(!plan.edges.is_empty());
+        assert!(plan.edges.iter().all(|e| e.tone == WallTone::Interior));
+        assert!(plan.corners.iter().all(|c| c.tone == WallTone::Interior));
     }
 
     #[test]
