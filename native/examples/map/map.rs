@@ -173,6 +173,7 @@ impl Layout {
 const C_DIM: (f32, f32, f32) = (0.20, 0.21, 0.21); // #333636 dim chrome
 const C_HILITE: (f32, f32, f32) = (0.80, 0.81, 0.80); // #cccfcc highlight
 const C_ACCENT: (f32, f32, f32) = (0.78, 0.75, 0.60); // #c7c099 player / route
+const C_PLAYER_ARROW: (f32, f32, f32) = (0.655, 0.627, 0.518); // #a7a084 location arrow
 const C_LINE: (f32, f32, f32) = (0.55, 0.57, 0.57); // #8c9191 panels, markers
 const C_LABEL: (f32, f32, f32) = (0.58, 0.58, 0.55); // #94948c room labels
 const C_TITLE: (f32, f32, f32) = (0.72, 0.72, 0.70); // #b8b8b3 title
@@ -191,6 +192,8 @@ const WALL_LINE_PX: f32 = 6.0;
 // Near-black background and faint map backing grid.
 const BACKGROUND: (f32, f32, f32) = (0.047, 0.047, 0.047); // #0c0c0c
 const GRID_RGB: (f32, f32, f32) = (0.10, 0.10, 0.10); // backing grid
+                                                      // Backing grid spacing in reference units (screen space).
+const GRID_STEP: f32 = 32.0;
 
 // The committed, editable vector scene (native/src/scene.rs). The runtime bakes
 // it into the overlay/nav/solid/stairs/items bytes at startup.
@@ -234,9 +237,17 @@ const CLICK_RADIUS: f32 = 70.0;
 // exactly equivalent to a collision disc of that radius. Speed is source px/s.
 const PLAYER_SPEED: f32 = 160.0;
 const PLAYER_COLLIDE_RADIUS: f32 = 8.0;
-// Arrow radius in source px at the default zoom; converted to a constant
-// reference size (like the item dots) so zooming never changes how big it looks.
-const PLAYER_MARKER_RADIUS: f32 = 13.6;
+// Arrow half-length in background-grid cells; the reference arrow spans ~1.5
+// cells, and a constant reference size (like the item dots) keeps it the same
+// on screen at any zoom.
+const PLAYER_ARROW_HALF: f32 = 0.486;
+// Location pulse: a soft white glow expanding from the arrow (grid-cell units,
+// measured from the reference video). A hard inner circle with a quick falloff.
+const PLAYER_PULSE_PERIOD: f32 = 1.6;
+const PLAYER_PULSE_MIN: f32 = 0.15;
+const PLAYER_PULSE_MAX: f32 = 0.85;
+const PLAYER_PULSE_FALLOFF: f32 = 0.6;
+const PLAYER_PULSE_ALPHA: f32 = 0.26;
 const PLAYER_ACCEL: f32 = 14.0;
 const PLAYER_TURN_RATE: f32 = 10.0;
 const MOVE_SUBSTEP: f32 = 4.0;
@@ -4289,6 +4300,26 @@ fn triangle_dir(cx: f32, cy: f32, radius: f32, dx: f32, dy: f32) {
     sgl::end();
 }
 
+// Player location arrow: a concave-backed dart (tip, two barbs, a forward
+// notch) matching the reference map cursor. The apex points along (dx, dy) and
+// `radius` is half the arrow's length, so its box stays centred on the player.
+fn player_arrow_dir(cx: f32, cy: f32, radius: f32, dx: f32, dy: f32) {
+    let (bx, by) = (-dy, dx);
+    // Offsets as fractions of the half-length, measured from the reference.
+    let (back, barb, notch) = (radius, radius * 0.67, radius * 0.61);
+    let tip = (cx + dx * radius, cy + dy * radius);
+    let rest = (cx - dx * back, cy - dy * back);
+    let middle = (cx - dx * notch, cy - dy * notch);
+    sgl::begin_triangles();
+    sgl::v2f(tip.0, tip.1);
+    sgl::v2f(rest.0 + bx * barb, rest.1 + by * barb);
+    sgl::v2f(middle.0, middle.1);
+    sgl::v2f(tip.0, tip.1);
+    sgl::v2f(middle.0, middle.1);
+    sgl::v2f(rest.0 - bx * barb, rest.1 - by * barb);
+    sgl::end();
+}
+
 fn filled_circle(cx: f32, cy: f32, radius: f32) {
     sgl::begin_triangles();
     let step = std::f32::consts::TAU / CIRCLE_SEGMENTS as f32;
@@ -4760,20 +4791,46 @@ fn draw_cursor(
     sgl::scissor_rectf(0.0, 0.0, width, height, true);
 }
 
-// Reference player marker: a pale-yellow arrow with expanding pulse rings.
+// Reference player marker: a pale arrow with an expanding soft glow ring.
 fn draw_player_marker(state: &State, cx: f32, cy: f32, radius: f32) {
-    let period = 1.8f32;
-    for k in 0..2 {
-        let frac = (state.time / period + k as f32 * 0.5).fract();
-        let ring = radius + 4.0 + frac * (radius + 16.0);
-        let alpha = (1.0 - frac) * 0.45;
-        sgl::c4f(C_ACCENT.0, C_ACCENT.1, C_ACCENT.2, alpha);
-        outline_circle(cx, cy, ring);
-    }
+    // The pulse is a hard-edged white circle that expands and fades, glowing
+    // outward from its rim, leaving the map dark inside.
+    let p = (state.time / PLAYER_PULSE_PERIOD).fract();
+    let inner = (PLAYER_PULSE_MIN + (PLAYER_PULSE_MAX - PLAYER_PULSE_MIN) * p) * GRID_STEP;
+    let outer = inner + PLAYER_PULSE_FALLOFF * GRID_STEP;
+    let alpha = PLAYER_PULSE_ALPHA * (1.0 - p * p);
+    glow_band(cx, cy, inner, outer, alpha, 0.0);
     // Rotate the arrow to face the direction of movement (0 rad = up).
     let (dx, dy) = facing_vector(state.facing);
-    sgl::c4f(C_ACCENT.0, C_ACCENT.1, C_ACCENT.2, 1.0);
-    triangle_dir(cx, cy, radius, dx, dy);
+    sgl::c4f(C_PLAYER_ARROW.0, C_PLAYER_ARROW.1, C_PLAYER_ARROW.2, 1.0);
+    player_arrow_dir(cx, cy, radius, dx, dy);
+}
+
+// A soft annulus between two radii, alpha ramping from the inner edge (a0) to
+// the outer edge (a1). Drawn as a triangle fan per segment so the Sokol colour
+// interpolation gives the radial gradient.
+fn glow_band(cx: f32, cy: f32, r0: f32, r1: f32, a0: f32, a1: f32) {
+    const SEGMENTS: usize = 64;
+    let step = std::f32::consts::TAU / SEGMENTS as f32;
+    sgl::begin_triangles();
+    for i in 0..SEGMENTS {
+        let t0 = i as f32 * step;
+        let t1 = (i + 1) as f32 * step;
+        let (c0, s0) = (t0.cos(), t0.sin());
+        let (c1, s1) = (t1.cos(), t1.sin());
+        sgl::c4f(1.0, 1.0, 1.0, a0);
+        sgl::v2f(cx + r0 * c0, cy + r0 * s0);
+        sgl::c4f(1.0, 1.0, 1.0, a1);
+        sgl::v2f(cx + r1 * c0, cy + r1 * s0);
+        sgl::v2f(cx + r1 * c1, cy + r1 * s1);
+        sgl::c4f(1.0, 1.0, 1.0, a0);
+        sgl::v2f(cx + r0 * c0, cy + r0 * s0);
+        sgl::c4f(1.0, 1.0, 1.0, a1);
+        sgl::v2f(cx + r1 * c1, cy + r1 * s1);
+        sgl::c4f(1.0, 1.0, 1.0, a0);
+        sgl::v2f(cx + r0 * c1, cy + r0 * s1);
+    }
+    sgl::end();
 }
 
 // Debug view: fill each walkable cell (the exact grid A* uses), batched per row run.
@@ -4953,14 +5010,9 @@ fn draw_floor(
     if state.floor == state.player_floor {
         let (px, py) = src_to_ref(frame, ox, oy, iw, ih, state.player.0, state.player.1);
         let collide_ref = PLAYER_COLLIDE_RADIUS * iw / frame.2;
-        // Like the item dots, the arrow keeps a constant screen scale: use the
-        // default zoom for the source->reference conversion, not the live zoom.
-        let default_scale = if state.layout.portrait {
-            state.layout.map_h * DEFAULT_ZOOM / frame.3
-        } else {
-            state.layout.map_w * DEFAULT_ZOOM / frame.2
-        };
-        let marker_ref = PLAYER_MARKER_RADIUS * default_scale;
+        // The arrow is a constant size on screen, sized in grid cells so it
+        // matches the reference map cursor.
+        let marker_ref = PLAYER_ARROW_HALF * GRID_STEP;
         if state.debug_mode {
             // The collision disc the player keeps clear of walls, obstacles and
             // locked doors, plus the 8 samples debug uses to eyeball it.
@@ -5613,7 +5665,7 @@ fn draw_debug_overlay(state: &State) {
 
 // Faint coordinate grid across the whole viewport, behind the map.
 fn draw_background_grid(left: f32, right: f32, top: f32, bottom: f32) {
-    const STEP: f32 = 32.0;
+    const STEP: f32 = GRID_STEP;
     sgl::c4f(GRID_RGB.0, GRID_RGB.1, GRID_RGB.2, 1.0);
     let mut x = (left / STEP).floor() * STEP;
     while x <= right + 0.1 {
