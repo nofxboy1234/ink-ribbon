@@ -82,6 +82,60 @@ fn set_tone(plan: &mut WallPlan, tone: WallTone) {
     }
 }
 
+/// The filled region of an ordered `Add`/`Sub` rectangle set, as merged
+/// horizontal runs. Used to fill rooms with the floor colour.
+pub fn region_rects(ops: &[(BoolOp, Rect)]) -> Vec<Rect> {
+    let mut xs: Vec<f32> = Vec::new();
+    let mut ys: Vec<f32> = Vec::new();
+    for (_, r) in ops {
+        xs.push(r.x);
+        xs.push(r.x + r.w);
+        ys.push(r.y);
+        ys.push(r.y + r.h);
+    }
+    xs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    ys.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    xs.dedup();
+    ys.dedup();
+    if xs.len() < 2 || ys.len() < 2 {
+        return Vec::new();
+    }
+    let nx = xs.len() - 1;
+    let ny = ys.len() - 1;
+    let on = |j: usize, i: usize| -> bool {
+        let cx = (xs[i] + xs[i + 1]) * 0.5;
+        let cy = (ys[j] + ys[j + 1]) * 0.5;
+        let mut f = false;
+        for (mode, r) in ops {
+            if cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h {
+                f = *mode == BoolOp::Add;
+            }
+        }
+        f
+    };
+    let mut rects = Vec::new();
+    for j in 0..ny {
+        let mut start: Option<usize> = None;
+        for i in 0..=nx {
+            let filled = i < nx && on(j, i);
+            match (start, filled) {
+                (None, true) => start = Some(i),
+                (Some(s), false) => {
+                    rects.push(Rect {
+                        x: xs[s],
+                        y: ys[j],
+                        w: xs[i] - xs[s],
+                        h: ys[j + 1] - ys[j],
+                    });
+                    start = None;
+                }
+                _ => {}
+            }
+        }
+    }
+    rects
+}
+
 /// Boundary of an ordered `Add`/`Sub` rectangle set, as merged faces plus miter
 /// corners.
 fn boundary(ops: &[(BoolOp, Rect)]) -> WallPlan {
@@ -273,6 +327,23 @@ mod tests {
 
     fn count(edges: &[WallEdge], dir: EdgeDir) -> usize {
         edges.iter().filter(|e| e.dir == dir).count()
+    }
+
+    #[test]
+    fn region_rects_fill_and_carve() {
+        let r = region_rects(&ops(&[add(rect(0.0, 0.0, 100.0, 100.0))]));
+        assert_eq!(r.len(), 1);
+        assert_eq!((r[0].x, r[0].y, r[0].w, r[0].h), (0.0, 0.0, 100.0, 100.0));
+
+        let r = region_rects(&ops(&[
+            add(rect(0.0, 0.0, 100.0, 100.0)),
+            sub(rect(40.0, 40.0, 20.0, 20.0)),
+        ]));
+        let area: f32 = r.iter().map(|q| q.w * q.h).sum();
+        assert!((area - (100.0 * 100.0 - 20.0 * 20.0)).abs() < 1.0);
+        assert!(!r
+            .iter()
+            .any(|q| 50.0 > q.x && 50.0 < q.x + q.w && 50.0 > q.y && 50.0 < q.y + q.h));
     }
 
     #[test]

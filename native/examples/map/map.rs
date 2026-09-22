@@ -6,7 +6,7 @@ use ink_ribbon_native::scene::{
     BoolOp, Box2, Door, DoorKind, ItemDef, ItemKind, Link, Rect, Scene, StairNode, WallOp,
     DOOR_LONG_PX, DOOR_THICK_PX, FLOOR1_INDEX, FLOOR_FRAMES, NUM_FLOORS, ROOM_WALL_PX,
 };
-use ink_ribbon_native::walls::{wall_plan, EdgeDir, WallPlan, WallTone};
+use ink_ribbon_native::walls::{region_rects, wall_plan, EdgeDir, WallPlan, WallTone};
 use sokol::{app as sapp, gfx as sg, gl as sgl, glue as sglue};
 
 const ZOOM_MIN: f32 = 0.7;
@@ -193,6 +193,13 @@ const WALL_LINE_PX: f32 = 7.3;
 const C_DOOR_UNLOCKED: (f32, f32, f32) = (115.0 / 255.0, 163.0 / 255.0, 182.0 / 255.0); // #73a3b6
 const C_DOOR_LOCKED: (f32, f32, f32) = (0.63, 0.27, 0.34); // #a04457
 const C_DOOR_UNKNOWN: (f32, f32, f32) = (0.55, 0.55, 0.60);
+
+// Room floors are a uniform dark grey; some rooms get a dot grid or a diamond
+// lattice (ref/map_ref.png).
+const ROOM_FLOOR: (f32, f32, f32) = (0.090, 0.090, 0.090); // #171717
+const ROOM_DOT: (f32, f32, f32) = (0.17, 0.17, 0.17);
+const ROOM_LINE: (f32, f32, f32) = (0.13, 0.13, 0.13);
+const ROOM_DOT_PX: f32 = 3.0;
 
 fn wall_tone_color(tone: WallTone) -> (f32, f32, f32) {
     match tone {
@@ -5105,6 +5112,9 @@ fn draw_floor(
         draw_nav_grid(&state.nav[state.floor], ox, oy, iw, ih);
     }
 
+    // Room floors and their dot/diamond patterns sit under the map art.
+    draw_rooms(state, frame, ox, oy, iw, ih);
+
     sgl::enable_texture();
     sgl::texture(state.overlay_views[state.floor], state.overlay_sampler);
     sgl::c4f(1.0, 1.0, 1.0, 1.0);
@@ -5941,18 +5951,185 @@ fn draw_debug_overlay(state: &State) {
 
 // Faint coordinate grid across the whole viewport, behind the map.
 fn draw_background_grid(left: f32, right: f32, top: f32, bottom: f32) {
-    const STEP: f32 = GRID_STEP;
+    const S: f32 = GRID_STEP;
+    let i0 = (left / S).floor() as i32;
+    let i1 = (right / S).ceil() as i32;
+    let j0 = (top / S).floor() as i32;
+    let j1 = (bottom / S).ceil() as i32;
+    let half = S * 0.5;
+    sgl::begin_quads();
+    // Bright dots at the grid vertices.
     sgl::c4f(GRID_RGB.0, GRID_RGB.1, GRID_RGB.2, 1.0);
-    let mut x = (left / STEP).floor() * STEP;
-    while x <= right + 0.1 {
-        line(x, top, x, bottom);
-        x += STEP;
+    for i in i0..=i1 {
+        for j in j0..=j1 {
+            dot(i as f32 * S, j as f32 * S, 2.2);
+        }
     }
-    let mut y = (top / STEP).floor() * STEP;
-    while y <= bottom + 0.1 {
-        line(left, y, right, y);
-        y += STEP;
+    // Fainter dots at the edge midpoints and the square centres.
+    sgl::c4f(GRID_RGB.0, GRID_RGB.1, GRID_RGB.2, 0.5);
+    for i in i0..=i1 {
+        for j in j0..=j1 {
+            let (x, y) = (i as f32 * S, j as f32 * S);
+            dot(x + half, y, 1.6);
+            dot(x, y + half, 1.6);
+            dot(x + half, y + half, 1.6);
+        }
     }
+    sgl::end();
+}
+
+// A small filled square in reference space.
+fn dot(cx: f32, cy: f32, size: f32) {
+    let h = size * 0.5;
+    sgl::v2f(cx - h, cy - h);
+    sgl::v2f(cx + h, cy - h);
+    sgl::v2f(cx + h, cy + h);
+    sgl::v2f(cx - h, cy + h);
+}
+
+// Fill each room with the floor colour, then scatter a per-room dot grid or
+// diamond lattice. Which pattern (and grid size) is picked from the room's
+// rectangle, so it is stable across frames.
+fn draw_rooms(state: &State, frame: (f32, f32, f32, f32), ox: f32, oy: f32, iw: f32, ih: f32) {
+    let floor = &state.scene.floors[state.floor];
+    let region = region_rects(&floor.wall_ops());
+    if region.is_empty() {
+        return;
+    }
+    sgl::c4f(ROOM_FLOOR.0, ROOM_FLOOR.1, ROOM_FLOOR.2, 1.0);
+    sgl::begin_quads();
+    for r in &region {
+        let (x0, y0) = src_to_ref(frame, ox, oy, iw, ih, r.x, r.y);
+        let (x1, y1) = src_to_ref(frame, ox, oy, iw, ih, r.x + r.w, r.y + r.h);
+        sgl::v2f(x0, y0);
+        sgl::v2f(x1, y0);
+        sgl::v2f(x1, y1);
+        sgl::v2f(x0, y1);
+    }
+    sgl::end();
+
+    sgl::begin_quads();
+    for w in floor.walls.iter().filter(|w| w.mode == BoolOp::Add) {
+        let inner = Rect {
+            x: w.rect.x + ROOM_WALL_PX,
+            y: w.rect.y + ROOM_WALL_PX,
+            w: w.rect.w - 2.0 * ROOM_WALL_PX,
+            h: w.rect.h - 2.0 * ROOM_WALL_PX,
+        };
+        if inner.w <= 0.0 || inner.h <= 0.0 {
+            continue;
+        }
+        let h = rect_hash(inner);
+        match h % 6 {
+            0 => {} // no grid
+            1 => draw_diamonds(frame, ox, oy, iw, ih, inner, 84.0),
+            n => {
+                let step = match n {
+                    2 => 44.0,
+                    3 => 64.0,
+                    4 => 92.0,
+                    _ => 64.0,
+                };
+                draw_room_dots(frame, ox, oy, iw, ih, inner, step);
+            }
+        }
+    }
+    sgl::end();
+}
+
+fn draw_room_dots(
+    frame: (f32, f32, f32, f32),
+    ox: f32,
+    oy: f32,
+    iw: f32,
+    ih: f32,
+    r: Rect,
+    step: f32,
+) {
+    sgl::c4f(ROOM_DOT.0, ROOM_DOT.1, ROOM_DOT.2, 1.0);
+    let hx = ROOM_DOT_PX * iw / frame.2 * 0.5;
+    let hy = ROOM_DOT_PX * ih / frame.3 * 0.5;
+    let mut y = r.y;
+    while y <= r.y + r.h + 0.1 {
+        let mut x = r.x;
+        while x <= r.x + r.w + 0.1 {
+            let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, x, y);
+            sgl::v2f(rx - hx, ry - hy);
+            sgl::v2f(rx + hx, ry - hy);
+            sgl::v2f(rx + hx, ry + hy);
+            sgl::v2f(rx - hx, ry + hy);
+            x += step;
+        }
+        y += step;
+    }
+}
+
+// A 45-degree lattice that tiles the room with diamonds.
+fn draw_diamonds(
+    frame: (f32, f32, f32, f32),
+    ox: f32,
+    oy: f32,
+    iw: f32,
+    ih: f32,
+    r: Rect,
+    step: f32,
+) {
+    sgl::c4f(ROOM_LINE.0, ROOM_LINE.1, ROOM_LINE.2, 1.0);
+    let t = 1.6 * iw / frame.2;
+    let (x0, y0, x1, y1) = (r.x, r.y, r.x + r.w, r.y + r.h);
+    // Family y = x + c.
+    let mut c = ((y0 - x1) / step).floor() * step;
+    while c <= y1 - x0 {
+        let xa = x0.max(y0 - c);
+        let xb = x1.min(y1 - c);
+        if xb > xa {
+            emit_line(frame, ox, oy, iw, ih, (xa, xa + c), (xb, xb + c), t);
+        }
+        c += step;
+    }
+    // Family y = -x + c.
+    let mut c = ((y0 + x0) / step).floor() * step;
+    while c <= y1 + x1 {
+        let xa = x0.max(c - y1);
+        let xb = x1.min(c - y0);
+        if xb > xa {
+            emit_line(frame, ox, oy, iw, ih, (xa, -xa + c), (xb, -xb + c), t);
+        }
+        c += step;
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_line(
+    frame: (f32, f32, f32, f32),
+    ox: f32,
+    oy: f32,
+    iw: f32,
+    ih: f32,
+    a: (f32, f32),
+    b: (f32, f32),
+    thickness: f32,
+) {
+    let (ax, ay) = src_to_ref(frame, ox, oy, iw, ih, a.0, a.1);
+    let (bx, by) = src_to_ref(frame, ox, oy, iw, ih, b.0, b.1);
+    let (dx, dy) = (bx - ax, by - ay);
+    let len = (dx * dx + dy * dy).sqrt().max(0.001);
+    let (px, py) = (-dy / len * thickness * 0.5, dx / len * thickness * 0.5);
+    sgl::v2f(ax + px, ay + py);
+    sgl::v2f(bx + px, by + py);
+    sgl::v2f(bx - px, by - py);
+    sgl::v2f(ax - px, ay - py);
+}
+
+fn rect_hash(r: Rect) -> u32 {
+    let mut h = 2166136261u32;
+    for v in [r.x, r.y, r.w, r.h] {
+        for b in v.to_bits().to_le_bytes() {
+            h ^= b as u32;
+            h = h.wrapping_mul(16777619);
+        }
+    }
+    h
 }
 
 fn reference_projection(l: &Layout, width: f32, height: f32) -> (f32, f32, f32, f32) {
