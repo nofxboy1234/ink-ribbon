@@ -40,8 +40,8 @@ pub const FLOOR1_H: f32 = FLOOR_FRAMES[FLOOR1_INDEX].3;
 
 const MAGIC: &[u8; 4] = b"IRSC";
 /// v1 stored doors without `reveals_as`; v2 adds it; v3 adds interior-wall
-/// partitions. Reading still accepts v1/v2.
-pub const VERSION: u16 = 3;
+/// partitions; v4 adds room name labels. Reading still accepts v1-v3.
+pub const VERSION: u16 = 4;
 
 /// Thickness in source pixels of the wall band drawn inside each room rectangle
 /// (the gap between the two parallel lines).
@@ -146,6 +146,13 @@ pub struct ItemDef {
     pub pos: (f32, f32),
 }
 
+/// A room name label (v4): centred text at a source position.
+#[derive(Clone, PartialEq, Debug)]
+pub struct RoomLabel {
+    pub name: String,
+    pub pos: (f32, f32),
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Link {
     /// Two stair endpoints on (possibly) different floors.
@@ -175,6 +182,8 @@ pub struct Floor {
     pub doors: Vec<Door>,
     pub stairs: Vec<StairNode>,
     pub items: Vec<ItemDef>,
+    /// Room name labels (v4).
+    pub labels: Vec<RoomLabel>,
     pub links: Vec<Link>,
 }
 
@@ -188,6 +197,7 @@ impl Floor {
             doors: Vec::new(),
             stairs: Vec::new(),
             items: Vec::new(),
+            labels: Vec::new(),
             links: Vec::new(),
         }
     }
@@ -199,6 +209,7 @@ impl Floor {
             && self.doors.is_empty()
             && self.stairs.is_empty()
             && self.items.is_empty()
+            && self.labels.is_empty()
     }
 
     /// The partition ops, as the same ordered `Add`/`Sub` boolean as rooms.
@@ -337,6 +348,14 @@ impl Scene {
                 put_f32(&mut out, it.pos.0);
                 put_f32(&mut out, it.pos.1);
                 let name = it.name.as_bytes();
+                put_u16(&mut out, name.len().min(u16::MAX as usize) as u16);
+                out.extend_from_slice(&name[..name.len().min(u16::MAX as usize)]);
+            }
+            put_u32(&mut out, floor.labels.len() as u32);
+            for l in &floor.labels {
+                put_f32(&mut out, l.pos.0);
+                put_f32(&mut out, l.pos.1);
+                let name = l.name.as_bytes();
                 put_u16(&mut out, name.len().min(u16::MAX as usize) as u16);
                 out.extend_from_slice(&name[..name.len().min(u16::MAX as usize)]);
             }
@@ -483,6 +502,16 @@ impl Scene {
                     pos,
                 });
             }
+            // v4 added room name labels.
+            if version >= 4 {
+                let n = c.u32()? as usize;
+                for _ in 0..n {
+                    let pos = (c.f32()?, c.f32()?);
+                    let len = c.u16()? as usize;
+                    let name = String::from_utf8_lossy(c.take(len)?).into_owned();
+                    floor.labels.push(RoomLabel { name, pos });
+                }
+            }
             let n = c.u32()? as usize;
             for _ in 0..n {
                 let kind = c.u8()?;
@@ -623,6 +652,10 @@ mod tests {
                 w: 120.0,
                 h: 20.0,
             },
+        });
+        floor.labels.push(RoomLabel {
+            name: "Medication Room".into(),
+            pos: (3504.0, 5145.0),
         });
         floor.obstacles.push(Box2 {
             id: 7,

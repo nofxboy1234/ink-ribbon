@@ -3,8 +3,8 @@ use std::ffi;
 use ink_ribbon_native::bake::{bake, bake_floor_grids, BakedBytes, OverlayBytes};
 use ink_ribbon_native::save::{format_unix_utc, PlayerSave};
 use ink_ribbon_native::scene::{
-    BoolOp, Box2, Door, DoorKind, ItemDef, ItemKind, Link, Rect, Scene, StairNode, WallOp,
-    DOOR_LONG_PX, DOOR_THICK_PX, FLOOR1_INDEX, FLOOR_FRAMES, NUM_FLOORS, ROOM_WALL_PX,
+    BoolOp, Box2, Door, DoorKind, ItemDef, ItemKind, Link, Rect, RoomLabel, Scene, StairNode,
+    WallOp, DOOR_LONG_PX, DOOR_THICK_PX, FLOOR_FRAMES, NUM_FLOORS, ROOM_WALL_PX,
 };
 use ink_ribbon_native::walls::{region_rects, wall_plan, EdgeDir, WallPlan, WallTone};
 use sokol::{app as sapp, gfx as sg, gl as sgl, glue as sglue};
@@ -230,27 +230,6 @@ const CIRCLE_SEGMENTS: usize = 24;
 const CURSOR_RADIUS: f32 = 36.0;
 const CURSOR_TICK: f32 = 20.0;
 const CURSOR_SEGMENTS: usize = 48;
-
-// Floor 1 room name labels (composite source px), drawn with sokol_debugtext.
-const ROOMS: [(&str, f32, f32); 17] = [
-    ("Cold Storage", 2146.0, 3775.0),
-    ("Courtyard", 4035.0, 3862.0),
-    ("Dining Room", 3490.0, 3960.0),
-    ("Restroom", 2830.0, 4078.0),
-    ("Isolation Ward", 5830.0, 4100.0),
-    ("Blood Lab", 5256.0, 4196.0),
-    ("Security Manager's", 6030.0, 4375.0),
-    ("Treatment Room", 4754.0, 4148.0),
-    ("Kitchen", 3011.0, 4614.0),
-    ("Parlor", 3390.0, 4700.0),
-    ("Central Hall", 4035.0, 4738.0),
-    ("East Wing Lobby", 4520.0, 4862.0),
-    ("Waiting Room", 5080.0, 4862.0),
-    ("Guard Office", 3840.0, 5060.0),
-    ("Custodian's Office", 2905.0, 5128.0),
-    ("Medication Room", 3504.0, 5145.0),
-    ("Garage", 2404.0, 5740.0),
-];
 
 // Walk into a stair endpoint this close (source px) to take it to the paired floor.
 const STAIR_RADIUS: f32 = 34.0;
@@ -647,12 +626,13 @@ enum Tool {
     DoorUnknown,
     Stair,
     Item,
+    Label,
     Erase,
     Connect,
 }
 
 impl Tool {
-    const ALL: [Tool; 12] = [
+    const ALL: [Tool; 13] = [
         Tool::Select,
         Tool::WallAdd,
         Tool::WallSub,
@@ -663,6 +643,7 @@ impl Tool {
         Tool::DoorUnknown,
         Tool::Stair,
         Tool::Item,
+        Tool::Label,
         Tool::Erase,
         Tool::Connect,
     ];
@@ -679,6 +660,7 @@ impl Tool {
             Tool::DoorUnknown => "UNK",
             Tool::Stair => "STAIR",
             Tool::Item => "ITEM",
+            Tool::Label => "NAME",
             Tool::Erase => "ERASE",
             Tool::Connect => "LINK",
         }
@@ -696,6 +678,7 @@ impl Tool {
             Tool::DoorUnknown => (0.62, 0.62, 0.70),
             Tool::Stair => (0.90, 0.80, 0.35),
             Tool::Item => (0.65, 0.45, 0.95),
+            Tool::Label => (0.58, 0.58, 0.55),
             Tool::Erase => (0.85, 0.30, 0.30),
             Tool::Connect => (0.90, 0.65, 0.90),
         }
@@ -725,6 +708,7 @@ enum Selection {
     Door(usize),
     Stair(usize),
     Item(usize),
+    Label(usize),
 }
 
 // Geometry snapshot of a selected object, used while dragging handles.
@@ -772,6 +756,7 @@ enum Clip {
     Door(Door),
     Stair(StairNode),
     Item(ItemDef),
+    Label(RoomLabel),
 }
 
 // Modal overlay state. All menus freeze gameplay while open.
@@ -2632,9 +2617,16 @@ fn place_point(state: &mut State, p: (f32, f32)) {
             name: format!("Item {id}"),
             pos: p,
         }),
+        Tool::Label => floor.labels.push(RoomLabel {
+            name: "Room".into(),
+            pos: p,
+        }),
         _ => {}
     }
-    rebuild_assets(state);
+    // Labels are not baked, so placing one needs no rebuild.
+    if tool != Tool::Label {
+        rebuild_assets(state);
+    }
     set_status(state, format!("{} placed", tool.label()));
 }
 
@@ -2657,10 +2649,35 @@ fn dist_to_rect(p: (f32, f32), r: Rect) -> f32 {
 
 fn pick_object(scene: &Scene, floor_index: usize, p: (f32, f32)) -> Option<Selection> {
     const REACH: f32 = 44.0;
+    // Point-like objects get their own reach, and win outright when hit: a room
+    // contains any point inside it (distance 0), so a point object inside a room
+    // could otherwise never be selected.
+    const POINT_REACH: f32 = 40.0;
+    const LABEL_REACH: f32 = 90.0;
     let floor = &scene.floors[floor_index];
-    // Nearest wins; when several contain the cursor (a room and the things
-    // inside it all have distance 0) the smallest wins, so inner objects are
-    // selectable.
+    let dist_pt = |q: (f32, f32)| ((p.0 - q.0).powi(2) + (p.1 - q.1).powi(2)).sqrt();
+
+    let mut point: Option<(f32, Selection)> = None;
+    let mut consider_point = |d: f32, reach: f32, sel: Selection| {
+        if d <= reach && point.as_ref().is_none_or(|(bd, _)| d < *bd) {
+            point = Some((d, sel));
+        }
+    };
+    for (i, s) in floor.stairs.iter().enumerate() {
+        consider_point(dist_pt(s.pos), POINT_REACH, Selection::Stair(i));
+    }
+    for (i, it) in floor.items.iter().enumerate() {
+        consider_point(dist_pt(it.pos), POINT_REACH, Selection::Item(i));
+    }
+    for (i, l) in floor.labels.iter().enumerate() {
+        consider_point(dist_pt(l.pos), LABEL_REACH, Selection::Label(i));
+    }
+    if let Some((_, sel)) = point {
+        return Some(sel);
+    }
+
+    // Area objects: nearest wins; when several contain the cursor (a room and the
+    // things inside it all have distance 0) the smallest wins.
     let mut best: Option<(f32, f32, Selection)> = None;
     let mut consider = |d: f32, area: f32, sel: Selection| {
         if d > REACH {
@@ -2702,20 +2719,6 @@ fn pick_object(scene: &Scene, floor_index: usize, p: (f32, f32)) -> Option<Selec
             Selection::Door(i),
         );
     }
-    for (i, s) in floor.stairs.iter().enumerate() {
-        consider(
-            ((p.0 - s.pos.0).powi(2) + (p.1 - s.pos.1).powi(2)).sqrt(),
-            0.0,
-            Selection::Stair(i),
-        );
-    }
-    for (i, it) in floor.items.iter().enumerate() {
-        consider(
-            ((p.0 - it.pos.0).powi(2) + (p.1 - it.pos.1).powi(2)).sqrt(),
-            0.0,
-            Selection::Item(i),
-        );
-    }
     best.map(|(_, _, sel)| sel)
 }
 
@@ -2743,6 +2746,9 @@ fn editor_erase(state: &mut State, p: (f32, f32)) {
         }
         Selection::Item(i) => {
             floor.items.remove(i);
+        }
+        Selection::Label(i) => {
+            floor.labels.remove(i);
         }
     }
     state.selection.clear();
@@ -2799,6 +2805,9 @@ fn selection_geom(scene: &Scene, floor_index: usize, sel: Selection) -> Option<S
         Selection::Item(i) => SelGeom::Point {
             pos: floor.items.get(i)?.pos,
         },
+        Selection::Label(i) => SelGeom::Point {
+            pos: floor.labels.get(i)?.pos,
+        },
     })
 }
 
@@ -2838,6 +2847,11 @@ fn set_selection_geom(scene: &mut Scene, floor_index: usize, sel: Selection, geo
         (Selection::Item(i), SelGeom::Point { pos }) => {
             if let Some(it) = floor.items.get_mut(i) {
                 it.pos = pos;
+            }
+        }
+        (Selection::Label(i), SelGeom::Point { pos }) => {
+            if let Some(l) = floor.labels.get_mut(i) {
+                l.pos = pos;
             }
         }
         _ => {}
@@ -3208,6 +3222,7 @@ fn delete_selection(state: &mut State) {
     let mut doors = Vec::new();
     let mut stairs = Vec::new();
     let mut items = Vec::new();
+    let mut labels = Vec::new();
     for sel in selected {
         match sel {
             Selection::Wall(i) => walls.push(i),
@@ -3216,6 +3231,7 @@ fn delete_selection(state: &mut State) {
             Selection::Door(i) => doors.push(i),
             Selection::Stair(i) => stairs.push(i),
             Selection::Item(i) => items.push(i),
+            Selection::Label(i) => labels.push(i),
         }
     }
     remove_desc(&mut floor.walls, walls);
@@ -3224,6 +3240,7 @@ fn delete_selection(state: &mut State) {
     remove_desc(&mut floor.doors, doors);
     remove_desc(&mut floor.stairs, stairs);
     remove_desc(&mut floor.items, items);
+    remove_desc(&mut floor.labels, labels);
     state.selection.clear();
     rebuild_assets(state);
     set_status(state, "deleted");
@@ -3253,6 +3270,7 @@ fn copy_selection(state: &mut State) {
             Selection::Door(i) => floor.doors.get(i).map(|d| Clip::Door(*d)),
             Selection::Stair(i) => floor.stairs.get(i).map(|s| Clip::Stair(*s)),
             Selection::Item(i) => floor.items.get(i).map(|it| Clip::Item(it.clone())),
+            Selection::Label(i) => floor.labels.get(i).map(|l| Clip::Label(l.clone())),
         })
         .collect();
     set_status(state, format!("copied {}", state.clipboard.len()));
@@ -3305,6 +3323,10 @@ fn paste_clipboard(state: &mut State, at: Option<(f32, f32)>) {
                 it.pos = at.unwrap_or((it.pos.0 + 24.0 + step, it.pos.1 + 24.0 + step));
                 floor.items.push(it);
             }
+            Clip::Label(mut l) => {
+                l.pos = at.unwrap_or((l.pos.0 + 24.0 + step, l.pos.1 + 24.0 + step));
+                floor.labels.push(l);
+            }
         }
     }
     rebuild_assets(state);
@@ -3312,13 +3334,20 @@ fn paste_clipboard(state: &mut State, at: Option<(f32, f32)>) {
 }
 
 fn start_rename(state: &mut State) {
-    if let Some(Selection::Item(i)) = primary_selection(state) {
-        if let Some(it) = state.scene.floors[state.floor].items.get(i) {
-            state.rename = Some(it.name.clone());
-            set_status(state, "type a name, Enter to accept");
+    match primary_selection(state) {
+        Some(Selection::Item(i)) => {
+            if let Some(it) = state.scene.floors[state.floor].items.get(i) {
+                state.rename = Some(it.name.clone());
+                set_status(state, "type a name, Enter to accept");
+            }
         }
-    } else {
-        set_status(state, "select an item to rename");
+        Some(Selection::Label(i)) => {
+            if let Some(l) = state.scene.floors[state.floor].labels.get(i) {
+                state.rename = Some(l.name.clone());
+                set_status(state, "type a name, Enter to accept");
+            }
+        }
+        _ => set_status(state, "select an item or label to rename"),
     }
 }
 
@@ -3326,12 +3355,21 @@ fn commit_rename(state: &mut State) {
     let Some(name) = state.rename.take() else {
         return;
     };
-    if let Some(Selection::Item(i)) = primary_selection(state) {
-        if let Some(it) = state.scene.floors[state.floor].items.get_mut(i) {
-            it.name = name;
+    match primary_selection(state) {
+        Some(Selection::Item(i)) => {
+            if let Some(it) = state.scene.floors[state.floor].items.get_mut(i) {
+                it.name = name;
+            }
+            rebuild_assets(state);
+            set_status(state, "renamed");
         }
-        rebuild_assets(state);
-        set_status(state, "renamed");
+        Some(Selection::Label(i)) => {
+            if let Some(l) = state.scene.floors[state.floor].labels.get_mut(i) {
+                l.name = name;
+            }
+            set_status(state, "renamed");
+        }
+        _ => {}
     }
 }
 
@@ -3339,10 +3377,12 @@ fn editor_clear_floor(state: &mut State) {
     push_undo(state);
     let floor = &mut state.scene.floors[state.floor];
     floor.walls.clear();
+    floor.partitions.clear();
     floor.obstacles.clear();
     floor.doors.clear();
     floor.stairs.clear();
     floor.items.clear();
+    floor.labels.clear();
     floor.links.clear();
     rebuild_assets(state);
     set_status(state, "floor cleared");
@@ -3867,6 +3907,18 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
     let state = unsafe { &mut *(user_data as *mut State) };
     let event = unsafe { &*event };
     match event._type {
+        // Character input (text fields). sokol delivers these separately from
+        // key-down, and char_code is only valid on char events (it is 0 on a
+        // key-down), so text entry must be handled here.
+        sapp::EventType::Char => {
+            if let Some(buffer) = state.rename.as_mut() {
+                if (32..127).contains(&event.char_code) && buffer.chars().count() < 40 {
+                    if let Some(c) = char::from_u32(event.char_code) {
+                        buffer.push(c);
+                    }
+                }
+            }
+        }
         sapp::EventType::MouseMove => {
             let (mx, my) = screen_to_ref(&state.layout, event.mouse_x, event.mouse_y);
             state.mouse = (mx, my);
@@ -3964,6 +4016,13 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 if panel_click(state, x, y) {
                     return;
                 }
+                // Clicking the name box focuses it for editing.
+                if rename_box_hit(x, y) {
+                    if state.rename.is_none() && selected_name(state).is_some() {
+                        start_rename(state);
+                    }
+                    return;
+                }
                 let src = snap_point(state, ref_to_source(state, (x, y)));
                 match state.tool {
                     Tool::Select => {
@@ -4032,7 +4091,15 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                     }
                     DragMode::Move | DragMode::Scale(_) | DragMode::Rotate => {
                         if state.drag_dirty {
-                            rebuild_assets(state);
+                            // Labels are not baked, so moving one needs no rebuild.
+                            let labels_only = !state.selection.is_empty()
+                                && state
+                                    .selection
+                                    .iter()
+                                    .all(|s| matches!(s, Selection::Label(_)));
+                            if !labels_only {
+                                rebuild_assets(state);
+                            }
                             set_status(state, "updated");
                         }
                     }
@@ -4214,18 +4281,8 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                         }
                         return;
                     }
-                    _ => {
-                        if (32..127).contains(&event.char_code) {
-                            if let Some(c) = char::from_u32(event.char_code) {
-                                if let Some(buffer) = state.rename.as_mut() {
-                                    if buffer.chars().count() < 40 {
-                                        buffer.push(c);
-                                    }
-                                }
-                            }
-                        }
-                        return;
-                    }
+                    // Printable characters arrive as Char events.
+                    _ => return,
                 }
             }
             // Inventory navigation (play mode).
@@ -5295,20 +5352,28 @@ fn draw_floor(
         }
     }
 
-    // Room names, centred on their position (Floor 1 only).
-    if state.floor == FLOOR1_INDEX {
+    // Room name labels, centred on their position.
+    {
         let font = state.font.as_ref().unwrap();
-        for (name, sx, sy) in ROOMS {
-            let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, sx, sy);
+        let scale = state.layout.text_scale;
+        for label in &state.scene.floors[state.floor].labels {
+            let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, label.pos.0, label.pos.1);
             if rx < MAP_X || rx > MAP_X + MAP_W || ry < MAP_Y || ry > MAP_Y + MAP_H {
                 continue;
             }
-            let scale = state.layout.text_scale;
-            let width = font.text_width(name, 19.5 * scale);
+            let width = font.text_width(&label.name, 19.5 * scale);
             // Keep the (now larger) labels inside the map window instead of clipping.
             let max_x = (MAP_X + MAP_W - width).max(MAP_X);
             let tx = (rx - width * 0.5).clamp(MAP_X, max_x);
-            draw_ui_text(font, name, tx, ry - 9.75 * scale, C_LABEL, false, scale);
+            draw_ui_text(
+                font,
+                &label.name,
+                tx,
+                ry - 9.75 * scale,
+                C_LABEL,
+                false,
+                scale,
+            );
         }
     }
 
@@ -5383,6 +5448,65 @@ fn draw_box_rot(
         outline_rect(-w * 0.5, -h * 0.5, w, h);
     }
     sgl::pop_matrix();
+}
+
+// Editable name field under the editor toolbar, for the selected item/label.
+fn rename_box_rect() -> (f32, f32, f32, f32) {
+    (12.0, EDITOR_BAR_Y + EDITOR_BAR_H + 52.0, 340.0, 30.0)
+}
+
+fn rename_box_hit(x: f32, y: f32) -> bool {
+    let (bx, by, bw, bh) = rename_box_rect();
+    (bx..bx + bw).contains(&x) && (by..by + bh).contains(&y)
+}
+
+// The name of the selected item or label, if any.
+fn selected_name(state: &State) -> Option<String> {
+    match primary_selection(state) {
+        Some(Selection::Item(i)) => state.scene.floors[state.floor]
+            .items
+            .get(i)
+            .map(|it| it.name.clone()),
+        Some(Selection::Label(i)) => state.scene.floors[state.floor]
+            .labels
+            .get(i)
+            .map(|l| l.name.clone()),
+        _ => None,
+    }
+}
+
+fn draw_name_box(state: &State, font: &Font) {
+    let editing = state.rename.is_some();
+    let Some(text) = state.rename.clone().or_else(|| selected_name(state)) else {
+        return;
+    };
+    let (x, y, w, h) = rename_box_rect();
+    sgl::c4f(0.055, 0.055, 0.075, 0.95);
+    rect(x, y, w, h);
+    let border = if editing { C_HILITE } else { C_LINE };
+    sgl::c4f(border.0, border.1, border.2, 0.9);
+    outline_rect(x, y, w, h);
+    draw_ui_text(font, "NAME", x + 8.0, y + 8.0, C_LABEL, false, 0.8);
+    let tx = x + 62.0;
+    draw_ui_text(font, &text, tx, y + 8.0, C_HILITE, false, 1.0);
+    if editing {
+        // Blinking caret after the text.
+        if (state.time * 2.0) as i32 % 2 == 0 {
+            let tw = font.text_width(&text, 19.5);
+            sgl::c4f(C_HILITE.0, C_HILITE.1, C_HILITE.2, 1.0);
+            rect(tx + tw + 1.0, y + 6.0, 1.5, h - 12.0);
+        }
+    } else {
+        draw_ui_text(
+            font,
+            "[R] edit",
+            x + w - 64.0,
+            y + 8.0,
+            C_LABEL,
+            false,
+            0.75,
+        );
+    }
 }
 
 // Edit-mode overlay: vector objects for the viewed floor plus the tool bar.
@@ -5617,18 +5741,7 @@ fn draw_editor(
         false,
         0.8,
     );
-    if let Some(buffer) = &state.rename {
-        let text = format!("NAME: {buffer}_");
-        draw_ui_text(
-            font,
-            &text,
-            12.0,
-            EDITOR_BAR_Y + EDITOR_BAR_H + 60.0,
-            C_HILITE,
-            false,
-            1.0,
-        );
-    }
+    draw_name_box(state, font);
     if let Some(pending) = state.pending_link {
         let what = match pending {
             PendingLink::Stair(..) => "another stair (any floor)",
@@ -5640,7 +5753,7 @@ fn draw_editor(
             font,
             &text,
             12.0,
-            EDITOR_BAR_Y + EDITOR_BAR_H + 84.0,
+            EDITOR_BAR_Y + EDITOR_BAR_H + 92.0,
             (0.90, 0.65, 0.90),
             false,
             0.95,
@@ -6554,6 +6667,10 @@ mod tests {
             size: (DOOR_LONG_PX, DOOR_THICK_PX),
             rot: 0.0,
         });
+        floor.labels.push(RoomLabel {
+            name: "Room".into(),
+            pos: (450.0, 450.0),
+        });
         // Empty room space picks the room; the smaller objects win when hit.
         assert_eq!(
             pick_object(&scene, FLOOR1_INDEX, (100.0, 100.0)),
@@ -6566,6 +6683,15 @@ mod tests {
         assert_eq!(
             pick_object(&scene, FLOOR1_INDEX, (200.0, 0.0)),
             Some(Selection::Door(0))
+        );
+        // A point object inside a room is selectable when clicked near it.
+        assert_eq!(
+            pick_object(&scene, FLOOR1_INDEX, (450.0, 450.0)),
+            Some(Selection::Label(0))
+        );
+        assert_eq!(
+            pick_object(&scene, FLOOR1_INDEX, (500.0, 450.0)),
+            Some(Selection::Label(0))
         );
     }
 

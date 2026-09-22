@@ -25,6 +25,7 @@ Open the map, press **Tab** to enter edit mode, and use the in-canvas tool bar:
   two endpoints across floors.
 - **ITEM** — click to drop a key item; **LINK** connects it to doors; **R**
   renames it.
+- **NAME** — click to drop a room name label; **R** renames it, drag to move.
 - **ERASE** — click near an object to delete it.
 
 Keys: `Z` undo, `X` clear floor, `S` save, `L` load, `Space` snap, `Del` delete,
