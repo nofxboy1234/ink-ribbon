@@ -1002,8 +1002,11 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
         ..Default::default()
     });
     sgl::setup(&sgl::Desc {
-        max_vertices: 65_536,
-        max_commands: 4_096,
+        // The dotted background grid alone is tens of thousands of vertices, and
+        // sgl's error state is sticky once the buffer fills, which silently drops
+        // every later draw in the frame (e.g. the HUD on the busiest floor).
+        max_vertices: 1 << 19,
+        max_commands: 8_192,
         logger: sgl::Logger {
             func: Some(sokol::log::slog_func),
             ..Default::default()
