@@ -11,4 +11,8 @@ rustflags = [
     # the generated JS glue. The extra leading underscore is intentional:
     # emcc converts its C-style export names to the wasm symbol names.
     "-C", "link-arg=-sEXPORTED_FUNCTIONS=['_main','__emscripten_stack_restore','_emscripten_stack_get_current']",
+    # Expose Module.FS so the page's shell helpers can read the scene/save files
+    # the Rust side writes into the virtual filesystem.
+    "-C", "link-arg=-sFORCE_FILESYSTEM=1",
+    "-C", "link-arg=-sEXPORTED_RUNTIME_METHODS=['FS']",
 ]
