@@ -15,6 +15,7 @@
 //! u32    revealed_count  -> { u8 floor, u32 door_id }*
 //! u32    unlocked_count  -> { u8 floor, u32 door_id }*
 //! u32    inventory_count -> { u32 id, u8 kind, u16 name_len, name }*
+//! u32    item_box_count  -> { u32 id, u8 kind, u16 name_len, name }*   (v2)
 //! f32    play_time (seconds)
 //! u64    saved_at (unix seconds, UTC; 0 if unavailable)
 //! ```
@@ -22,7 +23,8 @@
 use crate::scene::ItemDef;
 
 const MAGIC: &[u8; 4] = b"IRSV";
-pub const VERSION: u16 = 1;
+/// v1 had no item box; v2 adds it. Reading still accepts v1.
+pub const VERSION: u16 = 2;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct PlayerSave {
@@ -32,6 +34,7 @@ pub struct PlayerSave {
     pub revealed: Vec<(usize, u32)>,
     pub unlocked: Vec<(usize, u32)>,
     pub inventory: Vec<ItemDef>,
+    pub item_box: Vec<ItemDef>,
     pub play_time: f32,
     pub saved_at: u64,
 }
@@ -72,6 +75,16 @@ impl PlayerSave {
             out.extend_from_slice(&name[..n]);
         }
 
+        put_u32(&mut out, self.item_box.len() as u32);
+        for it in &self.item_box {
+            put_u32(&mut out, it.id);
+            put_u8(&mut out, it.kind.to_u8());
+            let name = it.name.as_bytes();
+            let n = name.len().min(u16::MAX as usize);
+            put_u16(&mut out, n as u16);
+            out.extend_from_slice(&name[..n]);
+        }
+
         put_f32(&mut out, self.play_time);
         out.extend_from_slice(&self.saved_at.to_le_bytes());
         out
@@ -82,7 +95,7 @@ impl PlayerSave {
         if c.take(4)? != MAGIC {
             return None;
         }
-        let _version = c.u16()?;
+        let version = c.u16()?;
         let player_floor = c.u8()? as usize;
         let player = (c.f32()?, c.f32()?);
 
@@ -119,6 +132,24 @@ impl PlayerSave {
             });
         }
 
+        // v2 added the item box.
+        let mut item_box = Vec::new();
+        if version >= 2 {
+            let n = c.u32()? as usize;
+            for _ in 0..n {
+                let id = c.u32()?;
+                let kind = crate::scene::ItemKind::from_u8(c.u8()?)?;
+                let len = c.u16()? as usize;
+                let name = String::from_utf8_lossy(c.take(len)?).into_owned();
+                item_box.push(ItemDef {
+                    id,
+                    kind,
+                    name,
+                    pos: (0.0, 0.0),
+                });
+            }
+        }
+
         let play_time = c.f32()?;
         let saved_at = c.u64()?;
         Some(PlayerSave {
@@ -128,6 +159,7 @@ impl PlayerSave {
             revealed,
             unlocked,
             inventory,
+            item_box,
             play_time,
             saved_at,
         })
@@ -234,6 +266,12 @@ mod tests {
                     pos: (0.0, 0.0),
                 },
             ],
+            item_box: vec![ItemDef {
+                id: 5,
+                kind: ItemKind::Key,
+                name: "Spare Key".into(),
+                pos: (0.0, 0.0),
+            }],
             play_time: 123.5,
             saved_at: 1_726_000_000,
         }
@@ -244,6 +282,21 @@ mod tests {
         let save = sample();
         let back = PlayerSave::from_bytes(&save.to_bytes()).expect("decode");
         assert_eq!(back, save);
+    }
+
+    #[test]
+    fn v1_save_has_no_item_box() {
+        // A v1 payload has no item box: drop that block and stamp v1. The reader
+        // must not look for a box and should leave it empty.
+        let mut bytes = sample().to_bytes();
+        let tail = 4 + 8; // play_time + saved_at
+        let box_block = 4 + (4 + 1 + 2 + "Spare Key".len());
+        let start = bytes.len() - tail - box_block;
+        bytes.drain(start..bytes.len() - tail);
+        bytes[4..6].copy_from_slice(&1u16.to_le_bytes());
+        let back = PlayerSave::from_bytes(&bytes).expect("decode v1");
+        assert!(back.item_box.is_empty());
+        assert_eq!(back.inventory.len(), 2);
     }
 
     #[test]

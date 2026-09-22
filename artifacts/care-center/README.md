@@ -23,8 +23,9 @@ Open the map, press **Tab** to enter edit mode, and use the in-canvas tool bar:
 - **OBST** — drag an obstacle box.
 - **STAIR** — click to drop a stair endpoint. Use **LINK** (or `C`) to connect
   two endpoints across floors.
-- **ITEM** — click to drop a key item; **LINK** connects it to doors; **R**
-  renames it.
+- **ITEM** — click to drop an item; **LINK** connects a key to doors; **R**
+  renames it. The item popup sets the kind: KEY, INK RIBBON, TYPEWRITER (save
+  point) or ITEM BOX (interact to open the storage).
 - **NAME** — click to drop a room name label; **R** renames it, drag to move.
 - **ERASE** — click near an object to delete it.
 
@@ -32,9 +33,11 @@ Keys: `Z` undo, `X` clear floor, `S` save, `L` load, `Space` snap, `Del` delete,
 `Ctrl+C/V/D` copy/paste/duplicate, `Tab`/`Esc` exit.
 
 In play mode: `Esc` opens/closes the pause menu, `I` toggles the inventory
-(`Esc` closes it), `Space` interacts (unlock a linked door, or save at a
-typewriter when holding an ink-ribbon), and arrow keys navigate menus, the
-inventory and confirmation prompts.
+(`Esc` closes it), `B` opens the item box (storage on the left, inventory on the
+right; arrows select, `Space` or clicking an item moves it across, `Esc` closes), `Space`
+interacts (unlock a linked door, or save at a typewriter when holding an
+ink-ribbon), and arrow keys navigate menus, the inventory and confirmation
+prompts.
 
 Saving writes `scene.bin` (native: working directory; web: download plus
 `localStorage`, which auto-loads next time). Commit the resulting `scene.bin` to

@@ -873,6 +873,10 @@ struct State {
     inventory: Vec<ItemDef>,
     inventory_open: bool,
     inventory_selected: usize,
+    // Item box: shared storage shown alongside the inventory.
+    item_box: Vec<ItemDef>,
+    item_box_open: bool,
+    item_box_cursor: usize,
     // Editor: kind used for newly placed items.
     item_kind: ItemKind,
     // Menus, saving and playtime.
@@ -1677,6 +1681,7 @@ fn dist(a: (f32, f32), b: (f32, f32)) -> f32 {
 // Something the player can act on with Space when standing near it.
 enum Interaction {
     Typewriter((f32, f32)),
+    ItemBox((f32, f32)),
     Item {
         id: u32,
         name: String,
@@ -1692,6 +1697,7 @@ impl Interaction {
     fn pos(&self) -> (f32, f32) {
         match self {
             Interaction::Typewriter(p) => *p,
+            Interaction::ItemBox(p) => *p,
             Interaction::Item { pos, .. } => *pos,
             Interaction::Door { pos, .. } => *pos,
         }
@@ -1700,6 +1706,7 @@ impl Interaction {
     fn label(&self) -> String {
         match self {
             Interaction::Typewriter(_) => "SPACE: save".to_string(),
+            Interaction::ItemBox(_) => "SPACE: item box".to_string(),
             Interaction::Item { name, .. } => format!("SPACE: pick up {name}"),
             Interaction::Door { .. } => "SPACE: unlock".to_string(),
         }
@@ -1729,6 +1736,15 @@ fn interaction_target(state: &State) -> Option<Interaction> {
                     facing_score(state.player, state.facing, it.pos, d),
                     0,
                     Interaction::Typewriter(it.pos),
+                );
+            }
+            ItemKind::ItemBox => {
+                let d = dist(state.player, it.pos);
+                consider(
+                    d,
+                    facing_score(state.player, state.facing, it.pos, d),
+                    0,
+                    Interaction::ItemBox(it.pos),
                 );
             }
             k if k.is_collectible() && !is_collected(state, it.id) => {
@@ -1902,6 +1918,25 @@ fn draw_item_marker(cx: f32, cy: f32, kind: ItemKind, scale: f32) {
                 3.0 * scale,
             );
         }
+        ItemKind::ItemBox => {
+            // A lidded storage chest.
+            sgl::c4f(0.42, 0.44, 0.50, 1.0);
+            rect(
+                cx - 14.0 * scale,
+                cy - 12.0 * scale,
+                28.0 * scale,
+                10.0 * scale,
+            );
+            sgl::c4f(0.55, 0.57, 0.62, 1.0);
+            rect(
+                cx - 14.0 * scale,
+                cy - 2.0 * scale,
+                28.0 * scale,
+                14.0 * scale,
+            );
+            sgl::c4f(0.85, 0.80, 0.55, 1.0);
+            rect(cx - 3.0 * scale, cy - 4.0 * scale, 6.0 * scale, 6.0 * scale);
+        }
     }
 }
 
@@ -1969,6 +2004,186 @@ fn draw_inventory(state: &State, font: &Font) {
             1.0,
         ),
     }
+}
+
+// --- Item box --------------------------------------------------------------
+//
+// A storage grid shown to the left of the inventory, with a single cursor that
+// spans both (indices 0..16 are the box, 16..32 the inventory) so Left/Right
+// steps between them.
+
+const BOX_SEAM: f32 = 44.0;
+const BOX_COLS: usize = INV_COLS * 2;
+const BOX_SLOTS: usize = BOX_COLS * INV_ROWS;
+const INV_SLOTS: usize = INV_COLS * INV_ROWS;
+
+fn item_box_panel(l: &Layout) -> (f32, f32, f32, f32) {
+    let w = BOX_COLS as f32 * INV_SLOT + (BOX_COLS as f32 + 1.0) * INV_GAP + BOX_SEAM;
+    let grid_h = INV_ROWS as f32 * INV_SLOT + (INV_ROWS as f32 + 1.0) * INV_GAP;
+    let h = grid_h + INV_DETAIL_H + INV_GAP;
+    (l.ref_w * 0.5 - w * 0.5, l.ref_h * 0.5 - h * 0.5, w, h)
+}
+
+fn item_box_slot_rect(l: &Layout, index: usize) -> (f32, f32, f32, f32) {
+    let (px, py, _, _) = item_box_panel(l);
+    let col = index % BOX_COLS;
+    let row = index / BOX_COLS;
+    let seam = if col >= INV_COLS { BOX_SEAM } else { 0.0 };
+    (
+        px + INV_GAP + col as f32 * (INV_SLOT + INV_GAP) + seam,
+        py + INV_GAP + row as f32 * (INV_SLOT + INV_GAP),
+        INV_SLOT,
+        INV_SLOT,
+    )
+}
+
+fn item_box_detail_rect(l: &Layout) -> (f32, f32, f32, f32) {
+    let (px, py, pw, ph) = item_box_panel(l);
+    let y = py + ph - INV_GAP - INV_DETAIL_H;
+    (px + INV_GAP, y, pw - INV_GAP * 2.0, INV_DETAIL_H)
+}
+
+// The item under a combined slot index, if any. Columns 0..4 are the box,
+// 4..8 the inventory, so which grid a slot belongs to is by column.
+fn box_slot_grid(index: usize) -> (bool, usize) {
+    let col = index % BOX_COLS;
+    let row = index / BOX_COLS;
+    let from_box = col < INV_COLS;
+    let item_index = row * INV_COLS + if from_box { col } else { col - INV_COLS };
+    (from_box, item_index)
+}
+
+fn item_box_slot_item(state: &State, index: usize) -> Option<&ItemDef> {
+    let (from_box, i) = box_slot_grid(index);
+    if from_box {
+        state.item_box.get(i)
+    } else {
+        state.inventory.get(i)
+    }
+}
+
+fn item_box_hit(state: &State, x: f32, y: f32) -> Option<usize> {
+    if !state.item_box_open {
+        return None;
+    }
+    for i in 0..BOX_SLOTS {
+        let (sx, sy, sw, sh) = item_box_slot_rect(&state.layout, i);
+        if (sx..sx + sw).contains(&x) && (sy..sy + sh).contains(&y) {
+            return Some(i);
+        }
+    }
+    None
+}
+
+fn nav_item_box(state: &mut State, delta: i32) {
+    state.item_box_cursor = wrap(state.item_box_cursor, delta, BOX_SLOTS);
+}
+
+// Move the item under the cursor to the other grid, if there is room.
+fn transfer_box_item(state: &mut State) {
+    let (from_box, item_index) = box_slot_grid(state.item_box_cursor);
+    if from_box {
+        if item_index >= state.item_box.len() {
+            set_status(state, "empty slot");
+            return;
+        }
+        if state.inventory.len() >= INV_SLOTS {
+            set_status(state, "inventory full");
+            return;
+        }
+        let item = state.item_box.remove(item_index);
+        state.inventory.push(item);
+        set_status(state, "moved to inventory");
+    } else {
+        if item_index >= state.inventory.len() {
+            set_status(state, "empty slot");
+            return;
+        }
+        if state.item_box.len() >= INV_SLOTS {
+            set_status(state, "item box full");
+            return;
+        }
+        let item = state.inventory.remove(item_index);
+        state.item_box.push(item);
+        set_status(state, "stored in item box");
+    }
+}
+
+fn open_item_box(state: &mut State) {
+    state.item_box_open = true;
+    state.item_box_cursor = 0;
+    state.inventory_open = false;
+}
+
+fn draw_item_box(state: &State, font: &Font) {
+    if !state.item_box_open {
+        return;
+    }
+    let l = &state.layout;
+    sgl::c4f(0.0, 0.0, 0.0, 0.55);
+    rect(0.0, 0.0, l.ref_w, l.ref_h);
+    let (px, py, pw, ph) = item_box_panel(l);
+    sgl::c4f(0.05, 0.05, 0.07, 0.94);
+    rect(px, py, pw, ph);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.8);
+    outline_rect(px, py, pw, ph);
+
+    let (ix, _, _, _) = item_box_slot_rect(l, INV_COLS);
+    draw_ui_text(font, "ITEM BOX", px + 12.0, py - 26.0, C_HILITE, false, 1.0);
+    draw_ui_text(font, "INVENTORY", ix, py - 26.0, C_HILITE, false, 1.0);
+
+    for i in 0..BOX_SLOTS {
+        let (sx, sy, sw, sh) = item_box_slot_rect(l, i);
+        sgl::c4f(0.10, 0.10, 0.13, 0.9);
+        rect(sx, sy, sw, sh);
+        if i == state.item_box_cursor {
+            sgl::c4f(1.0, 1.0, 1.0, 1.0);
+        } else {
+            sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.5);
+        }
+        outline_rect(sx, sy, sw, sh);
+        if let Some(item) = item_box_slot_item(state, i) {
+            draw_item_marker(sx + sw * 0.5, sy + sh * 0.5, item.kind, 1.0);
+        }
+    }
+
+    let (dx, dy, dw, dh) = item_box_detail_rect(l);
+    sgl::c4f(0.08, 0.08, 0.11, 0.95);
+    rect(dx, dy, dw, dh);
+    sgl::c4f(C_LINE.0, C_LINE.1, C_LINE.2, 0.6);
+    outline_rect(dx, dy, dw, dh);
+    match item_box_slot_item(state, state.item_box_cursor) {
+        Some(item) => {
+            draw_item_marker(dx + 30.0, dy + dh * 0.5, item.kind, 1.6);
+            draw_ui_text(
+                font,
+                &item.name,
+                dx + 60.0,
+                dy + dh * 0.5 - 10.0,
+                C_HILITE,
+                false,
+                1.0,
+            );
+        }
+        None => draw_ui_text(
+            font,
+            "(empty)",
+            dx + 16.0,
+            dy + dh * 0.5 - 10.0,
+            C_LABEL,
+            false,
+            1.0,
+        ),
+    }
+    draw_ui_text(
+        font,
+        "CLICK / SPACE: move   ARROWS: select   ESC: close",
+        px + 12.0,
+        py + ph + 10.0,
+        C_LABEL,
+        false,
+        0.9,
+    );
 }
 
 // --- Modal menus (pause, save slots) --------------------------------------
@@ -2116,7 +2331,7 @@ fn draw_menu(state: &State, font: &Font) {
         outline_rect(r.0, r.1, r.2, r.3);
         match state.menu {
             Menu::Pause => {
-                let label = ["RESUME", "LOAD", "EXIT"][i.min(2)];
+                let label = ["RESUME", "LOAD", "ITEM BOX", "EXIT"][i.min(3)];
                 draw_ui_text(font, label, r.0 + 16.0, r.1 + 10.0, C_HILITE, false, 1.0);
             }
             Menu::SaveSlots | Menu::LoadSlots => {
@@ -2338,16 +2553,21 @@ fn item_popup_buttons(
     let (bw, bh, gap) = (96.0, 32.0, 6.0);
     let row = py + 36.0;
     let mut buttons = Vec::new();
-    for (n, kind) in [ItemKind::Key, ItemKind::InkRibbon, ItemKind::Typewriter]
-        .into_iter()
-        .enumerate()
+    for (n, kind) in [
+        ItemKind::Key,
+        ItemKind::InkRibbon,
+        ItemKind::Typewriter,
+        ItemKind::ItemBox,
+    ]
+    .into_iter()
+    .enumerate()
     {
         buttons.push((
             (px + 8.0 + n as f32 * (bw + gap), row, bw, bh),
             ItemPopupHit::Kind(kind),
         ));
     }
-    let panel = (px, py, 16.0 + 3.0 * bw + 2.0 * gap, 36.0 + bh + 12.0);
+    let panel = (px, py, 16.0 + 4.0 * bw + 3.0 * gap, 36.0 + bh + 12.0);
     Some((buttons, panel))
 }
 
@@ -2420,6 +2640,7 @@ fn item_kind_label(kind: ItemKind) -> &'static str {
         ItemKind::Key => "KEY",
         ItemKind::InkRibbon => "INK RIBBON",
         ItemKind::Typewriter => "TYPEWRITER",
+        ItemKind::ItemBox => "ITEM BOX",
     }
 }
 
@@ -3577,7 +3798,7 @@ fn refresh_slot_meta(state: &mut State) {
                     saved_at: s.saved_at,
                     play_time: s.play_time,
                     floor: s.player_floor,
-                    items: s.inventory.len(),
+                    items: s.inventory.len() + s.item_box.len(),
                 })
         } else {
             None
@@ -3615,6 +3836,10 @@ fn interact(state: &mut State) {
             open_menu(state, Menu::SaveSlots);
             set_status(state, "choose a slot to save");
         }
+        Some(Interaction::ItemBox(_)) => {
+            open_item_box(state);
+            set_status(state, "item box open");
+        }
         Some(Interaction::Item { id, name, .. }) => collect_item(state, id, &name),
         Some(Interaction::Door { id, .. }) => unlock_door(state, id),
         None => set_status(state, "nothing to interact with"),
@@ -3648,6 +3873,7 @@ fn do_save(state: &mut State, slot: usize) {
         revealed: state.revealed.clone(),
         unlocked: state.unlocked.clone(),
         inventory: state.inventory.clone(),
+        item_box: state.item_box.clone(),
         play_time: state.play_time,
         saved_at: now_unix(),
     };
@@ -3679,6 +3905,8 @@ fn apply_save(state: &mut State, save: PlayerSave) {
         .collect();
     state.inventory = save.inventory;
     state.inventory_selected = 0;
+    state.item_box = save.item_box;
+    state.item_box_cursor = 0;
     state.play_time = save.play_time;
     state.target = None;
     state.path.clear();
@@ -3712,9 +3940,9 @@ fn do_load(state: &mut State, slot: usize) {
 
 fn pause_entry_count() -> usize {
     if cfg!(target_os = "emscripten") {
-        2
-    } else {
         3
+    } else {
+        4
     }
 }
 
@@ -3723,6 +3951,10 @@ fn menu_activate(state: &mut State) {
         Menu::Pause => match state.menu_index {
             0 => state.menu = Menu::None,
             1 => open_menu(state, Menu::LoadSlots),
+            2 => {
+                state.menu = Menu::None;
+                open_item_box(state);
+            }
             _ => {
                 state.confirm = Some(Confirm::Quit);
                 state.confirm_index = 0;
@@ -4058,6 +4290,15 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 // Clicking outside an open menu does nothing.
                 return;
             }
+            if let Some(slot) = item_box_hit(state, x, y) {
+                // Clicking an occupied slot moves it to the other side; an empty
+                // slot just moves the cursor there.
+                state.item_box_cursor = slot;
+                if item_box_slot_item(state, slot).is_some() {
+                    transfer_box_item(state);
+                }
+                return;
+            }
             if let Some(slot) = inventory_hit(state, x, y) {
                 state.inventory_selected = slot;
                 return;
@@ -4285,6 +4526,24 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                     _ => return,
                 }
             }
+            // Item box navigation (play mode).
+            if state.item_box_open && !state.edit {
+                match event.key_code {
+                    sapp::Keycode::Left => nav_item_box(state, -1),
+                    sapp::Keycode::Right => nav_item_box(state, 1),
+                    sapp::Keycode::Up => nav_item_box(state, -(BOX_COLS as i32)),
+                    sapp::Keycode::Down => nav_item_box(state, BOX_COLS as i32),
+                    sapp::Keycode::Space | sapp::Keycode::Enter if !event.key_repeat => {
+                        transfer_box_item(state)
+                    }
+                    sapp::Keycode::Escape | sapp::Keycode::B => {
+                        state.item_box_open = false;
+                        set_status(state, "item box closed");
+                    }
+                    _ => {}
+                }
+                return;
+            }
             // Inventory navigation (play mode).
             if state.inventory_open && !state.edit {
                 match event.key_code {
@@ -4423,6 +4682,9 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             match event.key_code {
                 sapp::Keycode::I if !state.edit && !event.key_repeat => {
                     state.inventory_open = !state.inventory_open;
+                    if state.inventory_open {
+                        state.item_box_open = false;
+                    }
                     set_status(
                         state,
                         if state.inventory_open {
@@ -4431,6 +4693,15 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                             "inventory closed"
                         },
                     );
+                }
+                sapp::Keycode::B if !state.edit && !event.key_repeat => {
+                    if state.item_box_open {
+                        state.item_box_open = false;
+                        set_status(state, "item box closed");
+                    } else {
+                        open_item_box(state);
+                        set_status(state, "item box open");
+                    }
                 }
                 sapp::Keycode::Escape if !state.edit && !event.key_repeat => {
                     open_menu(state, Menu::Pause);
@@ -6282,7 +6553,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     }
     state.time += delta;
     // Modal menus (and the inventory) freeze gameplay and playtime.
-    let frozen = state.menu != Menu::None || state.inventory_open;
+    let frozen = state.menu != Menu::None || state.inventory_open || state.item_box_open;
     if !frozen {
         state.play_time += delta;
         update_player(state, delta);
@@ -6450,6 +6721,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     draw_map_frame(&state.layout);
     draw_map_labels(state.font.as_ref().unwrap(), &state.layout);
     draw_inventory(state, state.font.as_ref().unwrap());
+    draw_item_box(state, state.font.as_ref().unwrap());
     draw_menu(state, state.font.as_ref().unwrap());
     draw_cursor(state, width, height, left, right, top, bottom);
     draw_stick(state);
@@ -6535,6 +6807,9 @@ fn main() {
         inventory: Vec::new(),
         inventory_open: false,
         inventory_selected: 0,
+        item_box: Vec::new(),
+        item_box_open: false,
+        item_box_cursor: 0,
         item_kind: ItemKind::Key,
         play_time: 0.0,
         menu: Menu::None,
@@ -6693,6 +6968,18 @@ mod tests {
             pick_object(&scene, FLOOR1_INDEX, (500.0, 450.0)),
             Some(Selection::Label(0))
         );
+    }
+
+    #[test]
+    fn item_box_grid_mapping() {
+        // Box slots are columns 0..4 of each row; inventory is columns 4..8.
+        assert_eq!(box_slot_grid(0), (true, 0));
+        assert_eq!(box_slot_grid(3), (true, 3));
+        assert_eq!(box_slot_grid(4), (false, 0));
+        assert_eq!(box_slot_grid(7), (false, 3));
+        assert_eq!(box_slot_grid(8), (true, 4));
+        assert_eq!(box_slot_grid(12), (false, 4));
+        assert_eq!(box_slot_grid(31), (false, 15));
     }
 
     #[test]
@@ -7039,9 +7326,9 @@ mod tests {
 
     #[test]
     fn items_parse_round_trip() {
-        // header count=2, then a floor-2 item and a floor-1 item.
+        // header count=3, then a floor-2 item, a floor-1 item and an item box.
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&2u32.to_le_bytes());
+        bytes.extend_from_slice(&3u32.to_le_bytes());
         for (id, floor, kind, x, y, name) in [
             (
                 7u32,
@@ -7059,6 +7346,14 @@ mod tests {
                 400.0f32,
                 "Pantry Key",
             ),
+            (
+                11u32,
+                2u32,
+                ItemKind::ItemBox,
+                500.0f32,
+                600.0f32,
+                "Item Box",
+            ),
         ] {
             let n = name.as_bytes();
             bytes.extend_from_slice(&id.to_le_bytes());
@@ -7070,7 +7365,7 @@ mod tests {
             bytes.extend_from_slice(n);
         }
         let items = parse_items(&bytes);
-        assert_eq!(items.len(), 2);
+        assert_eq!(items.len(), 3);
         assert_eq!(items[0].kind, ItemKind::Key);
         assert_eq!(items[0].floor, 1);
         assert_eq!(items[0].name, "ID Wristband (Level 2)");
@@ -7079,6 +7374,8 @@ mod tests {
         assert_eq!(items[1].floor, 2);
         assert_eq!(items[1].name, "Pantry Key");
         assert_eq!(items[1].pos, (300.0, 400.0));
+        assert_eq!(items[2].kind, ItemKind::ItemBox);
+        assert!(!items[2].kind.is_collectible());
         assert!(parse_items(&[]).is_empty());
     }
 

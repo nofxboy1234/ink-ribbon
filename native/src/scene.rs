@@ -71,6 +71,8 @@ pub enum ItemKind {
     InkRibbon,
     /// A fixed interactable (save point), not collected on touch.
     Typewriter,
+    /// A fixed interactable that opens the item box, not collected on touch.
+    ItemBox,
 }
 
 impl ItemKind {
@@ -79,6 +81,7 @@ impl ItemKind {
             ItemKind::Key => 0,
             ItemKind::InkRibbon => 1,
             ItemKind::Typewriter => 2,
+            ItemKind::ItemBox => 3,
         }
     }
 
@@ -87,6 +90,7 @@ impl ItemKind {
             0 => Some(ItemKind::Key),
             1 => Some(ItemKind::InkRibbon),
             2 => Some(ItemKind::Typewriter),
+            3 => Some(ItemKind::ItemBox),
             _ => None,
         }
     }
