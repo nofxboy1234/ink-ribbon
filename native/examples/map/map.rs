@@ -1081,15 +1081,10 @@ enum Menu {
     LoadSlots,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum Confirm {
     Overwrite(usize),
     Quit,
-    /// Replace the existing Player spawn with one on `floor` at `pos`.
-    ReplacePlayer {
-        floor: usize,
-        pos: (f32, f32),
-    },
 }
 
 const SAVE_SLOTS: usize = 8;
@@ -2186,25 +2181,29 @@ fn view_scene(state: &State) -> &Scene {
     }
 }
 
-// The authored initial player spawn (a Player item), as (floor, source pos).
-fn spawn_from_scene(scene: &Scene) -> Option<(usize, (f32, f32))> {
+// The authored initial player spawn (a Player item), as (floor, source pos,
+// facing).
+fn spawn_from_scene(scene: &Scene) -> Option<(usize, (f32, f32), f32)> {
     scene.floors.iter().enumerate().find_map(|(i, f)| {
         f.items
             .iter()
             .find(|it| it.kind == ItemKind::Player)
-            .map(|it| (i, it.pos))
+            .map(|it| (i, it.pos, it.rot))
     })
 }
 
 // Move the player to the authored spawn marker, if the scene has one. The player
-// is placed exactly on the marker so the arrow starts centred on it.
+// is placed exactly on the marker so the arrow starts centred on it, facing the
+// marker's forward direction.
 fn place_player_at_spawn(state: &mut State) {
-    let Some((floor, pos)) = spawn_from_scene(&state.scene) else {
+    let Some((floor, pos, rot)) = spawn_from_scene(&state.scene) else {
         return;
     };
     state.player_floor = floor;
     state.floor = floor;
     state.player = pos;
+    state.facing = rot;
+    state.facing_target = rot;
     state.pending_floor = None;
     state.pending_spawn = None;
     state.move_anim = None;
@@ -3248,7 +3247,6 @@ fn draw_menu(state: &State, font: &Font) {
         let msg = match c {
             Confirm::Overwrite(slot) => format!("Overwrite slot {}?", slot + 1),
             Confirm::Quit => "Quit the game?".to_string(),
-            Confirm::ReplacePlayer { .. } => "Replace the existing player spawn?".to_string(),
         };
         draw_ui_text(font, &msg, px + 24.0, py + 40.0, C_HILITE, true, 1.0);
         let (yes, no) = confirm_buttons(l);
@@ -3910,7 +3908,8 @@ fn place_door(state: &mut State, center: (f32, f32), rot: f32) {
 fn place_point(state: &mut State, p: (f32, f32)) {
     let tool = state.tool;
     // The player spawn marker is placed on the nearest walkable cell centre so
-    // the arrow starts exactly on it.
+    // the arrow starts exactly on it. Only one spawn marker exists: a new one
+    // replaces the old.
     if tool == Tool::Player {
         let pos = {
             let nav = &state.nav[state.floor];
@@ -3918,24 +3917,12 @@ fn place_point(state: &mut State, p: (f32, f32)) {
                 .map(|c| cell_to_source(nav, c.0, c.1))
                 .unwrap_or(p)
         };
-        // Only one spawn marker is allowed. If one exists, ask first.
-        let existing = state
-            .scene
-            .floors
-            .iter()
-            .any(|f| f.items.iter().any(|it| it.kind == ItemKind::Player));
-        if existing {
-            state.confirm = Some(Confirm::ReplacePlayer {
-                floor: state.floor,
-                pos,
-            });
-            state.confirm_index = 0;
-            set_status(state, "a player spawn already exists");
-            return;
-        }
         push_undo(state);
         let id = state.next_id;
         state.next_id += 1;
+        for f in state.scene.floors.iter_mut() {
+            f.items.retain(|it| it.kind != ItemKind::Player);
+        }
         state.scene.floors[state.floor].items.push(ItemDef {
             id,
             kind: ItemKind::Player,
@@ -5338,24 +5325,6 @@ fn confirm_activate(state: &mut State, yes: bool) {
             sapp::request_quit();
             #[cfg(target_os = "emscripten")]
             set_status(state, "exit is unavailable in the browser");
-        }
-        Confirm::ReplacePlayer { floor, pos } => {
-            push_undo(state);
-            let id = state.next_id;
-            state.next_id += 1;
-            for f in state.scene.floors.iter_mut() {
-                f.items.retain(|it| it.kind != ItemKind::Player);
-            }
-            state.scene.floors[floor.min(NUM_FLOORS - 1)]
-                .items
-                .push(ItemDef {
-                    id,
-                    kind: ItemKind::Player,
-                    name: "Player".into(),
-                    pos,
-                    rot: 0.0,
-                });
-            set_status(state, "PLAYER spawn replaced");
         }
     }
 }
@@ -8392,7 +8361,8 @@ fn main() {
     }
     let next_id = max_id(&scene) + 1;
     // The player starts at the authored spawn marker, else the default point.
-    let (start_floor, start_pos) = spawn_from_scene(&scene).unwrap_or((2, PLAYER));
+    let (start_floor, start_pos, start_facing) =
+        spawn_from_scene(&scene).unwrap_or((2, PLAYER, 0.0));
     // The app starts in play mode: bake with initial region visibility applied.
     let play_scene = apply_regions(&scene, &[], &[]);
     let baked = bake(&play_scene);
@@ -8498,8 +8468,8 @@ fn main() {
         pinch_src: (0.0, 0.0),
         player: start_pos,
         player_vel: (0.0, 0.0),
-        facing: 0.0,
-        facing_target: 0.0,
+        facing: start_facing,
+        facing_target: start_facing,
         holding: [false; 4],
         player_cell: None,
         follow_target: (0.0, 0.0),
@@ -9270,7 +9240,7 @@ mod tests {
             kind: ItemKind::Player,
             name: "Start".into(),
             pos: (10.0, 20.0),
-            rot: 0.0,
+            rot: 0.75,
         });
         scene.floors[1].items.push(ItemDef {
             id: 2,
@@ -9279,7 +9249,7 @@ mod tests {
             pos: (30.0, 40.0),
             rot: 0.0,
         });
-        assert_eq!(spawn_from_scene(&scene), Some((1, (10.0, 20.0))));
+        assert_eq!(spawn_from_scene(&scene), Some((1, (10.0, 20.0), 0.75)));
         assert_eq!(spawn_from_scene(&Scene::default()), None);
         // Player markers are editor-only, so they are not baked as items.
         assert!(!ItemKind::Player.is_baked());

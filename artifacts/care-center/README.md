@@ -37,10 +37,10 @@ Open the map, press **Tab** to enter edit mode, and use the in-canvas tool bar:
   renames it. The item popup sets the kind: KEY, INK RIBBON, TYPEWRITER (save
   point) or ITEM BOX (interact to open the storage).
 - **PLAYER** — click to set the player's initial spawn point. Only one spawn
-  marker is allowed: placing another asks to replace the existing one. The marker
-  shows its facing with an arrow on the circle; select it and drag the top handle
-  to rotate. It is editor-only (not drawn or collected in play), and the player
-  starts with the arrow centred on it, as does NEW RUN.
+  marker exists: placing another replaces it. The marker shows its facing with an
+  arrow on the circle; select it and drag the top handle to rotate. It is
+  editor-only (not drawn or collected in play), and the player starts on it
+  facing the marker's direction, as does NEW RUN.
 - **NAME** — click to drop a room name label; **R** renames it, drag to move.
   Labels scale with the map zoom (they are not fixed screen-size like item icons).
 - **ROOM** — drag a fog-of-war region. A region owns the geometry whose centre it
