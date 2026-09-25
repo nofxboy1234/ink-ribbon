@@ -110,7 +110,29 @@ pub fn bake_floor_grids(scene: &Scene, index: usize) -> (Vec<u8>, Vec<u8>, Vec<u
     floor_grids(&scene.floors[index])
 }
 
+/// Just the 8px nav and nav-open bytes for one floor. Progress re-bakes use this
+/// to skip the (much larger, now test-only) 2px solid mask.
+pub fn bake_floor_nav(scene: &Scene, index: usize) -> (Vec<u8>, Vec<u8>) {
+    floor_nav(&scene.floors[index])
+}
+
+/// The overlay RGBA for one floor. Exposed so a region reveal that changes that
+/// floor's obstacles can re-upload just that texture instead of every floor's.
+pub fn bake_floor_overlay(scene: &Scene, index: usize) -> OverlayBytes {
+    let (fx, fy, fw, fh) = scene.floors[index].frame;
+    bake_overlay(&scene.floors[index], fx, fy, fw, fh)
+}
+
 fn floor_grids(floor: &Floor) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    let (nav, nav_open) = floor_nav(floor);
+    let solid = floor_solid(floor);
+    (nav, nav_open, solid)
+}
+
+/// The 8px nav and nav-open grids for one floor (no solid mask). Progress
+/// re-bakes only need these, and skipping the 2px solid mask avoids the bulk of
+/// the cost.
+fn floor_nav(floor: &Floor) -> (Vec<u8>, Vec<u8>) {
     let (fx, fy, fw, fh) = floor.frame;
 
     let w = (fw / CELL_PX as f32).round() as i32;
@@ -151,10 +173,14 @@ fn floor_grids(floor: &Floor) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
     let walk = build_walk(&walls, &obstacles, &locked, &doors, true, w, h);
     let walk_open = build_walk(&walls, &obstacles, &locked, &doors, false, w, h);
 
-    let nav = walk.to_bytes(CELL_PX);
-    let nav_open = walk_open.to_bytes(CELL_PX);
+    (walk.to_bytes(CELL_PX), walk_open.to_bytes(CELL_PX))
+}
 
-    // Solid collision mask at 2px: walls + obstacles + locked doors, no padding.
+/// The 2px solid collision mask for one floor: walls + obstacles + locked doors,
+/// no padding. Retained for the collision tests; the turn-based runtime uses the
+/// nav grid.
+fn floor_solid(floor: &Floor) -> Vec<u8> {
+    let (fx, fy, fw, fh) = floor.frame;
     let sw = (fw / SOLID_CELL_PX as f32).round() as i32;
     let sh = (fh / SOLID_CELL_PX as f32).round() as i32;
     let (ssx, ssy) = (sw as f32 / fw, sh as f32 / fh);
@@ -181,8 +207,7 @@ fn floor_grids(floor: &Floor) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
             );
         }
     }
-    let solid = solid.to_bytes(SOLID_CELL_PX);
-    (nav, nav_open, solid)
+    solid.to_bytes(SOLID_CELL_PX)
 }
 
 /// The wall band: the room union (`Add` minus `Sub`) minus its eroded interior,

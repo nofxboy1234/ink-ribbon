@@ -1,6 +1,6 @@
 use std::ffi;
 
-use ink_ribbon_native::bake::{bake, bake_floor_grids, BakedBytes, OverlayBytes, CELL_PX};
+use ink_ribbon_native::bake::{bake, bake_floor_nav, BakedBytes, OverlayBytes, CELL_PX};
 use ink_ribbon_native::save::{format_unix_utc, PlayerSave};
 use ink_ribbon_native::scene::{
     BoolOp, Box2, Door, DoorKind, ItemDef, ItemKind, Link, Rect, Region, RegionState, RoomLabel,
@@ -1665,12 +1665,19 @@ fn update_player(state: &mut State, delta: f32) {
         // Standing in a revealed region marks it visited (shading only).
         mark_region_visited(state);
         // A trigger or a nearby unknown door can reveal a region, which changes
-        // the drawn/baked geometry (overlays included).
-        let mut regions_changed = reveal_regions_at_player(state);
-        let (doors_changed, door_regions) = reveal_doors(state);
-        regions_changed |= door_regions;
-        if regions_changed {
-            rebuild_assets(state);
+        // the drawn/baked geometry on the revealed floors.
+        let mut region_floors = reveal_regions_at_player(state);
+        let (doors_changed, door_floors) = reveal_doors(state);
+        for f in door_floors {
+            if !region_floors.contains(&f) {
+                region_floors.push(f);
+            }
+        }
+        if !region_floors.is_empty() {
+            region_floors.push(state.player_floor);
+            region_floors.sort_unstable();
+            region_floors.dedup();
+            rebuild_progress(state, &region_floors);
         } else if doors_changed {
             rebuild_gameplay(state);
         }
@@ -2095,9 +2102,9 @@ fn link_region(link: &Link) -> Option<(usize, u32)> {
     }
 }
 
-// Reveal every region linked by a link matching `pred`. Returns true when a new
-// region appeared (caller re-bakes).
-fn reveal_regions_linked_to(state: &mut State, pred: impl Fn(&Link) -> bool) -> bool {
+// Reveal every region linked by a link matching `pred`. Returns the floors of
+// any newly revealed regions (empty when nothing changed).
+fn reveal_regions_linked_to(state: &mut State, pred: impl Fn(&Link) -> bool) -> Vec<usize> {
     let mut found: Vec<(usize, u32)> = Vec::new();
     for floor in &state.scene.floors {
         for link in &floor.links {
@@ -2111,13 +2118,16 @@ fn reveal_regions_linked_to(state: &mut State, pred: impl Fn(&Link) -> bool) -> 
             }
         }
     }
-    let changed = !found.is_empty();
+    let mut floors: Vec<usize> = found.iter().map(|(f, _)| *f).collect();
+    floors.sort_unstable();
+    floors.dedup();
     state.revealed_regions.extend(found);
-    changed
+    floors
 }
 
-// Fire any trigger the player is standing in and reveal its regions.
-fn reveal_regions_at_player(state: &mut State) -> bool {
+// Fire any trigger the player is standing in and reveal its regions. Returns the
+// floors of newly revealed regions.
+fn reveal_regions_at_player(state: &mut State) -> Vec<usize> {
     let floor = state.player_floor;
     let fired: Vec<u32> = state.scene.floors[floor]
         .triggers
@@ -2126,20 +2136,22 @@ fn reveal_regions_at_player(state: &mut State) -> bool {
         .filter(|t| rect_contains(t.rect, state.player))
         .map(|t| t.id)
         .collect();
-    let mut changed = false;
+    let mut floors: Vec<usize> = Vec::new();
     for id in fired {
         state.fired_triggers.push((floor, id));
-        if reveal_regions_linked_to(state, |l| {
+        for f in reveal_regions_linked_to(state, |l| {
             matches!(l, Link::TriggerRegion { trigger_floor, trigger_id, .. }
                 if *trigger_floor as usize == floor && *trigger_id == id)
         }) {
-            changed = true;
+            if !floors.contains(&f) {
+                floors.push(f);
+            }
         }
     }
-    if changed {
+    if !floors.is_empty() {
         set_status(state, "a new area appears on the map");
     }
-    changed
+    floors
 }
 
 // Mark the (revealed) region the player is standing in as Visited.
@@ -2350,7 +2362,7 @@ fn prune_satisfied_keys(state: &mut State) {
 // Reveal Unknown doors the player is standing near, plus any regions they lead
 // to. Returns `(door_changed, region_changed)` so the caller can pick the
 // cheapest re-bake.
-fn reveal_doors(state: &mut State) -> (bool, bool) {
+fn reveal_doors(state: &mut State) -> (bool, Vec<usize>) {
     let floor = state.player_floor;
     let pending: Vec<u32> = state.scene.floors[floor]
         .doors
@@ -2363,14 +2375,16 @@ fn reveal_doors(state: &mut State) -> (bool, bool) {
         .map(|d| d.id)
         .collect();
     let door_changed = !pending.is_empty();
-    let mut region_changed = false;
+    let mut region_floors: Vec<usize> = Vec::new();
     for id in pending {
         state.revealed.push((floor, id));
-        if reveal_regions_linked_to(state, |l| {
+        for f in reveal_regions_linked_to(state, |l| {
             matches!(l, Link::DoorRegion { door_floor, door_id, .. }
                 if *door_floor as usize == floor && *door_id == id)
         }) {
-            region_changed = true;
+            if !region_floors.contains(&f) {
+                region_floors.push(f);
+            }
         }
     }
     if door_changed {
@@ -2378,7 +2392,7 @@ fn reveal_doors(state: &mut State) -> (bool, bool) {
         prune_satisfied_keys(state);
         set_status(state, "a door came into view");
     }
-    (door_changed, region_changed)
+    (door_changed, region_floors)
 }
 
 fn dist(a: (f32, f32), b: (f32, f32)) -> f32 {
@@ -2510,15 +2524,17 @@ fn collect_item(state: &mut State, id: u32, name: &str) {
     // picked-up item from the baked list instead of re-baking everything.
     state.items.retain(|it| it.id != id);
     clear_goal_route(state);
-    // A map item can reveal a region, which does change the baked geometry.
-    if reveal_regions_linked_to(state, |l| {
+    // A map item can reveal a region, which changes the baked geometry on that
+    // region's floor.
+    let floors = reveal_regions_linked_to(state, |l| {
         matches!(l, Link::ItemRegion { item_floor, item_id, .. }
             if *item_floor as usize == floor && *item_id == id)
-    }) {
-        rebuild_assets(state);
-    } else {
+    });
+    if floors.is_empty() {
         // Otherwise only the goals list changed (the item is now collected).
         on_progress_changed(state);
+    } else {
+        rebuild_progress(state, &floors);
     }
     set_status(state, format!("picked up {name}"));
 }
@@ -2534,15 +2550,19 @@ fn unlock_door(state: &mut State, id: u32) {
     }
     state.unlocked.push((floor, id));
     prune_satisfied_keys(state);
-    // The door's nav/solid opening changed, but the overlays did not, unless the
-    // door also reveals a region.
-    if reveal_regions_linked_to(state, |l| {
+    // The door opening changes the player's floor nav; a linked region can
+    // reveal geometry on another floor too.
+    let mut floors = reveal_regions_linked_to(state, |l| {
         matches!(l, Link::DoorRegion { door_floor, door_id, .. }
             if *door_floor as usize == floor && *door_id == id)
-    }) {
-        rebuild_assets(state);
-    } else {
+    });
+    if floors.is_empty() {
         rebuild_gameplay(state);
+    } else {
+        floors.push(floor);
+        floors.sort_unstable();
+        floors.dedup();
+        rebuild_progress(state, &floors);
     }
     set_status(state, "unlocked");
 }
@@ -3399,12 +3419,57 @@ fn rebuild_gameplay(state: &mut State) {
     recompute_play_scene(state);
     let scene = state.play_scene.clone();
     let f = state.player_floor;
-    let (nav, nav_open, solid) = bake_floor_grids(&scene, f);
+    let (nav, nav_open) = bake_floor_nav(&scene, f);
     state.nav[f] = Nav::from_bytes(&nav, FLOOR_FRAMES[f]);
     state.nav_open[f] = Nav::from_bytes(&nav_open, FLOOR_FRAMES[f]);
-    state.solid[f] = Solid::from_bytes(&solid, FLOOR_FRAMES[f]);
     state.move_grid[f] = MoveGrid::from_nav(&state.nav[f]);
     reset_navigation(state);
+}
+
+/// Re-upload one floor's baked obstacle overlay.
+fn rebuild_overlay(state: &mut State, f: usize, scene: &Scene) {
+    let overlay = ink_ribbon_native::bake::bake_floor_overlay(scene, f);
+    sg::destroy_view(state.overlay_views[f]);
+    state.overlay_views[f] = overlay_texture(&overlay.rgba, overlay.w, overlay.h);
+    state.overlay_data[f] = overlay;
+}
+
+/// Re-bake only the floors whose baked geometry actually changed, and only the
+/// overlays whose obstacles changed. Region reveals usually change neither (items
+/// and labels are drawn from the scene, not baked), so this avoids the 2048px
+/// overlay-texture churn of a full `rebuild_assets`.
+fn rebuild_progress(state: &mut State, floors: &[usize]) {
+    let old = state.play_scene.clone();
+    recompute_play_scene(state);
+    let scene = state.play_scene.clone();
+    let mut player_nav_changed = false;
+    for &f in floors {
+        let o = &old.floors[f];
+        let n = &scene.floors[f];
+        let geometry_changed = o.walls != n.walls
+            || o.partitions != n.partitions
+            || o.obstacles != n.obstacles
+            || o.doors != n.doors
+            || o.stairs != n.stairs;
+        if geometry_changed {
+            let (nav, nav_open) = bake_floor_nav(&scene, f);
+            state.nav[f] = Nav::from_bytes(&nav, FLOOR_FRAMES[f]);
+            state.nav_open[f] = Nav::from_bytes(&nav_open, FLOOR_FRAMES[f]);
+            state.move_grid[f] = MoveGrid::from_nav(&state.nav[f]);
+            player_nav_changed |= f == state.player_floor;
+        }
+        if o.walls != n.walls || o.partitions != n.partitions {
+            state.wall_plans[f] = wall_plan(&scene.floors[f]);
+        }
+        if o.obstacles != n.obstacles {
+            rebuild_overlay(state, f, &scene);
+        }
+    }
+    if player_nav_changed {
+        reset_navigation(state);
+    } else {
+        on_progress_changed(state);
+    }
 }
 
 fn apply_gameplay(
