@@ -6800,6 +6800,18 @@ fn draw_floor(
         }
     }
 
+    // Viewing a floor the player is not on: play is paused here.
+    if !state.edit && state.floor != state.player_floor {
+        let font = state.font.as_ref().unwrap();
+        let msg = "VIEWING ANOTHER FLOOR  -  TAKE THE STAIRS TO MOVE THE PLAYER";
+        let width = font.text_width(msg, 17.5);
+        let max_x = (MAP_X + MAP_W - width).max(MAP_X);
+        let tx = (MAP_X + MAP_W * 0.5 - width * 0.5).clamp(MAP_X, max_x);
+        let ty = MAP_Y + MAP_H - 30.0;
+        draw_gradient_rect(tx - 10.0, ty - 7.0, width + 20.0, 26.0, 0.85, 8.0);
+        draw_ui_text(font, msg, tx, ty, C_HILITE, false, 0.9);
+    }
+
     // Room name labels, centred on their position.
     {
         let font = state.font.as_ref().unwrap();
@@ -7977,6 +7989,12 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
                     ensure_reachable(state, state.player_floor, c);
                 }
                 state.player_vel = (0.0, 0.0);
+                // The player is on a new floor: refresh its turn-based reach and
+                // goals, or nothing here would be clickable.
+                state.move_anim = None;
+                rebuild_move(state);
+                on_progress_changed(state);
+                notify_state(state, true);
                 pan_to_center_player(state);
                 state.follow_target = (state.pan_target_x, state.pan_target_y);
                 state.recentre = false;
