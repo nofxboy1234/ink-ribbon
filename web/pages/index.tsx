@@ -6,8 +6,14 @@ import "./styles.css";
 const DEFAULT_FLOOR = 2;
 const FLOOR_LABELS = ["FLOOR 3", "FLOOR 2", "FLOOR 1"];
 
+type RunState = { steps: number; turn: number; floor: number };
+type InkRibbonWindow = Window & {
+  inkRibbonCommand?: { newRun: boolean };
+};
+
 export default function HomePage(_props: Props) {
   const [floor, setFloor] = useState(DEFAULT_FLOOR);
+  const [run, setRun] = useState<RunState>({ steps: 0, turn: 0, floor: DEFAULT_FLOOR });
 
   useEffect(() => {
     const onFloorChange = (event: Event) => {
@@ -16,9 +22,27 @@ export default function HomePage(_props: Props) {
         setFloor(detail);
       }
     };
+    const onStateChange = (event: Event) => {
+      const detail = (event as CustomEvent<RunState>).detail;
+      if (detail && typeof detail.steps === "number") {
+        setRun(detail);
+      }
+    };
     window.addEventListener("ink-ribbon:floor", onFloorChange);
-    return () => window.removeEventListener("ink-ribbon:floor", onFloorChange);
+    window.addEventListener("ink-ribbon:state", onStateChange);
+    return () => {
+      window.removeEventListener("ink-ribbon:floor", onFloorChange);
+      window.removeEventListener("ink-ribbon:state", onStateChange);
+    };
   }, []);
+
+  const newRun = () => {
+    const command = (window as InkRibbonWindow).inkRibbonCommand;
+    if (command) {
+      command.newRun = true;
+    }
+    setRun((prev) => ({ ...prev, steps: 0, turn: 0 }));
+  };
 
   return (
     <main className="map-app">
@@ -84,7 +108,11 @@ export default function HomePage(_props: Props) {
                 "};" +
                 "window.inkRibbonHasSlot = function (n) {" +
                 "  try { return localStorage.getItem('ink-ribbon-save-' + n) ? 1 : 0; } catch (e) { return 0; }" +
-                "};",
+                "};" +
+                "window.inkRibbonOnState = function (state) {" +
+                "  window.dispatchEvent(new CustomEvent('ink-ribbon:state', { detail: state }));" +
+                "};" +
+                "window.inkRibbonCommand = { newRun: false };",
             }}
           />
           <script src="/map.js" />
@@ -99,6 +127,17 @@ export default function HomePage(_props: Props) {
             <span>FLOOR</span>
             <b>{FLOOR_LABELS[floor] ?? FLOOR_LABELS[DEFAULT_FLOOR]}</b>
           </div>
+          <div className="panel-row">
+            <span>STEPS</span>
+            <b>{run.steps}</b>
+          </div>
+          <div className="panel-row">
+            <span>TURN</span>
+            <b>{run.turn}</b>
+          </div>
+          <button type="button" className="panel-action" onClick={newRun}>
+            NEW RUN
+          </button>
           <div className="panel-rule" />
           <h2>LEGEND</h2>
           <p>
@@ -106,6 +145,9 @@ export default function HomePage(_props: Props) {
           </p>
           <p>
             <i className="legend-route" /> Route / connection
+          </p>
+          <p>
+            <i className="legend-move" /> Reachable this turn
           </p>
           <p>
             <i className="legend-floor" /> Floor selector

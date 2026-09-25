@@ -122,6 +122,23 @@ body {
   background: var(--line);
 }
 
+.panel-action {
+  width: 100%;
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+}
+
+.panel-action:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .details-panel p {
   display: flex;
   align-items: center;
@@ -131,6 +148,7 @@ body {
 
 .legend-player,
 .legend-route,
+.legend-move,
 .legend-floor {
   display: inline-block;
   width: 12px;
@@ -145,6 +163,10 @@ body {
 .legend-route {
   height: 2px;
   background: var(--accent);
+}
+
+.legend-move {
+  background: rgba(87, 153, 235, 0.45);
 }
 
 .legend-floor {

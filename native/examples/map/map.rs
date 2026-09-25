@@ -1,6 +1,6 @@
 use std::ffi;
 
-use ink_ribbon_native::bake::{bake, bake_floor_grids, BakedBytes, OverlayBytes};
+use ink_ribbon_native::bake::{bake, bake_floor_grids, BakedBytes, OverlayBytes, CELL_PX};
 use ink_ribbon_native::save::{format_unix_utc, PlayerSave};
 use ink_ribbon_native::scene::{
     BoolOp, Box2, Door, DoorKind, ItemDef, ItemKind, Link, Rect, RoomLabel, Scene, StairNode,
@@ -241,6 +241,8 @@ const CLICK_RADIUS: f32 = 70.0;
 // Player movement. The nav grid inflates walls, obstacles and locked doors by
 // CLEARANCE_CELLS = 2 (16 source px), so "player centre on a walkable cell" is
 // exactly equivalent to a collision disc of that radius. Speed is source px/s.
+// These remain for the camera/route helpers and tests.
+#[allow(dead_code)]
 const PLAYER_SPEED: f32 = 160.0;
 const PLAYER_COLLIDE_RADIUS: f32 = 8.0;
 // Arrow half-length in background-grid cells; the reference arrow spans ~1.5
@@ -254,8 +256,10 @@ const PLAYER_PULSE_MIN: f32 = 0.15;
 const PLAYER_PULSE_MAX: f32 = 0.85;
 const PLAYER_PULSE_FALLOFF: f32 = 0.6;
 const PLAYER_PULSE_ALPHA: f32 = 0.26;
+#[allow(dead_code)]
 const PLAYER_ACCEL: f32 = 14.0;
 const PLAYER_TURN_RATE: f32 = 10.0;
+#[allow(dead_code)]
 const MOVE_SUBSTEP: f32 = 4.0;
 // Camera follow: how fast the camera catches up to the player's centred pan
 // while a movement key is held (lower = lazier trail).
@@ -266,6 +270,25 @@ const STICK_DEADZONE: f32 = 0.15;
 const STICK_GRAB: f32 = 1.35;
 const PATH_WIDTH: f32 = 5.0;
 const GRID_ALPHA: f32 = 0.18;
+
+// Turn-based movement: one move cell per backing grid unit, one turn per click.
+// Walk and run budgets are measured in move cells.
+const MOVE_CELL: f32 = GRID_UNIT;
+const WALK_CELLS: u16 = 4;
+const RUN_CELLS: u16 = 7;
+// Animation speed in move cells per second (walk vs run).
+const WALK_SPEED_CELLS: f32 = 5.0;
+const RUN_SPEED_CELLS: f32 = 10.0;
+// Reachable-cell highlight (soft blue) and the hover rope preview.
+const MOVE_WALK_TINT: (f32, f32, f32) = (0.34, 0.60, 0.92);
+const MOVE_RUN_TINT: (f32, f32, f32) = (0.28, 0.46, 0.70);
+const MOVE_WALK_ALPHA: f32 = 0.24;
+const MOVE_RUN_ALPHA: f32 = 0.13;
+const MOVE_CELL_INSET: f32 = 3.0;
+const ROPE_ALPHA: f32 = 0.85;
+const ROPE_WIDTH: f32 = 7.0;
+const ROPE_WALK_TINT: (f32, f32, f32) = (0.62, 0.82, 1.0);
+const ROPE_RUN_TINT: (f32, f32, f32) = (0.44, 0.66, 0.95);
 
 #[cfg(target_os = "emscripten")]
 extern "C" {
@@ -285,6 +308,72 @@ fn notify_floor(floor: usize) {
     #[cfg(not(target_os = "emscripten"))]
     {
         let _ = floor;
+    }
+}
+
+// Push the turn-based run state (steps/turn/floor) to the web shell. Only fires
+// when it changes unless `force` (a fresh run / slot load).
+fn notify_state(state: &mut State, force: bool) {
+    let now = (state.steps, state.turn, state.floor);
+    if !force && state.notified_state == Some(now) {
+        return;
+    }
+    state.notified_state = Some(now);
+    #[cfg(target_os = "emscripten")]
+    {
+        let script = format!(
+            "window.inkRibbonOnState && window.inkRibbonOnState({{steps:{},turn:{},floor:{}}})",
+            now.0, now.1, now.2
+        );
+        if let Ok(script) = ffi::CString::new(script) {
+            unsafe { emscripten_run_script(script.as_ptr()) };
+        }
+    }
+    #[cfg(not(target_os = "emscripten"))]
+    {
+        let _ = force;
+    }
+}
+
+// Reset the run's score counters. Triggered by the web shell's NEW RUN button.
+#[allow(dead_code)]
+fn new_run(state: &mut State) {
+    state.turn = 0;
+    state.steps = 0;
+    state.move_anim = None;
+    state.hover_cell = None;
+    state.hover_path.clear();
+    rebuild_move(state);
+    notify_state(state, true);
+    set_status(state, "NEW RUN");
+}
+
+// Spend a turn without moving (an interaction).
+fn end_turn(state: &mut State) {
+    state.turn += 1;
+    state.hover_cell = None;
+    state.hover_path.clear();
+    rebuild_move(state);
+    notify_state(state, true);
+}
+
+// Read and clear command flags set by the web shell.
+fn poll_command(state: &mut State) {
+    #[cfg(target_os = "emscripten")]
+    {
+        extern "C" {
+            fn emscripten_run_script_int(script: *const ffi::c_char) -> i32;
+        }
+        const NEW_RUN: &[u8] = b"try { (window.inkRibbonCommand && window.inkRibbonCommand.newRun) ? (window.inkRibbonCommand.newRun=false,1) : 0 } catch (e) { 0 }\0";
+        let reset =
+            unsafe { emscripten_run_script_int(NEW_RUN.as_ptr() as *const ffi::c_char) != 0 };
+        if reset {
+            new_run(state);
+        }
+    }
+    #[cfg(not(target_os = "emscripten"))]
+    {
+        let _ = state;
     }
 }
 
@@ -321,6 +410,8 @@ impl Nav {
 
 // High-resolution collision mask baked by native/src/bake.rs: a set bit is a
 // wall, obstacle or locked door (the real traced geometry, with no padding).
+// Retained for the region-visibility phase and the collision tests.
+#[allow(dead_code)]
 struct Solid {
     w: i32,
     h: i32,
@@ -328,6 +419,7 @@ struct Solid {
     bits: Vec<u8>,
 }
 
+#[allow(dead_code)]
 impl Solid {
     fn from_bytes(bytes: &[u8], frame: (f32, f32, f32, f32)) -> Solid {
         // header: u32 LE cell_px, u32 LE width, u32 LE height
@@ -355,6 +447,99 @@ impl Solid {
         let y = ((sy - fy) / fh * self.h as f32).floor() as i32;
         self.blocked(x, y)
     }
+}
+
+// Coarse turn-based movement grid: one cell per background grid unit
+// (MOVE_CELL source px). A cell is walkable when the nav cell at its centre is,
+// so the point player stays on the clearance-baked walkable surface.
+struct MoveGrid {
+    w: i32,
+    h: i32,
+    frame: (f32, f32, f32, f32),
+    bits: Vec<u8>,
+}
+
+impl MoveGrid {
+    fn from_nav(nav: &Nav) -> MoveGrid {
+        let (fx, fy, fw, fh) = nav.frame;
+        let w = (fw / MOVE_CELL).round().max(1.0) as i32;
+        let h = (fh / MOVE_CELL).round().max(1.0) as i32;
+        let per = (MOVE_CELL / CELL_PX as f32).round().max(1.0) as i32;
+        let mut bits = vec![0u8; ((w * h) as usize).div_ceil(8)];
+        for my in 0..h {
+            for mx in 0..w {
+                let cx = mx * per + per / 2;
+                let cy = my * per + per / 2;
+                if nav.walkable(cx, cy) {
+                    let i = (my * w + mx) as usize;
+                    bits[i >> 3] |= 1 << (i & 7);
+                }
+            }
+        }
+        MoveGrid {
+            w,
+            h,
+            frame: (fx, fy, fw, fh),
+            bits,
+        }
+    }
+
+    fn walkable(&self, x: i32, y: i32) -> bool {
+        if x < 0 || y < 0 || x >= self.w || y >= self.h {
+            return false;
+        }
+        let i = (y * self.w + x) as usize;
+        (self.bits[i >> 3] >> (i & 7)) & 1 == 1
+    }
+
+    // Centre of a move cell in source px.
+    fn cell_source(&self, x: i32, y: i32) -> (f32, f32) {
+        (
+            self.frame.0 + (x as f32 + 0.5) * MOVE_CELL,
+            self.frame.1 + (y as f32 + 0.5) * MOVE_CELL,
+        )
+    }
+
+    // Move cell containing a source px point.
+    fn source_cell(&self, sx: f32, sy: f32) -> (i32, i32) {
+        (
+            ((sx - self.frame.0) / MOVE_CELL).floor() as i32,
+            ((sy - self.frame.1) / MOVE_CELL).floor() as i32,
+        )
+    }
+}
+
+// BFS distances (in move cells) from `start`, capped at RUN_CELLS. u16::MAX is
+// unreachable.
+fn move_reach(grid: &MoveGrid, start: (i32, i32)) -> Vec<u16> {
+    let n = (grid.w * grid.h) as usize;
+    let mut dist = vec![u16::MAX; n];
+    if !grid.walkable(start.0, start.1) {
+        return dist;
+    }
+    let index = |x: i32, y: i32| (y * grid.w + x) as usize;
+    let si = index(start.0, start.1);
+    dist[si] = 0;
+    let mut queue = std::collections::VecDeque::new();
+    queue.push_back(start);
+    while let Some((x, y)) = queue.pop_front() {
+        let d = dist[index(x, y)];
+        if d >= RUN_CELLS {
+            continue;
+        }
+        for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+            let (nx, ny) = (x + dx, y + dy);
+            if !grid.walkable(nx, ny) {
+                continue;
+            }
+            let i = index(nx, ny);
+            if dist[i] == u16::MAX {
+                dist[i] = d + 1;
+                queue.push_back((nx, ny));
+            }
+        }
+    }
+    dist
 }
 
 // One baked connection between two stair X marks, in source-composite pixels.
@@ -826,6 +1011,16 @@ struct ZoomAnchor {
     end: f32,
 }
 
+// An in-flight turn-based move: source-px polyline (player start, then move-cell
+// centres), progress along it, and the cell count to add to the step total.
+struct MoveAnim {
+    path: Vec<(f32, f32)>,
+    seg: usize,
+    t: f32,
+    speed: f32,
+    cells: u32,
+}
+
 struct State {
     layout: Layout,
     zoom_anchor: Option<ZoomAnchor>,
@@ -933,6 +1128,17 @@ struct State {
     hover_item: Option<usize>,
     arrow_up_t: f32,
     arrow_down_t: f32,
+    // --- Turn-based movement ---
+    move_grid: [MoveGrid; NUM_FLOORS],
+    move_reach: [Vec<u16>; NUM_FLOORS],
+    turn: u32,
+    steps: u32,
+    hover_cell: Option<(i32, i32)>,
+    hover_path: Vec<(f32, f32)>,
+    hover_run: bool,
+    move_anim: Option<MoveAnim>,
+    // Last (steps, turn, floor) pushed to the web shell.
+    notified_state: Option<(u32, u32, usize)>,
     floor: usize,
     zoom: f32,
     pan_x: f32,
@@ -1050,6 +1256,7 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
         Some(start) => reachable_from(nav, start),
         None => Vec::new(),
     };
+    rebuild_move(state);
 }
 
 // Viewed-floor change (selector, arrows). The player stays where they are; only
@@ -1262,6 +1469,8 @@ fn wrap_angle(a: f32) -> f32 {
 // The player's collision disc, expressed on the nav grid. The grid already
 // inflates walls/obstacles/locked doors by 2 cells (16px), so requiring the
 // centre cell to be walkable is equivalent to a 16px disc against the raw art.
+// Retained for the collision tests.
+#[allow(dead_code)]
 fn walkable_center(nav: &Nav, sx: f32, sy: f32) -> bool {
     let (cx, cy) = source_to_cell(nav, sx, sy);
     nav.walkable(cx, cy)
@@ -1269,6 +1478,7 @@ fn walkable_center(nav: &Nav, sx: f32, sy: f32) -> bool {
 
 // Resolve one movement step axis by axis, so the player slides along a blocked
 // surface instead of stopping dead. Returns (position, x blocked, y blocked).
+#[allow(dead_code)]
 fn resolve_move(
     free: impl Fn(f32, f32) -> bool,
     from: (f32, f32),
@@ -1287,6 +1497,7 @@ fn resolve_move(
     (from, true, true)
 }
 
+#[allow(dead_code)]
 fn resolve_move_terrain(
     nav: &Nav,
     solid: &Solid,
@@ -1300,6 +1511,7 @@ fn resolve_move_terrain(
 // obstacle and locked-door ink, except that anywhere the nav grid is walkable is
 // always allowed. That keeps every A* route followable while still stopping the
 // player at the drawn geometry.
+#[allow(dead_code)]
 fn can_stand(nav: &Nav, solid: &Solid, sx: f32, sy: f32) -> bool {
     if walkable_center(nav, sx, sy) {
         return true;
@@ -1321,114 +1533,171 @@ fn can_stand(nav: &Nav, solid: &Solid, sx: f32, sy: f32) -> bool {
     true
 }
 
-// Arrow-key player movement: eased velocity, smooth turning toward the movement
-// direction, and circle collision that slides along walls.
+// Turn-based player update: advance any in-flight move, ease the facing toward
+// the travel direction, then resolve door reveals and stairs. Walking is driven
+// by a click (`select_at`/`start_move`), not by the arrow keys.
 fn update_player(state: &mut State, delta: f32) {
     // The player only exists on their own floor; viewing another floor is
     // read-only until they take stairs back. Editing pauses the player.
     if state.edit || state.floor != state.player_floor {
         return;
     }
-    let floor = state.player_floor;
-    // Direction + magnitude from the thumbstick, else the arrow keys.
-    let stick = state.stick_vec;
-    let stick_mag = (stick.0 * stick.0 + stick.1 * stick.1).sqrt();
-    let (dir, mag) = if stick_mag > 0.0 {
-        (
-            (stick.0 / stick_mag, stick.1 / stick_mag),
-            stick_mag.min(1.0),
-        )
-    } else {
-        let mut ix: f32 = 0.0;
-        let mut iy: f32 = 0.0;
-        if state.holding[0] {
-            iy -= 1.0;
-        }
-        if state.holding[1] {
-            iy += 1.0;
-        }
-        if state.holding[2] {
-            ix -= 1.0;
-        }
-        if state.holding[3] {
-            ix += 1.0;
-        }
-        let len = (ix * ix + iy * iy).sqrt();
-        if len > 0.0 {
-            ((ix / len, iy / len), 1.0)
-        } else {
-            ((0.0, 0.0), 0.0)
-        }
-    };
-    let (target_vx, target_vy) = if mag > 0.0 {
-        state.facing_target = dir.0.atan2(-dir.1);
-        (dir.0 * PLAYER_SPEED * mag, dir.1 * PLAYER_SPEED * mag)
-    } else {
-        (0.0, 0.0)
-    };
-    let ease = (delta * PLAYER_ACCEL).min(1.0);
-    state.player_vel.0 += (target_vx - state.player_vel.0) * ease;
-    state.player_vel.1 += (target_vy - state.player_vel.1) * ease;
-
-    // Turn smoothly toward the movement direction (shortest arc).
+    update_move(state, delta);
     let turn = wrap_angle(state.facing_target - state.facing);
     state.facing += turn * (delta * PLAYER_TURN_RATE).min(1.0);
+    state.player_vel = (0.0, 0.0);
+    // Reveals/stairs resolve once the move has settled, so a turn never gets
+    // interrupted mid-animation.
+    if state.move_anim.is_none() {
+        if reveal_doors(state) {
+            rebuild_gameplay(state);
+        }
+        check_stairs(state);
+    }
+}
 
-    // Substep so fast movement cannot tunnel through a wall in one frame.
-    let mut remaining = (state.player_vel.0 * delta, state.player_vel.1 * delta);
-    while remaining.0.abs() > 1e-4 || remaining.1.abs() > 1e-4 {
-        let step = (
-            remaining.0.clamp(-MOVE_SUBSTEP, MOVE_SUBSTEP),
-            remaining.1.clamp(-MOVE_SUBSTEP, MOVE_SUBSTEP),
-        );
-        remaining.0 -= step.0;
-        remaining.1 -= step.1;
-        let (pos, blocked_x, blocked_y) =
-            resolve_move_terrain(&state.nav[floor], &state.solid[floor], state.player, step);
-        state.player = pos;
-        if blocked_x {
-            state.player_vel.0 = 0.0;
-        }
-        if blocked_y {
-            state.player_vel.1 = 0.0;
-        }
-        if blocked_x && blocked_y {
-            break;
+// Advance an in-flight move one frame. On arrival, bank the step count, spend
+// the turn and refresh what is reachable.
+fn update_move(state: &mut State, delta: f32) {
+    let Some(mut anim) = state.move_anim.take() else {
+        return;
+    };
+    let mut advance = anim.speed * MOVE_CELL * delta;
+    while advance > 0.0 && anim.seg + 1 < anim.path.len() {
+        let a = anim.path[anim.seg];
+        let b = anim.path[anim.seg + 1];
+        let seg_len = ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt().max(1e-3);
+        let remain = (1.0 - anim.t) * seg_len;
+        if advance >= remain {
+            advance -= remain;
+            anim.seg += 1;
+            anim.t = 0.0;
+            state.player = b;
+        } else {
+            anim.t += advance / seg_len;
+            advance = 0.0;
+            state.player = (a.0 + (b.0 - a.0) * anim.t, a.1 + (b.1 - a.1) * anim.t);
         }
     }
+    if anim.seg + 1 < anim.path.len() {
+        let a = anim.path[anim.seg];
+        let b = anim.path[anim.seg + 1];
+        state.facing_target = (b.0 - a.0).atan2(-(b.1 - a.1));
+        state.move_anim = Some(anim);
+    } else {
+        state.steps += anim.cells;
+        state.turn += 1;
+        let pf = state.player_floor;
+        state.player_cell = Some(state.move_grid[pf].source_cell(state.player.0, state.player.1));
+        rebuild_move(state);
+        notify_state(state, true);
+    }
+}
 
-    // Refresh the route from the player's current cell (realtime), but only for
-    // a target that lives on the floor the player is standing on.
-    let cell = source_to_cell(&state.nav[floor], state.player.0, state.player.1);
-    if state.player_cell != Some(cell) {
-        state.player_cell = Some(cell);
-        if let Some(i) = state.target {
-            if state.items[i].floor == floor {
-                let nav = &state.nav[floor];
-                if let Some(start) = snap_source(nav, state.player.0, state.player.1) {
-                    ensure_reachable(state, floor, start);
-                    let to = state.items[i].pos;
-                    let (green, red) = route_to(
-                        &mut state.astar,
-                        &state.nav[floor],
-                        &state.nav_open[floor],
-                        &state.reachable[floor],
-                        state.player,
-                        to,
-                    );
-                    state.path = green;
-                    state.path_red = red;
+// Spend a turn moving to `goal` (a move cell) when it is inside the run budget.
+fn start_move(state: &mut State, mut goal: (i32, i32)) {
+    if state.edit || state.move_anim.is_some() || state.floor != state.player_floor {
+        return;
+    }
+    let pf = state.player_floor;
+    let start = state.move_grid[pf].source_cell(state.player.0, state.player.1);
+    // Clicking the player's own cell does nothing.
+    if goal == start {
+        return;
+    }
+    let mut dist = move_cell_dist(state, pf, goal);
+    // A click on a wall, or just past the budget, snaps to the nearest reachable
+    // cell so taps near the arrow or the range edge still register.
+    if dist == u16::MAX || dist > RUN_CELLS {
+        match nearest_reachable_cell(state, pf, goal) {
+            Some(near) => {
+                goal = near;
+                dist = move_cell_dist(state, pf, goal);
+            }
+            None => return,
+        }
+    }
+    if dist == 0 || dist > RUN_CELLS {
+        return;
+    }
+    let grid = &state.move_grid[pf];
+    if !grid.walkable(goal.0, goal.1) {
+        return;
+    }
+    if start == goal {
+        return;
+    }
+    let (cells, path) = {
+        let cells = match state
+            .astar
+            .search_grid(grid.w, grid.h, start, goal, |x, y| grid.walkable(x, y))
+        {
+            Some(c) if c.len() >= 2 => c,
+            _ => return,
+        };
+        let mut path = Vec::with_capacity(cells.len());
+        path.push(state.player);
+        for &(x, y) in cells.iter().skip(1) {
+            path.push(grid.cell_source(x, y));
+        }
+        (cells, path)
+    };
+    let run = dist > WALK_CELLS;
+    state.move_anim = Some(MoveAnim {
+        path,
+        seg: 0,
+        t: 0.0,
+        speed: if run {
+            RUN_SPEED_CELLS
+        } else {
+            WALK_SPEED_CELLS
+        },
+        cells: (cells.len() - 1) as u32,
+    });
+    // Highlights and any hover rope clear while the move plays out.
+    state.move_reach[pf].fill(u16::MAX);
+    state.hover_cell = None;
+    state.hover_path.clear();
+}
+
+// Distance in move cells from the player, or u16::MAX when outside the grid.
+fn move_cell_dist(state: &State, floor: usize, cell: (i32, i32)) -> u16 {
+    let grid = &state.move_grid[floor];
+    if cell.0 < 0 || cell.1 < 0 || cell.0 >= grid.w || cell.1 >= grid.h {
+        return u16::MAX;
+    }
+    let reach = &state.move_reach[floor];
+    let i = (cell.1 * grid.w + cell.0) as usize;
+    if i >= reach.len() {
+        return u16::MAX;
+    }
+    reach[i]
+}
+
+// Nearest reachable move cell to `cell`, searched outward in a ring.
+fn nearest_reachable_cell(state: &State, floor: usize, cell: (i32, i32)) -> Option<(i32, i32)> {
+    for radius in 1..=6i32 {
+        let mut best: Option<((i32, i32), u16)> = None;
+        for dy in -radius..=radius {
+            for dx in -radius..=radius {
+                if dx.abs() != radius && dy.abs() != radius {
+                    continue;
+                }
+                let c = (cell.0 + dx, cell.1 + dy);
+                let d = move_cell_dist(state, floor, c);
+                if d != u16::MAX && d > 0 && d <= RUN_CELLS {
+                    let better = best.is_none_or(|(_, bd)| d < bd);
+                    if better {
+                        best = Some((c, d));
+                    }
                 }
             }
         }
+        if let Some((c, _)) = best {
+            return Some(c);
+        }
     }
-
-    // Reveal nearby unknown doors, then take stairs. Items are picked up with
-    // Space (see `interact`).
-    if reveal_doors(state) {
-        rebuild_gameplay(state);
-    }
-    check_stairs(state);
+    None
 }
 
 // Ride a stair if the player is standing on one, with a lock so landing on the
@@ -2662,6 +2931,7 @@ fn rebuild_assets(state: &mut State) {
         items,
     } = baked;
     apply_gameplay(state, nav, nav_open, solid, stairs, items);
+    state.move_grid = std::array::from_fn(|i| MoveGrid::from_nav(&state.nav[i]));
     state.wall_plans = std::array::from_fn(|i| wall_plan(&scene.floors[i]));
     state.wall_plans_dirty = false;
     for (i, overlay) in overlays.into_iter().enumerate() {
@@ -2686,6 +2956,7 @@ fn rebuild_gameplay(state: &mut State) {
     state.nav[f] = Nav::from_bytes(&nav, FLOOR_FRAMES[f]);
     state.nav_open[f] = Nav::from_bytes(&nav_open, FLOOR_FRAMES[f]);
     state.solid[f] = Solid::from_bytes(&solid, FLOOR_FRAMES[f]);
+    state.move_grid[f] = MoveGrid::from_nav(&state.nav[f]);
     reset_navigation(state);
 }
 
@@ -2716,6 +2987,17 @@ fn reset_navigation(state: &mut State) {
         state.player_cell = Some(cell);
         state.reachable[pf] = reachable_from(&state.nav[pf], cell);
     }
+    rebuild_move(state);
+}
+
+// Recompute the player's turn-based reachable set from the move grid.
+fn rebuild_move(state: &mut State) {
+    let pf = state.player_floor;
+    let start = state.move_grid[pf].source_cell(state.player.0, state.player.1);
+    let reach = move_reach(&state.move_grid[pf], start);
+    state.move_reach[pf] = reach;
+    state.hover_cell = None;
+    state.hover_path.clear();
 }
 
 fn place_rect(state: &mut State, a: (f32, f32), b: (f32, f32)) {
@@ -3826,23 +4108,38 @@ fn ink_ribbon_count(state: &State) -> usize {
 }
 
 // Space in play mode: act on the nearest interactable.
-fn interact(state: &mut State) {
+fn interact(state: &mut State) -> bool {
+    // No interacting mid-move; the turn resolves when the move lands.
+    if state.move_anim.is_some() {
+        return false;
+    }
     match interaction_target(state) {
         Some(Interaction::Typewriter(_)) => {
             if ink_ribbon_count(state) == 0 {
                 set_status(state, "need an ink-ribbon to save");
-                return;
+                return false;
             }
             open_menu(state, Menu::SaveSlots);
             set_status(state, "choose a slot to save");
+            true
         }
         Some(Interaction::ItemBox(_)) => {
             open_item_box(state);
             set_status(state, "item box open");
+            true
         }
-        Some(Interaction::Item { id, name, .. }) => collect_item(state, id, &name),
-        Some(Interaction::Door { id, .. }) => unlock_door(state, id),
-        None => set_status(state, "nothing to interact with"),
+        Some(Interaction::Item { id, name, .. }) => {
+            collect_item(state, id, &name);
+            true
+        }
+        Some(Interaction::Door { id, .. }) => {
+            unlock_door(state, id);
+            true
+        }
+        None => {
+            set_status(state, "nothing to interact with");
+            false
+        }
     }
 }
 
@@ -4076,10 +4373,11 @@ fn panel_click(state: &mut State, x: f32, y: f32) -> bool {
 }
 
 // A tap (not a drag): toggle/clear the route to the key item under the cursor.
+// A tap in play mode spends the turn moving to the clicked move cell (or the
+// nearest reachable cell when the tap lands just off one).
 fn select_at(state: &mut State, x: f32, y: f32) {
     #[allow(non_snake_case)]
     let (MAP_X, MAP_Y, MAP_W, MAP_H, _, _, _) = state.layout.vars();
-    // Routing needs the player and the item on the floor being viewed.
     if state.floor != state.player_floor
         || !(MAP_X..MAP_X + MAP_W).contains(&x)
         || !(MAP_Y..MAP_Y + MAP_H).contains(&y)
@@ -4091,48 +4389,67 @@ fn select_at(state: &mut State, x: f32, y: f32) {
     } else {
         (x, y)
     };
-    let frame = floor_frame(state.floor);
-    let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
-    let sx = frame.0 + (hx - ox) * frame.2 / iw;
-    let sy = frame.1 + (hy - oy) * frame.3 / ih;
-    let hit = state.items.iter().position(|item| {
-        if item.floor != state.floor {
-            return false;
-        }
-        let (dx, dy) = (sx - item.pos.0, sy - item.pos.1);
-        dx * dx + dy * dy <= CLICK_RADIUS * CLICK_RADIUS
-    });
-    match hit {
-        Some(i) if state.target == Some(i) => {
-            state.target = None;
-            state.path.clear();
-            state.path_red.clear();
-        }
-        Some(i) => {
-            state.target = Some(i);
-            let floor = state.player_floor;
-            let to = state.items[i].pos;
-            if let Some(start) = snap_source(&state.nav[floor], state.player.0, state.player.1) {
-                ensure_reachable(state, floor, start);
-            }
-            let (green, red) = route_to(
-                &mut state.astar,
-                &state.nav[floor],
-                &state.nav_open[floor],
-                &state.reachable[floor],
-                state.player,
-                to,
-            );
-            state.path = green;
-            state.path_red = red;
-        }
+    let (sx, sy) = ref_to_source(state, (hx, hy));
+    let cell = state.move_grid[state.player_floor].source_cell(sx, sy);
+    start_move(state, cell);
+}
+
+// The move cell under the cursor (the centred cursor when in that mode), or None
+// when the pointer is outside the map window.
+fn cursor_source_cell(state: &State) -> Option<(i32, i32)> {
+    let p = if state.cursor_mode == CursorMode::Centered {
+        cursor_center(&state.layout)
+    } else {
+        state.mouse
+    };
+    if !in_map(&state.layout, p) {
+        return None;
+    }
+    let (sx, sy) = ref_to_source(state, p);
+    Some(state.move_grid[state.player_floor].source_cell(sx, sy))
+}
+
+// Refresh the hover rope when the cursor moves onto a new reachable cell.
+fn update_hover(state: &mut State) {
+    if state.edit || state.floor != state.player_floor || state.move_anim.is_some() {
+        return;
+    }
+    let cell = match cursor_source_cell(state) {
+        Some(c) => c,
         None => {
-            // Clicking off the item hides the route.
-            state.target = None;
-            state.path.clear();
-            state.path_red.clear();
+            state.hover_cell = None;
+            state.hover_path.clear();
+            return;
+        }
+    };
+    if state.hover_cell == Some(cell) {
+        return;
+    }
+    state.hover_cell = Some(cell);
+    state.hover_path.clear();
+    state.hover_run = false;
+    let pf = state.player_floor;
+    let dist = move_cell_dist(state, pf, cell);
+    if dist == 0 || dist == u16::MAX || dist > RUN_CELLS {
+        return;
+    }
+    let grid = &state.move_grid[pf];
+    let start = grid.source_cell(state.player.0, state.player.1);
+    let mut path = vec![state.player];
+    {
+        let cells = match state
+            .astar
+            .search_grid(grid.w, grid.h, start, cell, |x, y| grid.walkable(x, y))
+        {
+            Some(c) if c.len() >= 2 => c,
+            _ => return,
+        };
+        for &(x, y) in cells.iter().skip(1) {
+            path.push(grid.cell_source(x, y));
         }
     }
+    state.hover_path = path;
+    state.hover_run = dist > WALK_CELLS;
 }
 
 extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
@@ -4706,7 +5023,11 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 sapp::Keycode::Escape if !state.edit && !event.key_repeat => {
                     open_menu(state, Menu::Pause);
                 }
-                sapp::Keycode::Space if !state.edit && !event.key_repeat => interact(state),
+                sapp::Keycode::Space if !state.edit && !event.key_repeat => {
+                    if interact(state) {
+                        end_turn(state);
+                    }
+                }
                 sapp::Keycode::F1 if !event.key_repeat => state.debug_mode = !state.debug_mode,
                 sapp::Keycode::G if !event.key_repeat => state.show_grid = !state.show_grid,
                 sapp::Keycode::M if !event.key_repeat => {
@@ -5024,15 +5345,28 @@ impl Astar {
 }
 
 impl Astar {
-    // A* on the nav grid, 4-neighbour with a Manhattan heuristic.
+    // A* on the nav grid, 4-neighbour with a Manhattan heuristic. Retained for
+    // the goal-route phase and the reuse test.
+    #[allow(dead_code)]
     fn search(
         &mut self,
         nav: &Nav,
         start: (i32, i32),
         goal: (i32, i32),
     ) -> Option<Vec<(i32, i32)>> {
-        let w = nav.w;
-        let n = (nav.w * nav.h) as usize;
+        self.search_grid(nav.w, nav.h, start, goal, |x, y| nav.walkable(x, y))
+    }
+
+    // A* over any uniform-cost 4-neighbour grid described by `walkable`.
+    fn search_grid(
+        &mut self,
+        w: i32,
+        h: i32,
+        start: (i32, i32),
+        goal: (i32, i32),
+        walkable: impl Fn(i32, i32) -> bool,
+    ) -> Option<Vec<(i32, i32)>> {
+        let n = (w * h) as usize;
         if self.g.len() != n {
             self.g = vec![0; n];
             self.came = vec![-1; n];
@@ -5067,7 +5401,7 @@ impl Astar {
             let cg = self.g[cur];
             for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
                 let (nx, ny) = (cx + dx, cy + dy);
-                if !nav.walkable(nx, ny) {
+                if !walkable(nx, ny) {
                     continue;
                 }
                 let ni = (ny * w + nx) as usize;
@@ -5103,6 +5437,7 @@ impl Astar {
 }
 
 // Shortest route in source px between two source px points, or empty on failure.
+#[allow(dead_code)]
 fn compute_path(astar: &mut Astar, nav: &Nav, from: (f32, f32), to: (f32, f32)) -> Route {
     let (start, goal) = match (
         snap_source(nav, from.0, from.1),
@@ -5165,9 +5500,11 @@ fn is_reachable(bits: &[u8], nav: &Nav, x: i32, y: i32) -> bool {
 }
 
 // A polyline in source pixels.
+#[allow(dead_code)]
 type Route = Vec<(f32, f32)>;
 
 // Route to a target. Returns (green reachable part, red part past the blocker).
+#[allow(dead_code)]
 fn route_to(
     astar: &mut Astar,
     nav: &Nav,
@@ -5209,6 +5546,7 @@ fn route_to(
     (Vec::new(), Vec::new())
 }
 
+#[allow(dead_code)]
 fn simplify(points: Vec<(f32, f32)>) -> Vec<(f32, f32)> {
     if points.len() < 3 {
         return points;
@@ -5412,6 +5750,65 @@ fn draw_nav_grid(nav: &Nav, ox: f32, oy: f32, iw: f32, ih: f32) {
 
 // Wall rectangles for the floors without traced art, in the same source frame
 // and wall colour as Floor 1 so they pan and zoom identically.
+fn draw_move_cells(state: &State, frame: (f32, f32, f32, f32), ox: f32, oy: f32, iw: f32, ih: f32) {
+    if state.edit || state.floor != state.player_floor || state.move_anim.is_some() {
+        return;
+    }
+    let grid = &state.move_grid[state.player_floor];
+    let reach = &state.move_reach[state.player_floor];
+    if reach.is_empty() || grid.w == 0 || grid.h == 0 {
+        return;
+    }
+    let hx = (MOVE_CELL * 0.5 - MOVE_CELL_INSET) * iw / frame.2;
+    let hy = (MOVE_CELL * 0.5 - MOVE_CELL_INSET) * ih / frame.3;
+    if hx <= 0.0 || hy <= 0.0 {
+        return;
+    }
+    sgl::begin_quads();
+    for my in 0..grid.h {
+        for mx in 0..grid.w {
+            let i = (my * grid.w + mx) as usize;
+            let d = reach[i];
+            if d == 0 || d == u16::MAX || d > RUN_CELLS {
+                continue;
+            }
+            let walk = d <= WALK_CELLS;
+            let (c, a) = if walk {
+                (MOVE_WALK_TINT, MOVE_WALK_ALPHA)
+            } else {
+                (MOVE_RUN_TINT, MOVE_RUN_ALPHA)
+            };
+            let (sx, sy) = grid.cell_source(mx, my);
+            let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, sx, sy);
+            sgl::c4f(c.0, c.1, c.2, a);
+            sgl::v2f(rx - hx, ry - hy);
+            sgl::v2f(rx + hx, ry - hy);
+            sgl::v2f(rx + hx, ry + hy);
+            sgl::v2f(rx - hx, ry + hy);
+        }
+    }
+    sgl::end();
+}
+
+// The rope preview to the hovered cell, tinted walk (light) or run (deeper).
+fn draw_hover_path(state: &State, frame: (f32, f32, f32, f32), ox: f32, oy: f32, iw: f32, ih: f32) {
+    if state.edit || state.hover_path.len() < 2 {
+        return;
+    }
+    let route: Vec<(f32, f32)> = state
+        .hover_path
+        .iter()
+        .map(|&(sx, sy)| src_to_ref(frame, ox, oy, iw, ih, sx, sy))
+        .collect();
+    let c = if state.hover_run {
+        ROPE_RUN_TINT
+    } else {
+        ROPE_WALK_TINT
+    };
+    sgl::c4f(c.0, c.1, c.2, ROPE_ALPHA);
+    thick_polyline(&route, ROPE_WIDTH);
+}
+
 fn draw_floor(
     state: &State,
     width: f32,
@@ -5445,6 +5842,8 @@ fn draw_floor(
 
     // Room floors and their dot/diamond patterns sit under the map art.
     draw_rooms(state, frame, ox, oy, iw, ih);
+    // Turn-based reachable cells sit on the room floor, under the map art.
+    draw_move_cells(state, frame, ox, oy, iw, ih);
 
     sgl::enable_texture();
     sgl::texture(state.overlay_views[state.floor], state.overlay_sampler);
@@ -5541,6 +5940,9 @@ fn draw_floor(
         let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, item.pos.0, item.pos.1);
         draw_item_marker(rx, ry, item.kind, 1.0);
     }
+
+    // Hover rope: the path a click would take this turn, over the map art.
+    draw_hover_path(state, frame, ox, oy, iw, ih);
 
     // Computed route and selected target ring, if the target is on this floor.
     if state
@@ -6552,11 +6954,15 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
         state.camera_ready = true;
     }
     state.time += delta;
+    // Commands from the web shell (e.g. NEW RUN) are read every frame.
+    poll_command(state);
     // Modal menus (and the inventory) freeze gameplay and playtime.
     let frozen = state.menu != Menu::None || state.inventory_open || state.item_box_open;
     if !frozen {
         state.play_time += delta;
         update_player(state, delta);
+        update_hover(state);
+        notify_state(state, false);
     }
     let ease = (delta * 14.0).min(1.0);
     state.zoom += (state.zoom_target - state.zoom) * ease;
@@ -6766,6 +7172,7 @@ fn main() {
     let nav = std::array::from_fn(|i| Nav::from_bytes(&nav[i], FLOOR_FRAMES[i]));
     let nav_open = std::array::from_fn(|i| Nav::from_bytes(&nav_open[i], FLOOR_FRAMES[i]));
     let solid = std::array::from_fn(|i| Solid::from_bytes(&solid[i], FLOOR_FRAMES[i]));
+    let move_grid: [MoveGrid; NUM_FLOORS] = std::array::from_fn(|i| MoveGrid::from_nav(&nav[i]));
     let wall_plans: [WallPlan; NUM_FLOORS] = std::array::from_fn(|i| wall_plan(&scene.floors[i]));
 
     let state = Box::new(State {
@@ -6866,6 +7273,15 @@ fn main() {
         hover_item: None,
         arrow_up_t: 0.0,
         arrow_down_t: 0.0,
+        move_grid,
+        move_reach: std::array::from_fn(|_| Vec::new()),
+        turn: 0,
+        steps: 0,
+        hover_cell: None,
+        hover_path: Vec::new(),
+        hover_run: false,
+        move_anim: None,
+        notified_state: None,
         floor: 2,
         zoom: DEFAULT_ZOOM,
         pan_x: 0.0,
@@ -7428,5 +7844,62 @@ mod tests {
             SelGeom::Box { rot, .. } => assert!(rot.abs() < 1e-3),
             _ => panic!("box rotate returned a non-box"),
         }
+    }
+
+    fn synthetic_move(w: i32, h: i32, open: impl Fn(i32, i32) -> bool) -> MoveGrid {
+        let mut bits = vec![0u8; ((w * h) as usize).div_ceil(8)];
+        for y in 0..h {
+            for x in 0..w {
+                if open(x, y) {
+                    let i = (y * w + x) as usize;
+                    bits[i >> 3] |= 1 << (i & 7);
+                }
+            }
+        }
+        MoveGrid {
+            w,
+            h,
+            frame: (0.0, 0.0, w as f32 * MOVE_CELL, h as f32 * MOVE_CELL),
+            bits,
+        }
+    }
+
+    #[test]
+    fn move_cells_map_to_their_centres() {
+        let grid = synthetic_move(10, 10, |_, _| true);
+        assert_eq!(grid.source_cell(0.0, 0.0), (0, 0));
+        assert_eq!(grid.source_cell(MOVE_CELL - 0.01, MOVE_CELL - 0.01), (0, 0));
+        assert_eq!(grid.source_cell(MOVE_CELL + 0.01, 0.0), (1, 0));
+        let (sx, sy) = grid.cell_source(2, 3);
+        assert_eq!(grid.source_cell(sx, sy), (2, 3));
+    }
+
+    #[test]
+    fn move_reach_respects_budget_and_walls() {
+        // Open 20x20 except a wall at x == 5 for y < 15 (a detour of 16+ cells).
+        let grid = synthetic_move(20, 20, |x, y| !(x == 5 && y < 15));
+        let dist = move_reach(&grid, (0, 0));
+        // Walk east along y == 0: index == x for that row.
+        assert_eq!(dist[0], 0);
+        assert_eq!(dist[2], 2);
+        assert_eq!(dist[4], WALK_CELLS);
+        assert_eq!(dist[5], u16::MAX, "the wall itself is not a move cell");
+        assert_eq!(
+            dist[6],
+            u16::MAX,
+            "a cell behind the wall is outside the run budget"
+        );
+    }
+
+    #[test]
+    fn move_reach_caps_at_the_run_budget() {
+        let grid = synthetic_move(40, 40, |_, _| true);
+        let dist = move_reach(&grid, (0, 0));
+        assert_eq!(dist[RUN_CELLS as usize], RUN_CELLS);
+        assert_eq!(
+            dist[RUN_CELLS as usize + 1],
+            u16::MAX,
+            "cells past the run budget stay unreachable"
+        );
     }
 }

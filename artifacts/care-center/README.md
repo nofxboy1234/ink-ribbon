@@ -32,12 +32,15 @@ Open the map, press **Tab** to enter edit mode, and use the in-canvas tool bar:
 Keys: `Z` undo, `X` clear floor, `S` save, `L` load, `Space` snap, `Del` delete,
 `Ctrl+C/V/D` copy/paste/duplicate, `Tab`/`Esc` exit.
 
-In play mode: `Esc` opens/closes the pause menu, `I` toggles the inventory
-(`Esc` closes it), `B` opens the item box (storage on the left, inventory on the
-right; arrows select, `Space` or clicking an item moves it across, `Esc` closes), `Space`
-interacts (unlock a linked door, or save at a typewriter when holding an
-ink-ribbon), and arrow keys navigate menus, the inventory and confirmation
-prompts.
+In play mode the map is turn-based: click (or tap) a highlighted cell to spend a
+turn moving there — walk up to 4 cells, run up to 7. Reachable cells are shaded
+soft blue and a rope previews the route under the cursor. `Esc` opens/closes the
+pause menu, `I` toggles the inventory (`Esc` closes it), `B` opens the item box
+(storage on the left, inventory on the right; arrows select, `Space` or clicking
+an item moves it across, `Esc` closes), and `Space` interacts (unlock a linked
+door, or save at a typewriter when holding an ink-ribbon), spending the turn.
+Arrow keys navigate menus, the inventory and confirmation prompts. The web shell
+shows live STEPS/TURN counters and a NEW RUN button.
 
 Saving writes `scene.bin` (native: working directory; web: download plus
 `localStorage`, which auto-loads next time). Commit the resulting `scene.bin` to
