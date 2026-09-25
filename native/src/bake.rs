@@ -14,7 +14,11 @@ use crate::scene::{
 pub const CELL_PX: u32 = 8;
 pub const SOLID_CELL_PX: u32 = 2;
 pub const CLEARANCE_CELLS: i32 = 2;
-pub const DOOR_DILATION_CELLS: i32 = 1;
+// An unlocked door must bridge the wall band AND the clearance inflation on
+// both sides, or the clearance closes the opening again. The door prop is
+// centred on the wall, so growing it by CLEARANCE_CELLS + 1 cells reaches past
+// a band up to ~44px thick (room bands are 20px, partitions up to 40px).
+pub const DOOR_DILATION_CELLS: i32 = CLEARANCE_CELLS + 1;
 // Before the exterior flood-fill, the geometry is closed by this much so that
 // doorways and corridor mouths don't let the "outside" leak into the rooms. The
 // radius must exceed half the widest opening but stay under the gap to the map
@@ -204,7 +208,11 @@ fn wall_band_mask(floor: &Floor, fx: f32, fy: f32, sx: f32, sy: f32, w: i32, h: 
     let mut partitions = Mask::new(w, h);
     fill(&mut partitions, &floor.partition_ops());
     walls.or_with(&partitions);
-    walls.subtract(&door_mask(floor, fx, fy, sx, sy, w, h, DoorKind::Unlocked));
+    // Carve unlocked doors wider than the clearance inflation, so a wall band
+    // (up to ~44px with partitions) is fully opened and the clearance cannot
+    // close the gap again.
+    let unlocked = door_mask(floor, fx, fy, sx, sy, w, h, DoorKind::Unlocked);
+    walls.subtract(&unlocked.dilate(CLEARANCE_CELLS));
     walls
 }
 
@@ -636,6 +644,68 @@ mod tests {
             ]),
             f1 as u32
         );
+    }
+
+    #[test]
+    fn an_unlocked_partition_door_opens_a_path() {
+        use crate::scene::{BoolOp, DOOR_LONG_PX, DOOR_THICK_PX};
+        let mut scene = Scene::default();
+        let f = crate::scene::FLOOR1_INDEX;
+        let (fx, fy, _, _) = crate::scene::FLOOR1_FRAME;
+        let room = Rect {
+            x: fx + 2000.0,
+            y: fy + 1000.0,
+            w: 1000.0,
+            h: 600.0,
+        };
+        scene.floors[f].walls.push(WallOp {
+            mode: BoolOp::Add,
+            rect: room,
+        });
+        // A partition thicker than a room band, split by a door.
+        let partition = Rect {
+            x: room.x + 480.0,
+            y: room.y,
+            w: 40.0,
+            h: room.h,
+        };
+        scene.floors[f].partitions.push(WallOp {
+            mode: BoolOp::Add,
+            rect: partition,
+        });
+        scene.floors[f].doors.push(Door {
+            id: 1,
+            kind: DoorKind::Locked,
+            reveals_as: DoorKind::Locked,
+            center: (partition.x + partition.w * 0.5, room.y + room.h * 0.5),
+            size: (DOOR_LONG_PX, DOOR_THICK_PX),
+            rot: std::f32::consts::FRAC_PI_2,
+        });
+
+        // Walkable every 8px across the partition at the door's centre line.
+        let crosses = |scene: &Scene| {
+            let nav = &bake(scene).nav[f];
+            let w = u32::from_le_bytes([nav[4], nav[5], nav[6], nav[7]]) as i32;
+            let walk = |sx: f32, sy: f32| {
+                let x = ((sx - fx) / CELL_PX as f32) as i32;
+                let y = ((sy - fy) / CELL_PX as f32) as i32;
+                let i = (y * w + x) as usize;
+                (nav[12 + (i >> 3)] >> (i & 7)) & 1 == 1
+            };
+            let cy = room.y + room.h * 0.5;
+            let mut x = partition.x - 60.0;
+            while x <= partition.x + partition.w + 60.0 {
+                if !walk(x, cy) {
+                    return false;
+                }
+                x += CELL_PX as f32;
+            }
+            true
+        };
+
+        assert!(!crosses(&scene), "a locked partition door blocks");
+        scene.floors[f].doors[0].kind = DoorKind::Unlocked;
+        assert!(crosses(&scene), "an unlocked partition door opens a path");
     }
 
     #[test]
