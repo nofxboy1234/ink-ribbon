@@ -23,7 +23,8 @@ Open the map, press **Tab** to enter edit mode, and use the in-canvas tool bar:
   handle to rotate boxes. Shift-click adds to the selection.
 - **WALL+ / WALL-** — drag rectangles; a rectangle is a room (walkable inside,
   its wall drawn as a double line). Overlapping rooms union, so shared walls
-  vanish. `WALL-` carves.
+  vanish. `WALL-` carves a notch out of the union (an enclosed carve keeps the
+  room floor and reads as an alcove; an open carve is a hole).
 - **WALL** — drag a thin rectangle to place an interior partition inside a room;
   it renders dim on both lines and blocks.
 - **LOCK / OPEN / UNK** — pick the door kind, then hover a wall: the snapped door
@@ -50,8 +51,8 @@ Keys: `Z` undo, `X` clear floor, `S` save, `L` load, `Space` snap, `Del` delete,
 
 Fog of war: a Hidden region is neither drawn nor walkable. Revealing it (a linked
 door unlocking/revealing, a picked-up item, or a trigger) adds its geometry back
-and re-bakes. A region revealed from afar (an initial-Revealed region or a map
-item) is drawn dark until the player walks in, then renders normally.
+and re-bakes. Until the player enters a region its floor has no background (it is
+erased back to the page); once visited it renders as a normal room floor.
 
 In play mode the map is turn-based: click (or tap) a highlighted cell to spend a
 turn moving there — walk up to 6 cells, run up to 10. Reachable cells are shaded
@@ -65,8 +66,8 @@ shows live STEPS/TURN counters, a NEW RUN button, and a GOALS list: click a goal
 to draw its route (green to the reachable point, red past a locked door or
 unrevealed area) and toggle it with HIDE/SHOW ROUTE.
 
-Saving writes `scene.bin` (native: working directory; web: download plus
-`localStorage`, which auto-loads next time). Commit the resulting `scene.bin` to
-publish the map.
+Saving writes `scene.bin` (native: working directory; web: `localStorage`, which
+auto-loads next time). In the web shell, save with `S` in the editor and use the
+**scene.bin** footer button to download the file for committing.
 
 Map artwork belongs to its respective rights holders.

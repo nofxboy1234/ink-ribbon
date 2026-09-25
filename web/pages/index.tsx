@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 import type { Props } from "./index.server";
 import "./styles.css";
@@ -22,7 +22,9 @@ type InkRibbonCommand = {
 };
 type InkRibbonWindow = Window & {
   inkRibbonCommand?: InkRibbonCommand;
+  inkRibbonDownloadScene?: () => number;
   __inkRibbonState?: RunState;
+  __inkRibbonFloor?: number;
 };
 
 const EMPTY_RUN: RunState = {
@@ -34,35 +36,27 @@ const EMPTY_RUN: RunState = {
   goals: [],
 };
 
-export default function HomePage(_props: Props) {
-  const [floor, setFloor] = useState(DEFAULT_FLOOR);
-  const [run, setRun] = useState<RunState>(EMPTY_RUN);
+// The wasm pushes floor and run-state through window globals; expose them as
+// external stores so React picks up whatever arrived before it mounted, with no
+// set-state-in-effect.
+function subscribeFloor(onChange: () => void) {
+  window.addEventListener("ink-ribbon:floor", onChange);
+  return () => window.removeEventListener("ink-ribbon:floor", onChange);
+}
+function floorSnapshot() {
+  return (window as InkRibbonWindow).__inkRibbonFloor ?? DEFAULT_FLOOR;
+}
+function subscribeRun(onChange: () => void) {
+  window.addEventListener("ink-ribbon:state", onChange);
+  return () => window.removeEventListener("ink-ribbon:state", onChange);
+}
+function runSnapshot() {
+  return (window as InkRibbonWindow).__inkRibbonState ?? EMPTY_RUN;
+}
 
-  useEffect(() => {
-    const onFloorChange = (event: Event) => {
-      const detail = (event as CustomEvent<number>).detail;
-      if (typeof detail === "number") {
-        setFloor(detail);
-      }
-    };
-    const onStateChange = (event: Event) => {
-      const detail = (event as CustomEvent<RunState>).detail;
-      if (detail && typeof detail.steps === "number") {
-        setRun(detail);
-      }
-    };
-    window.addEventListener("ink-ribbon:floor", onFloorChange);
-    window.addEventListener("ink-ribbon:state", onStateChange);
-    // The wasm may push its first state before React mounts; pick it up here.
-    const latest = (window as InkRibbonWindow).__inkRibbonState;
-    if (latest && typeof latest.steps === "number") {
-      setRun(latest);
-    }
-    return () => {
-      window.removeEventListener("ink-ribbon:floor", onFloorChange);
-      window.removeEventListener("ink-ribbon:state", onStateChange);
-    };
-  }, []);
+export default function HomePage(_props: Props) {
+  const floor = useSyncExternalStore(subscribeFloor, floorSnapshot, () => DEFAULT_FLOOR);
+  const run = useSyncExternalStore(subscribeRun, runSnapshot, () => EMPTY_RUN);
 
   const command = () => (window as InkRibbonWindow).inkRibbonCommand;
 
@@ -71,7 +65,10 @@ export default function HomePage(_props: Props) {
     if (cmd) {
       cmd.newRun = true;
     }
-    setRun((prev) => ({ ...prev, steps: 0, turn: 0 }));
+  };
+
+  const downloadScene = () => {
+    (window as InkRibbonWindow).inkRibbonDownloadScene?.();
   };
 
   const selectGoal = (index: number) => {
@@ -79,16 +76,13 @@ export default function HomePage(_props: Props) {
     if (cmd) {
       cmd.goal = run.goal === index ? -1 : index;
     }
-    setRun((prev) => ({ ...prev, goal: prev.goal === index ? -1 : index }));
   };
 
   const toggleRoute = () => {
-    const next = !run.routeVisible;
     const cmd = command();
     if (cmd) {
-      cmd.routeVisible = next;
+      cmd.routeVisible = !run.routeVisible;
     }
-    setRun((prev) => ({ ...prev, routeVisible: next }));
   };
 
   return (
@@ -113,12 +107,18 @@ export default function HomePage(_props: Props) {
             dangerouslySetInnerHTML={{
               __html:
                 "var Module = { canvas: document.getElementById('map-canvas'), locateFile: function (path) { return '/' + path; } };" +
-                "window.inkRibbonSetFloor = function (floor) { window.dispatchEvent(new CustomEvent('ink-ribbon:floor', { detail: floor })); };" +
+                "window.inkRibbonSetFloor = function (floor) { window.__inkRibbonFloor = floor; window.dispatchEvent(new CustomEvent('ink-ribbon:floor', { detail: floor })); };" +
                 "window.inkRibbonPersistScene = function () {" +
                 "  try {" +
                 "    var data = Module.FS.readFile('/scene.bin', { encoding: 'binary' });" +
                 "    var bin = ''; for (var i = 0; i < data.length; i++) bin += String.fromCharCode(data[i]);" +
                 "    localStorage.setItem('ink-ribbon-scene', btoa(bin));" +
+                "    return 1;" +
+                "  } catch (e) { console.error(e); return 0; }" +
+                "};" +
+                "window.inkRibbonDownloadScene = function () {" +
+                "  try {" +
+                "    var data = Module.FS.readFile('/scene.bin', { encoding: 'binary' });" +
                 "    var blob = new Blob([data], { type: 'application/octet-stream' });" +
                 "    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'scene.bin'; a.click();" +
                 "    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);" +
@@ -228,7 +228,9 @@ export default function HomePage(_props: Props) {
       <footer className="app-footer">
         <span>running · map navigation</span>
         <button>lineage colors</button>
-        <button>save</button>
+        <button type="button" onClick={downloadScene}>
+          scene.bin
+        </button>
         <button>load</button>
         <button>CSV</button>
       </footer>

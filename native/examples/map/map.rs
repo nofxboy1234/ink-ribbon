@@ -198,9 +198,8 @@ const C_DOOR_UNKNOWN: (f32, f32, f32) = (0.55, 0.55, 0.60);
 // Room floors are a uniform dark grey; some rooms get a dot grid or a diamond
 // lattice (ref/map_ref.png).
 const ROOM_FLOOR: (f32, f32, f32) = (0.090, 0.090, 0.090); // #171717
-                                                           // A region revealed from afar (a map item): drawn, but darker until entered.
-const ROOM_FLOOR_DIM: (f32, f32, f32) = (0.045, 0.045, 0.048);
 const ROOM_DOT: (f32, f32, f32) = (0.17, 0.17, 0.17);
+
 const ROOM_LINE: (f32, f32, f32) = (0.13, 0.13, 0.13);
 const ROOM_DOT_PX: f32 = 3.0;
 
@@ -346,6 +345,10 @@ fn goals_signature(state: &State) -> u32 {
         };
         h = (h ^ tag).wrapping_mul(16777619);
         h = (h ^ id).wrapping_mul(16777619);
+        // Names change (renames), so fold the label text in too.
+        for b in g.label.bytes() {
+            h = (h ^ b as u32).wrapping_mul(16777619);
+        }
     }
     h = (h ^ state.goal.map(|i| i as u32 + 1).unwrap_or(0)).wrapping_mul(16777619);
     (h ^ state.route_visible as u32).wrapping_mul(16777619)
@@ -2059,8 +2062,25 @@ fn recompute_play_scene(state: &mut State) {
     state.play_scene = scene;
 }
 
+// The scene to draw from: the authored scene while editing (so edits show
+// immediately), else the progress-applied scene.
+fn view_scene(state: &State) -> &Scene {
+    if state.edit {
+        &state.scene
+    } else {
+        &state.play_scene
+    }
+}
+
 fn rect_contains(r: Rect, p: (f32, f32)) -> bool {
     p.0 >= r.x && p.0 <= r.x + r.w && p.1 >= r.y && p.1 <= r.y + r.h
+}
+
+fn rect_inside(inner: Rect, outer: Rect) -> bool {
+    inner.x >= outer.x
+        && inner.y >= outer.y
+        && inner.x + inner.w <= outer.x + outer.w
+        && inner.y + inner.h <= outer.y + outer.h
 }
 
 fn rect_center(r: Rect) -> (f32, f32) {
@@ -2094,6 +2114,7 @@ fn region_state(state: &State, floor: usize, region: &Region) -> RegionState {
 
 // The smallest region containing `p` (authoring rule: region rects cover a room
 // and its walls, so a room's centre picks its region).
+#[allow(dead_code)]
 fn region_at(state: &State, floor: usize, p: (f32, f32)) -> Option<&Region> {
     state.scene.floors[floor]
         .regions
@@ -3448,7 +3469,15 @@ fn rebuild_gameplay(state: &mut State) {
     state.nav[f] = Nav::from_bytes(&nav, FLOOR_FRAMES[f]);
     state.nav_open[f] = Nav::from_bytes(&nav_open, FLOOR_FRAMES[f]);
     state.move_grid[f] = MoveGrid::from_nav(&state.nav[f]);
+    refresh_items_and_stairs(state, &scene);
     reset_navigation(state);
+}
+
+// Re-derive the baked item and stair lists. A region reveal can expose or hide
+// items/stairs on any floor, so a progress change must refresh them.
+fn refresh_items_and_stairs(state: &mut State, scene: &Scene) {
+    state.stairs = parse_stairs(&ink_ribbon_native::bake::bake_scene_stairs(scene));
+    state.items = parse_items(&ink_ribbon_native::bake::bake_scene_items(scene));
 }
 
 /// Re-upload one floor's baked obstacle overlay.
@@ -3490,6 +3519,7 @@ fn rebuild_progress(state: &mut State, floors: &[usize]) {
             rebuild_overlay(state, f, &scene);
         }
     }
+    refresh_items_and_stairs(state, &scene);
     if player_nav_changed {
         reset_navigation(state);
     } else {
@@ -6774,7 +6804,7 @@ fn draw_floor(
     {
         let font = state.font.as_ref().unwrap();
         let scale = state.layout.text_scale;
-        for label in &state.play_scene.floors[state.floor].labels {
+        for label in &view_scene(state).floors[state.floor].labels {
             let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, label.pos.0, label.pos.1);
             if rx < MAP_X || rx > MAP_X + MAP_W || ry < MAP_Y || ry > MAP_Y + MAP_H {
                 continue;
@@ -6801,8 +6831,9 @@ fn draw_floor(
 // A rotated box in reference space, for edit-mode obstacles/doors.
 // Door props: a flat rect at the fixed size, on top of the wall lines.
 fn draw_doors(state: &State, frame: (f32, f32, f32, f32), ox: f32, oy: f32, iw: f32, ih: f32) {
-    // `play_scene` already carries reveal/unlock state (and hides fogged doors).
-    for d in &state.play_scene.floors[state.floor].doors {
+    // The viewed scene already carries reveal/unlock state (and hides fogged
+    // doors) in play mode, and the authored state in edit mode.
+    for d in &view_scene(state).floors[state.floor].doors {
         draw_door(frame, ox, oy, iw, ih, d.center, d.rot, d.kind, 1.0);
     }
 }
@@ -7610,12 +7641,25 @@ fn dot(cx: f32, cy: f32, size: f32) {
 // diamond lattice. Which pattern (and grid size) is picked from the room's
 // rectangle, so it is stable across frames.
 fn draw_rooms(state: &State, frame: (f32, f32, f32, f32), ox: f32, oy: f32, iw: f32, ih: f32) {
-    let floor = &state.play_scene.floors[state.floor];
-    let region = region_rects(&floor.wall_ops());
+    let floor = &view_scene(state).floors[state.floor];
+    // The floor follows the room union, plus any WALL- carve that sits fully
+    // inside a room (an enclosed alcove reads as a room; an open carve stays a
+    // hole, matching the nav).
+    let adds: Vec<Rect> = floor
+        .walls
+        .iter()
+        .filter(|w| w.mode == BoolOp::Add)
+        .map(|w| w.rect)
+        .collect();
+    let mut region = region_rects(&floor.wall_ops());
+    for w in floor.walls.iter().filter(|w| w.mode == BoolOp::Sub) {
+        if adds.iter().any(|a| rect_inside(w.rect, *a)) {
+            region.push(w.rect);
+        }
+    }
     if region.is_empty() {
         return;
     }
-    // Revealed-but-unvisited regions (a map item) draw a darker floor.
     sgl::c4f(ROOM_FLOOR.0, ROOM_FLOOR.1, ROOM_FLOOR.2, 1.0);
     sgl::begin_quads();
     for r in &region {
@@ -7639,22 +7683,6 @@ fn draw_rooms(state: &State, frame: (f32, f32, f32, f32), ox: f32, oy: f32, iw: 
         if inner.w <= 0.0 || inner.h <= 0.0 {
             continue;
         }
-        // A region revealed from afar but not yet entered is drawn dark, with no
-        // dot/diamond pattern, until the player walks in. Edit mode always shows
-        // the authored floor.
-        if !state.edit
-            && region_state_for_room(state, state.floor, w.rect, inner)
-                == Some(RegionState::Revealed)
-        {
-            let (x0, y0) = src_to_ref(frame, ox, oy, iw, ih, inner.x, inner.y);
-            let (x1, y1) = src_to_ref(frame, ox, oy, iw, ih, inner.x + inner.w, inner.y + inner.h);
-            sgl::c4f(ROOM_FLOOR_DIM.0, ROOM_FLOOR_DIM.1, ROOM_FLOOR_DIM.2, 1.0);
-            sgl::v2f(x0, y0);
-            sgl::v2f(x1, y0);
-            sgl::v2f(x1, y1);
-            sgl::v2f(x0, y1);
-            continue;
-        }
         let h = rect_hash(inner);
         match h % 6 {
             0 => {} // no grid
@@ -7671,18 +7699,29 @@ fn draw_rooms(state: &State, frame: (f32, f32, f32, f32), ox: f32, oy: f32, iw: 
         }
     }
     sgl::end();
-}
 
-// The region state owning a room rectangle (smallest contains its centre).
-fn region_state_for_room(
-    state: &State,
-    floor: usize,
-    outer: Rect,
-    inner: Rect,
-) -> Option<RegionState> {
-    region_at(state, floor, rect_center(inner))
-        .or_else(|| region_at(state, floor, rect_center(outer)))
-        .map(|r| region_state(state, floor, r))
+    // Fog floor: a region that has not been entered yet has no background (it is
+    // erased back to the page), then greys in once visited. Edit mode always
+    // shows the authored floor.
+    if !state.edit {
+        for r in &state.scene.floors[state.floor].regions {
+            if region_state(state, state.floor, r) == RegionState::Visited {
+                continue;
+            }
+            let (x0, y0) = src_to_ref(frame, ox, oy, iw, ih, r.rect.x, r.rect.y);
+            let (x1, y1) = src_to_ref(
+                frame,
+                ox,
+                oy,
+                iw,
+                ih,
+                r.rect.x + r.rect.w,
+                r.rect.y + r.rect.h,
+            );
+            sgl::c4f(BACKGROUND.0, BACKGROUND.1, BACKGROUND.2, 1.0);
+            rect(x0, y0, x1 - x0, y1 - y0);
+        }
+    }
 }
 
 fn draw_room_dots(

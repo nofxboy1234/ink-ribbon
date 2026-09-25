@@ -116,6 +116,16 @@ pub fn bake_floor_nav(scene: &Scene, index: usize) -> (Vec<u8>, Vec<u8>) {
     floor_nav(&scene.floors[index])
 }
 
+/// `items.bin` bytes for a scene (an empty bin when no items are visible).
+pub fn bake_scene_items(scene: &Scene) -> Vec<u8> {
+    bake_items(scene).unwrap_or_else(empty_bin)
+}
+
+/// `stairs.bin` bytes for a scene (an empty bin when no stairs are visible).
+pub fn bake_scene_stairs(scene: &Scene) -> Vec<u8> {
+    bake_stairs(scene).unwrap_or_else(empty_bin)
+}
+
 /// The overlay RGBA for one floor. Exposed so a region reveal that changes that
 /// floor's obstacles can re-upload just that texture instead of every floor's.
 pub fn bake_floor_overlay(scene: &Scene, index: usize) -> OverlayBytes {
