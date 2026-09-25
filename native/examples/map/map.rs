@@ -3120,7 +3120,7 @@ fn draw_menu(state: &State, font: &Font) {
         outline_rect(r.0, r.1, r.2, r.3);
         match state.menu {
             Menu::Pause => {
-                let label = ["RESUME", "LOAD", "ITEM BOX", "EXIT"][i.min(3)];
+                let label = ["RESUME", "LOAD", "EXIT"][i.min(2)];
                 draw_ui_text(font, label, r.0 + 16.0, r.1 + 10.0, C_HILITE, false, 1.0);
             }
             Menu::SaveSlots | Menu::LoadSlots => {
@@ -5015,11 +5015,7 @@ fn do_load(state: &mut State, slot: usize) {
 }
 
 fn pause_entry_count() -> usize {
-    if cfg!(target_os = "emscripten") {
-        3
-    } else {
-        4
-    }
+    3
 }
 
 fn menu_activate(state: &mut State) {
@@ -5027,10 +5023,6 @@ fn menu_activate(state: &mut State) {
         Menu::Pause => match state.menu_index {
             0 => state.menu = Menu::None,
             1 => open_menu(state, Menu::LoadSlots),
-            2 => {
-                state.menu = Menu::None;
-                open_item_box(state);
-            }
             _ => {
                 state.confirm = Some(Confirm::Quit);
                 state.confirm_index = 0;
