@@ -77,6 +77,8 @@ pub enum ItemKind {
     Typewriter,
     /// A fixed interactable that opens the item box, not collected on touch.
     ItemBox,
+    /// The player's initial spawn marker; not a real item.
+    Player,
 }
 
 impl ItemKind {
@@ -86,6 +88,7 @@ impl ItemKind {
             ItemKind::InkRibbon => 1,
             ItemKind::Typewriter => 2,
             ItemKind::ItemBox => 3,
+            ItemKind::Player => 4,
         }
     }
 
@@ -95,6 +98,7 @@ impl ItemKind {
             1 => Some(ItemKind::InkRibbon),
             2 => Some(ItemKind::Typewriter),
             3 => Some(ItemKind::ItemBox),
+            4 => Some(ItemKind::Player),
             _ => None,
         }
     }
@@ -102,6 +106,11 @@ impl ItemKind {
     /// Whether touching this item picks it up.
     pub fn is_collectible(self) -> bool {
         matches!(self, ItemKind::Key | ItemKind::InkRibbon)
+    }
+
+    /// Whether this is a real item (as opposed to an editor-only marker).
+    pub fn is_baked(self) -> bool {
+        !matches!(self, ItemKind::Player)
     }
 }
 

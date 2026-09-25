@@ -403,9 +403,14 @@ fn new_run(state: &mut State) {
     state.move_anim = None;
     state.hover_cell = None;
     state.hover_path.clear();
-    rebuild_move(state);
-    on_progress_changed(state);
-    notify_state(state, true);
+    // A new run starts the player back at the authored spawn marker.
+    if spawn_from_scene(&state.scene).is_some() {
+        place_player_at_spawn(state);
+    } else {
+        rebuild_move(state);
+        on_progress_changed(state);
+        notify_state(state, true);
+    }
     set_status(state, "NEW RUN");
 }
 
@@ -1396,7 +1401,7 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
     // The traced Guard Office point can sit on room furniture; start on the
     // nearest walkable cell so the collision disc has room.
     let nav = &state.nav[state.player_floor];
-    if let Some(cell) = snap_source(nav, PLAYER.0, PLAYER.1) {
+    if let Some(cell) = snap_source(nav, state.player.0, state.player.1) {
         state.player = cell_to_source(nav, cell.0, cell.1);
         state.player_cell = Some(cell);
     }
@@ -2078,6 +2083,34 @@ fn view_scene(state: &State) -> &Scene {
     }
 }
 
+// The authored initial player spawn (a Player item), as (floor, source pos).
+fn spawn_from_scene(scene: &Scene) -> Option<(usize, (f32, f32))> {
+    scene.floors.iter().enumerate().find_map(|(i, f)| {
+        f.items
+            .iter()
+            .find(|it| it.kind == ItemKind::Player)
+            .map(|it| (i, it.pos))
+    })
+}
+
+// Move the player to the authored spawn marker, if the scene has one.
+fn place_player_at_spawn(state: &mut State) {
+    let Some((floor, pos)) = spawn_from_scene(&state.scene) else {
+        return;
+    };
+    state.player_floor = floor;
+    state.floor = floor;
+    state.player = pos;
+    state.player_cell = None;
+    state.pending_floor = None;
+    state.pending_spawn = None;
+    state.move_anim = None;
+    state.stair_lock = false;
+    reset_navigation(state);
+    notify_floor(floor);
+    notify_state(state, true);
+}
+
 fn rect_contains(r: Rect, p: (f32, f32)) -> bool {
     p.0 >= r.x && p.0 <= r.x + r.w && p.1 >= r.y && p.1 <= r.y + r.h
 }
@@ -2732,6 +2765,13 @@ fn draw_item_marker(cx: f32, cy: f32, kind: ItemKind, scale: f32) {
             sgl::c4f(0.85, 0.80, 0.55, 1.0);
             rect(cx - 3.0 * scale, cy - 4.0 * scale, 6.0 * scale, 6.0 * scale);
         }
+        ItemKind::Player => {
+            // Spawn marker: a green disc with a ring.
+            sgl::c4f(0.35, 0.85, 0.45, 1.0);
+            filled_circle(cx, cy, ITEM_RADIUS * scale);
+            sgl::c4f(0.95, 0.95, 0.95, 1.0);
+            outline_circle(cx, cy, ITEM_RADIUS * scale + 3.0 * scale);
+        }
     }
 }
 
@@ -3348,21 +3388,18 @@ fn item_popup_buttons(
     let (bw, bh, gap) = (96.0, 32.0, 6.0);
     let row = py + 36.0;
     let mut buttons = Vec::new();
-    for (n, kind) in [
-        ItemKind::Key,
-        ItemKind::InkRibbon,
-        ItemKind::Typewriter,
-        ItemKind::ItemBox,
-    ]
-    .into_iter()
-    .enumerate()
-    {
+    for (n, kind) in ITEM_KINDS.into_iter().enumerate() {
         buttons.push((
             (px + 8.0 + n as f32 * (bw + gap), row, bw, bh),
             ItemPopupHit::Kind(kind),
         ));
     }
-    let panel = (px, py, 16.0 + 4.0 * bw + 3.0 * gap, 36.0 + bh + 12.0);
+    let panel = (
+        px,
+        py,
+        16.0 + ITEM_KINDS.len() as f32 * bw + (ITEM_KINDS.len() as f32 - 1.0) * gap,
+        36.0 + bh + 12.0,
+    );
     Some((buttons, panel))
 }
 
@@ -3430,12 +3467,22 @@ fn draw_item_popup(state: &State, font: &Font) {
     }
 }
 
+// Item kinds offered by the editor's item popup.
+const ITEM_KINDS: [ItemKind; 5] = [
+    ItemKind::Key,
+    ItemKind::InkRibbon,
+    ItemKind::Typewriter,
+    ItemKind::ItemBox,
+    ItemKind::Player,
+];
+
 fn item_kind_label(kind: ItemKind) -> &'static str {
     match kind {
         ItemKind::Key => "KEY",
         ItemKind::InkRibbon => "INK RIBBON",
         ItemKind::Typewriter => "TYPEWRITER",
         ItemKind::ItemBox => "ITEM BOX",
+        ItemKind::Player => "PLAYER",
     }
 }
 
@@ -4706,6 +4753,7 @@ fn load_scene(state: &mut State) {
             state.scene = scene;
             state.next_id = max_id(&state.scene) + 1;
             rebuild_assets(state);
+            place_player_at_spawn(state);
             set_status(state, "scene loaded");
         }
         None => set_status(state, "no scene found"),
@@ -6816,10 +6864,12 @@ fn draw_floor(
         draw_ui_text(font, msg, tx, ty, C_HILITE, false, 0.9);
     }
 
-    // Room name labels, centred on their position.
+    // Room name labels, centred on their position. Their size follows the map
+    // zoom (unlike the constant screen-size item icons), so they scale with the
+    // floor like the drawn art.
     {
         let font = state.font.as_ref().unwrap();
-        let scale = state.layout.text_scale;
+        let scale = state.layout.text_scale * (state.zoom / DEFAULT_ZOOM);
         for label in &view_scene(state).floors[state.floor].labels {
             let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, label.pos.0, label.pos.1);
             if rx < MAP_X || rx > MAP_X + MAP_W || ry < MAP_Y || ry > MAP_Y + MAP_H {
@@ -8080,6 +8130,8 @@ fn main() {
         .or_else(|| Scene::from_bytes(SCENE_BIN))
         .unwrap_or_default();
     let next_id = max_id(&scene) + 1;
+    // The player starts at the authored spawn marker, else the default point.
+    let (start_floor, start_pos) = spawn_from_scene(&scene).unwrap_or((2, PLAYER));
     // The app starts in play mode: bake with initial region visibility applied.
     let play_scene = apply_regions(&scene, &[], &[]);
     let baked = bake(&play_scene);
@@ -8166,7 +8218,7 @@ fn main() {
         pan_target_y: 0.0,
         pending_floor: None,
         transition_t: 0.0,
-        player_floor: 2,
+        player_floor: start_floor,
         pending_spawn: None,
         stair_lock: false,
         cursor: (959.5, 588.0),
@@ -8183,7 +8235,7 @@ fn main() {
         pinch_dist: 0.0,
         pinch_base_zoom: DEFAULT_ZOOM,
         pinch_src: (0.0, 0.0),
-        player: PLAYER,
+        player: start_pos,
         player_vel: (0.0, 0.0),
         facing: 0.0,
         facing_target: 0.0,
@@ -8212,7 +8264,7 @@ fn main() {
         hover_run: false,
         move_anim: None,
         notified_state: None,
-        floor: 2,
+        floor: start_floor,
         zoom: DEFAULT_ZOOM,
         pan_x: 0.0,
         pan_y: 0.0,
@@ -8946,5 +8998,27 @@ mod tests {
         let mut shown = r.clone();
         shown.initial = RegionState::Revealed;
         assert_eq!(region_state_raw(2, &shown, &[], &[]), RegionState::Revealed);
+    }
+
+    #[test]
+    fn spawn_from_scene_finds_the_player_marker() {
+        let mut scene = Scene::default();
+        scene.floors[1].items.push(ItemDef {
+            id: 1,
+            kind: ItemKind::Player,
+            name: "Start".into(),
+            pos: (10.0, 20.0),
+        });
+        scene.floors[1].items.push(ItemDef {
+            id: 2,
+            kind: ItemKind::Key,
+            name: "Key".into(),
+            pos: (30.0, 40.0),
+        });
+        assert_eq!(spawn_from_scene(&scene), Some((1, (10.0, 20.0))));
+        assert_eq!(spawn_from_scene(&Scene::default()), None);
+        // Player markers are editor-only, so they are not baked as items.
+        assert!(!ItemKind::Player.is_baked());
+        assert!(!ItemKind::Player.is_collectible());
     }
 }

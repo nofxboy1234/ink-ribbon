@@ -35,8 +35,11 @@ Open the map, press **Tab** to enter edit mode, and use the in-canvas tool bar:
   two endpoints across floors.
 - **ITEM** — click to drop an item; **LINK** connects a key to doors; **R**
   renames it. The item popup sets the kind: KEY, INK RIBBON, TYPEWRITER (save
-  point) or ITEM BOX (interact to open the storage).
+  point), ITEM BOX (interact to open the storage) or PLAYER (the initial spawn
+  point). A PLAYER marker is editor-only; it is not drawn or collected in play
+  mode, and it sets where the player starts (and where NEW RUN returns to).
 - **NAME** — click to drop a room name label; **R** renames it, drag to move.
+  Labels scale with the map zoom (they are not fixed screen-size like item icons).
 - **ROOM** — drag a fog-of-war region. A region owns the geometry whose centre it
   contains (smallest region wins), so draw it to cover a room and its walls. New
   regions start Hidden; select one and press **H** to toggle Hidden/Revealed, and

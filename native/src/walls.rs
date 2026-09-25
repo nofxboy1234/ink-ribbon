@@ -57,20 +57,62 @@ pub struct WallPlan {
 
 /// The wall lines for a floor: the room union's boundary (outer, brighter) plus
 /// the boundary of its eroded interior (inner, dimmer), plus any interior
-/// partitions (dim on both lines). Because rooms union, overlapping rectangles
-/// merge and leave no internal wall.
+/// partitions. Because rooms union, overlapping rectangles merge and leave no
+/// internal wall.
+///
+/// Partitions carve the walkable interior, so the room-facing inner contour and
+/// the partitions are extracted as one boundary. That makes a partition meet the
+/// room wall with a clean mitered T-junction (rather than two independent
+/// outlines), and a partition that reaches into the wall band stops at the inner
+/// line. Edges that lie along a partition keep the dim `Interior` tone so door
+/// snapping still treats them as walls.
 pub fn wall_plan(floor: &Floor) -> WallPlan {
     let mut plan = boundary(&floor.wall_ops());
-    let mut inner = boundary(&floor.interior_ops());
+    set_tone(&mut plan, WallTone::Outer);
+
+    let partitions = floor.partition_ops();
+    let mut inner_ops = floor.interior_ops();
+    for (mode, r) in &partitions {
+        // A partition Add removes walkable interior; a partition Sub opens it.
+        let carve = if *mode == BoolOp::Add {
+            BoolOp::Sub
+        } else {
+            BoolOp::Add
+        };
+        inner_ops.push((carve, *r));
+    }
+    let mut inner = boundary(&inner_ops);
     set_tone(&mut inner, WallTone::Inner);
+    tag_partitions(&mut inner, &partitions);
     plan.edges.extend(inner.edges);
     plan.corners.extend(inner.corners);
-
-    let mut partitions = boundary(&floor.partition_ops());
-    set_tone(&mut partitions, WallTone::Interior);
-    plan.edges.extend(partitions.edges);
-    plan.corners.extend(partitions.corners);
     plan
+}
+
+/// Mark the inner contour's edges and corners that run along a partition as
+/// `Interior` (dim), the tone door snapping and rendering expect for walls.
+fn tag_partitions(plan: &mut WallPlan, partitions: &[(BoolOp, Rect)]) {
+    let on_partition = |x: f32, y: f32| {
+        partitions.iter().any(|(_, r)| {
+            let v = (x - r.x).abs() < 0.01 || (x - (r.x + r.w)).abs() < 0.01;
+            let h = (y - r.y).abs() < 0.01 || (y - (r.y + r.h)).abs() < 0.01;
+            let within_x = x >= r.x - 0.01 && x <= r.x + r.w + 0.01;
+            let within_y = y >= r.y - 0.01 && y <= r.y + r.h + 0.01;
+            (v && within_y) || (h && within_x)
+        })
+    };
+    for e in &mut plan.edges {
+        let mx = (e.x0 + e.x1) * 0.5;
+        let my = (e.y0 + e.y1) * 0.5;
+        if on_partition(mx, my) {
+            e.tone = WallTone::Interior;
+        }
+    }
+    for c in &mut plan.corners {
+        if on_partition(c.x, c.y) {
+            c.tone = WallTone::Interior;
+        }
+    }
 }
 
 fn set_tone(plan: &mut WallPlan, tone: WallTone) {
@@ -377,12 +419,22 @@ mod tests {
 
     #[test]
     fn a_partition_is_dim_on_both_lines() {
+        // A partition inside a room carves the interior; its two lines are dim
+        // and join the room's inner contour.
         let mut floor = Floor::new(FLOOR1_INDEX);
-        floor.partitions.push(add(rect(0.0, 0.0, 200.0, 60.0)));
+        floor.walls.push(add(rect(0.0, 0.0, 200.0, 120.0)));
+        floor.partitions.push(add(rect(90.0, 0.0, 20.0, 120.0)));
         let plan = wall_plan(&floor);
-        assert!(!plan.edges.is_empty());
-        assert!(plan.edges.iter().all(|e| e.tone == WallTone::Interior));
-        assert!(plan.corners.iter().all(|c| c.tone == WallTone::Interior));
+        assert!(plan.edges.iter().any(|e| e.tone == WallTone::Outer));
+        assert!(plan.edges.iter().any(|e| e.tone == WallTone::Inner));
+        let interior_vertical = plan
+            .edges
+            .iter()
+            .filter(|e| {
+                e.tone == WallTone::Interior && matches!(e.dir, EdgeDir::Left | EdgeDir::Right)
+            })
+            .count();
+        assert_eq!(interior_vertical, 2, "the partition's two sides are dim");
     }
 
     #[test]

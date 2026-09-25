@@ -409,6 +409,9 @@ fn bake_items(scene: &Scene) -> Option<Vec<u8>> {
     let mut records: Vec<(usize, u32, ItemKind, &str, (f32, f32))> = Vec::new();
     for (index, floor) in scene.floors.iter().enumerate() {
         for item in &floor.items {
+            if !item.kind.is_baked() {
+                continue;
+            }
             records.push((index, item.id, item.kind, item.name.as_str(), item.pos));
         }
     }
