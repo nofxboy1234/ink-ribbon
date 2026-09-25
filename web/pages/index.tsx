@@ -6,14 +6,37 @@ import "./styles.css";
 const DEFAULT_FLOOR = 2;
 const FLOOR_LABELS = ["FLOOR 3", "FLOOR 2", "FLOOR 1"];
 
-type RunState = { steps: number; turn: number; floor: number };
+type Goal = { label: string; floor: number };
+type RunState = {
+  steps: number;
+  turn: number;
+  floor: number;
+  goal: number;
+  routeVisible: boolean;
+  goals: Goal[];
+};
+type InkRibbonCommand = {
+  newRun: boolean;
+  goal: number;
+  routeVisible: boolean | null;
+};
 type InkRibbonWindow = Window & {
-  inkRibbonCommand?: { newRun: boolean };
+  inkRibbonCommand?: InkRibbonCommand;
+  __inkRibbonState?: RunState;
+};
+
+const EMPTY_RUN: RunState = {
+  steps: 0,
+  turn: 0,
+  floor: DEFAULT_FLOOR,
+  goal: -1,
+  routeVisible: true,
+  goals: [],
 };
 
 export default function HomePage(_props: Props) {
   const [floor, setFloor] = useState(DEFAULT_FLOOR);
-  const [run, setRun] = useState<RunState>({ steps: 0, turn: 0, floor: DEFAULT_FLOOR });
+  const [run, setRun] = useState<RunState>(EMPTY_RUN);
 
   useEffect(() => {
     const onFloorChange = (event: Event) => {
@@ -30,18 +53,42 @@ export default function HomePage(_props: Props) {
     };
     window.addEventListener("ink-ribbon:floor", onFloorChange);
     window.addEventListener("ink-ribbon:state", onStateChange);
+    // The wasm may push its first state before React mounts; pick it up here.
+    const latest = (window as InkRibbonWindow).__inkRibbonState;
+    if (latest && typeof latest.steps === "number") {
+      setRun(latest);
+    }
     return () => {
       window.removeEventListener("ink-ribbon:floor", onFloorChange);
       window.removeEventListener("ink-ribbon:state", onStateChange);
     };
   }, []);
 
+  const command = () => (window as InkRibbonWindow).inkRibbonCommand;
+
   const newRun = () => {
-    const command = (window as InkRibbonWindow).inkRibbonCommand;
-    if (command) {
-      command.newRun = true;
+    const cmd = command();
+    if (cmd) {
+      cmd.newRun = true;
     }
     setRun((prev) => ({ ...prev, steps: 0, turn: 0 }));
+  };
+
+  const selectGoal = (index: number) => {
+    const cmd = command();
+    if (cmd) {
+      cmd.goal = run.goal === index ? -1 : index;
+    }
+    setRun((prev) => ({ ...prev, goal: prev.goal === index ? -1 : index }));
+  };
+
+  const toggleRoute = () => {
+    const next = !run.routeVisible;
+    const cmd = command();
+    if (cmd) {
+      cmd.routeVisible = next;
+    }
+    setRun((prev) => ({ ...prev, routeVisible: next }));
   };
 
   return (
@@ -110,9 +157,10 @@ export default function HomePage(_props: Props) {
                 "  try { return localStorage.getItem('ink-ribbon-save-' + n) ? 1 : 0; } catch (e) { return 0; }" +
                 "};" +
                 "window.inkRibbonOnState = function (state) {" +
+                "  window.__inkRibbonState = state;" +
                 "  window.dispatchEvent(new CustomEvent('ink-ribbon:state', { detail: state }));" +
                 "};" +
-                "window.inkRibbonCommand = { newRun: false };",
+                "window.inkRibbonCommand = { newRun: false, goal: -999, routeVisible: null };",
             }}
           />
           <script src="/map.js" />
@@ -137,6 +185,29 @@ export default function HomePage(_props: Props) {
           </div>
           <button type="button" className="panel-action" onClick={newRun}>
             NEW RUN
+          </button>
+          <div className="panel-rule" />
+          <h2>GOALS</h2>
+          {run.goals.length === 0 ? (
+            <p className="panel-empty">Nothing left on this floor.</p>
+          ) : (
+            <ul className="goal-list">
+              {run.goals.map((goal, index) => (
+                <li key={`${goal.label}-${index}`}>
+                  <button
+                    type="button"
+                    className={index === run.goal ? "goal-item selected" : "goal-item"}
+                    onClick={() => selectGoal(index)}
+                  >
+                    <span className="goal-label">{goal.label}</span>
+                    <span className="goal-floor">{FLOOR_LABELS[goal.floor] ?? ""}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button type="button" className="panel-action" onClick={toggleRoute}>
+            {run.routeVisible ? "HIDE ROUTE" : "SHOW ROUTE"}
           </button>
           <div className="panel-rule" />
           <h2>LEGEND</h2>

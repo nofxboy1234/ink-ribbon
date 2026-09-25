@@ -314,19 +314,71 @@ fn notify_floor(floor: usize) {
     }
 }
 
-// Push the turn-based run state (steps/turn/floor) to the web shell. Only fires
-// when it changes unless `force` (a fresh run / slot load).
+// Escape a string for embedding in a JSON string literal.
+#[cfg_attr(not(target_os = "emscripten"), allow(dead_code))]
+fn json_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+// A cheap signature of the goals list + selection, so notify only fires on
+// change.
+fn goals_signature(state: &State) -> u32 {
+    let mut h = 2166136261u32;
+    for g in &state.goals {
+        let (tag, id) = match g.kind {
+            GoalKind::Item(id) => (1u32, id),
+            GoalKind::Door(id) => (2, id),
+            GoalKind::Trigger(id) => (3, id),
+        };
+        h = (h ^ tag).wrapping_mul(16777619);
+        h = (h ^ id).wrapping_mul(16777619);
+    }
+    h = (h ^ state.goal.map(|i| i as u32 + 1).unwrap_or(0)).wrapping_mul(16777619);
+    (h ^ state.route_visible as u32).wrapping_mul(16777619)
+}
+
+// Push the turn-based run state (steps/turn/floor, goals) to the web shell. Only
+// fires when it changes unless `force` (a fresh run / slot load).
 fn notify_state(state: &mut State, force: bool) {
-    let now = (state.steps, state.turn, state.floor);
+    let now = (state.steps, state.turn, state.floor, goals_signature(state));
     if !force && state.notified_state == Some(now) {
         return;
     }
     state.notified_state = Some(now);
     #[cfg(target_os = "emscripten")]
     {
+        let mut goals = String::from("[");
+        for (i, g) in state.goals.iter().enumerate() {
+            if i > 0 {
+                goals.push(',');
+            }
+            goals.push_str(&format!(
+                "{{\"label\":\"{}\",\"floor\":{}}}",
+                json_escape(&g.label),
+                g.floor
+            ));
+        }
+        goals.push(']');
         let script = format!(
-            "window.inkRibbonOnState && window.inkRibbonOnState({{steps:{},turn:{},floor:{}}})",
-            now.0, now.1, now.2
+            "window.inkRibbonOnState && window.inkRibbonOnState({{steps:{},turn:{},floor:{},goal:{},routeVisible:{},goals:{}}})",
+            now.0,
+            now.1,
+            now.2,
+            state.goal.map(|i| i as i32).unwrap_or(-1),
+            state.route_visible,
+            goals
         );
         if let Ok(script) = ffi::CString::new(script) {
             unsafe { emscripten_run_script(script.as_ptr()) };
@@ -347,6 +399,7 @@ fn new_run(state: &mut State) {
     state.hover_cell = None;
     state.hover_path.clear();
     rebuild_move(state);
+    on_progress_changed(state);
     notify_state(state, true);
     set_status(state, "NEW RUN");
 }
@@ -372,6 +425,18 @@ fn poll_command(state: &mut State) {
             unsafe { emscripten_run_script_int(NEW_RUN.as_ptr() as *const ffi::c_char) != 0 };
         if reset {
             new_run(state);
+        }
+        // goal selection: -999 = unchanged, negative = clear, else an index.
+        const GOAL: &[u8] = b"try { var c=window.inkRibbonCommand; if(!c||typeof c.goal!=='number'||c.goal===-999){-999}else{var g=c.goal;c.goal=-999;g} } catch(e){-999}\0";
+        let goal = unsafe { emscripten_run_script_int(GOAL.as_ptr() as *const ffi::c_char) };
+        if goal != -999 {
+            set_goal(state, (goal >= 0).then_some(goal as usize));
+        }
+        // route visibility: -1 = unchanged, else 0/1.
+        const ROUTE: &[u8] = b"try { var c=window.inkRibbonCommand; if(!c||typeof c.routeVisible!=='boolean'){-1}else{var r=c.routeVisible?1:0;c.routeVisible=null;r} } catch(e){-1}\0";
+        let route = unsafe { emscripten_run_script_int(ROUTE.as_ptr() as *const ffi::c_char) };
+        if route >= 0 {
+            state.route_visible = route != 0;
         }
     }
     #[cfg(not(target_os = "emscripten"))]
@@ -1043,6 +1108,22 @@ struct MoveAnim {
     cells: u32,
 }
 
+// A route target surfaced to the web shell's goals list.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum GoalKind {
+    Item(u32),
+    Door(u32),
+    Trigger(u32),
+}
+
+#[derive(Clone, PartialEq, Debug)]
+struct Goal {
+    kind: GoalKind,
+    label: String,
+    floor: usize,
+    pos: (f32, f32),
+}
+
 struct State {
     layout: Layout,
     zoom_anchor: Option<ZoomAnchor>,
@@ -1114,7 +1195,6 @@ struct State {
     // Reachable component per floor, computed from where the player is standing.
     reachable: [Vec<u8>; NUM_FLOORS],
     path_red: Vec<(f32, f32)>,
-    target: Option<usize>,
     path: Vec<(f32, f32)>,
     show_grid: bool,
     time: f32,
@@ -1158,6 +1238,10 @@ struct State {
     hover_item: Option<usize>,
     arrow_up_t: f32,
     arrow_down_t: f32,
+    // --- Goals (routed on the web shell's list) ---
+    goals: Vec<Goal>,
+    goal: Option<usize>,
+    route_visible: bool,
     // --- Turn-based movement ---
     move_grid: [MoveGrid; NUM_FLOORS],
     move_reach: [Vec<u16>; NUM_FLOORS],
@@ -1167,8 +1251,8 @@ struct State {
     hover_path: Vec<(f32, f32)>,
     hover_run: bool,
     move_anim: Option<MoveAnim>,
-    // Last (steps, turn, floor) pushed to the web shell.
-    notified_state: Option<(u32, u32, usize)>,
+    // Last (steps, turn, floor, goals signature) pushed to the web shell.
+    notified_state: Option<(u32, u32, usize, u32)>,
     floor: usize,
     zoom: f32,
     pan_x: f32,
@@ -1287,6 +1371,7 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
         None => Vec::new(),
     };
     rebuild_move(state);
+    on_progress_changed(state);
 }
 
 // Viewed-floor change (selector, arrows). The player stays where they are; only
@@ -1312,9 +1397,7 @@ fn take_stairs(state: &mut State, to_floor: usize, to_pos: (f32, f32)) {
     state.pending_spawn = Some(to_pos);
     state.stair_lock = true;
     state.player_vel = (0.0, 0.0);
-    state.target = None;
-    state.path.clear();
-    state.path_red.clear();
+    clear_goal_route(state);
     change_floor(state, to_floor);
 }
 
@@ -1629,6 +1712,7 @@ fn update_move(state: &mut State, delta: f32) {
         let pf = state.player_floor;
         state.player_cell = Some(state.move_grid[pf].source_cell(state.player.0, state.player.1));
         rebuild_move(state);
+        on_progress_changed(state);
         notify_state(state, true);
     }
 }
@@ -2082,6 +2166,132 @@ fn mark_region_visited(state: &mut State) -> bool {
     false
 }
 
+// --- Goals -----------------------------------------------------------------
+
+// Rebuild the goals list for the player's floor: collectibles, doors they can
+// unlock, and unexplored reveal triggers.
+fn recompute_goals(state: &mut State) {
+    let floor = state.player_floor;
+    // Keep the selection across a rebuild by identity; drop it when completed.
+    let selected = state.goal.and_then(|i| state.goals.get(i)).map(|g| g.kind);
+    let mut goals = Vec::new();
+    for it in &state.play_scene.floors[floor].items {
+        if it.kind.is_collectible() && !is_collected(state, it.id) {
+            goals.push(Goal {
+                kind: GoalKind::Item(it.id),
+                label: format!("Pick up {}", it.name),
+                floor,
+                pos: it.pos,
+            });
+        }
+    }
+    for d in &state.play_scene.floors[floor].doors {
+        if d.kind == DoorKind::Locked && door_has_inventory_key(state, floor, d.id) {
+            goals.push(Goal {
+                kind: GoalKind::Door(d.id),
+                label: "Unlock door".to_string(),
+                floor,
+                pos: d.center,
+            });
+        }
+    }
+    // Unexplored areas: a trigger linked to a region that is still Hidden.
+    let triggers: Vec<Trigger> = state.scene.floors[floor].triggers.clone();
+    for t in triggers {
+        if state.fired_triggers.contains(&(floor, t.id)) {
+            continue;
+        }
+        for link in &state.scene.floors[floor].links {
+            let Link::TriggerRegion {
+                trigger_floor,
+                trigger_id,
+                region_floor,
+                region_id,
+            } = *link
+            else {
+                continue;
+            };
+            if trigger_floor as usize != floor || trigger_id != t.id {
+                continue;
+            }
+            let rf = region_floor as usize;
+            let region = state.scene.floors[rf]
+                .regions
+                .iter()
+                .find(|r| r.id == region_id);
+            let hidden = region.is_some_and(|r| {
+                region_state_raw(rf, r, &state.visited, &state.revealed_regions)
+                    == RegionState::Hidden
+            });
+            if hidden {
+                let name = region.map(|r| r.name.clone()).unwrap_or_default();
+                let label = if name.is_empty() {
+                    "Explore an area".to_string()
+                } else {
+                    format!("Explore {name}")
+                };
+                goals.push(Goal {
+                    kind: GoalKind::Trigger(t.id),
+                    label,
+                    floor,
+                    pos: rect_center(t.rect),
+                });
+            }
+        }
+    }
+    state.goals = goals;
+    state.goal = selected.and_then(|k| state.goals.iter().position(|g| g.kind == k));
+}
+
+// Select (or clear) a goal and recompute its route.
+#[cfg_attr(not(target_os = "emscripten"), allow(dead_code))]
+fn set_goal(state: &mut State, goal: Option<usize>) {
+    state.goal = match goal {
+        Some(i) if i < state.goals.len() => Some(i),
+        _ => None,
+    };
+    refresh_goal_route(state);
+}
+
+fn clear_goal_route(state: &mut State) {
+    state.goal = None;
+    state.path.clear();
+    state.path_red.clear();
+}
+
+// Shortest route to the selected goal: green up to the reachable component,
+// red past a blocker (a locked door or an unrevealed area).
+fn refresh_goal_route(state: &mut State) {
+    state.path.clear();
+    state.path_red.clear();
+    let Some(goal) = state.goal.and_then(|i| state.goals.get(i)).cloned() else {
+        return;
+    };
+    let floor = state.player_floor;
+    if goal.floor != floor || state.floor != floor {
+        return;
+    }
+    if let Some(start) = snap_source(&state.nav[floor], state.player.0, state.player.1) {
+        ensure_reachable(state, floor, start);
+    }
+    let (green, red) = route_to(
+        &mut state.astar,
+        &state.nav[floor],
+        &state.nav_open[floor],
+        &state.reachable[floor],
+        state.player,
+        goal.pos,
+    );
+    state.path = green;
+    state.path_red = red;
+}
+
+// Progress or a move changed what is available: refresh goals and the route.
+fn on_progress_changed(state: &mut State) {
+    recompute_goals(state);
+    refresh_goal_route(state);
+}
+
 // True when any collected key is linked to this door.
 fn door_has_inventory_key(state: &State, floor: usize, door_id: u32) -> bool {
     state
@@ -2299,15 +2509,16 @@ fn collect_item(state: &mut State, id: u32, name: &str) {
     // Items don't affect the nav/solid grids or the overlays, so just drop the
     // picked-up item from the baked list instead of re-baking everything.
     state.items.retain(|it| it.id != id);
-    state.target = None;
-    state.path.clear();
-    state.path_red.clear();
+    clear_goal_route(state);
     // A map item can reveal a region, which does change the baked geometry.
     if reveal_regions_linked_to(state, |l| {
         matches!(l, Link::ItemRegion { item_floor, item_id, .. }
             if *item_floor as usize == floor && *item_id == id)
     }) {
         rebuild_assets(state);
+    } else {
+        // Otherwise only the goals list changed (the item is now collected).
+        on_progress_changed(state);
     }
     set_status(state, format!("picked up {name}"));
 }
@@ -3214,9 +3425,7 @@ fn apply_gameplay(
 fn reset_navigation(state: &mut State) {
     // Navigation changed: reset reachability and re-snap the player.
     state.reachable = std::array::from_fn(|_| Vec::new());
-    state.target = None;
-    state.path.clear();
-    state.path_red.clear();
+    clear_goal_route(state);
     let pf = state.player_floor;
     if let Some(cell) = snap_source(&state.nav[pf], state.player.0, state.player.1) {
         state.player = cell_to_source(&state.nav[pf], cell.0, cell.1);
@@ -3224,6 +3433,7 @@ fn reset_navigation(state: &mut State) {
         state.reachable[pf] = reachable_from(&state.nav[pf], cell);
     }
     rebuild_move(state);
+    on_progress_changed(state);
 }
 
 // Recompute the player's turn-based reachable set from the move grid.
@@ -4656,9 +4866,7 @@ fn apply_save(state: &mut State, save: PlayerSave) {
     state.item_box = save.item_box;
     state.item_box_cursor = 0;
     state.play_time = save.play_time;
-    state.target = None;
-    state.path.clear();
-    state.path_red.clear();
+    clear_goal_route(state);
     state.menu = Menu::None;
     state.inventory_open = false;
     state.pending_floor = None;
@@ -6399,46 +6607,38 @@ fn draw_floor(
     // Hover rope: the path a click would take this turn, over the map art.
     draw_hover_path(state, frame, ox, oy, iw, ih);
 
-    // Computed route and selected target ring, if the target is on this floor.
-    if state
-        .target
-        .is_some_and(|i| state.items[i].floor == state.floor)
-    {
-        if !state.path.is_empty() {
-            let route: Vec<(f32, f32)> = state
-                .path
-                .iter()
-                .map(|&(sx, sy)| src_to_ref(frame, ox, oy, iw, ih, sx, sy))
-                .collect();
-            sgl::c4f(C_ROUTE.0, C_ROUTE.1, C_ROUTE.2, 1.0);
-            thick_polyline(&route, PATH_WIDTH);
+    // Selected goal route and ring, when shown and on the viewed floor.
+    if state.route_visible {
+        if let Some(goal) = state.goal.and_then(|i| state.goals.get(i)) {
+            if goal.floor == state.floor {
+                if !state.path.is_empty() {
+                    let route: Vec<(f32, f32)> = state
+                        .path
+                        .iter()
+                        .map(|&(sx, sy)| src_to_ref(frame, ox, oy, iw, ih, sx, sy))
+                        .collect();
+                    sgl::c4f(C_ROUTE.0, C_ROUTE.1, C_ROUTE.2, 0.75);
+                    thick_polyline(&route, PATH_WIDTH);
+                }
+                if !state.path_red.is_empty() {
+                    let route: Vec<(f32, f32)> = state
+                        .path_red
+                        .iter()
+                        .map(|&(sx, sy)| src_to_ref(frame, ox, oy, iw, ih, sx, sy))
+                        .collect();
+                    sgl::c4f(C_LOCK.0, C_LOCK.1, C_LOCK.2, 0.75);
+                    thick_polyline(&route, PATH_WIDTH);
+                }
+                let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, goal.pos.0, goal.pos.1);
+                let color = if state.path_red.is_empty() {
+                    C_ROUTE
+                } else {
+                    C_LOCK
+                };
+                sgl::c4f(color.0, color.1, color.2, 1.0);
+                outline_circle(rx, ry, ITEM_RADIUS + 6.0);
+            }
         }
-        if !state.path_red.is_empty() {
-            let route: Vec<(f32, f32)> = state
-                .path_red
-                .iter()
-                .map(|&(sx, sy)| src_to_ref(frame, ox, oy, iw, ih, sx, sy))
-                .collect();
-            sgl::c4f(C_LOCK.0, C_LOCK.1, C_LOCK.2, 1.0);
-            thick_polyline(&route, PATH_WIDTH);
-        }
-        let i = state.target.unwrap();
-        let (rx, ry) = src_to_ref(
-            frame,
-            ox,
-            oy,
-            iw,
-            ih,
-            state.items[i].pos.0,
-            state.items[i].pos.1,
-        );
-        let color = if state.path_red.is_empty() {
-            C_ROUTE
-        } else {
-            C_LOCK
-        };
-        sgl::c4f(color.0, color.1, color.2, 1.0);
-        outline_circle(rx, ry, ITEM_RADIUS + 4.0);
     }
 
     // Player marker on whichever floor the player actually occupies.
@@ -7777,7 +7977,6 @@ fn main() {
         status_t: 0.0,
         reachable: std::array::from_fn(|_| Vec::new()),
         path_red: Vec::new(),
-        target: None,
         path: Vec::new(),
         show_grid: false,
         time: 0.0,
@@ -7820,6 +8019,9 @@ fn main() {
         hover_item: None,
         arrow_up_t: 0.0,
         arrow_down_t: 0.0,
+        goals: Vec::new(),
+        goal: None,
+        route_visible: true,
         move_grid,
         move_reach: std::array::from_fn(|_| Vec::new()),
         turn: 0,

@@ -139,6 +139,49 @@ body {
   color: var(--accent);
 }
 
+.panel-empty {
+  color: var(--muted);
+  margin: -8px 0 14px;
+}
+
+.goal-list {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.goal-item {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.goal-item:hover {
+  border-color: var(--accent);
+}
+
+.goal-item.selected {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.goal-floor {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 .details-panel p {
   display: flex;
   align-items: center;
