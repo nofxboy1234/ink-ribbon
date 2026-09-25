@@ -6576,6 +6576,26 @@ fn is_reachable(bits: &[u8], nav: &Nav, x: i32, y: i32) -> bool {
 #[allow(dead_code)]
 type Route = Vec<(f32, f32)>;
 
+// The reachable cell closest to `to`. Used as the route goal so the route
+// approaches from the player's side: snapping to the nearest *walkable* cell can
+// land on the far side of a wall, forcing a long way around.
+fn closest_reachable_cell(nav: &Nav, reachable: &[u8], to: (f32, f32)) -> Option<(i32, i32)> {
+    let mut best: Option<(f32, (i32, i32))> = None;
+    for y in 0..nav.h {
+        for x in 0..nav.w {
+            if !is_reachable(reachable, nav, x, y) {
+                continue;
+            }
+            let (sx, sy) = cell_to_source(nav, x, y);
+            let d = (sx - to.0).powi(2) + (sy - to.1).powi(2);
+            if best.is_none_or(|(bd, _)| d < bd) {
+                best = Some((d, (x, y)));
+            }
+        }
+    }
+    best.map(|(_, c)| c)
+}
+
 // Route to a target. Returns (green reachable part, red part past the blocker).
 #[allow(dead_code)]
 fn route_to(
@@ -6586,34 +6606,42 @@ fn route_to(
     from: (f32, f32),
     to: (f32, f32),
 ) -> (Route, Route) {
-    if let Some(goal) = snap_source(nav, to.0, to.1) {
-        if is_reachable(reachable, nav, goal.0, goal.1) {
-            let green = compute_path(astar, nav, from, to);
-            if !green.is_empty() {
+    // Green: shortest route to the reachable cell nearest the target, so it
+    // approaches from the player's side even when the target sits on a wall.
+    let exact = snap_source(nav, to.0, to.1);
+    if let (Some(start), Some(goal)) = (
+        snap_source(nav, from.0, from.1),
+        closest_reachable_cell(nav, reachable, to),
+    ) {
+        if let Some(cells) = astar.search(nav, start, goal) {
+            let green: Route = simplify(
+                cells
+                    .iter()
+                    .map(|&(x, y)| cell_to_source(nav, x, y))
+                    .collect(),
+            );
+            // If the target itself is reachable, no red part.
+            if exact == Some(goal) {
                 return (green, Vec::new());
             }
-        }
-    }
-    // Optimistic grid (locked doors passable): split where it enters blocked space.
-    if let (Some(start), Some(goal)) = (
-        snap_source(nav_open, from.0, from.1),
-        snap_source(nav_open, to.0, to.1),
-    ) {
-        if let Some(cells) = astar.search(nav_open, start, goal) {
-            let split = cells
-                .iter()
-                .position(|&(x, y)| !is_reachable(reachable, nav, x, y))
-                .unwrap_or(cells.len());
-            let from_cell = split.saturating_sub(1);
-            let green = cells[..split]
-                .iter()
-                .map(|&(x, y)| cell_to_source(nav, x, y))
-                .collect();
-            let red = cells[from_cell..]
-                .iter()
-                .map(|&(x, y)| cell_to_source(nav, x, y))
-                .collect();
-            return (simplify(green), simplify(red));
+            // Otherwise show the optimistic remainder past the blocker.
+            let approach = cell_to_source(nav, goal.0, goal.1);
+            if let (Some(s), Some(g)) = (
+                snap_source(nav_open, approach.0, approach.1),
+                snap_source(nav_open, to.0, to.1),
+            ) {
+                if let Some(rest) = astar.search(nav_open, s, g) {
+                    if rest.len() > 1 {
+                        let red: Route = simplify(
+                            rest.iter()
+                                .map(|&(x, y)| cell_to_source(nav, x, y))
+                                .collect(),
+                        );
+                        return (green, red);
+                    }
+                }
+            }
+            return (green, Vec::new());
         }
     }
     (Vec::new(), Vec::new())
@@ -9274,5 +9302,23 @@ mod tests {
         // Player markers are editor-only, so they are not baked as items.
         assert!(!ItemKind::Player.is_baked());
         assert!(!ItemKind::Player.is_collectible());
+    }
+
+    #[test]
+    fn goal_route_approaches_from_the_player_side() {
+        // A vertical wall at x == 20 for y < 30; the two sides only connect
+        // around the bottom (y >= 30). The target sits on the wall.
+        let nav = synthetic_nav(40, 40, |x, y| x == 20 && y < 30);
+        let reachable = reachable_from(&nav, (10, 10));
+        let from = cell_to_source(&nav, 10, 10);
+        let to = cell_to_source(&nav, 20, 10);
+        let (green, _red) = route_to(&mut Astar::new(), &nav, &nav, &reachable, from, to);
+        assert!(!green.is_empty(), "expected a route");
+        assert!(green.len() <= 3, "route should be direct, got {green:?}");
+        let wall_y = cell_to_source(&nav, 0, 30).1;
+        assert!(
+            green.iter().all(|p| p.1 < wall_y),
+            "route took the long way around: {green:?}"
+        );
     }
 }
