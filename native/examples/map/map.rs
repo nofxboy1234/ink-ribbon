@@ -1158,6 +1158,9 @@ struct State {
     pass_action: sg::PassAction,
     pipeline: sgl::Pipeline,
     overlay_views: [sg::View; NUM_FLOORS],
+    // The images behind the views; both must be destroyed when an overlay is
+    // re-uploaded or the image pool leaks on every edit.
+    overlay_images: [sg::Image; NUM_FLOORS],
     overlay_sampler: sg::Sampler,
     // CPU-side baked overlay bytes, kept so textures can be (re)created on apply.
     overlay_data: [OverlayBytes; NUM_FLOORS],
@@ -1294,7 +1297,7 @@ struct State {
 
 // A floor's traced overlay is blank until it has been drawn in Krita; blank
 // floors keep the procedural fallback.
-fn overlay_texture(rgba: &[u8], width: i32, height: i32) -> sg::View {
+fn overlay_texture(rgba: &[u8], width: i32, height: i32) -> (sg::Image, sg::View) {
     assert_eq!(rgba.len(), (width * height * 4) as usize);
     let pixels: Vec<u32> = rgba
         .as_chunks::<4>()
@@ -1313,13 +1316,14 @@ fn overlay_texture(rgba: &[u8], width: i32, height: i32) -> sg::View {
         pixel_format: sg::PixelFormat::Rgba8,
         ..Default::default()
     });
-    sg::make_view(&sg::ViewDesc {
+    let view = sg::make_view(&sg::ViewDesc {
         texture: sg::TextureViewDesc {
             image,
             ..Default::default()
         },
         ..Default::default()
-    })
+    });
+    (image, view)
 }
 
 // Source frame (x, y, width, height) used to lay the current floor's art inside
@@ -1351,10 +1355,12 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
         ..Default::default()
     });
     state.font = Some(Font::new());
-    state.overlay_views = std::array::from_fn(|i| {
+    for i in 0..NUM_FLOORS {
         let o = &state.overlay_data[i];
-        overlay_texture(&o.rgba, o.w, o.h)
-    });
+        let (image, view) = overlay_texture(&o.rgba, o.w, o.h);
+        state.overlay_images[i] = image;
+        state.overlay_views[i] = view;
+    }
     state.overlay_sampler = sg::make_sampler(&sg::SamplerDesc {
         min_filter: sg::Filter::Linear,
         mag_filter: sg::Filter::Linear,
@@ -3452,7 +3458,10 @@ fn rebuild_assets(state: &mut State) {
     state.wall_plans_dirty = false;
     for (i, overlay) in overlays.into_iter().enumerate() {
         sg::destroy_view(state.overlay_views[i]);
-        state.overlay_views[i] = overlay_texture(&overlay.rgba, overlay.w, overlay.h);
+        sg::destroy_image(state.overlay_images[i]);
+        let (image, view) = overlay_texture(&overlay.rgba, overlay.w, overlay.h);
+        state.overlay_images[i] = image;
+        state.overlay_views[i] = view;
         state.overlay_data[i] = overlay;
     }
     reset_navigation(state);
@@ -3484,7 +3493,10 @@ fn refresh_items_and_stairs(state: &mut State, scene: &Scene) {
 fn rebuild_overlay(state: &mut State, f: usize, scene: &Scene) {
     let overlay = ink_ribbon_native::bake::bake_floor_overlay(scene, f);
     sg::destroy_view(state.overlay_views[f]);
-    state.overlay_views[f] = overlay_texture(&overlay.rgba, overlay.w, overlay.h);
+    sg::destroy_image(state.overlay_images[f]);
+    let (image, view) = overlay_texture(&overlay.rgba, overlay.w, overlay.h);
+    state.overlay_images[f] = image;
+    state.overlay_views[f] = view;
     state.overlay_data[f] = overlay;
 }
 
@@ -8092,6 +8104,7 @@ fn main() {
         pass_action: sg::PassAction::new(),
         pipeline: sgl::Pipeline::new(),
         overlay_views: std::array::from_fn(|_| sg::View::new()),
+        overlay_images: std::array::from_fn(|_| sg::Image::new()),
         overlay_sampler: sg::Sampler::new(),
         overlay_data: overlays,
         font: None,
