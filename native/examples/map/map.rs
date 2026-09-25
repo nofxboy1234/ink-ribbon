@@ -6927,11 +6927,11 @@ fn draw_tool_tooltip(state: &State, font: &Font, index: usize) {
     let tool = Tool::ALL[index];
     let help = tool.help();
     let (bx, _, _, _) = editor_button_rect(index);
-    let (pad, title_scale, body_scale) = (10.0, 0.9, 0.78);
+    let (pad, title_scale, body_scale) = (12.0, 1.35, 1.17);
     let title_w = font.text_width(tool.label(), 19.5 * title_scale);
     let body_w = font.text_width(help, 19.5 * body_scale);
     let w = title_w.max(body_w) + pad * 2.0 + 6.0;
-    let h = 50.0;
+    let h = 58.0;
     let l = state.layout;
     let min_x = l.map_x + 8.0;
     let max_x = (l.map_x + l.map_w - w - 8.0).max(min_x);
@@ -6942,8 +6942,8 @@ fn draw_tool_tooltip(state: &State, font: &Font, index: usize) {
     let c = tool.color();
     sgl::c4f(c.0, c.1, c.2, 0.9);
     outline_rect(x, y, w, h);
-    draw_ui_text(font, tool.label(), x + pad, y + 7.0, c, false, title_scale);
-    draw_ui_text(font, help, x + pad, y + 27.0, C_LABEL, false, body_scale);
+    draw_ui_text(font, tool.label(), x + pad, y + 8.0, c, false, title_scale);
+    draw_ui_text(font, help, x + pad, y + 32.0, C_LABEL, false, body_scale);
 }
 
 // Edit-mode overlay: vector objects for the viewed floor plus the tool bar.
@@ -7199,11 +7199,11 @@ fn draw_editor(
         draw_ui_text(
             font,
             tool.label(),
-            bx + 7.0,
-            by + 12.0,
+            bx + 6.0,
+            by + 7.5,
             if active { C_HILITE } else { C_LABEL },
             false,
-            0.8,
+            1.2,
         );
     }
 
