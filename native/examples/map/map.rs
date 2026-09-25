@@ -3,9 +3,9 @@ use std::ffi;
 use ink_ribbon_native::bake::{bake, bake_floor_nav, BakedBytes, OverlayBytes, CELL_PX};
 use ink_ribbon_native::save::{format_unix_utc, PlayerSave};
 use ink_ribbon_native::scene::{
-    BoolOp, Box2, Door, DoorKind, ItemDef, ItemKind, Link, Rect, Region, RegionState, RoomLabel,
-    Scene, StairNode, Trigger, WallOp, DOOR_LONG_PX, DOOR_THICK_PX, FLOOR_FRAMES, NUM_FLOORS,
-    ROOM_WALL_PX,
+    BoolOp, Box2, Door, DoorKind, Floor, ItemDef, ItemKind, Link, Rect, Region, RegionState,
+    RoomLabel, Scene, StairNode, Trigger, WallOp, DOOR_LONG_PX, DOOR_THICK_PX, FLOOR_FRAMES,
+    NUM_FLOORS, ROOM_WALL_PX,
 };
 use ink_ribbon_native::walls::{region_rects, wall_plan, EdgeDir, WallPlan, WallTone};
 use sokol::{app as sapp, gfx as sg, gl as sgl, glue as sglue};
@@ -889,6 +889,7 @@ enum Tool {
     DoorUnknown,
     Stair,
     Item,
+    Player,
     Label,
     Region,
     Trigger,
@@ -897,7 +898,7 @@ enum Tool {
 }
 
 impl Tool {
-    const ALL: [Tool; 15] = [
+    const ALL: [Tool; 16] = [
         Tool::Select,
         Tool::WallAdd,
         Tool::WallSub,
@@ -908,6 +909,7 @@ impl Tool {
         Tool::DoorUnknown,
         Tool::Stair,
         Tool::Item,
+        Tool::Player,
         Tool::Label,
         Tool::Region,
         Tool::Trigger,
@@ -927,6 +929,7 @@ impl Tool {
             Tool::DoorUnknown => "UNK",
             Tool::Stair => "STAIR",
             Tool::Item => "ITEM",
+            Tool::Player => "PLAYER",
             Tool::Label => "NAME",
             Tool::Region => "ROOM",
             Tool::Trigger => "TRIG",
@@ -947,6 +950,7 @@ impl Tool {
             Tool::DoorUnknown => (0.62, 0.62, 0.70),
             Tool::Stair => (0.90, 0.80, 0.35),
             Tool::Item => (0.65, 0.45, 0.95),
+            Tool::Player => (0.40, 0.85, 0.45),
             Tool::Label => (0.58, 0.58, 0.55),
             Tool::Region => (0.35, 0.55, 0.85),
             Tool::Trigger => (0.95, 0.55, 0.25),
@@ -970,6 +974,7 @@ impl Tool {
             Tool::DoorUnknown => "Place a door that reads as unknown and reveals as the player approaches.",
             Tool::Stair => "Click to drop a stair endpoint, then LINK two endpoints on different floors.",
             Tool::Item => "Click to drop an item; the popup sets its kind. LINK a key to doors, R renames.",
+            Tool::Player => "Click to set the player's spawn point (one per map). The player starts centred here.",
             Tool::Label => "Click to drop a room name label; drag to move, R renames it.",
             Tool::Region => "Drag a fog region. It owns the geometry inside it (smallest wins); H toggles Hidden/Revealed.",
             Tool::Trigger => "Drag a trigger area: walking into it reveals the region LINKed to it.",
@@ -2093,7 +2098,8 @@ fn spawn_from_scene(scene: &Scene) -> Option<(usize, (f32, f32))> {
     })
 }
 
-// Move the player to the authored spawn marker, if the scene has one.
+// Move the player to the authored spawn marker, if the scene has one. The player
+// is placed exactly on the marker so the arrow starts centred on it.
 fn place_player_at_spawn(state: &mut State) {
     let Some((floor, pos)) = spawn_from_scene(&state.scene) else {
         return;
@@ -2101,12 +2107,20 @@ fn place_player_at_spawn(state: &mut State) {
     state.player_floor = floor;
     state.floor = floor;
     state.player = pos;
-    state.player_cell = None;
     state.pending_floor = None;
     state.pending_spawn = None;
     state.move_anim = None;
     state.stair_lock = false;
-    reset_navigation(state);
+    state.hover_cell = None;
+    state.hover_path.clear();
+    state.reachable = std::array::from_fn(|_| Vec::new());
+    let nav = &state.nav[floor];
+    state.player_cell = snap_source(nav, pos.0, pos.1);
+    if let Some(cell) = state.player_cell {
+        state.reachable[floor] = reachable_from(nav, cell);
+    }
+    rebuild_move(state);
+    on_progress_changed(state);
     notify_floor(floor);
     notify_state(state, true);
 }
@@ -3468,12 +3482,11 @@ fn draw_item_popup(state: &State, font: &Font) {
 }
 
 // Item kinds offered by the editor's item popup.
-const ITEM_KINDS: [ItemKind; 5] = [
+const ITEM_KINDS: [ItemKind; 4] = [
     ItemKind::Key,
     ItemKind::InkRibbon,
     ItemKind::Typewriter,
     ItemKind::ItemBox,
-    ItemKind::Player,
 ];
 
 fn item_kind_label(kind: ItemKind) -> &'static str {
@@ -3693,34 +3706,55 @@ const DOOR_SNAP_RADIUS: f32 = 50.0;
 /// The nearest wall the cursor can drop a door into, as `(centre, rot)`. The
 /// door sits on the wall centreline, aligned with the wall.
 fn snap_door_to_wall(state: &State, p: (f32, f32)) -> Option<(f32, f32, f32)> {
-    snap_door_in(&state.wall_plans[state.floor], p)
+    snap_door_in(&state.scene.floors[state.floor], p)
 }
 
-fn snap_door_in(plan: &WallPlan, p: (f32, f32)) -> Option<(f32, f32, f32)> {
+/// Snap a door to the nearest room wall band or partition centreline. Computed
+/// from the authored rectangles, so the door lands centred between the two wall
+/// lines regardless of how the lines were extracted.
+fn snap_door_in(floor: &Floor, p: (f32, f32)) -> Option<(f32, f32, f32)> {
     let half = ROOM_WALL_PX * 0.5;
     let mut best: Option<(f32, (f32, f32, f32))> = None;
-    for e in &plan.edges {
-        // The wall is on the filled side for outer/interior edges, on the
-        // unfilled side for the room's inner edge.
-        let on_filled = e.tone != WallTone::Inner;
-        let (center, rot) = match e.dir {
-            EdgeDir::Up | EdgeDir::Down => {
-                let x = p.0.clamp(e.x0.min(e.x1), e.x0.max(e.x1));
-                let down = matches!(e.dir, EdgeDir::Up) == on_filled;
-                let y = if down { e.y0 + half } else { e.y0 - half };
-                ((x, y), 0.0)
-            }
-            EdgeDir::Left | EdgeDir::Right => {
-                let y = p.1.clamp(e.y0.min(e.y1), e.y0.max(e.y1));
-                let right = matches!(e.dir, EdgeDir::Left) == on_filled;
-                let x = if right { e.x0 + half } else { e.x0 - half };
-                ((x, y), std::f32::consts::FRAC_PI_2)
-            }
-        };
-        let d = ((p.0 - center.0).powi(2) + (p.1 - center.1).powi(2)).sqrt();
+    let mut consider = |d: f32, c: (f32, f32, f32)| {
         if d <= DOOR_SNAP_RADIUS && best.as_ref().is_none_or(|(bd, _)| d < *bd) {
-            best = Some((d, (center.0, center.1, rot)));
+            best = Some((d, c));
         }
+    };
+    // Room walls: the band centreline, one half-band inside each side.
+    for w in &floor.walls {
+        if w.mode != BoolOp::Add {
+            continue;
+        }
+        let r = w.rect;
+        let cx = p.0.clamp(r.x, r.x + r.w);
+        let cy = p.1.clamp(r.y, r.y + r.h);
+        consider(dist(p, (cx, r.y + half)), (cx, r.y + half, 0.0));
+        consider(dist(p, (cx, r.y + r.h - half)), (cx, r.y + r.h - half, 0.0));
+        consider(
+            dist(p, (r.x + half, cy)),
+            (r.x + half, cy, std::f32::consts::FRAC_PI_2),
+        );
+        consider(
+            dist(p, (r.x + r.w - half, cy)),
+            (r.x + r.w - half, cy, std::f32::consts::FRAC_PI_2),
+        );
+    }
+    // Partitions: on the partition centreline, along its long axis.
+    for w in &floor.partitions {
+        if w.mode != BoolOp::Add {
+            continue;
+        }
+        let r = w.rect;
+        let c = if r.w >= r.h {
+            (p.0.clamp(r.x, r.x + r.w), r.y + r.h * 0.5, 0.0)
+        } else {
+            (
+                r.x + r.w * 0.5,
+                p.1.clamp(r.y, r.y + r.h),
+                std::f32::consts::FRAC_PI_2,
+            )
+        };
+        consider(dist(p, (c.0, c.1)), c);
     }
     best.map(|(_, v)| v)
 }
@@ -3749,6 +3783,27 @@ fn place_point(state: &mut State, p: (f32, f32)) {
     let id = state.next_id;
     state.next_id += 1;
     let tool = state.tool;
+    // The player spawn marker is placed on the nearest walkable cell centre so
+    // the arrow starts exactly on it.
+    if tool == Tool::Player {
+        let pos = {
+            let nav = &state.nav[state.floor];
+            snap_source(nav, p.0, p.1)
+                .map(|c| cell_to_source(nav, c.0, c.1))
+                .unwrap_or(p)
+        };
+        for f in state.scene.floors.iter_mut() {
+            f.items.retain(|it| it.kind != ItemKind::Player);
+        }
+        state.scene.floors[state.floor].items.push(ItemDef {
+            id,
+            kind: ItemKind::Player,
+            name: "Player".into(),
+            pos,
+        });
+        set_status(state, "PLAYER spawn placed");
+        return;
+    }
     let floor = &mut state.scene.floors[state.floor];
     match tool {
         Tool::Stair => floor.stairs.push(StairNode { id, pos: p }),
@@ -8392,9 +8447,8 @@ mod tests {
                 h: 400.0,
             },
         });
-        let plan = wall_plan(&floor);
         // Just inside the top wall -> horizontal door on the wall centreline.
-        let s = snap_door_in(&plan, (200.0, 5.0)).expect("snap to top wall");
+        let s = snap_door_in(&floor, (200.0, 5.0)).expect("snap to top wall");
         assert_eq!(s.2, 0.0);
         assert!(
             (s.1 - ROOM_WALL_PX * 0.5).abs() < 0.01,
@@ -8402,10 +8456,10 @@ mod tests {
             s.1
         );
         // Near the left wall -> vertical door.
-        let s = snap_door_in(&plan, (5.0, 200.0)).expect("snap to left wall");
+        let s = snap_door_in(&floor, (5.0, 200.0)).expect("snap to left wall");
         assert!((s.2 - std::f32::consts::FRAC_PI_2).abs() < 0.01);
         // Far from any wall -> no snap.
-        assert!(snap_door_in(&plan, (200.0, 200.0)).is_none());
+        assert!(snap_door_in(&floor, (200.0, 200.0)).is_none());
     }
 
     #[test]
