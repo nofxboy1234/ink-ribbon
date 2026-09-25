@@ -1101,6 +1101,9 @@ struct SlotMeta {
 const EDITOR_BAR_Y: f32 = 10.0;
 const EDITOR_BAR_H: f32 = 40.0;
 const EDITOR_BTN_W: f32 = 88.0;
+// Selected rectangle border thickness (reference px). The default editor
+// outline is a 1px GL line; doubling it makes the selection easier to see.
+const SELECTION_BORDER_PX: f32 = 2.0;
 const EDITOR_BTN_GAP: f32 = 4.0;
 
 fn editor_button_rect(index: usize) -> (f32, f32, f32, f32) {
@@ -6178,6 +6181,19 @@ fn outline_rect(x: f32, y: f32, width: f32, height: f32) {
     line(x, y + height, x, y);
 }
 
+// A thicker rectangle outline drawn as filled bands (GL line width is capped at
+// 1 on WebGL), for a more visible selection border.
+fn outline_rect_thick(x: f32, y: f32, width: f32, height: f32, thickness: f32) {
+    let t = thickness.max(0.0).min(width * 0.5).min(height * 0.5);
+    if t <= 0.0 {
+        return;
+    }
+    rect(x, y, width, t);
+    rect(x, y + height - t, width, t);
+    rect(x, y + t, t, height - 2.0 * t);
+    rect(x + width - t, y + t, t, height - 2.0 * t);
+}
+
 fn diamond(cx: f32, cy: f32, radius: f32, filled: bool) {
     if filled {
         sgl::begin_triangles();
@@ -7444,7 +7460,8 @@ fn draw_editor(
             }
         }
     }
-    // Outline every selected object; handles only for the primary one.
+    // Outline every selected object; handles only for the primary one. The
+    // rectangle border is drawn thicker (2x) so it is easy to see.
     for sel in &state.selection {
         if let Some(geom) = selection_geom(&state.scene, state.floor, *sel) {
             sgl::c4f(1.0, 1.0, 1.0, 0.55);
@@ -7452,7 +7469,7 @@ fn draw_editor(
                 SelGeom::Rect { x, y, w, h } => {
                     let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, x, y);
                     let (rx1, ry1) = src_to_ref(frame, ox, oy, iw, ih, x + w, y + h);
-                    outline_rect(rx, ry, rx1 - rx, ry1 - ry);
+                    outline_rect_thick(rx, ry, rx1 - rx, ry1 - ry, SELECTION_BORDER_PX);
                 }
                 SelGeom::Box { center, size, rot } => {
                     draw_box_rot(
