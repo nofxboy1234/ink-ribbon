@@ -6,6 +6,15 @@ committed source of truth, and the Rust baker (`native/src/bake.rs`) turns it
 into the overlay texture, navigation/collision grids and stair/item data at
 startup.
 
+## First area (draft)
+
+The committed scene is a first draft of a Resident-Evil-Requiem-style opening on
+Floor 1: a "Lobby" room split by a partition, holding a typewriter, an item box
+and the Ward Key. The Ward Key opens a locked door in the partition into
+"Containment", which is a fog region revealed by that door; an Ink Ribbon waits
+inside. Walk into it to see the fog lift, the door turn blue and the goal list
+update.
+
 ## Editing
 
 Open the map, press **Tab** to enter edit mode, and use the in-canvas tool bar:
