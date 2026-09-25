@@ -228,6 +228,9 @@ const GRID_STEP: f32 = 32.0;
 // it into the overlay/nav/solid/stairs/items bytes at startup.
 const SCENE_BIN: &[u8] = include_bytes!("../../assets/scene.bin");
 const ITEM_RADIUS: f32 = 7.0;
+// Radius (source px) of the Player spawn marker's circle icon. Source-space so
+// it scales with the map and its rotation handle lines up.
+const SPAWN_MARKER_PX: f32 = 44.0;
 const CIRCLE_SEGMENTS: usize = 24;
 const CURSOR_RADIUS: f32 = 36.0;
 const CURSOR_TICK: f32 = 20.0;
@@ -1078,10 +1081,15 @@ enum Menu {
     LoadSlots,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq)]
 enum Confirm {
     Overwrite(usize),
     Quit,
+    /// Replace the existing Player spawn with one on `floor` at `pos`.
+    ReplacePlayer {
+        floor: usize,
+        pos: (f32, f32),
+    },
 }
 
 const SAVE_SLOTS: usize = 8;
@@ -2879,6 +2887,30 @@ fn draw_item_marker(cx: f32, cy: f32, kind: ItemKind, scale: f32) {
     }
 }
 
+// Editor-only Player spawn marker: a circle icon with a forward arrowhead on
+// its circumference (rot = 0 points up).
+fn draw_spawn_marker(cx: f32, cy: f32, radius: f32, rot: f32) {
+    sgl::c4f(0.35, 0.85, 0.45, 0.16);
+    filled_circle(cx, cy, radius);
+    sgl::c4f(0.35, 0.85, 0.45, 1.0);
+    outline_circle_seg(cx, cy, radius, 48);
+    // Forward arrowhead on the rim.
+    let (dx, dy) = (rot.sin(), -rot.cos());
+    let (px, py) = (-dy, dx);
+    let base = (cx + dx * radius * 0.72, cy + dy * radius * 0.72);
+    let tip = (cx + dx * radius * 1.30, cy + dy * radius * 1.30);
+    let w = radius * 0.24;
+    sgl::c4f(0.95, 0.95, 0.95, 1.0);
+    sgl::begin_triangles();
+    sgl::v2f(base.0 + px * w, base.1 + py * w);
+    sgl::v2f(base.0 - px * w, base.1 - py * w);
+    sgl::v2f(tip.0, tip.1);
+    sgl::end();
+    // Centre dot.
+    sgl::c4f(0.10, 0.10, 0.12, 1.0);
+    filled_circle(cx, cy, radius * 0.16);
+}
+
 fn draw_inventory(state: &State, font: &Font) {
     if !state.inventory_open {
         return;
@@ -3216,6 +3248,7 @@ fn draw_menu(state: &State, font: &Font) {
         let msg = match c {
             Confirm::Overwrite(slot) => format!("Overwrite slot {}?", slot + 1),
             Confirm::Quit => "Quit the game?".to_string(),
+            Confirm::ReplacePlayer { .. } => "Replace the existing player spawn?".to_string(),
         };
         draw_ui_text(font, &msg, px + 24.0, py + 40.0, C_HILITE, true, 1.0);
         let (yes, no) = confirm_buttons(l);
@@ -3875,9 +3908,6 @@ fn place_door(state: &mut State, center: (f32, f32), rot: f32) {
 }
 
 fn place_point(state: &mut State, p: (f32, f32)) {
-    push_undo(state);
-    let id = state.next_id;
-    state.next_id += 1;
     let tool = state.tool;
     // The player spawn marker is placed on the nearest walkable cell centre so
     // the arrow starts exactly on it.
@@ -3888,18 +3918,37 @@ fn place_point(state: &mut State, p: (f32, f32)) {
                 .map(|c| cell_to_source(nav, c.0, c.1))
                 .unwrap_or(p)
         };
-        for f in state.scene.floors.iter_mut() {
-            f.items.retain(|it| it.kind != ItemKind::Player);
+        // Only one spawn marker is allowed. If one exists, ask first.
+        let existing = state
+            .scene
+            .floors
+            .iter()
+            .any(|f| f.items.iter().any(|it| it.kind == ItemKind::Player));
+        if existing {
+            state.confirm = Some(Confirm::ReplacePlayer {
+                floor: state.floor,
+                pos,
+            });
+            state.confirm_index = 0;
+            set_status(state, "a player spawn already exists");
+            return;
         }
+        push_undo(state);
+        let id = state.next_id;
+        state.next_id += 1;
         state.scene.floors[state.floor].items.push(ItemDef {
             id,
             kind: ItemKind::Player,
             name: "Player".into(),
             pos,
+            rot: 0.0,
         });
         set_status(state, "PLAYER spawn placed");
         return;
     }
+    push_undo(state);
+    let id = state.next_id;
+    state.next_id += 1;
     let floor = &mut state.scene.floors[state.floor];
     match tool {
         Tool::Stair => floor.stairs.push(StairNode { id, pos: p }),
@@ -3908,6 +3957,7 @@ fn place_point(state: &mut State, p: (f32, f32)) {
             kind: state.item_kind,
             name: format!("Item {id}"),
             pos: p,
+            rot: 0.0,
         }),
         Tool::Label => floor.labels.push(RoomLabel {
             name: "Room".into(),
@@ -4115,9 +4165,19 @@ fn selection_geom(scene: &Scene, floor_index: usize, sel: Selection) -> Option<S
         Selection::Stair(i) => SelGeom::Point {
             pos: floor.stairs.get(i)?.pos,
         },
-        Selection::Item(i) => SelGeom::Point {
-            pos: floor.items.get(i)?.pos,
-        },
+        Selection::Item(i) => {
+            let it = floor.items.get(i)?;
+            if it.kind == ItemKind::Player {
+                // The spawn marker is rotatable via its Box handles.
+                SelGeom::Box {
+                    center: it.pos,
+                    size: (SPAWN_MARKER_PX * 2.0, SPAWN_MARKER_PX * 2.0),
+                    rot: it.rot,
+                }
+            } else {
+                SelGeom::Point { pos: it.pos }
+            }
+        }
         Selection::Label(i) => SelGeom::Point {
             pos: floor.labels.get(i)?.pos,
         },
@@ -4178,6 +4238,12 @@ fn set_selection_geom(scene: &mut Scene, floor_index: usize, sel: Selection, geo
         (Selection::Item(i), SelGeom::Point { pos }) => {
             if let Some(it) = floor.items.get_mut(i) {
                 it.pos = pos;
+            }
+        }
+        (Selection::Item(i), SelGeom::Box { center, rot, .. }) => {
+            if let Some(it) = floor.items.get_mut(i) {
+                it.pos = center;
+                it.rot = rot;
             }
         }
         (Selection::Label(i), SelGeom::Point { pos }) => {
@@ -5273,6 +5339,24 @@ fn confirm_activate(state: &mut State, yes: bool) {
             #[cfg(target_os = "emscripten")]
             set_status(state, "exit is unavailable in the browser");
         }
+        Confirm::ReplacePlayer { floor, pos } => {
+            push_undo(state);
+            let id = state.next_id;
+            state.next_id += 1;
+            for f in state.scene.floors.iter_mut() {
+                f.items.retain(|it| it.kind != ItemKind::Player);
+            }
+            state.scene.floors[floor.min(NUM_FLOORS - 1)]
+                .items
+                .push(ItemDef {
+                    id,
+                    kind: ItemKind::Player,
+                    name: "Player".into(),
+                    pos,
+                    rot: 0.0,
+                });
+            set_status(state, "PLAYER spawn replaced");
+        }
     }
 }
 
@@ -5824,6 +5908,24 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                     // Printable characters arrive as Char events.
                     _ => return,
                 }
+            }
+            // A confirmation dialog takes over in any mode (editor included).
+            if state.confirm.is_some() {
+                match event.key_code {
+                    sapp::Keycode::Left
+                    | sapp::Keycode::Up
+                    | sapp::Keycode::Right
+                    | sapp::Keycode::Down => {
+                        state.confirm_index = wrap(state.confirm_index, 1, 2);
+                    }
+                    sapp::Keycode::Enter | sapp::Keycode::Space => {
+                        confirm_activate(state, state.confirm_index == 0)
+                    }
+                    sapp::Keycode::Y => confirm_activate(state, true),
+                    sapp::Keycode::N | sapp::Keycode::Escape => confirm_activate(state, false),
+                    _ => {}
+                }
+                return;
             }
             // Item box navigation (play mode).
             if state.item_box_open && !state.edit {
@@ -7340,7 +7442,11 @@ fn draw_editor(
     }
     for it in &floor.items {
         let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, it.pos.0, it.pos.1);
-        draw_item_marker(rx, ry, it.kind, 1.0);
+        if it.kind == ItemKind::Player {
+            draw_spawn_marker(rx, ry, SPAWN_MARKER_PX * iw / frame.2, it.rot);
+        } else {
+            draw_item_marker(rx, ry, it.kind, 1.0);
+        }
         if let Some(PendingLink::Item(pf, pid)) = state.pending_link {
             if pf == state.floor && pid == it.id {
                 sgl::c4f(1.0, 1.0, 1.0, 1.0);
@@ -9164,12 +9270,14 @@ mod tests {
             kind: ItemKind::Player,
             name: "Start".into(),
             pos: (10.0, 20.0),
+            rot: 0.0,
         });
         scene.floors[1].items.push(ItemDef {
             id: 2,
             kind: ItemKind::Key,
             name: "Key".into(),
             pos: (30.0, 40.0),
+            rot: 0.0,
         });
         assert_eq!(spawn_from_scene(&scene), Some((1, (10.0, 20.0))));
         assert_eq!(spawn_from_scene(&Scene::default()), None);

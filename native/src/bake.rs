@@ -672,6 +672,7 @@ mod tests {
             kind: ItemKind::Key,
             name: "Key".into(),
             pos: (10.0, 20.0),
+            rot: 0.0,
         });
 
         let baked = bake(&scene);

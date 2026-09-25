@@ -152,6 +152,7 @@ impl PlayerSave {
                 kind,
                 name,
                 pos: (0.0, 0.0),
+                rot: 0.0,
             });
         }
 
@@ -169,6 +170,7 @@ impl PlayerSave {
                     kind,
                     name,
                     pos: (0.0, 0.0),
+                    rot: 0.0,
                 });
             }
         }
@@ -303,12 +305,14 @@ mod tests {
                     kind: ItemKind::Key,
                     name: "Pantry Key".into(),
                     pos: (0.0, 0.0),
+                    rot: 0.0,
                 },
                 ItemDef {
                     id: 9,
                     kind: ItemKind::InkRibbon,
                     name: "Ink Ribbon".into(),
                     pos: (0.0, 0.0),
+                    rot: 0.0,
                 },
             ],
             item_box: vec![ItemDef {
@@ -316,6 +320,7 @@ mod tests {
                 kind: ItemKind::Key,
                 name: "Spare Key".into(),
                 pos: (0.0, 0.0),
+                rot: 0.0,
             }],
             visited: vec![(2, 11), (2, 13)],
             revealed_regions: vec![(2, 11)],

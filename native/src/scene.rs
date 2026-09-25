@@ -17,7 +17,7 @@
 //!   u32  obstacle_count -> { u32 id, f32 cx, cy, sx, sy, rot }
 //!   u32  door_count     -> { u32 id, u8 kind, f32 cx, cy, sx, sy, rot }
 //!   u32  stair_count    -> { u32 id, f32 x, y }
-//!   u32  item_count     -> { u32 id, u8 kind, f32 x, y, u16 name_len, name }
+//!   u32  item_count     -> { u32 id, u8 kind, f32 x, y, [f32 rot], u16 name_len, name }
 //!   u32  label_count    -> { f32 x, y, u16 name_len, name }             (v4)
 //!   u32  region_count   -> { u32 id, u16 name_len, name, f32 x, y, w, h, u8 initial } (v5)
 //!   u32  trigger_count  -> { u32 id, f32 x, y, w, h }                   (v5)
@@ -44,8 +44,9 @@ pub const FLOOR1_H: f32 = FLOOR_FRAMES[FLOOR1_INDEX].3;
 const MAGIC: &[u8; 4] = b"IRSC";
 /// v1 stored doors without `reveals_as`; v2 adds it; v3 adds interior-wall
 /// partitions; v4 adds room name labels; v5 adds fog-of-war regions, reveal
-/// triggers and their links. Reading still accepts v1-v4.
-pub const VERSION: u16 = 5;
+/// triggers and their links; v6 adds item rotation (the Player spawn facing).
+/// Reading still accepts v1-v5.
+pub const VERSION: u16 = 6;
 
 /// Thickness in source pixels of the wall band drawn inside each room rectangle
 /// (the gap between the two parallel lines).
@@ -161,6 +162,9 @@ pub struct ItemDef {
     pub kind: ItemKind,
     pub name: String,
     pub pos: (f32, f32),
+    /// Facing (radians) for items that show a direction; only the Player spawn
+    /// marker uses it today. 0 = up.
+    pub rot: f32,
 }
 
 /// A room name label (v4): centred text at a source position.
@@ -463,6 +467,7 @@ impl Scene {
                 put_u8(&mut out, it.kind.to_u8());
                 put_f32(&mut out, it.pos.0);
                 put_f32(&mut out, it.pos.1);
+                put_f32(&mut out, it.rot);
                 let name = it.name.as_bytes();
                 put_u16(&mut out, name.len().min(u16::MAX as usize) as u16);
                 out.extend_from_slice(&name[..name.len().min(u16::MAX as usize)]);
@@ -663,6 +668,8 @@ impl Scene {
                 let id = c.u32()?;
                 let kind = ItemKind::from_u8(c.u8()?)?;
                 let pos = (c.f32()?, c.f32()?);
+                // v6 added item rotation.
+                let rot = if version >= 6 { c.f32()? } else { 0.0 };
                 let len = c.u16()? as usize;
                 let name = String::from_utf8_lossy(c.take(len)?).into_owned();
                 floor.items.push(ItemDef {
@@ -670,6 +677,7 @@ impl Scene {
                     kind,
                     name,
                     pos,
+                    rot,
                 });
             }
             // v4 added room name labels.
@@ -922,6 +930,7 @@ mod tests {
             kind: ItemKind::Key,
             name: "West Keycard".into(),
             pos: (3554.0, 5196.0),
+            rot: 0.5,
         });
         floor.links.push(Link::Stair {
             a_floor: 1,
