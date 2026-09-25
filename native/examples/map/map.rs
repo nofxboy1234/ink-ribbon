@@ -4,8 +4,8 @@ use ink_ribbon_native::bake::{bake, bake_floor_nav, BakedBytes, OverlayBytes, CE
 use ink_ribbon_native::save::{format_unix_utc, PlayerSave};
 use ink_ribbon_native::scene::{
     BoolOp, Box2, Door, DoorKind, Floor, ItemDef, ItemKind, Link, Rect, Region, RegionState,
-    RoomLabel, Scene, StairNode, Trigger, WallOp, DOOR_LONG_PX, DOOR_THICK_PX, FLOOR_FRAMES,
-    NUM_FLOORS, ROOM_WALL_PX,
+    RoomLabel, Scene, StairNode, Trigger, WallOp, DOOR_LONG_PX, DOOR_THICK_PX, NUM_FLOORS,
+    ROOM_WALL_PX,
 };
 use ink_ribbon_native::walls::{region_rects, wall_plan, EdgeDir, WallPlan, WallTone};
 use sokol::{app as sapp, gfx as sg, gl as sgl, glue as sglue};
@@ -1337,9 +1337,91 @@ fn overlay_texture(rgba: &[u8], width: i32, height: i32) -> (sg::Image, sg::View
 }
 
 // Source frame (x, y, width, height) used to lay the current floor's art inside
-// the map window.
-fn floor_frame(floor: usize) -> (f32, f32, f32, f32) {
-    FLOOR_FRAMES[floor]
+// the map window. Each floor's frame grows to fit its authored content, so rooms
+// can be drawn anywhere on the pannable area.
+fn floor_frame(state: &State, floor: usize) -> (f32, f32, f32, f32) {
+    state.scene.floors[floor].frame
+}
+
+// Bounding box of a floor's authored content (rooms, walls, props, labels).
+fn floor_content_bounds(floor: &Floor) -> Option<Rect> {
+    let (mut min_x, mut min_y) = (f32::MAX, f32::MAX);
+    let (mut max_x, mut max_y) = (f32::MIN, f32::MIN);
+    let mut any = false;
+    let mut include = |r: Rect| {
+        min_x = min_x.min(r.x);
+        min_y = min_y.min(r.y);
+        max_x = max_x.max(r.x + r.w);
+        max_y = max_y.max(r.y + r.h);
+        any = true;
+    };
+    let point = |p: (f32, f32)| Rect {
+        x: p.0,
+        y: p.1,
+        w: 0.0,
+        h: 0.0,
+    };
+    for w in &floor.walls {
+        include(w.rect);
+    }
+    for w in &floor.partitions {
+        include(w.rect);
+    }
+    for o in &floor.obstacles {
+        let r = (o.size.0.abs() + o.size.1.abs()) * 0.5;
+        include(Rect {
+            x: o.center.0 - r,
+            y: o.center.1 - r,
+            w: r * 2.0,
+            h: r * 2.0,
+        });
+    }
+    for d in &floor.doors {
+        let r = DOOR_LONG_PX.max(DOOR_THICK_PX) * 0.5;
+        include(Rect {
+            x: d.center.0 - r,
+            y: d.center.1 - r,
+            w: r * 2.0,
+            h: r * 2.0,
+        });
+    }
+    for s in &floor.stairs {
+        include(point(s.pos));
+    }
+    for it in &floor.items {
+        include(point(it.pos));
+    }
+    for l in &floor.labels {
+        include(point(l.pos));
+    }
+    for r in &floor.regions {
+        include(r.rect);
+    }
+    for t in &floor.triggers {
+        include(t.rect);
+    }
+    (any && max_x > min_x && max_y > min_y).then_some(Rect {
+        x: min_x,
+        y: min_y,
+        w: max_x - min_x,
+        h: max_y - min_y,
+    })
+}
+
+// Grow a floor's frame so it always contains its content. The frame only ever
+// grows, so rooms can be drawn anywhere on the pannable area and still bake as
+// walkable instead of being clipped at the old crop edge.
+fn grow_frame(floor: &mut Floor) {
+    const MARGIN: f32 = 400.0;
+    let Some(b) = floor_content_bounds(floor) else {
+        return;
+    };
+    let (fx, fy, fw, fh) = floor.frame;
+    let x0 = fx.min(b.x - MARGIN);
+    let y0 = fy.min(b.y - MARGIN);
+    let x1 = (fx + fw).max(b.x + b.w + MARGIN);
+    let y1 = (fy + fh).max(b.y + b.h + MARGIN);
+    floor.frame = (x0, y0, x1 - x0, y1 - y0);
 }
 
 extern "C" fn init(user_data: *mut ffi::c_void) {
@@ -1546,7 +1628,7 @@ fn player_center_pan(
 
 fn pan_to_center_player(state: &mut State) {
     // Computed for the default zoom so the player ends centred once zoom settles.
-    let frame = floor_frame(state.player_floor);
+    let frame = floor_frame(state, state.player_floor);
     let (x, y) = player_center_pan(&state.layout, DEFAULT_ZOOM, state.player, frame);
     state.pan_target_x = x;
     state.pan_target_y = y;
@@ -1907,7 +1989,7 @@ fn hover_item_at(state: &State, cx: f32, cy: f32) -> Option<usize> {
     if cx < MAP_X || cx > MAP_X + MAP_W || cy < MAP_Y || cy > MAP_Y + MAP_H {
         return None;
     }
-    let frame = floor_frame(state.floor);
+    let frame = floor_frame(state, state.floor);
     let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
     let sx = frame.0 + (cx - ox) * frame.2 / iw;
     let sy = frame.1 + (cy - oy) * frame.3 / ih;
@@ -1957,7 +2039,7 @@ fn set_edit(state: &mut State, on: bool) {
 
 // Reference coords -> source-composite pixels on the viewed floor.
 fn ref_to_source(state: &State, p: (f32, f32)) -> (f32, f32) {
-    let frame = floor_frame(state.floor);
+    let frame = floor_frame(state, state.floor);
     let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
     (
         frame.0 + (p.0 - ox) * frame.2 / iw,
@@ -3509,6 +3591,10 @@ fn item_kind_label(kind: ItemKind) -> &'static str {
 
 // Re-bake the scene and swap the running map's assets in place.
 fn rebuild_assets(state: &mut State) {
+    // Let each floor's frame grow to fit any new content before baking.
+    for i in 0..NUM_FLOORS {
+        grow_frame(&mut state.scene.floors[i]);
+    }
     recompute_play_scene(state);
     let scene = state.play_scene.clone();
     let baked = bake(&scene);
@@ -3543,8 +3629,8 @@ fn rebuild_gameplay(state: &mut State) {
     let scene = state.play_scene.clone();
     let f = state.player_floor;
     let (nav, nav_open) = bake_floor_nav(&scene, f);
-    state.nav[f] = Nav::from_bytes(&nav, FLOOR_FRAMES[f]);
-    state.nav_open[f] = Nav::from_bytes(&nav_open, FLOOR_FRAMES[f]);
+    state.nav[f] = Nav::from_bytes(&nav, scene.floors[f].frame);
+    state.nav_open[f] = Nav::from_bytes(&nav_open, scene.floors[f].frame);
     state.move_grid[f] = MoveGrid::from_nav(&state.nav[f]);
     refresh_items_and_stairs(state, &scene);
     reset_navigation(state);
@@ -3587,8 +3673,8 @@ fn rebuild_progress(state: &mut State, floors: &[usize]) {
             || o.stairs != n.stairs;
         if geometry_changed {
             let (nav, nav_open) = bake_floor_nav(&scene, f);
-            state.nav[f] = Nav::from_bytes(&nav, FLOOR_FRAMES[f]);
-            state.nav_open[f] = Nav::from_bytes(&nav_open, FLOOR_FRAMES[f]);
+            state.nav[f] = Nav::from_bytes(&nav, scene.floors[f].frame);
+            state.nav_open[f] = Nav::from_bytes(&nav_open, scene.floors[f].frame);
             state.move_grid[f] = MoveGrid::from_nav(&state.nav[f]);
             player_nav_changed |= f == state.player_floor;
         }
@@ -3615,9 +3701,11 @@ fn apply_gameplay(
     stairs: Vec<u8>,
     items: Vec<u8>,
 ) {
-    state.nav = std::array::from_fn(|i| Nav::from_bytes(&nav[i], FLOOR_FRAMES[i]));
-    state.nav_open = std::array::from_fn(|i| Nav::from_bytes(&nav_open[i], FLOOR_FRAMES[i]));
-    state.solid = std::array::from_fn(|i| Solid::from_bytes(&solid[i], FLOOR_FRAMES[i]));
+    let frames: [(f32, f32, f32, f32); NUM_FLOORS] =
+        std::array::from_fn(|i| state.scene.floors[i].frame);
+    state.nav = std::array::from_fn(|i| Nav::from_bytes(&nav[i], frames[i]));
+    state.nav_open = std::array::from_fn(|i| Nav::from_bytes(&nav_open[i], frames[i]));
+    state.solid = std::array::from_fn(|i| Solid::from_bytes(&solid[i], frames[i]));
     state.stairs = parse_stairs(&stairs);
     state.items = parse_items(&items);
 }
@@ -4220,7 +4308,7 @@ fn rotate_geom(g: SelGeom, cursor: (f32, f32), snap: bool) -> SelGeom {
 }
 
 fn handle_tol(state: &State) -> f32 {
-    let frame = floor_frame(state.floor);
+    let frame = floor_frame(state, state.floor);
     let (_, _, iw, _) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
     frame.2 / iw * 14.0
 }
@@ -5607,7 +5695,7 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 state.pinch_dist = dist.max(1.0);
                 state.pinch_base_zoom = state.zoom_target;
                 let mid = screen_to_ref(&state.layout, mid_px.0, mid_px.1);
-                let frame = floor_frame(state.floor);
+                let frame = floor_frame(state, state.floor);
                 let (ox, oy, iw, ih) =
                     map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
                 state.pinch_src = (
@@ -6138,7 +6226,7 @@ fn capture_zoom_anchor(state: &mut State) {
         state.zoom_anchor = None;
         return;
     }
-    let frame = floor_frame(state.floor);
+    let frame = floor_frame(state, state.floor);
     let (ox, oy, iw, ih) = map_rect(&l, state.zoom, state.pan_x, state.pan_y, frame);
     let sx = frame.0 + (cursor.0 - ox) * frame.2 / iw;
     let sy = frame.1 + (cursor.1 - oy) * frame.3 / ih;
@@ -6731,7 +6819,7 @@ fn draw_floor(
         true,
     );
 
-    let frame = floor_frame(state.floor);
+    let frame = floor_frame(state, state.floor);
     let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
 
     if state.show_grid {
@@ -7117,7 +7205,7 @@ fn draw_editor(
     bottom: f32,
 ) {
     let font = state.font.as_ref().unwrap();
-    let frame = floor_frame(state.floor);
+    let frame = floor_frame(state, state.floor);
     let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
     let floor = &state.scene.floors[state.floor];
 
@@ -7996,7 +8084,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     if let Some(a) = state.zoom_anchor {
         let l = state.layout;
         // Google-Maps style: keep the anchored map point under the cursor.
-        let frame = floor_frame(state.floor);
+        let frame = floor_frame(state, state.floor);
         let (pan_x, pan_y) = anchor_pan(&l, state.zoom, a.src, a.cursor_ref, frame);
         state.pan_x = pan_x;
         state.pan_y = pan_y;
@@ -8023,7 +8111,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
         && !state.dragging
         && !state.pinching;
     if following {
-        let frame = floor_frame(state.player_floor);
+        let frame = floor_frame(state, state.player_floor);
         let target = player_center_pan(&state.layout, state.zoom, state.player, frame);
         state.follow_target = follow_step(target, state.follow_target, delta);
         state.pan_target_x = state.follow_target.0;
@@ -8056,7 +8144,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     // Limit panning so the map stays within the window.
     {
         let l = state.layout;
-        let frame = floor_frame(state.floor);
+        let frame = floor_frame(state, state.floor);
         let (iw, ih) = image_size(&l, state.zoom, frame);
         let max_x = if iw > l.map_w {
             (iw - l.map_w) * 0.5
@@ -8188,10 +8276,14 @@ extern "C" fn cleanup(user_data: *mut ffi::c_void) {
 
 fn main() {
     // Prefer a saved scene (localStorage/file), else the committed scene.bin.
-    let scene = load_scene_bytes()
+    let mut scene = load_scene_bytes()
         .and_then(|b| Scene::from_bytes(&b))
         .or_else(|| Scene::from_bytes(SCENE_BIN))
         .unwrap_or_default();
+    // Fit each floor's frame to its content so nothing is clipped on load.
+    for i in 0..NUM_FLOORS {
+        grow_frame(&mut scene.floors[i]);
+    }
     let next_id = max_id(&scene) + 1;
     // The player starts at the authored spawn marker, else the default point.
     let (start_floor, start_pos) = spawn_from_scene(&scene).unwrap_or((2, PLAYER));
@@ -8206,9 +8298,9 @@ fn main() {
         stairs,
         items,
     } = baked;
-    let nav = std::array::from_fn(|i| Nav::from_bytes(&nav[i], FLOOR_FRAMES[i]));
-    let nav_open = std::array::from_fn(|i| Nav::from_bytes(&nav_open[i], FLOOR_FRAMES[i]));
-    let solid = std::array::from_fn(|i| Solid::from_bytes(&solid[i], FLOOR_FRAMES[i]));
+    let nav = std::array::from_fn(|i| Nav::from_bytes(&nav[i], scene.floors[i].frame));
+    let nav_open = std::array::from_fn(|i| Nav::from_bytes(&nav_open[i], scene.floors[i].frame));
+    let solid = std::array::from_fn(|i| Solid::from_bytes(&solid[i], scene.floors[i].frame));
     let move_grid: [MoveGrid; NUM_FLOORS] = std::array::from_fn(|i| MoveGrid::from_nav(&nav[i]));
     let wall_plans: [WallPlan; NUM_FLOORS] =
         std::array::from_fn(|i| wall_plan(&play_scene.floors[i]));
@@ -8373,7 +8465,7 @@ fn main() {
 mod tests {
     use super::*;
     use ink_ribbon_native::scene::{
-        Floor, FLOOR1_FRAME, FLOOR1_H, FLOOR1_INDEX, FLOOR1_W, FLOOR1_X, FLOOR1_Y,
+        Floor, FLOOR1_FRAME, FLOOR1_H, FLOOR1_INDEX, FLOOR1_W, FLOOR1_X, FLOOR1_Y, FLOOR_FRAMES,
     };
 
     #[test]
@@ -8616,14 +8708,16 @@ mod tests {
 
     #[test]
     fn per_floor_frames_use_own_aspect() {
-        assert_eq!(floor_frame(FLOOR1_INDEX), FLOOR1_FRAME);
-        assert_eq!(floor_frame(0), FLOOR_FRAMES[0]);
-        assert_eq!(floor_frame(1), FLOOR_FRAMES[1]);
+        // New floors start on the default frames.
+        let scene = Scene::default();
+        for (floor, &frame) in FLOOR_FRAMES.iter().enumerate() {
+            assert_eq!(scene.floors[floor].frame, frame);
+        }
 
         // Each floor's on-screen image uses its own aspect ratio.
         let l = Layout::compute(1280.0, 720.0);
-        for (floor, (_, _, w, h)) in FLOOR_FRAMES.iter().enumerate() {
-            let (iw, ih) = image_size(&l, 1.0, floor_frame(floor));
+        for (floor, &(_, _, w, h)) in FLOOR_FRAMES.iter().enumerate() {
+            let (iw, ih) = image_size(&l, 1.0, FLOOR_FRAMES[floor]);
             assert!(
                 (iw / ih - w / h).abs() < 1e-3,
                 "floor {floor} aspect drift: {iw}x{ih}"
