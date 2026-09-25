@@ -307,14 +307,20 @@ impl Floor {
 
     /// The partition ops, as the same ordered `Add`/`Sub` boolean as rooms.
     pub fn partition_ops(&self) -> Vec<(BoolOp, Rect)> {
-        self.partitions.iter().map(|w| (w.mode, w.rect)).collect()
+        self.partitions
+            .iter()
+            .map(|w| (w.mode, clamp_rect(w.rect, self.frame)))
+            .collect()
     }
 
     /// A drawn rectangle is a room. Rooms union, so overlapping rectangles merge
     /// into one space with no internal wall. The wall band is the outer boundary
     /// of that union minus its inset ([`interior_ops`]).
     pub fn wall_ops(&self) -> Vec<(BoolOp, Rect)> {
-        self.walls.iter().map(|w| (w.mode, w.rect)).collect()
+        self.walls
+            .iter()
+            .map(|w| (w.mode, clamp_rect(w.rect, self.frame)))
+            .collect()
     }
 
     /// The walkable interior: the room union eroded by the wall band. Erosion
@@ -328,10 +334,27 @@ impl Floor {
                 } else {
                     -ROOM_WALL_PX
                 };
-                let r = inset_rect(w.rect, off);
+                let r = inset_rect(clamp_rect(w.rect, self.frame), off);
                 (r.w > 0.0 && r.h > 0.0).then_some((w.mode, r))
             })
             .collect()
+    }
+}
+
+// Clamp a rectangle to the floor frame. A room that crosses the crop edge would
+// otherwise have its wall band outside the baked grid, leaving its interior open
+// to the exterior flood (non-walkable). Clamping makes the frame edge act as the
+// wall there.
+fn clamp_rect(r: Rect, frame: Frame) -> Rect {
+    let x0 = r.x.max(frame.0);
+    let y0 = r.y.max(frame.1);
+    let x1 = (r.x + r.w).min(frame.0 + frame.2);
+    let y1 = (r.y + r.h).min(frame.1 + frame.3);
+    Rect {
+        x: x0,
+        y: y0,
+        w: (x1 - x0).max(0.0),
+        h: (y1 - y0).max(0.0),
     }
 }
 

@@ -616,6 +616,38 @@ mod tests {
     }
 
     #[test]
+    fn a_room_crossing_the_frame_edge_is_walkable() {
+        // A room drawn partly above the floor frame would leave its wall band
+        // outside the grid, so its interior opens to the exterior flood. The
+        // bake clamps to the frame, making the crop edge act as the wall.
+        use crate::scene::{BoolOp, FLOOR1_FRAME};
+        let mut scene = Scene::default();
+        let f = crate::scene::FLOOR1_INDEX;
+        let (fx, fy, _, _) = FLOOR1_FRAME;
+        scene.floors[f].walls.push(WallOp {
+            mode: BoolOp::Add,
+            rect: Rect {
+                x: fx + 2000.0,
+                y: fy - 200.0,
+                w: 600.0,
+                h: 600.0,
+            },
+        });
+        let nav = &bake(&scene).nav[f];
+        let w = u32::from_le_bytes([nav[4], nav[5], nav[6], nav[7]]) as i32;
+        let walk = |sx: f32, sy: f32| {
+            let x = ((sx - fx) / CELL_PX as f32) as i32;
+            let y = ((sy - fy) / CELL_PX as f32) as i32;
+            let i = (y * w + x) as usize;
+            (nav[12 + (i >> 3)] >> (i & 7)) & 1 == 1
+        };
+        assert!(
+            walk(fx + 2300.0, fy + 200.0),
+            "a room crossing the frame edge should still be walkable"
+        );
+    }
+
+    #[test]
     fn scene_links_bake_into_stairs_and_items() {
         use crate::scene::{ItemDef, ItemKind, Link, StairNode};
         let mut scene = Scene::default();

@@ -1404,10 +1404,14 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
     set_cursor_hidden(true);
     state.os_cursor_hidden = true;
     // The traced Guard Office point can sit on room furniture; start on the
-    // nearest walkable cell so the collision disc has room.
+    // nearest walkable cell so the collision disc has room. A spawn marker that
+    // already sits on a walkable cell is kept exactly, so the arrow is centred.
     let nav = &state.nav[state.player_floor];
+    let here = source_to_cell(nav, state.player.0, state.player.1);
     if let Some(cell) = snap_source(nav, state.player.0, state.player.1) {
-        state.player = cell_to_source(nav, cell.0, cell.1);
+        if !nav.walkable(here.0, here.1) {
+            state.player = cell_to_source(nav, cell.0, cell.1);
+        }
         state.player_cell = Some(cell);
     }
     state.reachable[state.player_floor] = match snap_source(nav, state.player.0, state.player.1) {
@@ -1416,6 +1420,10 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
     };
     rebuild_move(state);
     on_progress_changed(state);
+    // Tell the web shell which floor the player starts on (the spawn may be on a
+    // floor other than the default).
+    notify_floor(state.floor);
+    notify_state(state, true);
 }
 
 // Viewed-floor change (selector, arrows). The player stays where they are; only

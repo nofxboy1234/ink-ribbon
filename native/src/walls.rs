@@ -351,6 +351,13 @@ mod tests {
     fn rect(x: f32, y: f32, w: f32, h: f32) -> Rect {
         Rect { x, y, w, h }
     }
+    // A floor whose frame covers the small test coordinates (real frames sit far
+    // from the origin and would clamp them away).
+    fn test_floor() -> Floor {
+        let mut floor = Floor::new(FLOOR1_INDEX);
+        floor.frame = (0.0, 0.0, 1000.0, 1000.0);
+        floor
+    }
     fn add(r: Rect) -> WallOp {
         WallOp {
             mode: BoolOp::Add,
@@ -390,7 +397,7 @@ mod tests {
 
     #[test]
     fn a_room_draws_two_parallel_lines() {
-        let mut floor = Floor::new(FLOOR1_INDEX);
+        let mut floor = test_floor();
         floor.walls.push(add(rect(0.0, 0.0, 200.0, 120.0)));
         let plan = wall_plan(&floor);
         // Outer contour plus the inset (room) contour.
@@ -421,7 +428,7 @@ mod tests {
     fn a_partition_is_dim_on_both_lines() {
         // A partition inside a room carves the interior; its two lines are dim
         // and join the room's inner contour.
-        let mut floor = Floor::new(FLOOR1_INDEX);
+        let mut floor = test_floor();
         floor.walls.push(add(rect(0.0, 0.0, 200.0, 120.0)));
         floor.partitions.push(add(rect(90.0, 0.0, 20.0, 120.0)));
         let plan = wall_plan(&floor);
@@ -439,7 +446,7 @@ mod tests {
 
     #[test]
     fn a_room_thinner_than_the_band_is_solid() {
-        let mut floor = Floor::new(FLOOR1_INDEX);
+        let mut floor = test_floor();
         floor.walls.push(add(rect(0.0, 0.0, 20.0, 100.0)));
         let plan = wall_plan(&floor);
         // No room floor, so the whole rect is wall: a single outline.
@@ -449,7 +456,7 @@ mod tests {
 
     #[test]
     fn overlapping_rooms_merge_without_an_internal_wall() {
-        let mut floor = Floor::new(FLOOR1_INDEX);
+        let mut floor = test_floor();
         floor.walls.push(add(rect(0.0, 0.0, 200.0, 200.0)));
         floor.walls.push(add(rect(150.0, 50.0, 200.0, 100.0)));
         let plan = wall_plan(&floor);
@@ -498,7 +505,7 @@ mod tests {
     #[test]
     fn a_sub_room_carve_keeps_the_remaining_wall() {
         // A room with a Sub carved out of one edge: the band gains an opening.
-        let mut floor = Floor::new(FLOOR1_INDEX);
+        let mut floor = test_floor();
         floor.walls.push(add(rect(0.0, 0.0, 200.0, 200.0)));
         floor.walls.push(sub(rect(80.0, -10.0, 40.0, 40.0)));
         let plan = wall_plan(&floor);
