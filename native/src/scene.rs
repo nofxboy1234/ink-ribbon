@@ -18,6 +18,9 @@
 //!   u32  door_count     -> { u32 id, u8 kind, f32 cx, cy, sx, sy, rot }
 //!   u32  stair_count    -> { u32 id, f32 x, y }
 //!   u32  item_count     -> { u32 id, u8 kind, f32 x, y, u16 name_len, name }
+//!   u32  label_count    -> { f32 x, y, u16 name_len, name }             (v4)
+//!   u32  region_count   -> { u32 id, u16 name_len, name, f32 x, y, w, h, u8 initial } (v5)
+//!   u32  trigger_count  -> { u32 id, f32 x, y, w, h }                   (v5)
 //!   u32  link_count     -> { u8 kind, u8 a_floor, u32 a_id, u8 b_floor, u32 b_id }
 //! ```
 
@@ -40,8 +43,9 @@ pub const FLOOR1_H: f32 = FLOOR_FRAMES[FLOOR1_INDEX].3;
 
 const MAGIC: &[u8; 4] = b"IRSC";
 /// v1 stored doors without `reveals_as`; v2 adds it; v3 adds interior-wall
-/// partitions; v4 adds room name labels. Reading still accepts v1-v3.
-pub const VERSION: u16 = 4;
+/// partitions; v4 adds room name labels; v5 adds fog-of-war regions, reveal
+/// triggers and their links. Reading still accepts v1-v4.
+pub const VERSION: u16 = 5;
 
 /// Thickness in source pixels of the wall band drawn inside each room rectangle
 /// (the gap between the two parallel lines).
@@ -157,6 +161,53 @@ pub struct RoomLabel {
     pub pos: (f32, f32),
 }
 
+/// Visibility of a fog-of-war region. `Visited` is runtime-only; an authored
+/// region starts `Hidden` or `Revealed`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum RegionState {
+    Hidden,
+    Revealed,
+    Visited,
+}
+
+impl RegionState {
+    pub fn to_u8(self) -> u8 {
+        match self {
+            RegionState::Hidden => 0,
+            RegionState::Revealed => 1,
+            RegionState::Visited => 2,
+        }
+    }
+
+    pub fn from_u8(v: u8) -> Option<RegionState> {
+        match v {
+            0 => Some(RegionState::Hidden),
+            1 => Some(RegionState::Revealed),
+            2 => Some(RegionState::Visited),
+            _ => None,
+        }
+    }
+}
+
+/// A fog-of-war region (v5): a rectangle that owns the geometry whose centre it
+/// contains (smallest region wins). Hidden regions are neither drawn nor
+/// walkable until revealed.
+#[derive(Clone, PartialEq, Debug)]
+pub struct Region {
+    pub id: u32,
+    pub name: String,
+    pub rect: Rect,
+    pub initial: RegionState,
+}
+
+/// A reveal trigger (v5): stepping inside the rectangle fires it (once), which
+/// reveals any region it is linked to.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Trigger {
+    pub id: u32,
+    pub rect: Rect,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Link {
     /// Two stair endpoints on (possibly) different floors.
@@ -173,6 +224,27 @@ pub enum Link {
         door_floor: u8,
         door_id: u32,
     },
+    /// Revealing/unlocking a door reveals a region.
+    DoorRegion {
+        door_floor: u8,
+        door_id: u32,
+        region_floor: u8,
+        region_id: u32,
+    },
+    /// Touching a trigger reveals a region.
+    TriggerRegion {
+        trigger_floor: u8,
+        trigger_id: u32,
+        region_floor: u8,
+        region_id: u32,
+    },
+    /// Picking up an item reveals a region.
+    ItemRegion {
+        item_floor: u8,
+        item_id: u32,
+        region_floor: u8,
+        region_id: u32,
+    },
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -188,6 +260,10 @@ pub struct Floor {
     pub items: Vec<ItemDef>,
     /// Room name labels (v4).
     pub labels: Vec<RoomLabel>,
+    /// Fog-of-war regions (v5).
+    pub regions: Vec<Region>,
+    /// Reveal triggers (v5).
+    pub triggers: Vec<Trigger>,
     pub links: Vec<Link>,
 }
 
@@ -202,6 +278,8 @@ impl Floor {
             stairs: Vec::new(),
             items: Vec::new(),
             labels: Vec::new(),
+            regions: Vec::new(),
+            triggers: Vec::new(),
             links: Vec::new(),
         }
     }
@@ -214,6 +292,8 @@ impl Floor {
             && self.stairs.is_empty()
             && self.items.is_empty()
             && self.labels.is_empty()
+            && self.regions.is_empty()
+            && self.triggers.is_empty()
     }
 
     /// The partition ops, as the same ordered `Add`/`Sub` boolean as rooms.
@@ -363,6 +443,24 @@ impl Scene {
                 put_u16(&mut out, name.len().min(u16::MAX as usize) as u16);
                 out.extend_from_slice(&name[..name.len().min(u16::MAX as usize)]);
             }
+            put_u32(&mut out, floor.regions.len() as u32);
+            for r in &floor.regions {
+                put_u32(&mut out, r.id);
+                let name = r.name.as_bytes();
+                put_u16(&mut out, name.len().min(u16::MAX as usize) as u16);
+                out.extend_from_slice(&name[..name.len().min(u16::MAX as usize)]);
+                for v in [r.rect.x, r.rect.y, r.rect.w, r.rect.h] {
+                    put_f32(&mut out, v);
+                }
+                put_u8(&mut out, r.initial.to_u8());
+            }
+            put_u32(&mut out, floor.triggers.len() as u32);
+            for t in &floor.triggers {
+                put_u32(&mut out, t.id);
+                for v in [t.rect.x, t.rect.y, t.rect.w, t.rect.h] {
+                    put_f32(&mut out, v);
+                }
+            }
             put_u32(&mut out, floor.links.len() as u32);
             for link in &floor.links {
                 match *link {
@@ -389,6 +487,42 @@ impl Scene {
                         put_u32(&mut out, item_id);
                         put_u8(&mut out, door_floor);
                         put_u32(&mut out, door_id);
+                    }
+                    Link::DoorRegion {
+                        door_floor,
+                        door_id,
+                        region_floor,
+                        region_id,
+                    } => {
+                        put_u8(&mut out, 2);
+                        put_u8(&mut out, door_floor);
+                        put_u32(&mut out, door_id);
+                        put_u8(&mut out, region_floor);
+                        put_u32(&mut out, region_id);
+                    }
+                    Link::TriggerRegion {
+                        trigger_floor,
+                        trigger_id,
+                        region_floor,
+                        region_id,
+                    } => {
+                        put_u8(&mut out, 3);
+                        put_u8(&mut out, trigger_floor);
+                        put_u32(&mut out, trigger_id);
+                        put_u8(&mut out, region_floor);
+                        put_u32(&mut out, region_id);
+                    }
+                    Link::ItemRegion {
+                        item_floor,
+                        item_id,
+                        region_floor,
+                        region_id,
+                    } => {
+                        put_u8(&mut out, 4);
+                        put_u8(&mut out, item_floor);
+                        put_u32(&mut out, item_id);
+                        put_u8(&mut out, region_floor);
+                        put_u32(&mut out, region_id);
                     }
                 }
             }
@@ -516,6 +650,40 @@ impl Scene {
                     floor.labels.push(RoomLabel { name, pos });
                 }
             }
+            // v5 added fog-of-war regions and reveal triggers.
+            if version >= 5 {
+                let n = c.u32()? as usize;
+                for _ in 0..n {
+                    let id = c.u32()?;
+                    let len = c.u16()? as usize;
+                    let name = String::from_utf8_lossy(c.take(len)?).into_owned();
+                    let rect = Rect {
+                        x: c.f32()?,
+                        y: c.f32()?,
+                        w: c.f32()?,
+                        h: c.f32()?,
+                    };
+                    let initial = RegionState::from_u8(c.u8()?)?;
+                    floor.regions.push(Region {
+                        id,
+                        name,
+                        rect,
+                        initial,
+                    });
+                }
+                let n = c.u32()? as usize;
+                for _ in 0..n {
+                    floor.triggers.push(Trigger {
+                        id: c.u32()?,
+                        rect: Rect {
+                            x: c.f32()?,
+                            y: c.f32()?,
+                            w: c.f32()?,
+                            h: c.f32()?,
+                        },
+                    });
+                }
+            }
             let n = c.u32()? as usize;
             for _ in 0..n {
                 let kind = c.u8()?;
@@ -535,6 +703,24 @@ impl Scene {
                         item_id: a_id,
                         door_floor: b_floor,
                         door_id: b_id,
+                    },
+                    2 => Link::DoorRegion {
+                        door_floor: a_floor,
+                        door_id: a_id,
+                        region_floor: b_floor,
+                        region_id: b_id,
+                    },
+                    3 => Link::TriggerRegion {
+                        trigger_floor: a_floor,
+                        trigger_id: a_id,
+                        region_floor: b_floor,
+                        region_id: b_id,
+                    },
+                    4 => Link::ItemRegion {
+                        item_floor: a_floor,
+                        item_id: a_id,
+                        region_floor: b_floor,
+                        region_id: b_id,
                     },
                     _ => return None,
                 });
@@ -661,6 +847,26 @@ mod tests {
             name: "Medication Room".into(),
             pos: (3504.0, 5145.0),
         });
+        floor.regions.push(Region {
+            id: 11,
+            name: "Ward".into(),
+            rect: Rect {
+                x: 3400.0,
+                y: 5000.0,
+                w: 500.0,
+                h: 400.0,
+            },
+            initial: RegionState::Hidden,
+        });
+        floor.triggers.push(Trigger {
+            id: 12,
+            rect: Rect {
+                x: 3600.0,
+                y: 5100.0,
+                w: 80.0,
+                h: 80.0,
+            },
+        });
         floor.obstacles.push(Box2 {
             id: 7,
             center: (2000.0, 4000.0),
@@ -697,10 +903,58 @@ mod tests {
             door_floor: 2,
             door_id: 3,
         });
+        floor.links.push(Link::DoorRegion {
+            door_floor: 2,
+            door_id: 3,
+            region_floor: 2,
+            region_id: 11,
+        });
+        floor.links.push(Link::TriggerRegion {
+            trigger_floor: 2,
+            trigger_id: 12,
+            region_floor: 2,
+            region_id: 11,
+        });
+        floor.links.push(Link::ItemRegion {
+            item_floor: 2,
+            item_id: 9,
+            region_floor: 2,
+            region_id: 11,
+        });
 
         let bytes = scene.to_bytes();
         let back = Scene::from_bytes(&bytes).expect("decode");
         assert_eq!(back, scene);
+    }
+
+    #[test]
+    fn v4_scene_has_no_regions_or_triggers() {
+        // A version-4 payload stops after labels: the reader must not look for
+        // regions/triggers.
+        let mut b = Vec::new();
+        b.extend_from_slice(MAGIC);
+        put_u16(&mut b, 4);
+        put_u8(&mut b, NUM_FLOORS as u8);
+        put_u8(&mut b, 0);
+        for &frame in FLOOR_FRAMES.iter() {
+            for v in [frame.0, frame.1, frame.2, frame.3] {
+                put_f32(&mut b, v);
+            }
+            put_u32(&mut b, 0); // walls
+            put_u32(&mut b, 0); // partitions
+            put_u32(&mut b, 0); // obstacles
+            put_u32(&mut b, 0); // doors
+            put_u32(&mut b, 0); // stairs
+            put_u32(&mut b, 0); // items
+            put_u32(&mut b, 0); // labels
+            put_u32(&mut b, 0); // links
+        }
+        let scene = Scene::from_bytes(&b).expect("v4 should parse");
+        assert_eq!(scene.version, 4);
+        assert!(scene
+            .floors
+            .iter()
+            .all(|f| f.regions.is_empty() && f.triggers.is_empty()));
     }
 
     #[test]

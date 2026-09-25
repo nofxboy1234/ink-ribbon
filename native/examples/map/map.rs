@@ -3,8 +3,9 @@ use std::ffi;
 use ink_ribbon_native::bake::{bake, bake_floor_grids, BakedBytes, OverlayBytes, CELL_PX};
 use ink_ribbon_native::save::{format_unix_utc, PlayerSave};
 use ink_ribbon_native::scene::{
-    BoolOp, Box2, Door, DoorKind, ItemDef, ItemKind, Link, Rect, RoomLabel, Scene, StairNode,
-    WallOp, DOOR_LONG_PX, DOOR_THICK_PX, FLOOR_FRAMES, NUM_FLOORS, ROOM_WALL_PX,
+    BoolOp, Box2, Door, DoorKind, ItemDef, ItemKind, Link, Rect, Region, RegionState, RoomLabel,
+    Scene, StairNode, Trigger, WallOp, DOOR_LONG_PX, DOOR_THICK_PX, FLOOR_FRAMES, NUM_FLOORS,
+    ROOM_WALL_PX,
 };
 use ink_ribbon_native::walls::{region_rects, wall_plan, EdgeDir, WallPlan, WallTone};
 use sokol::{app as sapp, gfx as sg, gl as sgl, glue as sglue};
@@ -197,6 +198,8 @@ const C_DOOR_UNKNOWN: (f32, f32, f32) = (0.55, 0.55, 0.60);
 // Room floors are a uniform dark grey; some rooms get a dot grid or a diamond
 // lattice (ref/map_ref.png).
 const ROOM_FLOOR: (f32, f32, f32) = (0.090, 0.090, 0.090); // #171717
+                                                           // A region revealed from afar (a map item): drawn, but darker until entered.
+const ROOM_FLOOR_DIM: (f32, f32, f32) = (0.045, 0.045, 0.048);
 const ROOM_DOT: (f32, f32, f32) = (0.17, 0.17, 0.17);
 const ROOM_LINE: (f32, f32, f32) = (0.13, 0.13, 0.13);
 const ROOM_DOT_PX: f32 = 3.0;
@@ -812,12 +815,14 @@ enum Tool {
     Stair,
     Item,
     Label,
+    Region,
+    Trigger,
     Erase,
     Connect,
 }
 
 impl Tool {
-    const ALL: [Tool; 13] = [
+    const ALL: [Tool; 15] = [
         Tool::Select,
         Tool::WallAdd,
         Tool::WallSub,
@@ -829,6 +834,8 @@ impl Tool {
         Tool::Stair,
         Tool::Item,
         Tool::Label,
+        Tool::Region,
+        Tool::Trigger,
         Tool::Erase,
         Tool::Connect,
     ];
@@ -846,6 +853,8 @@ impl Tool {
             Tool::Stair => "STAIR",
             Tool::Item => "ITEM",
             Tool::Label => "NAME",
+            Tool::Region => "ROOM",
+            Tool::Trigger => "TRIG",
             Tool::Erase => "ERASE",
             Tool::Connect => "LINK",
         }
@@ -864,6 +873,8 @@ impl Tool {
             Tool::Stair => (0.90, 0.80, 0.35),
             Tool::Item => (0.65, 0.45, 0.95),
             Tool::Label => (0.58, 0.58, 0.55),
+            Tool::Region => (0.35, 0.55, 0.85),
+            Tool::Trigger => (0.95, 0.55, 0.25),
             Tool::Erase => (0.85, 0.30, 0.30),
             Tool::Connect => (0.90, 0.65, 0.90),
         }
@@ -872,7 +883,12 @@ impl Tool {
     fn is_rect(self) -> bool {
         matches!(
             self,
-            Tool::WallAdd | Tool::WallSub | Tool::Wall | Tool::Obstacle
+            Tool::WallAdd
+                | Tool::WallSub
+                | Tool::Wall
+                | Tool::Obstacle
+                | Tool::Region
+                | Tool::Trigger
         )
     }
 
@@ -894,6 +910,8 @@ enum Selection {
     Stair(usize),
     Item(usize),
     Label(usize),
+    Region(usize),
+    Trigger(usize),
 }
 
 // Geometry snapshot of a selected object, used while dragging handles.
@@ -930,6 +948,8 @@ enum PendingLink {
     Stair(usize, u32),
     Item(usize, u32),
     Door(usize, u32),
+    Trigger(usize, u32),
+    Region(usize, u32),
 }
 
 // A copied editor object, pasted with a fresh id.
@@ -942,6 +962,8 @@ enum Clip {
     Stair(StairNode),
     Item(ItemDef),
     Label(RoomLabel),
+    Region(Region),
+    Trigger(Trigger),
 }
 
 // Modal overlay state. All menus freeze gameplay while open.
@@ -1065,6 +1087,14 @@ struct State {
     collected: Vec<u32>,         // item ids picked up
     revealed: Vec<(usize, u32)>, // (floor, door id) that revealed
     unlocked: Vec<(usize, u32)>, // (floor, door id) unlocked with a key
+    // Fog of war: regions reached (Visited) and regions revealed by a door,
+    // trigger or item.
+    visited: Vec<(usize, u32)>,
+    revealed_regions: Vec<(usize, u32)>,
+    fired_triggers: Vec<(usize, u32)>,
+    // Authored scene with progress applied (reveals/unlocks/pickups/regions),
+    // cached so drawing and baking agree. In edit mode it is the authored scene.
+    play_scene: Scene,
     inventory: Vec<ItemDef>,
     inventory_open: bool,
     inventory_selected: usize,
@@ -1549,7 +1579,16 @@ fn update_player(state: &mut State, delta: f32) {
     // Reveals/stairs resolve once the move has settled, so a turn never gets
     // interrupted mid-animation.
     if state.move_anim.is_none() {
-        if reveal_doors(state) {
+        // Standing in a revealed region marks it visited (shading only).
+        mark_region_visited(state);
+        // A trigger or a nearby unknown door can reveal a region, which changes
+        // the drawn/baked geometry (overlays included).
+        let mut regions_changed = reveal_regions_at_player(state);
+        let (doors_changed, door_regions) = reveal_doors(state);
+        regions_changed |= door_regions;
+        if regions_changed {
+            rebuild_assets(state);
+        } else if doors_changed {
             rebuild_gameplay(state);
         }
         check_stairs(state);
@@ -1845,10 +1884,10 @@ fn effective_door_kind(state: &State, floor: usize, id: u32) -> Option<DoorKind>
     })
 }
 
-// A clone of the authored scene with reveals/unlocks/pickups applied. Baking
-// this keeps gameplay progress out of the saved scene.
+// A clone of the authored scene with reveals/unlocks/pickups and fog-of-war
+// applied. Baking this keeps gameplay progress out of the saved scene.
 fn effective_scene(state: &State) -> Scene {
-    let mut scene = state.scene.clone();
+    let mut scene = apply_regions(&state.scene, &state.visited, &state.revealed_regions);
     for (fi, floor) in scene.floors.iter_mut().enumerate() {
         for d in floor.doors.iter_mut() {
             if is_unlocked(state, fi, d.id) {
@@ -1860,6 +1899,187 @@ fn effective_scene(state: &State) -> Scene {
         floor.items.retain(|it| !is_collected(state, it.id));
     }
     scene
+}
+
+// Drop the geometry and regions owned by Hidden regions. Ownership follows the
+// authoring rule: the smallest region containing a point owns it. Pure so it can
+// be tested without a running State.
+fn apply_regions(scene: &Scene, visited: &[(usize, u32)], revealed: &[(usize, u32)]) -> Scene {
+    let mut out = scene.clone();
+    for (fi, floor) in out.floors.iter_mut().enumerate() {
+        let owner = |p: (f32, f32)| -> Option<RegionState> {
+            scene.floors[fi]
+                .regions
+                .iter()
+                .filter(|r| rect_contains(r.rect, p))
+                .min_by(|a, b| {
+                    rect_area(a.rect)
+                        .partial_cmp(&rect_area(b.rect))
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .map(|r| region_state_raw(fi, r, visited, revealed))
+        };
+        let is_hidden = |p: (f32, f32)| owner(p) == Some(RegionState::Hidden);
+        floor.walls.retain(|w| !is_hidden(rect_center(w.rect)));
+        floor.partitions.retain(|w| !is_hidden(rect_center(w.rect)));
+        floor.obstacles.retain(|o| !is_hidden(o.center));
+        floor.doors.retain(|d| !is_hidden(d.center));
+        floor.stairs.retain(|s| !is_hidden(s.pos));
+        floor.items.retain(|it| !is_hidden(it.pos));
+        floor.labels.retain(|l| !is_hidden(l.pos));
+        floor.regions.retain(|r| !is_hidden(rect_center(r.rect)));
+        floor.triggers.retain(|t| !is_hidden(rect_center(t.rect)));
+    }
+    out
+}
+
+// Refresh the cached progress-applied scene used for drawing and baking.
+fn recompute_play_scene(state: &mut State) {
+    let scene = if state.edit {
+        state.scene.clone()
+    } else {
+        effective_scene(state)
+    };
+    state.play_scene = scene;
+}
+
+fn rect_contains(r: Rect, p: (f32, f32)) -> bool {
+    p.0 >= r.x && p.0 <= r.x + r.w && p.1 >= r.y && p.1 <= r.y + r.h
+}
+
+fn rect_center(r: Rect) -> (f32, f32) {
+    (r.x + r.w * 0.5, r.y + r.h * 0.5)
+}
+
+fn rect_area(r: Rect) -> f32 {
+    r.w * r.h
+}
+
+fn region_state_raw(
+    floor: usize,
+    region: &Region,
+    visited: &[(usize, u32)],
+    revealed: &[(usize, u32)],
+) -> RegionState {
+    if visited.contains(&(floor, region.id)) {
+        RegionState::Visited
+    } else if region.initial != RegionState::Hidden || revealed.contains(&(floor, region.id)) {
+        RegionState::Revealed
+    } else {
+        RegionState::Hidden
+    }
+}
+
+// The runtime visibility of an authored region. `Visited` wins; an authored
+// `Revealed` or a reveal link shows it; everything else is Hidden.
+fn region_state(state: &State, floor: usize, region: &Region) -> RegionState {
+    region_state_raw(floor, region, &state.visited, &state.revealed_regions)
+}
+
+// The smallest region containing `p` (authoring rule: region rects cover a room
+// and its walls, so a room's centre picks its region).
+fn region_at(state: &State, floor: usize, p: (f32, f32)) -> Option<&Region> {
+    state.scene.floors[floor]
+        .regions
+        .iter()
+        .filter(|r| rect_contains(r.rect, p))
+        .min_by(|a, b| {
+            rect_area(a.rect)
+                .partial_cmp(&rect_area(b.rect))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+}
+
+fn link_region(link: &Link) -> Option<(usize, u32)> {
+    match *link {
+        Link::DoorRegion {
+            region_floor,
+            region_id,
+            ..
+        }
+        | Link::TriggerRegion {
+            region_floor,
+            region_id,
+            ..
+        }
+        | Link::ItemRegion {
+            region_floor,
+            region_id,
+            ..
+        } => Some((region_floor as usize, region_id)),
+        _ => None,
+    }
+}
+
+// Reveal every region linked by a link matching `pred`. Returns true when a new
+// region appeared (caller re-bakes).
+fn reveal_regions_linked_to(state: &mut State, pred: impl Fn(&Link) -> bool) -> bool {
+    let mut found: Vec<(usize, u32)> = Vec::new();
+    for floor in &state.scene.floors {
+        for link in &floor.links {
+            if !pred(link) {
+                continue;
+            }
+            if let Some(key) = link_region(link) {
+                if !state.revealed_regions.contains(&key) && !found.contains(&key) {
+                    found.push(key);
+                }
+            }
+        }
+    }
+    let changed = !found.is_empty();
+    state.revealed_regions.extend(found);
+    changed
+}
+
+// Fire any trigger the player is standing in and reveal its regions.
+fn reveal_regions_at_player(state: &mut State) -> bool {
+    let floor = state.player_floor;
+    let fired: Vec<u32> = state.scene.floors[floor]
+        .triggers
+        .iter()
+        .filter(|t| !state.fired_triggers.contains(&(floor, t.id)))
+        .filter(|t| rect_contains(t.rect, state.player))
+        .map(|t| t.id)
+        .collect();
+    let mut changed = false;
+    for id in fired {
+        state.fired_triggers.push((floor, id));
+        if reveal_regions_linked_to(state, |l| {
+            matches!(l, Link::TriggerRegion { trigger_floor, trigger_id, .. }
+                if *trigger_floor as usize == floor && *trigger_id == id)
+        }) {
+            changed = true;
+        }
+    }
+    if changed {
+        set_status(state, "a new area appears on the map");
+    }
+    changed
+}
+
+// Mark the (revealed) region the player is standing in as Visited.
+fn mark_region_visited(state: &mut State) -> bool {
+    let floor = state.player_floor;
+    let found = state.scene.floors[floor]
+        .regions
+        .iter()
+        .filter(|r| rect_contains(r.rect, state.player))
+        .filter(|r| region_state(state, floor, r) != RegionState::Hidden)
+        .min_by(|a, b| {
+            rect_area(a.rect)
+                .partial_cmp(&rect_area(b.rect))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .map(|r| (r.id, r.name.clone()));
+    if let Some((id, name)) = found {
+        if !state.visited.contains(&(floor, id)) {
+            state.visited.push((floor, id));
+            set_status(state, format!("entered {name}"));
+            return true;
+        }
+    }
+    false
 }
 
 // True when any collected key is linked to this door.
@@ -1917,9 +2137,10 @@ fn prune_satisfied_keys(state: &mut State) {
     }
 }
 
-// Reveal Unknown doors the player is standing near. Returns true if anything
-// changed (caller re-bakes once).
-fn reveal_doors(state: &mut State) -> bool {
+// Reveal Unknown doors the player is standing near, plus any regions they lead
+// to. Returns `(door_changed, region_changed)` so the caller can pick the
+// cheapest re-bake.
+fn reveal_doors(state: &mut State) -> (bool, bool) {
     let floor = state.player_floor;
     let pending: Vec<u32> = state.scene.floors[floor]
         .doors
@@ -1931,16 +2152,23 @@ fn reveal_doors(state: &mut State) -> bool {
         })
         .map(|d| d.id)
         .collect();
-    let changed = !pending.is_empty();
+    let door_changed = !pending.is_empty();
+    let mut region_changed = false;
     for id in pending {
         state.revealed.push((floor, id));
+        if reveal_regions_linked_to(state, |l| {
+            matches!(l, Link::DoorRegion { door_floor, door_id, .. }
+                if *door_floor as usize == floor && *door_id == id)
+        }) {
+            region_changed = true;
+        }
     }
-    if changed {
+    if door_changed {
         // A reveal to Unlocked can complete a key's doors.
         prune_satisfied_keys(state);
         set_status(state, "a door came into view");
     }
-    changed
+    (door_changed, region_changed)
 }
 
 fn dist(a: (f32, f32), b: (f32, f32)) -> f32 {
@@ -1996,7 +2224,7 @@ fn interaction_target(state: &State) -> Option<Interaction> {
             best = Some((score, rank, inter));
         }
     };
-    for it in &state.scene.floors[floor].items {
+    for it in &state.play_scene.floors[floor].items {
         match it.kind {
             ItemKind::Typewriter => {
                 let d = dist(state.player, it.pos);
@@ -2032,7 +2260,7 @@ fn interaction_target(state: &State) -> Option<Interaction> {
             _ => {}
         }
     }
-    for door in &state.scene.floors[floor].doors {
+    for door in &state.play_scene.floors[floor].doors {
         if effective_door_kind(state, floor, door.id) == Some(DoorKind::Locked)
             && door_has_inventory_key(state, floor, door.id)
         {
@@ -2074,6 +2302,13 @@ fn collect_item(state: &mut State, id: u32, name: &str) {
     state.target = None;
     state.path.clear();
     state.path_red.clear();
+    // A map item can reveal a region, which does change the baked geometry.
+    if reveal_regions_linked_to(state, |l| {
+        matches!(l, Link::ItemRegion { item_floor, item_id, .. }
+            if *item_floor as usize == floor && *item_id == id)
+    }) {
+        rebuild_assets(state);
+    }
     set_status(state, format!("picked up {name}"));
 }
 
@@ -2088,8 +2323,16 @@ fn unlock_door(state: &mut State, id: u32) {
     }
     state.unlocked.push((floor, id));
     prune_satisfied_keys(state);
-    // The door's nav/solid opening changed, but the overlays did not.
-    rebuild_gameplay(state);
+    // The door's nav/solid opening changed, but the overlays did not, unless the
+    // door also reveals a region.
+    if reveal_regions_linked_to(state, |l| {
+        matches!(l, Link::DoorRegion { door_floor, door_id, .. }
+            if *door_floor as usize == floor && *door_id == id)
+    }) {
+        rebuild_assets(state);
+    } else {
+        rebuild_gameplay(state);
+    }
     set_status(state, "unlocked");
 }
 
@@ -2915,12 +3158,8 @@ fn item_kind_label(kind: ItemKind) -> &'static str {
 
 // Re-bake the scene and swap the running map's assets in place.
 fn rebuild_assets(state: &mut State) {
-    // Editing shows the authored map; playing shows the progress overrides.
-    let scene = if state.edit {
-        state.scene.clone()
-    } else {
-        effective_scene(state)
-    };
+    recompute_play_scene(state);
+    let scene = state.play_scene.clone();
     let baked = bake(&scene);
     let BakedBytes {
         overlays,
@@ -2946,11 +3185,8 @@ fn rebuild_assets(state: &mut State) {
 /// revealing/unlocking). The overlays never change with progress, so their 2048px
 /// textures are left alone, and no other floor's geometry changed.
 fn rebuild_gameplay(state: &mut State) {
-    let scene = if state.edit {
-        state.scene.clone()
-    } else {
-        effective_scene(state)
-    };
+    recompute_play_scene(state);
+    let scene = state.play_scene.clone();
     let f = state.player_floor;
     let (nav, nav_open, solid) = bake_floor_grids(&scene, f);
     state.nav[f] = Nav::from_bytes(&nav, FLOOR_FRAMES[f]);
@@ -3033,9 +3269,22 @@ fn place_rect(state: &mut State, a: (f32, f32), b: (f32, f32)) {
             size: (w, h),
             rot: 0.0,
         }),
+        Tool::Region => floor.regions.push(Region {
+            id,
+            name: format!("Region {id}"),
+            rect: Rect { x, y, w, h },
+            initial: RegionState::Hidden,
+        }),
+        Tool::Trigger => floor.triggers.push(Trigger {
+            id,
+            rect: Rect { x, y, w, h },
+        }),
         _ => {}
     }
-    rebuild_assets(state);
+    // Regions and triggers are metadata: they don't change the baked art.
+    if !matches!(tool, Tool::Region | Tool::Trigger) {
+        rebuild_assets(state);
+    }
     set_status(state, format!("{} placed", tool.label()));
 }
 
@@ -3222,6 +3471,21 @@ fn pick_object(scene: &Scene, floor_index: usize, p: (f32, f32)) -> Option<Selec
             Selection::Door(i),
         );
     }
+    // Triggers and regions are large areas; they lose to the objects inside them.
+    for (i, t) in floor.triggers.iter().enumerate() {
+        consider(
+            dist_to_rect(p, t.rect),
+            rect_area(t.rect),
+            Selection::Trigger(i),
+        );
+    }
+    for (i, r) in floor.regions.iter().enumerate() {
+        consider(
+            dist_to_rect(p, r.rect),
+            rect_area(r.rect),
+            Selection::Region(i),
+        );
+    }
     best.map(|(_, _, sel)| sel)
 }
 
@@ -3252,6 +3516,12 @@ fn editor_erase(state: &mut State, p: (f32, f32)) {
         }
         Selection::Label(i) => {
             floor.labels.remove(i);
+        }
+        Selection::Region(i) => {
+            floor.regions.remove(i);
+        }
+        Selection::Trigger(i) => {
+            floor.triggers.remove(i);
         }
     }
     state.selection.clear();
@@ -3311,6 +3581,24 @@ fn selection_geom(scene: &Scene, floor_index: usize, sel: Selection) -> Option<S
         Selection::Label(i) => SelGeom::Point {
             pos: floor.labels.get(i)?.pos,
         },
+        Selection::Region(i) => {
+            let r = floor.regions.get(i)?.rect;
+            SelGeom::Rect {
+                x: r.x,
+                y: r.y,
+                w: r.w,
+                h: r.h,
+            }
+        }
+        Selection::Trigger(i) => {
+            let r = floor.triggers.get(i)?.rect;
+            SelGeom::Rect {
+                x: r.x,
+                y: r.y,
+                w: r.w,
+                h: r.h,
+            }
+        }
     })
 }
 
@@ -3355,6 +3643,16 @@ fn set_selection_geom(scene: &mut Scene, floor_index: usize, sel: Selection, geo
         (Selection::Label(i), SelGeom::Point { pos }) => {
             if let Some(l) = floor.labels.get_mut(i) {
                 l.pos = pos;
+            }
+        }
+        (Selection::Region(i), SelGeom::Rect { x, y, w, h }) => {
+            if let Some(r) = floor.regions.get_mut(i) {
+                r.rect = Rect { x, y, w, h };
+            }
+        }
+        (Selection::Trigger(i), SelGeom::Rect { x, y, w, h }) => {
+            if let Some(t) = floor.triggers.get_mut(i) {
+                t.rect = Rect { x, y, w, h };
             }
         }
         _ => {}
@@ -3600,6 +3898,8 @@ enum LinkTarget {
     Stair(u32),
     Item(u32),
     Door(u32),
+    Trigger(u32),
+    Region(u32),
 }
 
 fn pick_link_target(scene: &Scene, floor_index: usize, p: (f32, f32)) -> Option<LinkTarget> {
@@ -3629,6 +3929,12 @@ fn pick_link_target(scene: &Scene, floor_index: usize, p: (f32, f32)) -> Option<
             LinkTarget::Door(d.id),
         );
     }
+    for t in &floor.triggers {
+        consider(dist_to_rect(p, t.rect), LinkTarget::Trigger(t.id));
+    }
+    for r in &floor.regions {
+        consider(dist_to_rect(p, r.rect), LinkTarget::Region(r.id));
+    }
     best.map(|(_, t)| t)
 }
 
@@ -3646,17 +3952,69 @@ fn connect_press(state: &mut State, p: (f32, f32)) {
                 state.pending_link = None;
                 set_status(state, "stairs must be on different floors");
             } else {
-                push_undo(state);
-                state.scene.floors[floor_index].links.push(Link::Stair {
+                let link = Link::Stair {
                     a_floor: f as u8,
                     a_id: a,
                     b_floor: floor_index as u8,
                     b_id: b,
-                });
-                state.pending_link = None;
-                rebuild_assets(state);
-                set_status(state, "stairs linked");
+                };
+                push_unique_link(state, floor_index, link, "stairs linked");
             }
+        }
+        // Reveal links: a door / item / trigger reveals a region, either order.
+        (Some(PendingLink::Door(f, d)), LinkTarget::Region(r)) => {
+            let link = Link::DoorRegion {
+                door_floor: f as u8,
+                door_id: d,
+                region_floor: floor_index as u8,
+                region_id: r,
+            };
+            push_unique_link(state, floor_index, link, "door -> region linked");
+        }
+        (Some(PendingLink::Region(f, r)), LinkTarget::Door(d)) => {
+            let link = Link::DoorRegion {
+                door_floor: floor_index as u8,
+                door_id: d,
+                region_floor: f as u8,
+                region_id: r,
+            };
+            push_unique_link(state, floor_index, link, "door -> region linked");
+        }
+        (Some(PendingLink::Item(f, i)), LinkTarget::Region(r)) => {
+            let link = Link::ItemRegion {
+                item_floor: f as u8,
+                item_id: i,
+                region_floor: floor_index as u8,
+                region_id: r,
+            };
+            push_unique_link(state, floor_index, link, "item -> region linked");
+        }
+        (Some(PendingLink::Region(f, r)), LinkTarget::Item(i)) => {
+            let link = Link::ItemRegion {
+                item_floor: floor_index as u8,
+                item_id: i,
+                region_floor: f as u8,
+                region_id: r,
+            };
+            push_unique_link(state, floor_index, link, "item -> region linked");
+        }
+        (Some(PendingLink::Trigger(f, t)), LinkTarget::Region(r)) => {
+            let link = Link::TriggerRegion {
+                trigger_floor: f as u8,
+                trigger_id: t,
+                region_floor: floor_index as u8,
+                region_id: r,
+            };
+            push_unique_link(state, floor_index, link, "trigger -> region linked");
+        }
+        (Some(PendingLink::Region(f, r)), LinkTarget::Trigger(t)) => {
+            let link = Link::TriggerRegion {
+                trigger_floor: floor_index as u8,
+                trigger_id: t,
+                region_floor: f as u8,
+                region_id: r,
+            };
+            push_unique_link(state, floor_index, link, "trigger -> region linked");
         }
         // Key <-> door links work in either click order.
         (Some(PendingLink::Item(f, a)), LinkTarget::Door(d)) => {
@@ -3671,13 +4029,36 @@ fn connect_press(state: &mut State, p: (f32, f32)) {
         }
         (_, LinkTarget::Item(id)) => {
             state.pending_link = Some(PendingLink::Item(floor_index, id));
-            set_status(state, "item picked - pick a door");
+            set_status(state, "item picked - pick a door or region");
         }
         (_, LinkTarget::Door(id)) => {
             state.pending_link = Some(PendingLink::Door(floor_index, id));
-            set_status(state, "door picked - pick a key item");
+            set_status(state, "door picked - pick a key item or region");
+        }
+        (_, LinkTarget::Trigger(id)) => {
+            state.pending_link = Some(PendingLink::Trigger(floor_index, id));
+            set_status(state, "trigger picked - pick a region");
+        }
+        (_, LinkTarget::Region(id)) => {
+            state.pending_link = Some(PendingLink::Region(floor_index, id));
+            set_status(state, "region picked - pick a door, item or trigger");
         }
     }
+}
+
+// Push `link` if none equal exists, re-bake and report.
+fn push_unique_link(state: &mut State, floor_index: usize, link: Link, status: &str) -> bool {
+    let duplicate = state.scene.floors.iter().any(|f| f.links.contains(&link));
+    state.pending_link = None;
+    if duplicate {
+        set_status(state, "already linked");
+        return false;
+    }
+    push_undo(state);
+    state.scene.floors[floor_index].links.push(link);
+    rebuild_assets(state);
+    set_status(state, status);
+    true
 }
 
 // Link a key item to a door and re-bake. Floors are stored per endpoint.
@@ -3689,27 +4070,13 @@ fn link_key_door(
     door_floor: usize,
     door_id: u32,
 ) {
-    // Ignore an identical link so a key linked to several doors stays clean.
-    let duplicate = state.scene.floors.iter().any(|f| {
-        f.links.iter().any(|l| {
-            matches!(l, Link::KeyDoor { item_id: iid, door_floor: df, door_id: did, .. }
-                if *iid == item_id && *df as usize == door_floor && *did == door_id)
-        })
-    });
-    state.pending_link = None;
-    if duplicate {
-        set_status(state, "already linked");
-        return;
-    }
-    push_undo(state);
-    state.scene.floors[floor_index].links.push(Link::KeyDoor {
+    let link = Link::KeyDoor {
         item_floor: item_floor as u8,
         item_id,
         door_floor: door_floor as u8,
         door_id,
-    });
-    rebuild_assets(state);
-    set_status(state, "key <-> door linked");
+    };
+    push_unique_link(state, floor_index, link, "key <-> door linked");
 }
 
 fn delete_selection(state: &mut State) {
@@ -3726,6 +4093,8 @@ fn delete_selection(state: &mut State) {
     let mut stairs = Vec::new();
     let mut items = Vec::new();
     let mut labels = Vec::new();
+    let mut regions = Vec::new();
+    let mut triggers = Vec::new();
     for sel in selected {
         match sel {
             Selection::Wall(i) => walls.push(i),
@@ -3735,6 +4104,8 @@ fn delete_selection(state: &mut State) {
             Selection::Stair(i) => stairs.push(i),
             Selection::Item(i) => items.push(i),
             Selection::Label(i) => labels.push(i),
+            Selection::Region(i) => regions.push(i),
+            Selection::Trigger(i) => triggers.push(i),
         }
     }
     remove_desc(&mut floor.walls, walls);
@@ -3744,6 +4115,8 @@ fn delete_selection(state: &mut State) {
     remove_desc(&mut floor.stairs, stairs);
     remove_desc(&mut floor.items, items);
     remove_desc(&mut floor.labels, labels);
+    remove_desc(&mut floor.regions, regions);
+    remove_desc(&mut floor.triggers, triggers);
     state.selection.clear();
     rebuild_assets(state);
     set_status(state, "deleted");
@@ -3774,6 +4147,8 @@ fn copy_selection(state: &mut State) {
             Selection::Stair(i) => floor.stairs.get(i).map(|s| Clip::Stair(*s)),
             Selection::Item(i) => floor.items.get(i).map(|it| Clip::Item(it.clone())),
             Selection::Label(i) => floor.labels.get(i).map(|l| Clip::Label(l.clone())),
+            Selection::Region(i) => floor.regions.get(i).map(|r| Clip::Region(r.clone())),
+            Selection::Trigger(i) => floor.triggers.get(i).map(|t| Clip::Trigger(*t)),
         })
         .collect();
     set_status(state, format!("copied {}", state.clipboard.len()));
@@ -3830,10 +4205,47 @@ fn paste_clipboard(state: &mut State, at: Option<(f32, f32)>) {
                 l.pos = at.unwrap_or((l.pos.0 + 24.0 + step, l.pos.1 + 24.0 + step));
                 floor.labels.push(l);
             }
+            Clip::Region(mut r) => {
+                r.id = id;
+                let c = (r.rect.x + r.rect.w * 0.5, r.rect.y + r.rect.h * 0.5);
+                let to = at.unwrap_or((c.0 + 24.0 + step, c.1 + 24.0 + step));
+                r.rect.x += to.0 - c.0;
+                r.rect.y += to.1 - c.1;
+                floor.regions.push(r);
+            }
+            Clip::Trigger(mut t) => {
+                t.id = id;
+                let c = (t.rect.x + t.rect.w * 0.5, t.rect.y + t.rect.h * 0.5);
+                let to = at.unwrap_or((c.0 + 24.0 + step, c.1 + 24.0 + step));
+                t.rect.x += to.0 - c.0;
+                t.rect.y += to.1 - c.1;
+                floor.triggers.push(t);
+            }
         }
     }
     rebuild_assets(state);
     set_status(state, "pasted");
+}
+
+// Cycle the selected region's authored visibility between Hidden and Revealed.
+fn toggle_region_visibility(state: &mut State) {
+    match primary_selection(state) {
+        Some(Selection::Region(i)) => {
+            if let Some(r) = state.scene.floors[state.floor].regions.get_mut(i) {
+                r.initial = match r.initial {
+                    RegionState::Hidden => RegionState::Revealed,
+                    _ => RegionState::Hidden,
+                };
+                let label = if r.initial == RegionState::Hidden {
+                    "hidden"
+                } else {
+                    "revealed"
+                };
+                set_status(state, format!("region {label}"));
+            }
+        }
+        _ => set_status(state, "select a region first"),
+    }
 }
 
 fn start_rename(state: &mut State) {
@@ -3850,7 +4262,13 @@ fn start_rename(state: &mut State) {
                 set_status(state, "type a name, Enter to accept");
             }
         }
-        _ => set_status(state, "select an item or label to rename"),
+        Some(Selection::Region(i)) => {
+            if let Some(r) = state.scene.floors[state.floor].regions.get(i) {
+                state.rename = Some(r.name.clone());
+                set_status(state, "type a name, Enter to accept");
+            }
+        }
+        _ => set_status(state, "select an item, label or region to rename"),
     }
 }
 
@@ -3872,6 +4290,12 @@ fn commit_rename(state: &mut State) {
             }
             set_status(state, "renamed");
         }
+        Some(Selection::Region(i)) => {
+            if let Some(r) = state.scene.floors[state.floor].regions.get_mut(i) {
+                r.name = name;
+            }
+            set_status(state, "renamed");
+        }
         _ => {}
     }
 }
@@ -3886,6 +4310,8 @@ fn editor_clear_floor(state: &mut State) {
     floor.stairs.clear();
     floor.items.clear();
     floor.labels.clear();
+    floor.regions.clear();
+    floor.triggers.clear();
     floor.links.clear();
     rebuild_assets(state);
     set_status(state, "floor cleared");
@@ -4151,6 +4577,14 @@ fn door_exists(state: &State, floor: usize, id: u32) -> bool {
         .is_some_and(|f| f.doors.iter().any(|d| d.id == id))
 }
 
+fn region_exists(state: &State, floor: usize, id: u32) -> bool {
+    state
+        .scene
+        .floors
+        .get(floor)
+        .is_some_and(|f| f.regions.iter().any(|r| r.id == id))
+}
+
 fn do_save(state: &mut State, slot: usize) {
     // Each save consumes one ink-ribbon; consume before snapshotting so the
     // saved inventory reflects the cost.
@@ -4171,6 +4605,10 @@ fn do_save(state: &mut State, slot: usize) {
         unlocked: state.unlocked.clone(),
         inventory: state.inventory.clone(),
         item_box: state.item_box.clone(),
+        visited: state.visited.clone(),
+        revealed_regions: state.revealed_regions.clone(),
+        steps: state.steps,
+        turn: state.turn,
         play_time: state.play_time,
         saved_at: now_unix(),
     };
@@ -4200,6 +4638,19 @@ fn apply_save(state: &mut State, save: PlayerSave) {
         .into_iter()
         .filter(|(f, id)| door_exists(state, *f, *id))
         .collect();
+    state.visited = save
+        .visited
+        .into_iter()
+        .filter(|(f, id)| region_exists(state, *f, *id))
+        .collect();
+    state.revealed_regions = save
+        .revealed_regions
+        .into_iter()
+        .filter(|(f, id)| region_exists(state, *f, *id))
+        .collect();
+    state.fired_triggers.clear();
+    state.steps = save.steps;
+    state.turn = save.turn;
     state.inventory = save.inventory;
     state.inventory_selected = 0;
     state.item_box = save.item_box;
@@ -4958,6 +5409,10 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                     }
                     sapp::Keycode::R if !event.key_repeat => {
                         start_rename(state);
+                        return;
+                    }
+                    sapp::Keycode::H if !event.key_repeat => {
+                        toggle_region_visibility(state);
                         return;
                     }
                     sapp::Keycode::Delete | sapp::Keycode::Backspace => {
@@ -6029,7 +6484,7 @@ fn draw_floor(
     {
         let font = state.font.as_ref().unwrap();
         let scale = state.layout.text_scale;
-        for label in &state.scene.floors[state.floor].labels {
+        for label in &state.play_scene.floors[state.floor].labels {
             let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, label.pos.0, label.pos.1);
             if rx < MAP_X || rx > MAP_X + MAP_W || ry < MAP_Y || ry > MAP_Y + MAP_H {
                 continue;
@@ -6056,14 +6511,9 @@ fn draw_floor(
 // A rotated box in reference space, for edit-mode obstacles/doors.
 // Door props: a flat rect at the fixed size, on top of the wall lines.
 fn draw_doors(state: &State, frame: (f32, f32, f32, f32), ox: f32, oy: f32, iw: f32, ih: f32) {
-    for d in &state.scene.floors[state.floor].doors {
-        // Play mode shows revealed/unlocked state; editing shows the authored kind.
-        let kind = if state.edit {
-            d.kind
-        } else {
-            effective_door_kind(state, state.floor, d.id).unwrap_or(d.kind)
-        };
-        draw_door(frame, ox, oy, iw, ih, d.center, d.rot, kind, 1.0);
+    // `play_scene` already carries reveal/unlock state (and hides fogged doors).
+    for d in &state.play_scene.floors[state.floor].doors {
+        draw_door(frame, ox, oy, iw, ih, d.center, d.rot, d.kind, 1.0);
     }
 }
 
@@ -6210,6 +6660,65 @@ fn draw_editor(
         (clip_bottom - clip_y).max(0.0),
         true,
     );
+
+    // Fog-of-war regions and reveal triggers sit under the objects they own.
+    for r in &floor.regions {
+        let (x0, y0) = src_to_ref(frame, ox, oy, iw, ih, r.rect.x, r.rect.y);
+        let (x1, y1) = src_to_ref(
+            frame,
+            ox,
+            oy,
+            iw,
+            ih,
+            r.rect.x + r.rect.w,
+            r.rect.y + r.rect.h,
+        );
+        let (c, a) = match r.initial {
+            RegionState::Hidden => ((0.30, 0.45, 0.80), 0.16),
+            RegionState::Revealed | RegionState::Visited => ((0.35, 0.72, 0.95), 0.20),
+        };
+        sgl::c4f(c.0, c.1, c.2, a);
+        rect(x0, y0, x1 - x0, y1 - y0);
+        sgl::c4f(c.0, c.1, c.2, 0.85);
+        outline_rect(x0, y0, x1 - x0, y1 - y0);
+        let linked = floor.links.iter().any(|l| {
+            matches!(l, Link::DoorRegion { region_id, .. }
+                | Link::TriggerRegion { region_id, .. }
+                | Link::ItemRegion { region_id, .. } if *region_id == r.id)
+        });
+        if linked {
+            sgl::c4f(0.95, 0.85, 0.35, 0.9);
+            outline_rect(x0 + 2.0, y0 + 2.0, x1 - x0 - 4.0, y1 - y0 - 4.0);
+        }
+        if let Some(PendingLink::Region(pf, pid)) = state.pending_link {
+            if pf == state.floor && pid == r.id {
+                sgl::c4f(1.0, 1.0, 1.0, 0.9);
+                outline_rect(x0 - 3.0, y0 - 3.0, x1 - x0 + 6.0, y1 - y0 + 6.0);
+            }
+        }
+    }
+    for t in &floor.triggers {
+        let (x0, y0) = src_to_ref(frame, ox, oy, iw, ih, t.rect.x, t.rect.y);
+        let (x1, y1) = src_to_ref(
+            frame,
+            ox,
+            oy,
+            iw,
+            ih,
+            t.rect.x + t.rect.w,
+            t.rect.y + t.rect.h,
+        );
+        sgl::c4f(0.95, 0.55, 0.25, 0.18);
+        rect(x0, y0, x1 - x0, y1 - y0);
+        sgl::c4f(0.95, 0.55, 0.25, 0.9);
+        outline_rect(x0, y0, x1 - x0, y1 - y0);
+        if let Some(PendingLink::Trigger(pf, pid)) = state.pending_link {
+            if pf == state.floor && pid == t.id {
+                sgl::c4f(1.0, 1.0, 1.0, 0.9);
+                outline_rect(x0 - 3.0, y0 - 3.0, x1 - x0 + 6.0, y1 - y0 + 6.0);
+            }
+        }
+    }
 
     for o in &floor.obstacles {
         draw_box_rot(
@@ -6418,8 +6927,10 @@ fn draw_editor(
     if let Some(pending) = state.pending_link {
         let what = match pending {
             PendingLink::Stair(..) => "another stair (any floor)",
-            PendingLink::Item(..) => "a door",
-            PendingLink::Door(..) => "a key item",
+            PendingLink::Item(..) => "a door or region",
+            PendingLink::Door(..) => "a key item or region",
+            PendingLink::Trigger(..) => "a region",
+            PendingLink::Region(..) => "a door, item or trigger",
         };
         let text = format!("LINK: pick {what}  (click empty space to cancel)");
         draw_ui_text(
@@ -6780,11 +7291,12 @@ fn dot(cx: f32, cy: f32, size: f32) {
 // diamond lattice. Which pattern (and grid size) is picked from the room's
 // rectangle, so it is stable across frames.
 fn draw_rooms(state: &State, frame: (f32, f32, f32, f32), ox: f32, oy: f32, iw: f32, ih: f32) {
-    let floor = &state.scene.floors[state.floor];
+    let floor = &state.play_scene.floors[state.floor];
     let region = region_rects(&floor.wall_ops());
     if region.is_empty() {
         return;
     }
+    // Revealed-but-unvisited regions (a map item) draw a darker floor.
     sgl::c4f(ROOM_FLOOR.0, ROOM_FLOOR.1, ROOM_FLOOR.2, 1.0);
     sgl::begin_quads();
     for r in &region {
@@ -6808,6 +7320,22 @@ fn draw_rooms(state: &State, frame: (f32, f32, f32, f32), ox: f32, oy: f32, iw: 
         if inner.w <= 0.0 || inner.h <= 0.0 {
             continue;
         }
+        // A region revealed from afar but not yet entered is drawn dark, with no
+        // dot/diamond pattern, until the player walks in. Edit mode always shows
+        // the authored floor.
+        if !state.edit
+            && region_state_for_room(state, state.floor, w.rect, inner)
+                == Some(RegionState::Revealed)
+        {
+            let (x0, y0) = src_to_ref(frame, ox, oy, iw, ih, inner.x, inner.y);
+            let (x1, y1) = src_to_ref(frame, ox, oy, iw, ih, inner.x + inner.w, inner.y + inner.h);
+            sgl::c4f(ROOM_FLOOR_DIM.0, ROOM_FLOOR_DIM.1, ROOM_FLOOR_DIM.2, 1.0);
+            sgl::v2f(x0, y0);
+            sgl::v2f(x1, y0);
+            sgl::v2f(x1, y1);
+            sgl::v2f(x0, y1);
+            continue;
+        }
         let h = rect_hash(inner);
         match h % 6 {
             0 => {} // no grid
@@ -6824,6 +7352,18 @@ fn draw_rooms(state: &State, frame: (f32, f32, f32, f32), ox: f32, oy: f32, iw: 
         }
     }
     sgl::end();
+}
+
+// The region state owning a room rectangle (smallest contains its centre).
+fn region_state_for_room(
+    state: &State,
+    floor: usize,
+    outer: Rect,
+    inner: Rect,
+) -> Option<RegionState> {
+    region_at(state, floor, rect_center(inner))
+        .or_else(|| region_at(state, floor, rect_center(outer)))
+        .map(|r| region_state(state, floor, r))
 }
 
 fn draw_room_dots(
@@ -7160,7 +7700,9 @@ fn main() {
         .or_else(|| Scene::from_bytes(SCENE_BIN))
         .unwrap_or_default();
     let next_id = max_id(&scene) + 1;
-    let baked = bake(&scene);
+    // The app starts in play mode: bake with initial region visibility applied.
+    let play_scene = apply_regions(&scene, &[], &[]);
+    let baked = bake(&play_scene);
     let BakedBytes {
         overlays,
         nav,
@@ -7173,7 +7715,8 @@ fn main() {
     let nav_open = std::array::from_fn(|i| Nav::from_bytes(&nav_open[i], FLOOR_FRAMES[i]));
     let solid = std::array::from_fn(|i| Solid::from_bytes(&solid[i], FLOOR_FRAMES[i]));
     let move_grid: [MoveGrid; NUM_FLOORS] = std::array::from_fn(|i| MoveGrid::from_nav(&nav[i]));
-    let wall_plans: [WallPlan; NUM_FLOORS] = std::array::from_fn(|i| wall_plan(&scene.floors[i]));
+    let wall_plans: [WallPlan; NUM_FLOORS] =
+        std::array::from_fn(|i| wall_plan(&play_scene.floors[i]));
 
     let state = Box::new(State {
         layout: Layout::compute(1920.0, 1080.0),
@@ -7211,6 +7754,10 @@ fn main() {
         collected: Vec::new(),
         revealed: Vec::new(),
         unlocked: Vec::new(),
+        visited: Vec::new(),
+        revealed_regions: Vec::new(),
+        fired_triggers: Vec::new(),
+        play_scene,
         inventory: Vec::new(),
         inventory_open: false,
         inventory_selected: 0,
@@ -7901,5 +8448,120 @@ mod tests {
             u16::MAX,
             "cells past the run budget stay unreachable"
         );
+    }
+
+    fn region(id: u32, rect: Rect, initial: RegionState) -> Region {
+        Region {
+            id,
+            name: format!("Region {id}"),
+            rect,
+            initial,
+        }
+    }
+
+    #[test]
+    fn hidden_regions_drop_their_geometry() {
+        use ink_ribbon_native::scene::FLOOR1_INDEX;
+        let mut scene = Scene::default();
+        let room = Rect {
+            x: 100.0,
+            y: 200.0,
+            w: 300.0,
+            h: 300.0,
+        };
+        scene.floors[FLOOR1_INDEX].walls.push(WallOp {
+            mode: BoolOp::Add,
+            rect: room,
+        });
+        scene.floors[FLOOR1_INDEX].regions.push(region(
+            1,
+            Rect {
+                x: room.x - 20.0,
+                y: room.y - 20.0,
+                w: room.w + 40.0,
+                h: room.h + 40.0,
+            },
+            RegionState::Hidden,
+        ));
+
+        // Hidden: the room (and the region) are dropped.
+        let hidden = apply_regions(&scene, &[], &[]);
+        assert!(hidden.floors[FLOOR1_INDEX].walls.is_empty());
+        assert!(hidden.floors[FLOOR1_INDEX].regions.is_empty());
+        // Revealed by a link, or visited: the room reappears.
+        let revealed = apply_regions(&scene, &[], &[(FLOOR1_INDEX, 1)]);
+        assert_eq!(revealed.floors[FLOOR1_INDEX].walls.len(), 1);
+        let visited = apply_regions(&scene, &[(FLOOR1_INDEX, 1)], &[]);
+        assert_eq!(visited.floors[FLOOR1_INDEX].walls.len(), 1);
+    }
+
+    #[test]
+    fn the_smallest_region_owns_a_point() {
+        use ink_ribbon_native::scene::FLOOR1_INDEX;
+        let mut scene = Scene::default();
+        let room = Rect {
+            x: 100.0,
+            y: 200.0,
+            w: 300.0,
+            h: 300.0,
+        };
+        scene.floors[FLOOR1_INDEX].walls.push(WallOp {
+            mode: BoolOp::Add,
+            rect: room,
+        });
+        // A big Hidden region around a small Revealed one: the small region wins.
+        scene.floors[FLOOR1_INDEX].regions.push(region(
+            1,
+            Rect {
+                x: 0.0,
+                y: 0.0,
+                w: 2000.0,
+                h: 2000.0,
+            },
+            RegionState::Hidden,
+        ));
+        scene.floors[FLOOR1_INDEX].regions.push(region(
+            2,
+            Rect {
+                x: room.x - 10.0,
+                y: room.y - 10.0,
+                w: room.w + 20.0,
+                h: room.h + 20.0,
+            },
+            RegionState::Revealed,
+        ));
+
+        let out = apply_regions(&scene, &[], &[]);
+        assert_eq!(
+            out.floors[FLOOR1_INDEX].walls.len(),
+            1,
+            "the small revealed region owns the room"
+        );
+    }
+
+    #[test]
+    fn region_state_prefers_visited_then_revealed() {
+        let r = region(
+            7,
+            Rect {
+                x: 0.0,
+                y: 0.0,
+                w: 10.0,
+                h: 10.0,
+            },
+            RegionState::Hidden,
+        );
+        assert_eq!(region_state_raw(2, &r, &[], &[]), RegionState::Hidden);
+        assert_eq!(
+            region_state_raw(2, &r, &[], &[(2, 7)]),
+            RegionState::Revealed
+        );
+        assert_eq!(
+            region_state_raw(2, &r, &[(2, 7)], &[(2, 7)]),
+            RegionState::Visited
+        );
+        let mut shown = r.clone();
+        shown.initial = RegionState::Revealed;
+        assert_eq!(region_state_raw(2, &shown, &[], &[]), RegionState::Revealed);
     }
 }

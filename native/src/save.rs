@@ -16,6 +16,9 @@
 //! u32    unlocked_count  -> { u8 floor, u32 door_id }*
 //! u32    inventory_count -> { u32 id, u8 kind, u16 name_len, name }*
 //! u32    item_box_count  -> { u32 id, u8 kind, u16 name_len, name }*   (v2)
+//! u32    visited_count   -> { u8 floor, u32 region_id }*                (v3)
+//! u32    revealed_region_count -> { u8 floor, u32 region_id }*          (v3)
+//! u32    steps, u32 turn                                                (v3)
 //! f32    play_time (seconds)
 //! u64    saved_at (unix seconds, UTC; 0 if unavailable)
 //! ```
@@ -23,8 +26,9 @@
 use crate::scene::ItemDef;
 
 const MAGIC: &[u8; 4] = b"IRSV";
-/// v1 had no item box; v2 adds it. Reading still accepts v1.
-pub const VERSION: u16 = 2;
+/// v1 had no item box; v2 adds it; v3 adds fog-of-war progress (visited and
+/// revealed regions) and the turn-based run counters. Reading accepts v1/v2.
+pub const VERSION: u16 = 3;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct PlayerSave {
@@ -35,6 +39,10 @@ pub struct PlayerSave {
     pub unlocked: Vec<(usize, u32)>,
     pub inventory: Vec<ItemDef>,
     pub item_box: Vec<ItemDef>,
+    pub visited: Vec<(usize, u32)>,
+    pub revealed_regions: Vec<(usize, u32)>,
+    pub steps: u32,
+    pub turn: u32,
     pub play_time: f32,
     pub saved_at: u64,
 }
@@ -84,6 +92,21 @@ impl PlayerSave {
             put_u16(&mut out, n as u16);
             out.extend_from_slice(&name[..n]);
         }
+
+        put_u32(&mut out, self.visited.len() as u32);
+        for (floor, id) in &self.visited {
+            put_u8(&mut out, *floor as u8);
+            put_u32(&mut out, *id);
+        }
+
+        put_u32(&mut out, self.revealed_regions.len() as u32);
+        for (floor, id) in &self.revealed_regions {
+            put_u8(&mut out, *floor as u8);
+            put_u32(&mut out, *id);
+        }
+
+        put_u32(&mut out, self.steps);
+        put_u32(&mut out, self.turn);
 
         put_f32(&mut out, self.play_time);
         out.extend_from_slice(&self.saved_at.to_le_bytes());
@@ -150,6 +173,24 @@ impl PlayerSave {
             }
         }
 
+        // v3 added fog-of-war progress and the run counters.
+        let mut visited = Vec::new();
+        let mut revealed_regions = Vec::new();
+        let mut steps = 0;
+        let mut turn = 0;
+        if version >= 3 {
+            let n = c.u32()? as usize;
+            for _ in 0..n {
+                visited.push((c.u8()? as usize, c.u32()?));
+            }
+            let n = c.u32()? as usize;
+            for _ in 0..n {
+                revealed_regions.push((c.u8()? as usize, c.u32()?));
+            }
+            steps = c.u32()?;
+            turn = c.u32()?;
+        }
+
         let play_time = c.f32()?;
         let saved_at = c.u64()?;
         Some(PlayerSave {
@@ -160,6 +201,10 @@ impl PlayerSave {
             unlocked,
             inventory,
             item_box,
+            visited,
+            revealed_regions,
+            steps,
+            turn,
             play_time,
             saved_at,
         })
@@ -272,6 +317,10 @@ mod tests {
                 name: "Spare Key".into(),
                 pos: (0.0, 0.0),
             }],
+            visited: vec![(2, 11), (2, 13)],
+            revealed_regions: vec![(2, 11)],
+            steps: 42,
+            turn: 9,
             play_time: 123.5,
             saved_at: 1_726_000_000,
         }
@@ -284,19 +333,42 @@ mod tests {
         assert_eq!(back, save);
     }
 
+    /// Bytes occupied by the v3 fog-of-war + run-counter block of `sample`.
+    fn v3_block_len() -> usize {
+        let visited = 4 + 2 * (1 + 4); // 2 region entries
+        let revealed = 4 + (1 + 4); // 1 region entry
+        visited + revealed + 4 + 4
+    }
+
     #[test]
     fn v1_save_has_no_item_box() {
-        // A v1 payload has no item box: drop that block and stamp v1. The reader
-        // must not look for a box and should leave it empty.
+        // A v1 payload has no item box or fog-of-war blocks: drop both and stamp
+        // v1. The reader must not look for them.
         let mut bytes = sample().to_bytes();
         let tail = 4 + 8; // play_time + saved_at
         let box_block = 4 + (4 + 1 + 2 + "Spare Key".len());
-        let start = bytes.len() - tail - box_block;
+        let start = bytes.len() - tail - v3_block_len() - box_block;
         bytes.drain(start..bytes.len() - tail);
         bytes[4..6].copy_from_slice(&1u16.to_le_bytes());
         let back = PlayerSave::from_bytes(&bytes).expect("decode v1");
         assert!(back.item_box.is_empty());
+        assert!(back.visited.is_empty());
+        assert_eq!(back.steps, 0);
         assert_eq!(back.inventory.len(), 2);
+    }
+
+    #[test]
+    fn v2_save_has_no_region_progress() {
+        let mut bytes = sample().to_bytes();
+        let tail = 4 + 8;
+        let start = bytes.len() - tail - v3_block_len();
+        bytes.drain(start..bytes.len() - tail);
+        bytes[4..6].copy_from_slice(&2u16.to_le_bytes());
+        let back = PlayerSave::from_bytes(&bytes).expect("decode v2");
+        assert_eq!(back.item_box.len(), 1);
+        assert!(back.visited.is_empty());
+        assert!(back.revealed_regions.is_empty());
+        assert_eq!(back.turn, 0);
     }
 
     #[test]

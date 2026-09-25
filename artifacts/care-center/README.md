@@ -27,10 +27,22 @@ Open the map, press **Tab** to enter edit mode, and use the in-canvas tool bar:
   renames it. The item popup sets the kind: KEY, INK RIBBON, TYPEWRITER (save
   point) or ITEM BOX (interact to open the storage).
 - **NAME** — click to drop a room name label; **R** renames it, drag to move.
+- **ROOM** — drag a fog-of-war region. A region owns the geometry whose centre it
+  contains (smallest region wins), so draw it to cover a room and its walls. New
+  regions start Hidden; select one and press **H** to toggle Hidden/Revealed, and
+  **R** to rename it.
+- **TRIG** — drag a reveal trigger area. Walking into it fires once.
+- **LINK** (or `C`) — click a door, key item or trigger and then a region to make
+  it reveal that region (and vice versa). Doors work either order with keys too.
 - **ERASE** — click near an object to delete it.
 
 Keys: `Z` undo, `X` clear floor, `S` save, `L` load, `Space` snap, `Del` delete,
-`Ctrl+C/V/D` copy/paste/duplicate, `Tab`/`Esc` exit.
+`Ctrl+C/V/D` copy/paste/duplicate, `H` toggle region visibility, `Tab`/`Esc` exit.
+
+Fog of war: a Hidden region is neither drawn nor walkable. Revealing it (a linked
+door unlocking/revealing, a picked-up item, or a trigger) adds its geometry back
+and re-bakes. A region revealed from afar (an initial-Revealed region or a map
+item) is drawn dark until the player walks in, then renders normally.
 
 In play mode the map is turn-based: click (or tap) a highlighted cell to spend a
 turn moving there — walk up to 4 cells, run up to 7. Reachable cells are shaded
