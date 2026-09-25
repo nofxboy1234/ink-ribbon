@@ -947,6 +947,29 @@ impl Tool {
         }
     }
 
+    /// One-line usage note for the toolbar tooltip.
+    fn help(self) -> &'static str {
+        match self {
+            Tool::Select => {
+                "Click to select. Drag to move; corners scale, top handle rotates. Shift-click adds."
+            }
+            Tool::WallAdd => "Drag a rectangle to add a room: walkable inside, double-walled. Overlaps merge.",
+            Tool::WallSub => "Drag a rectangle to carve a hole out of an existing room.",
+            Tool::Wall => "Drag a thin rectangle to add an interior partition: dim wall that blocks.",
+            Tool::Obstacle => "Drag a box to place an obstacle that blocks movement.",
+            Tool::DoorLocked => "Hover a wall to preview a locked door, then click to place it. LINK a key to open.",
+            Tool::DoorUnlocked => "Hover a wall to preview an open door, then click. Open doors are walkable.",
+            Tool::DoorUnknown => "Place a door that reads as unknown and reveals as the player approaches.",
+            Tool::Stair => "Click to drop a stair endpoint, then LINK two endpoints on different floors.",
+            Tool::Item => "Click to drop an item; the popup sets its kind. LINK a key to doors, R renames.",
+            Tool::Label => "Click to drop a room name label; drag to move, R renames it.",
+            Tool::Region => "Drag a fog region. It owns the geometry inside it (smallest wins); H toggles Hidden/Revealed.",
+            Tool::Trigger => "Drag a trigger area: walking into it reveals the region LINKed to it.",
+            Tool::Erase => "Click an object to delete it.",
+            Tool::Connect => "Click two objects to link them: stair<->stair, key<->door, or door/item/trigger<->region.",
+        }
+    }
+
     fn is_rect(self) -> bool {
         matches!(
             self,
@@ -6899,6 +6922,30 @@ fn draw_name_box(state: &State, font: &Font) {
     }
 }
 
+// Hover tooltip under the tool bar: the tool's name plus a one-line usage note.
+fn draw_tool_tooltip(state: &State, font: &Font, index: usize) {
+    let tool = Tool::ALL[index];
+    let help = tool.help();
+    let (bx, _, _, _) = editor_button_rect(index);
+    let (pad, title_scale, body_scale) = (10.0, 0.9, 0.78);
+    let title_w = font.text_width(tool.label(), 19.5 * title_scale);
+    let body_w = font.text_width(help, 19.5 * body_scale);
+    let w = title_w.max(body_w) + pad * 2.0 + 6.0;
+    let h = 50.0;
+    let l = state.layout;
+    let min_x = l.map_x + 8.0;
+    let max_x = (l.map_x + l.map_w - w - 8.0).max(min_x);
+    let x = bx.clamp(min_x, max_x);
+    let y = EDITOR_BAR_Y + EDITOR_BAR_H + 6.0;
+    sgl::c4f(0.05, 0.05, 0.07, 0.94);
+    rect(x, y, w, h);
+    let c = tool.color();
+    sgl::c4f(c.0, c.1, c.2, 0.9);
+    outline_rect(x, y, w, h);
+    draw_ui_text(font, tool.label(), x + pad, y + 7.0, c, false, title_scale);
+    draw_ui_text(font, help, x + pad, y + 27.0, C_LABEL, false, body_scale);
+}
+
 // Edit-mode overlay: vector objects for the viewed floor plus the tool bar.
 fn draw_editor(
     state: &State,
@@ -7212,6 +7259,11 @@ fn draw_editor(
     }
     draw_door_popup(state, font);
     draw_item_popup(state, font);
+
+    // Hover tooltip last, so it sits above the status and control lines.
+    if let Some(i) = editor_toolbar_hit(state.mouse.0, state.mouse.1) {
+        draw_tool_tooltip(state, font, i);
+    }
 }
 
 // Fade the map window out/in around a floor change.
