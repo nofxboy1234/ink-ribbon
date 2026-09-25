@@ -54,7 +54,7 @@ and re-bakes. A region revealed from afar (an initial-Revealed region or a map
 item) is drawn dark until the player walks in, then renders normally.
 
 In play mode the map is turn-based: click (or tap) a highlighted cell to spend a
-turn moving there — walk up to 4 cells, run up to 7. Reachable cells are shaded
+turn moving there — walk up to 6 cells, run up to 10. Reachable cells are shaded
 soft blue and a rope previews the route under the cursor. `Esc` opens/closes the
 pause menu, `I` toggles the inventory (`Esc` closes it), `B` opens the item box
 (storage on the left, inventory on the right; arrows select, `Space` or clicking

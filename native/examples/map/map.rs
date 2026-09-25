@@ -275,10 +275,12 @@ const PATH_WIDTH: f32 = 5.0;
 const GRID_ALPHA: f32 = 0.18;
 
 // Turn-based movement: one move cell per backing grid unit, one turn per click.
-// Walk and run budgets are measured in move cells.
+// Walk and run budgets are measured in move cells. The reachable region's area
+// grows with the square of the budget, so doubling the area scales the radius
+// by sqrt(2): 4 -> ~6 walk, 7 -> ~10 run.
 const MOVE_CELL: f32 = GRID_UNIT;
-const WALK_CELLS: u16 = 4;
-const RUN_CELLS: u16 = 7;
+const WALK_CELLS: u16 = 6;
+const RUN_CELLS: u16 = 10;
 // Animation speed in move cells per second (walk vs run).
 const WALK_SPEED_CELLS: f32 = 5.0;
 const RUN_SPEED_CELLS: f32 = 10.0;
@@ -8696,7 +8698,7 @@ mod tests {
         // Walk east along y == 0: index == x for that row.
         assert_eq!(dist[0], 0);
         assert_eq!(dist[2], 2);
-        assert_eq!(dist[4], WALK_CELLS);
+        assert_eq!(dist[4], 4);
         assert_eq!(dist[5], u16::MAX, "the wall itself is not a move cell");
         assert_eq!(
             dist[6],
