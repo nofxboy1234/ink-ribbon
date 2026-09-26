@@ -69,8 +69,8 @@ an item moves it across, `Esc` closes), and `Space` interacts (unlock a linked
 door, or save at a typewriter when holding an ink-ribbon), spending the turn.
 Arrow keys navigate menus, the inventory and confirmation prompts. The web shell
 shows live STEPS/TURN counters, a NEW RUN button, and a GOALS list: click a goal
-to draw its route (green to the reachable point, red past a locked door or
-unrevealed area) and toggle it with HIDE/SHOW ROUTE.
+to draw its route (always a reachable green route) and toggle it with HIDE/SHOW
+ROUTE.
 
 Saving writes `scene.bin` (native: working directory; web: `localStorage`, which
 auto-loads next time). In the web shell, save with `S` in the editor and use the

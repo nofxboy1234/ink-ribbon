@@ -1241,7 +1241,6 @@ struct State {
     slot_meta: [Option<SlotMeta>; SAVE_SLOTS],
     // Reachable component per floor, computed from where the player is standing.
     reachable: [Vec<u8>; NUM_FLOORS],
-    path_red: Vec<(f32, f32)>,
     path: Vec<(f32, f32)>,
     show_grid: bool,
     time: f32,
@@ -2467,14 +2466,12 @@ fn set_goal(state: &mut State, goal: Option<usize>) {
 fn clear_goal_route(state: &mut State) {
     state.goal = None;
     state.path.clear();
-    state.path_red.clear();
 }
 
-// Shortest route to the selected goal: green up to the reachable component,
-// red past a blocker (a locked door or an unrevealed area).
+// Shortest route to the selected goal. Goals are only listed when they are
+// immediately achievable, so the route is always fully reachable (green).
 fn refresh_goal_route(state: &mut State) {
     state.path.clear();
-    state.path_red.clear();
     let Some(goal) = state.goal.and_then(|i| state.goals.get(i)).cloned() else {
         return;
     };
@@ -2485,16 +2482,13 @@ fn refresh_goal_route(state: &mut State) {
     if let Some(start) = snap_source(&state.nav[floor], state.player.0, state.player.1) {
         ensure_reachable(state, floor, start);
     }
-    let (green, red) = route_to(
+    state.path = route_to(
         &mut state.astar,
         &state.nav[floor],
-        &state.nav_open[floor],
         &state.reachable[floor],
         state.player,
         goal.pos,
     );
-    state.path = green;
-    state.path_red = red;
 }
 
 // Progress or a move changed what is available: refresh goals and the route.
@@ -6596,55 +6590,30 @@ fn closest_reachable_cell(nav: &Nav, reachable: &[u8], to: (f32, f32)) -> Option
     best.map(|(_, c)| c)
 }
 
-// Route to a target. Returns (green reachable part, red part past the blocker).
+// Shortest route in source px to the reachable cell nearest `to`, or empty.
 #[allow(dead_code)]
 fn route_to(
     astar: &mut Astar,
     nav: &Nav,
-    nav_open: &Nav,
     reachable: &[u8],
     from: (f32, f32),
     to: (f32, f32),
-) -> (Route, Route) {
-    // Green: shortest route to the reachable cell nearest the target, so it
-    // approaches from the player's side even when the target sits on a wall.
-    let exact = snap_source(nav, to.0, to.1);
-    if let (Some(start), Some(goal)) = (
-        snap_source(nav, from.0, from.1),
-        closest_reachable_cell(nav, reachable, to),
-    ) {
-        if let Some(cells) = astar.search(nav, start, goal) {
-            let green: Route = simplify(
-                cells
-                    .iter()
-                    .map(|&(x, y)| cell_to_source(nav, x, y))
-                    .collect(),
-            );
-            // If the target itself is reachable, no red part.
-            if exact == Some(goal) {
-                return (green, Vec::new());
-            }
-            // Otherwise show the optimistic remainder past the blocker.
-            let approach = cell_to_source(nav, goal.0, goal.1);
-            if let (Some(s), Some(g)) = (
-                snap_source(nav_open, approach.0, approach.1),
-                snap_source(nav_open, to.0, to.1),
-            ) {
-                if let Some(rest) = astar.search(nav_open, s, g) {
-                    if rest.len() > 1 {
-                        let red: Route = simplify(
-                            rest.iter()
-                                .map(|&(x, y)| cell_to_source(nav, x, y))
-                                .collect(),
-                        );
-                        return (green, red);
-                    }
-                }
-            }
-            return (green, Vec::new());
-        }
+) -> Route {
+    let Some(start) = snap_source(nav, from.0, from.1) else {
+        return Vec::new();
+    };
+    let Some(goal) = closest_reachable_cell(nav, reachable, to) else {
+        return Vec::new();
+    };
+    match astar.search(nav, start, goal) {
+        Some(cells) => simplify(
+            cells
+                .iter()
+                .map(|&(x, y)| cell_to_source(nav, x, y))
+                .collect(),
+        ),
+        None => Vec::new(),
     }
-    (Vec::new(), Vec::new())
 }
 
 #[allow(dead_code)]
@@ -7058,22 +7027,8 @@ fn draw_floor(
                     sgl::c4f(C_ROUTE.0, C_ROUTE.1, C_ROUTE.2, 0.75);
                     thick_polyline(&route, PATH_WIDTH);
                 }
-                if !state.path_red.is_empty() {
-                    let route: Vec<(f32, f32)> = state
-                        .path_red
-                        .iter()
-                        .map(|&(sx, sy)| src_to_ref(frame, ox, oy, iw, ih, sx, sy))
-                        .collect();
-                    sgl::c4f(C_LOCK.0, C_LOCK.1, C_LOCK.2, 0.75);
-                    thick_polyline(&route, PATH_WIDTH);
-                }
                 let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, goal.pos.0, goal.pos.1);
-                let color = if state.path_red.is_empty() {
-                    C_ROUTE
-                } else {
-                    C_LOCK
-                };
-                sgl::c4f(color.0, color.1, color.2, 1.0);
+                sgl::c4f(C_ROUTE.0, C_ROUTE.1, C_ROUTE.2, 1.0);
                 outline_circle(rx, ry, ITEM_RADIUS + 6.0);
             }
         }
@@ -8488,7 +8443,6 @@ fn main() {
         status: String::new(),
         status_t: 0.0,
         reachable: std::array::from_fn(|_| Vec::new()),
-        path_red: Vec::new(),
         path: Vec::new(),
         show_grid: false,
         time: 0.0,
@@ -9312,7 +9266,7 @@ mod tests {
         let reachable = reachable_from(&nav, (10, 10));
         let from = cell_to_source(&nav, 10, 10);
         let to = cell_to_source(&nav, 20, 10);
-        let (green, _red) = route_to(&mut Astar::new(), &nav, &nav, &reachable, from, to);
+        let green = route_to(&mut Astar::new(), &nav, &reachable, from, to);
         assert!(!green.is_empty(), "expected a route");
         assert!(green.len() <= 3, "route should be direct, got {green:?}");
         let wall_y = cell_to_source(&nav, 0, 30).1;
