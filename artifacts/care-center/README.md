@@ -60,9 +60,11 @@ door unlocking/revealing, a picked-up item, or a trigger) adds its geometry back
 and re-bakes. Until the player enters a region its floor has no background (it is
 erased back to the page); once visited it renders as a normal room floor.
 
-In play mode the map is turn-based: click (or tap) a highlighted cell to spend a
-turn moving there — walk up to 6 cells, run up to 10. Reachable cells are shaded
-soft blue and a rope previews the route under the cursor. `Esc` opens/closes the
+In play mode the map is turn-based: hover any navigation cell to highlight it
+(and its eight neighbours — a soft-blue cell, brighter edge) and preview the
+route with a rope, then click (or tap) to spend a turn moving the whole way
+there; routes up to 6 cells walk, longer ones run. Clicking a wall snaps to the
+nearest walkable cell. `Esc` opens/closes the
 pause menu, `I` toggles the inventory (`Esc` closes it), `B` opens the item box
 (storage on the left, inventory on the right; arrows select, `Space` or clicking
 an item moves it across, `Esc` closes), and `Space` interacts (unlock a linked

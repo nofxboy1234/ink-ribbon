@@ -280,13 +280,15 @@ const GRID_ALPHA: f32 = 0.18;
 // Walk and run budgets are measured in move cells. The reachable region's area
 // grows with the square of the budget, so doubling the area scales the radius
 // by sqrt(2): 4 -> ~6 walk, 7 -> ~10 run.
+// Turn-based movement: one move cell per backing grid unit, one turn per click.
+// The player may move to any navigation cell on the floor; a route up to
+// WALK_CELLS long animates at walk speed, longer routes at run speed.
 const MOVE_CELL: f32 = GRID_UNIT;
 const WALK_CELLS: u16 = 6;
-const RUN_CELLS: u16 = 10;
 // Animation speed in move cells per second (walk vs run).
 const WALK_SPEED_CELLS: f32 = 5.0;
 const RUN_SPEED_CELLS: f32 = 10.0;
-// Reachable-cell highlight (soft blue) and the hover rope preview.
+// Hover highlight (bright walk cell, dim run ring) and the hover rope preview.
 const MOVE_WALK_TINT: (f32, f32, f32) = (0.34, 0.60, 0.92);
 const MOVE_RUN_TINT: (f32, f32, f32) = (0.28, 0.46, 0.70);
 const MOVE_WALK_ALPHA: f32 = 0.24;
@@ -410,7 +412,7 @@ fn new_run(state: &mut State) {
     if spawn_from_scene(&state.scene).is_some() {
         place_player_at_spawn(state);
     } else {
-        rebuild_move(state);
+        reset_move_hover(state);
         on_progress_changed(state);
         notify_state(state, true);
     }
@@ -422,7 +424,7 @@ fn end_turn(state: &mut State) {
     state.turn += 1;
     state.hover_cell = None;
     state.hover_path.clear();
-    rebuild_move(state);
+    reset_move_hover(state);
     notify_state(state, true);
 }
 
@@ -588,39 +590,6 @@ impl MoveGrid {
             ((sy - self.frame.1) / MOVE_CELL).floor() as i32,
         )
     }
-}
-
-// BFS distances (in move cells) from `start`, capped at RUN_CELLS. u16::MAX is
-// unreachable.
-fn move_reach(grid: &MoveGrid, start: (i32, i32)) -> Vec<u16> {
-    let n = (grid.w * grid.h) as usize;
-    let mut dist = vec![u16::MAX; n];
-    if !grid.walkable(start.0, start.1) {
-        return dist;
-    }
-    let index = |x: i32, y: i32| (y * grid.w + x) as usize;
-    let si = index(start.0, start.1);
-    dist[si] = 0;
-    let mut queue = std::collections::VecDeque::new();
-    queue.push_back(start);
-    while let Some((x, y)) = queue.pop_front() {
-        let d = dist[index(x, y)];
-        if d >= RUN_CELLS {
-            continue;
-        }
-        for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
-            let (nx, ny) = (x + dx, y + dy);
-            if !grid.walkable(nx, ny) {
-                continue;
-            }
-            let i = index(nx, ny);
-            if dist[i] == u16::MAX {
-                dist[i] = d + 1;
-                queue.push_back((nx, ny));
-            }
-        }
-    }
-    dist
 }
 
 // One baked connection between two stair X marks, in source-composite pixels.
@@ -1293,7 +1262,6 @@ struct State {
     route_visible: bool,
     // --- Turn-based movement ---
     move_grid: [MoveGrid; NUM_FLOORS],
-    move_reach: [Vec<u16>; NUM_FLOORS],
     turn: u32,
     steps: u32,
     hover_cell: Option<(i32, i32)>,
@@ -1508,7 +1476,7 @@ extern "C" fn init(user_data: *mut ffi::c_void) {
         Some(start) => reachable_from(nav, start),
         None => Vec::new(),
     };
-    rebuild_move(state);
+    reset_move_hover(state);
     on_progress_changed(state);
     // Tell the web shell which floor the player starts on (the spawn may be on a
     // floor other than the default).
@@ -1873,43 +1841,31 @@ fn update_move(state: &mut State, delta: f32) {
         state.turn += 1;
         let pf = state.player_floor;
         state.player_cell = Some(state.move_grid[pf].source_cell(state.player.0, state.player.1));
-        rebuild_move(state);
+        reset_move_hover(state);
         on_progress_changed(state);
         notify_state(state, true);
     }
 }
 
 // Spend a turn moving to `goal` (a move cell) when it is inside the run budget.
-fn start_move(state: &mut State, mut goal: (i32, i32)) {
+fn start_move(state: &mut State, goal: (i32, i32)) {
     if state.edit || state.move_anim.is_some() || state.floor != state.player_floor {
         return;
     }
     let pf = state.player_floor;
-    let start = state.move_grid[pf].source_cell(state.player.0, state.player.1);
-    // Clicking the player's own cell does nothing.
-    if goal == start {
-        return;
-    }
-    let mut dist = move_cell_dist(state, pf, goal);
-    // A click on a wall, or just past the budget, snaps to the nearest reachable
-    // cell so taps near the arrow or the range edge still register.
-    if dist == u16::MAX || dist > RUN_CELLS {
-        match nearest_reachable_cell(state, pf, goal) {
-            Some(near) => {
-                goal = near;
-                dist = move_cell_dist(state, pf, goal);
-            }
+    let grid = &state.move_grid[pf];
+    let start = grid.source_cell(state.player.0, state.player.1);
+    // Any navigation cell on the floor is a valid target. A click on a wall snaps
+    // to the nearest walkable move cell so taps near an edge still register.
+    let goal = if grid.walkable(goal.0, goal.1) {
+        goal
+    } else {
+        match nearest_move_cell(grid, goal) {
+            Some(c) => c,
             None => return,
         }
-    }
-    if dist == 0 || dist > RUN_CELLS {
-        return;
-    }
-    let grid = &state.move_grid[pf];
-    if !grid.walkable(goal.0, goal.1) {
-        return;
-    }
-    if start == goal {
+    };
+    if goal == start {
         return;
     }
     let (cells, path) = {
@@ -1927,7 +1883,7 @@ fn start_move(state: &mut State, mut goal: (i32, i32)) {
         }
         (cells, path)
     };
-    let run = dist > WALK_CELLS;
+    let run = cells.len() - 1 > WALK_CELLS as usize;
     state.move_anim = Some(MoveAnim {
         path,
         seg: 0,
@@ -1939,47 +1895,28 @@ fn start_move(state: &mut State, mut goal: (i32, i32)) {
         },
         cells: (cells.len() - 1) as u32,
     });
-    // Highlights and any hover rope clear while the move plays out.
-    state.move_reach[pf].fill(u16::MAX);
+    // The hover highlight and rope clear while the move plays out.
     state.hover_cell = None;
     state.hover_path.clear();
+    state.hover_run = false;
 }
 
-// Distance in move cells from the player, or u16::MAX when outside the grid.
-fn move_cell_dist(state: &State, floor: usize, cell: (i32, i32)) -> u16 {
-    let grid = &state.move_grid[floor];
-    if cell.0 < 0 || cell.1 < 0 || cell.0 >= grid.w || cell.1 >= grid.h {
-        return u16::MAX;
+// Nearest walkable move cell to `cell`, searched outward in a ring.
+fn nearest_move_cell(grid: &MoveGrid, cell: (i32, i32)) -> Option<(i32, i32)> {
+    if grid.walkable(cell.0, cell.1) {
+        return Some(cell);
     }
-    let reach = &state.move_reach[floor];
-    let i = (cell.1 * grid.w + cell.0) as usize;
-    if i >= reach.len() {
-        return u16::MAX;
-    }
-    reach[i]
-}
-
-// Nearest reachable move cell to `cell`, searched outward in a ring.
-fn nearest_reachable_cell(state: &State, floor: usize, cell: (i32, i32)) -> Option<(i32, i32)> {
-    for radius in 1..=6i32 {
-        let mut best: Option<((i32, i32), u16)> = None;
+    for radius in 1..=8i32 {
         for dy in -radius..=radius {
             for dx in -radius..=radius {
-                if dx.abs() != radius && dy.abs() != radius {
+                if dx.abs().max(dy.abs()) != radius {
                     continue;
                 }
                 let c = (cell.0 + dx, cell.1 + dy);
-                let d = move_cell_dist(state, floor, c);
-                if d != u16::MAX && d > 0 && d <= RUN_CELLS {
-                    let better = best.is_none_or(|(_, bd)| d < bd);
-                    if better {
-                        best = Some((c, d));
-                    }
+                if grid.walkable(c.0, c.1) {
+                    return Some(c);
                 }
             }
-        }
-        if let Some((c, _)) = best {
-            return Some(c);
         }
     }
     None
@@ -2234,7 +2171,7 @@ fn place_player_at_spawn(state: &mut State) {
     if let Some(cell) = state.player_cell {
         state.reachable[floor] = reachable_from(nav, cell);
     }
-    rebuild_move(state);
+    reset_move_hover(state);
     on_progress_changed(state);
     notify_floor(floor);
     notify_state(state, true);
@@ -3777,18 +3714,17 @@ fn reset_navigation(state: &mut State) {
         state.player_cell = Some(cell);
         state.reachable[pf] = reachable_from(&state.nav[pf], cell);
     }
-    rebuild_move(state);
+    reset_move_hover(state);
     on_progress_changed(state);
 }
 
 // Recompute the player's turn-based reachable set from the move grid.
-fn rebuild_move(state: &mut State) {
-    let pf = state.player_floor;
-    let start = state.move_grid[pf].source_cell(state.player.0, state.player.1);
-    let reach = move_reach(&state.move_grid[pf], start);
-    state.move_reach[pf] = reach;
+// Clear the hover highlight and rope; they are recomputed from the cursor on the
+// next frame (movement is unrestricted, so there is no reachable set to rebuild).
+fn reset_move_hover(state: &mut State) {
     state.hover_cell = None;
     state.hover_path.clear();
+    state.hover_run = false;
 }
 
 fn place_rect(state: &mut State, a: (f32, f32), b: (f32, f32)) {
@@ -5473,11 +5409,13 @@ fn cursor_source_cell(state: &State) -> Option<(i32, i32)> {
 // Refresh the hover rope when the cursor moves onto a new reachable cell.
 fn update_hover(state: &mut State) {
     if state.edit || state.floor != state.player_floor || state.move_anim.is_some() {
+        state.hover_cell = None;
+        state.hover_path.clear();
         return;
     }
     let cell = match cursor_source_cell(state) {
-        Some(c) => c,
-        None => {
+        Some(c) if state.move_grid[state.player_floor].walkable(c.0, c.1) => c,
+        _ => {
             state.hover_cell = None;
             state.hover_path.clear();
             return;
@@ -5490,12 +5428,12 @@ fn update_hover(state: &mut State) {
     state.hover_path.clear();
     state.hover_run = false;
     let pf = state.player_floor;
-    let dist = move_cell_dist(state, pf, cell);
-    if dist == 0 || dist == u16::MAX || dist > RUN_CELLS {
-        return;
-    }
     let grid = &state.move_grid[pf];
     let start = grid.source_cell(state.player.0, state.player.1);
+    if start == cell {
+        return;
+    }
+    // Route anywhere on the floor (no reach budget), so the rope is the full path.
     let mut path = vec![state.player];
     {
         let cells = match state
@@ -5508,9 +5446,9 @@ fn update_hover(state: &mut State) {
         for &(x, y) in cells.iter().skip(1) {
             path.push(grid.cell_source(x, y));
         }
+        state.hover_run = cells.len() - 1 > WALK_CELLS as usize;
     }
     state.hover_path = path;
-    state.hover_run = dist > WALK_CELLS;
 }
 
 extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
@@ -6867,15 +6805,24 @@ fn draw_nav_grid(nav: &Nav, ox: f32, oy: f32, iw: f32, ih: f32) {
     sgl::end();
 }
 
-// Wall rectangles for the floors without traced art, in the same source frame
-// and wall colour as Floor 1 so they pan and zoom identically.
-fn draw_move_cells(state: &State, frame: (f32, f32, f32, f32), ox: f32, oy: f32, iw: f32, ih: f32) {
+// On hover, the hovered navigation cell is drawn in the bright walk tint and the
+// 8 cells around it in the dimmer run tint.
+fn draw_hover_cells(
+    state: &State,
+    frame: (f32, f32, f32, f32),
+    ox: f32,
+    oy: f32,
+    iw: f32,
+    ih: f32,
+) {
     if state.edit || state.floor != state.player_floor || state.move_anim.is_some() {
         return;
     }
+    let Some(cell) = state.hover_cell else {
+        return;
+    };
     let grid = &state.move_grid[state.player_floor];
-    let reach = &state.move_reach[state.player_floor];
-    if reach.is_empty() || grid.w == 0 || grid.h == 0 {
+    if grid.w == 0 || grid.h == 0 {
         return;
     }
     let hx = (MOVE_CELL * 0.5 - MOVE_CELL_INSET) * iw / frame.2;
@@ -6884,15 +6831,13 @@ fn draw_move_cells(state: &State, frame: (f32, f32, f32, f32), ox: f32, oy: f32,
         return;
     }
     sgl::begin_quads();
-    for my in 0..grid.h {
-        for mx in 0..grid.w {
-            let i = (my * grid.w + mx) as usize;
-            let d = reach[i];
-            if d == 0 || d == u16::MAX || d > RUN_CELLS {
+    for dy in -1..=1 {
+        for dx in -1..=1 {
+            let (mx, my) = (cell.0 + dx, cell.1 + dy);
+            if mx < 0 || my < 0 || mx >= grid.w || my >= grid.h {
                 continue;
             }
-            let walk = d <= WALK_CELLS;
-            let (c, a) = if walk {
+            let (c, a) = if dx == 0 && dy == 0 {
                 (MOVE_WALK_TINT, MOVE_WALK_ALPHA)
             } else {
                 (MOVE_RUN_TINT, MOVE_RUN_ALPHA)
@@ -6962,7 +6907,7 @@ fn draw_floor(
     // Room floors and their dot/diamond patterns sit under the map art.
     draw_rooms(state, frame, ox, oy, iw, ih);
     // Turn-based reachable cells sit on the room floor, under the map art.
-    draw_move_cells(state, frame, ox, oy, iw, ih);
+    draw_hover_cells(state, frame, ox, oy, iw, ih);
 
     sgl::enable_texture();
     sgl::texture(state.overlay_views[state.floor], state.overlay_sampler);
@@ -8324,7 +8269,7 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
                 // The player is on a new floor: refresh its turn-based reach and
                 // goals, or nothing here would be clickable.
                 state.move_anim = None;
-                rebuild_move(state);
+                reset_move_hover(state);
                 on_progress_changed(state);
                 notify_state(state, true);
                 pan_to_center_player(state);
@@ -8539,7 +8484,6 @@ fn main() {
         goal: None,
         route_visible: true,
         move_grid,
-        move_reach: std::array::from_fn(|_| Vec::new()),
         turn: 0,
         steps: 0,
         hover_cell: None,
@@ -9141,32 +9085,17 @@ mod tests {
     }
 
     #[test]
-    fn move_reach_respects_budget_and_walls() {
-        // Open 20x20 except a wall at x == 5 for y < 15 (a detour of 16+ cells).
-        let grid = synthetic_move(20, 20, |x, y| !(x == 5 && y < 15));
-        let dist = move_reach(&grid, (0, 0));
-        // Walk east along y == 0: index == x for that row.
-        assert_eq!(dist[0], 0);
-        assert_eq!(dist[2], 2);
-        assert_eq!(dist[4], 4);
-        assert_eq!(dist[5], u16::MAX, "the wall itself is not a move cell");
-        assert_eq!(
-            dist[6],
-            u16::MAX,
-            "a cell behind the wall is outside the run budget"
-        );
-    }
-
-    #[test]
-    fn move_reach_caps_at_the_run_budget() {
-        let grid = synthetic_move(40, 40, |_, _| true);
-        let dist = move_reach(&grid, (0, 0));
-        assert_eq!(dist[RUN_CELLS as usize], RUN_CELLS);
-        assert_eq!(
-            dist[RUN_CELLS as usize + 1],
-            u16::MAX,
-            "cells past the run budget stay unreachable"
-        );
+    fn nearest_move_cell_snaps_off_walls() {
+        // A 10x10 grid with the whole left column blocked.
+        let grid = synthetic_move(10, 10, |x, _| x != 0);
+        assert_eq!(nearest_move_cell(&grid, (3, 4)), Some((3, 4)));
+        // A blocked cell snaps to a nearby walkable cell.
+        let snapped = nearest_move_cell(&grid, (0, 4)).expect("snap");
+        assert!(grid.walkable(snapped.0, snapped.1));
+        assert!((snapped.0 - 0).abs() <= 2 && (snapped.1 - 4).abs() <= 2);
+        // A fully blocked grid has no snap.
+        let blocked = synthetic_move(6, 6, |_, _| false);
+        assert_eq!(nearest_move_cell(&blocked, (3, 3)), None);
     }
 
     fn region(id: u32, rect: Rect, initial: RegionState) -> Region {
