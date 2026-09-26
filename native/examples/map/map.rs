@@ -935,7 +935,7 @@ impl Tool {
     fn help(self) -> &'static str {
         match self {
             Tool::Select => {
-                "Click to select. Drag empty space to marquee-select; drag a selection to move it (corners scale, top handle rotates). Shift adds."
+                "Click to select; drag to marquee-select. Drag a selected object to move the selection (grab a room/region by its edge, not its floor). Scale/rotate handles act on a single object only. Shift adds."
             }
             Tool::WallAdd => "Drag a rectangle to add a room: walkable inside, double-walled. Overlaps merge.",
             Tool::WallSub => "Drag a rectangle to carve a hole out of an existing room.",
@@ -4394,7 +4394,9 @@ fn select_press(state: &mut State, p: (f32, f32), shift: bool) {
     // Pressing a handle of the current selection transforms it, and pressing any
     // selected object moves the whole selection. Everything else starts a
     // marquee; a click (no drag) selects the object under the cursor on release.
-    if !shift {
+    // Scale/rotate handles only apply to a single selection: a multi-selection
+    // moves as a whole, so a press near a member's corner can never scale it.
+    if !shift && state.selection.len() == 1 {
         if let Some(sel) = primary_selection(state) {
             if let Some(geom) = selection_geom(&state.scene, floor_index, sel) {
                 if let Some(rh) = geom_rotate_handle(geom) {
@@ -4409,10 +4411,17 @@ fn select_press(state: &mut State, p: (f32, f32), shift: bool) {
                         return;
                     }
                 }
-                if hit.is_some_and(|h| state.selection.contains(&h)) {
-                    start_drag(state, DragMode::Move, p);
-                    return;
-                }
+            }
+        }
+    }
+    // Pressing a selected object moves the selection, but a large area object (a
+    // room, region or trigger) is only grabbed near its outline, so dragging
+    // across its floor still draws a marquee.
+    if !shift {
+        if let Some(h) = hit.filter(|h| state.selection.contains(h)) {
+            if selection_grabbable(&state.scene, floor_index, h, p, tol) {
+                start_drag(state, DragMode::Move, p);
+                return;
             }
         }
     }
@@ -4480,6 +4489,20 @@ fn point_in_rect(p: (f32, f32), rect: Rect) -> bool {
     p.0 >= rect.x && p.0 <= rect.x + rect.w && p.1 >= rect.y && p.1 <= rect.y + rect.h
 }
 
+// Distance from a point to a rectangle's outline: zero on the edge, growing
+// toward the middle when inside and outward when outside. Used to grab a large
+// area object by its rim rather than its whole floor.
+fn rect_edge_dist(p: (f32, f32), rect: Rect) -> f32 {
+    if point_in_rect(p, rect) {
+        (p.0 - rect.x)
+            .min(rect.x + rect.w - p.0)
+            .min(p.1 - rect.y)
+            .min(rect.y + rect.h - p.1)
+    } else {
+        dist_to_rect(p, rect)
+    }
+}
+
 fn geom_intersects_rect(g: SelGeom, rect: Rect) -> bool {
     match g {
         SelGeom::Rect { x, y, w, h } => {
@@ -4501,6 +4524,22 @@ fn geom_intersects_rect(g: SelGeom, rect: Rect) -> bool {
                 .any(|c| dist_to_box(*c, center, size, rot) <= 0.0)
         }
         SelGeom::Point { pos } => point_in_rect(pos, rect),
+    }
+}
+
+// Can a press at `p` grab `sel` to move it? A large area object (room, region or
+// trigger) is only grabbed near its rim, so a drag across its floor still draws
+// a marquee instead of dragging the whole area.
+fn selection_grabbable(
+    scene: &Scene,
+    floor_index: usize,
+    sel: Selection,
+    p: (f32, f32),
+    tol: f32,
+) -> bool {
+    match selection_geom(scene, floor_index, sel) {
+        Some(SelGeom::Rect { x, y, w, h }) => rect_edge_dist(p, Rect { x, y, w, h }) <= tol,
+        _ => true,
     }
 }
 
@@ -7596,21 +7635,23 @@ fn draw_editor(
             }
         }
     }
-    if let Some(sel) = primary_selection(state) {
-        if let Some(geom) = selection_geom(&state.scene, state.floor, sel) {
-            sgl::c4f(1.0, 1.0, 1.0, 0.95);
-            for c in geom_corners(geom) {
-                let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, c.0, c.1);
-                rect(rx - 4.0, ry - 4.0, 8.0, 8.0);
-            }
-            if let Some(rh) = geom_rotate_handle(geom) {
-                let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, rh.0, rh.1);
-                let center = geom_center(geom);
-                let (cx, cy) = src_to_ref(frame, ox, oy, iw, ih, center.0, center.1);
-                sgl::c4f(1.0, 1.0, 1.0, 0.5);
-                line(cx, cy, rx, ry);
-                sgl::c4f(0.40, 0.80, 1.0, 1.0);
-                filled_circle(rx, ry, 6.0);
+    if state.selection.len() == 1 {
+        if let Some(sel) = primary_selection(state) {
+            if let Some(geom) = selection_geom(&state.scene, state.floor, sel) {
+                sgl::c4f(1.0, 1.0, 1.0, 0.95);
+                for c in geom_corners(geom) {
+                    let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, c.0, c.1);
+                    rect(rx - 4.0, ry - 4.0, 8.0, 8.0);
+                }
+                if let Some(rh) = geom_rotate_handle(geom) {
+                    let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, rh.0, rh.1);
+                    let center = geom_center(geom);
+                    let (cx, cy) = src_to_ref(frame, ox, oy, iw, ih, center.0, center.1);
+                    sgl::c4f(1.0, 1.0, 1.0, 0.5);
+                    line(cx, cy, rx, ry);
+                    sgl::c4f(0.40, 0.80, 1.0, 1.0);
+                    filled_circle(rx, ry, 6.0);
+                }
             }
         }
     }
@@ -8772,6 +8813,44 @@ mod tests {
                 Selection::Obstacle(1)
             ]
         );
+    }
+
+    #[test]
+    fn a_large_room_is_grabbed_by_its_rim_not_its_floor() {
+        let mut scene = Scene::default();
+        scene.floors[FLOOR1_INDEX].walls.push(WallOp {
+            mode: BoolOp::Add,
+            rect: Rect {
+                x: 0.0,
+                y: 0.0,
+                w: 600.0,
+                h: 600.0,
+            },
+        });
+        let room = Selection::Wall(0);
+        // Deep inside the floor: not grabbable, so the drag marquees instead.
+        assert!(!selection_grabbable(
+            &scene,
+            FLOOR1_INDEX,
+            room,
+            (300.0, 300.0),
+            20.0
+        ));
+        // On the wall line, or just outside it: grabbable.
+        assert!(selection_grabbable(
+            &scene,
+            FLOOR1_INDEX,
+            room,
+            (5.0, 300.0),
+            20.0
+        ));
+        assert!(selection_grabbable(
+            &scene,
+            FLOOR1_INDEX,
+            room,
+            (610.0, 300.0),
+            20.0
+        ));
     }
 
     #[test]
