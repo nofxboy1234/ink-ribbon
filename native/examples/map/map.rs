@@ -935,7 +935,7 @@ impl Tool {
     fn help(self) -> &'static str {
         match self {
             Tool::Select => {
-                "Click to select. Drag to move; corners scale, top handle rotates. Shift-click adds."
+                "Click to select. Drag empty space to marquee-select; drag a selection to move it (corners scale, top handle rotates). Shift adds."
             }
             Tool::WallAdd => "Drag a rectangle to add a room: walkable inside, double-walled. Overlaps merge.",
             Tool::WallSub => "Drag a rectangle to carve a hole out of an existing room.",
@@ -1012,6 +1012,9 @@ enum SelGeom {
 enum DragMode {
     None,
     Create,
+    // Left-drag on empty space with the Select tool: a box that selects the
+    // objects it sweeps.
+    Marquee,
     Move,
     Scale(usize),
     Rotate,
@@ -1173,6 +1176,8 @@ struct State {
     drag_all: Vec<(Selection, SelGeom)>,
     drag_grab: (f32, f32),
     drag_dirty: bool,
+    // Shift held when a marquee drag started, so release can extend selection.
+    drag_shift: bool,
     pending_link: Option<PendingLink>,
     clipboard: Vec<Clip>,
     rename: Option<String>,
@@ -4248,14 +4253,6 @@ fn geom_rotate_handle(g: SelGeom) -> Option<(f32, f32)> {
     }
 }
 
-fn geom_hit(g: SelGeom, p: (f32, f32), tol: f32) -> bool {
-    match g {
-        SelGeom::Rect { x, y, w, h } => dist_to_rect(p, Rect { x, y, w, h }) <= tol,
-        SelGeom::Box { center, size, rot } => dist_to_box(p, center, size, rot) <= tol,
-        SelGeom::Point { pos } => ((p.0 - pos.0).powi(2) + (p.1 - pos.1).powi(2)).sqrt() <= tol,
-    }
-}
-
 fn translate_geom(g: SelGeom, dx: f32, dy: f32) -> SelGeom {
     match g {
         SelGeom::Rect { x, y, w, h } => SelGeom::Rect {
@@ -4394,6 +4391,9 @@ fn select_press(state: &mut State, p: (f32, f32), shift: bool) {
     let floor_index = state.floor;
     let tol = handle_tol(state);
     let hit = pick_object(&state.scene, floor_index, p);
+    // Pressing a handle of the current selection transforms it, and pressing any
+    // selected object moves the whole selection. Everything else starts a
+    // marquee; a click (no drag) selects the object under the cursor on release.
     if !shift {
         if let Some(sel) = primary_selection(state) {
             if let Some(geom) = selection_geom(&state.scene, floor_index, sel) {
@@ -4409,42 +4409,114 @@ fn select_press(state: &mut State, p: (f32, f32), shift: bool) {
                         return;
                     }
                 }
-                // Only move the current selection when the click actually
-                // targets it; otherwise a click on an object inside a selected
-                // room would move the room instead of selecting that object.
-                if hit == Some(sel) && geom_hit(geom, p, tol) {
+                if hit.is_some_and(|h| state.selection.contains(&h)) {
                     start_drag(state, DragMode::Move, p);
                     return;
                 }
             }
         }
     }
-    match hit {
-        Some(sel) => {
-            if shift {
-                if let Some(pos) = state.selection.iter().position(|s| *s == sel) {
-                    state.selection.remove(pos);
-                } else {
-                    state.selection.push(sel);
-                }
-                state.drag_mode = DragMode::None;
-            } else {
-                if !state.selection.contains(&sel) {
-                    state.selection = vec![sel];
-                }
-                start_drag(state, DragMode::Move, p);
+    state.drag_mode = DragMode::Marquee;
+    state.drag_shift = shift;
+    state.drag_from = Some(p);
+    state.drag_to = Some(p);
+}
+
+// Objects touched by a marquee rectangle (source coords). Containers that fully
+// enclose the rectangle are skipped, so a box drawn over a room's floor selects
+// the objects inside rather than the room itself.
+fn objects_in_marquee(
+    scene: &Scene,
+    floor_index: usize,
+    a: (f32, f32),
+    b: (f32, f32),
+) -> Vec<Selection> {
+    let rect = Rect {
+        x: a.0.min(b.0),
+        y: a.1.min(b.1),
+        w: (b.0 - a.0).abs(),
+        h: (b.1 - a.1).abs(),
+    };
+    let floor = &scene.floors[floor_index];
+    let mut out = Vec::new();
+    let consider = |sel: Selection, out: &mut Vec<Selection>| {
+        if let Some(geom) = selection_geom(scene, floor_index, sel) {
+            if geom_intersects_rect(geom, rect) && !geom_encloses_rect(geom, rect) {
+                out.push(sel);
             }
         }
-        None => {
-            if !shift {
-                state.selection.clear();
-                // Empty space: a left drag pans the map instead of doing nothing.
-                state.drag_mode = DragMode::None;
-                state.dragging = true;
-            } else {
-                state.drag_mode = DragMode::None;
-            }
+    };
+    for i in 0..floor.walls.len() {
+        consider(Selection::Wall(i), &mut out);
+    }
+    for i in 0..floor.partitions.len() {
+        consider(Selection::Partition(i), &mut out);
+    }
+    for i in 0..floor.obstacles.len() {
+        consider(Selection::Obstacle(i), &mut out);
+    }
+    for i in 0..floor.doors.len() {
+        consider(Selection::Door(i), &mut out);
+    }
+    for i in 0..floor.stairs.len() {
+        consider(Selection::Stair(i), &mut out);
+    }
+    for i in 0..floor.items.len() {
+        consider(Selection::Item(i), &mut out);
+    }
+    for i in 0..floor.labels.len() {
+        consider(Selection::Label(i), &mut out);
+    }
+    for i in 0..floor.regions.len() {
+        consider(Selection::Region(i), &mut out);
+    }
+    for i in 0..floor.triggers.len() {
+        consider(Selection::Trigger(i), &mut out);
+    }
+    out
+}
+
+fn point_in_rect(p: (f32, f32), rect: Rect) -> bool {
+    p.0 >= rect.x && p.0 <= rect.x + rect.w && p.1 >= rect.y && p.1 <= rect.y + rect.h
+}
+
+fn geom_intersects_rect(g: SelGeom, rect: Rect) -> bool {
+    match g {
+        SelGeom::Rect { x, y, w, h } => {
+            x < rect.x + rect.w && x + w > rect.x && y < rect.y + rect.h && y + h > rect.y
         }
+        SelGeom::Box { center, size, rot } => {
+            // Any box corner inside, the centre inside, or a marquee corner in
+            // the box (so a thin marquee still catches a large prop).
+            let corners = geom_corners(SelGeom::Box { center, size, rot });
+            corners.iter().any(|c| point_in_rect(*c, rect))
+                || point_in_rect(center, rect)
+                || [
+                    (rect.x, rect.y),
+                    (rect.x + rect.w, rect.y),
+                    (rect.x, rect.y + rect.h),
+                    (rect.x + rect.w, rect.y + rect.h),
+                ]
+                .iter()
+                .any(|c| dist_to_box(*c, center, size, rot) <= 0.0)
+        }
+        SelGeom::Point { pos } => point_in_rect(pos, rect),
+    }
+}
+
+// True when the geometry strictly encloses the marquee (a container the marquee
+// was drawn inside of).
+fn geom_encloses_rect(g: SelGeom, rect: Rect) -> bool {
+    match g {
+        SelGeom::Rect { x, y, w, h } => {
+            w > 0.0
+                && h > 0.0
+                && x < rect.x
+                && y < rect.y
+                && x + w > rect.x + rect.w
+                && y + h > rect.y + rect.h
+        }
+        _ => false,
     }
 }
 
@@ -5473,8 +5545,8 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             state.circle_cursor_hidden = false;
             state.mouse_in_map = in_map(&state.layout, (mx, my));
             if state.edit {
-                // Panning: middle/right drag anywhere, or a left drag that did
-                // not start on a tool/object (Select on empty space).
+                // Middle-button drag pans the map; a left drag with the Select
+                // tool draws a selection marquee (handled below).
                 if state.dragging {
                     if (mx - state.down_ref.0).abs() > 6.0 || (my - state.down_ref.1).abs() > 6.0 {
                         state.moved = true;
@@ -5502,6 +5574,10 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                         let src = ref_to_source(state, (mx, my));
                         apply_drag(state, src);
                     }
+                    DragMode::Marquee => {
+                        let src = snap_point(state, ref_to_source(state, (mx, my)));
+                        state.drag_to = Some(src);
+                    }
                     DragMode::None => {}
                 }
                 return;
@@ -5525,10 +5601,15 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
             if state.edit {
                 state.down_ref = (x, y);
                 state.moved = false;
-                // Middle/right button pans the map.
-                if event.mouse_button != sapp::Mousebutton::Left {
-                    state.dragging = true;
-                    return;
+                // The middle button pans the map while editing; the left button
+                // builds/moves/selects, and any other button does nothing.
+                match event.mouse_button {
+                    sapp::Mousebutton::Middle => {
+                        state.dragging = true;
+                        return;
+                    }
+                    sapp::Mousebutton::Left => {}
+                    _ => return,
                 }
                 if let Some(i) = editor_toolbar_hit(x, y) {
                     state.tool = Tool::ALL[i];
@@ -5660,12 +5741,58 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                             set_status(state, "updated");
                         }
                     }
+                    DragMode::Marquee => {
+                        if let Some(a) = state.drag_from.take() {
+                            let b = state.drag_to.take().unwrap_or(a);
+                            let (ux, uy) =
+                                screen_to_ref(&state.layout, event.mouse_x, event.mouse_y);
+                            let dragged = (ux - state.down_ref.0).abs() > 4.0
+                                || (uy - state.down_ref.1).abs() > 4.0;
+                            let add = state.drag_shift;
+                            if dragged {
+                                let found = objects_in_marquee(&state.scene, state.floor, a, b);
+                                if add {
+                                    for sel in found {
+                                        if !state.selection.contains(&sel) {
+                                            state.selection.push(sel);
+                                        }
+                                    }
+                                } else {
+                                    state.selection = found;
+                                }
+                            } else {
+                                // A click selects (or shift-toggles) the object
+                                // under the cursor.
+                                match pick_object(&state.scene, state.floor, a) {
+                                    Some(sel) => {
+                                        if add {
+                                            if let Some(pos) =
+                                                state.selection.iter().position(|s| *s == sel)
+                                            {
+                                                state.selection.remove(pos);
+                                            } else {
+                                                state.selection.push(sel);
+                                            }
+                                        } else {
+                                            state.selection = vec![sel];
+                                        }
+                                    }
+                                    None => {
+                                        if !add {
+                                            state.selection.clear();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     DragMode::None => {}
                 }
                 state.drag_mode = DragMode::None;
                 state.drag_orig = None;
                 state.drag_all.clear();
                 state.drag_dirty = false;
+                state.drag_shift = false;
                 state.drag_from = None;
                 state.drag_to = None;
                 return;
@@ -7487,6 +7614,16 @@ fn draw_editor(
             }
         }
     }
+    if state.drag_mode == DragMode::Marquee {
+        if let (Some(a), Some(b)) = (state.drag_from, state.drag_to) {
+            let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, a.0.min(b.0), a.1.min(b.1));
+            let (rx1, ry1) = src_to_ref(frame, ox, oy, iw, ih, a.0.max(b.0), a.1.max(b.1));
+            sgl::c4f(0.80, 0.88, 1.0, 0.14);
+            rect(rx, ry, rx1 - rx, ry1 - ry);
+            sgl::c4f(0.80, 0.88, 1.0, 0.95);
+            outline_rect(rx, ry, rx1 - rx, ry1 - ry);
+        }
+    }
     if let (Some(a), Some(b)) = (state.drag_from, state.drag_to) {
         if state.tool.is_rect() {
             let (rx, ry) = src_to_ref(frame, ox, oy, iw, ih, a.0.min(b.0), a.1.min(b.1));
@@ -8409,6 +8546,7 @@ fn main() {
         drag_all: Vec::new(),
         drag_grab: (0.0, 0.0),
         drag_dirty: false,
+        drag_shift: false,
         pending_link: None,
         clipboard: Vec::new(),
         rename: None,
@@ -8592,6 +8730,47 @@ mod tests {
         assert_eq!(
             pick_object(&scene, FLOOR1_INDEX, (500.0, 450.0)),
             Some(Selection::Label(0))
+        );
+    }
+
+    #[test]
+    fn marquee_selects_objects_but_not_their_room() {
+        let mut scene = Scene::default();
+        let floor = &mut scene.floors[FLOOR1_INDEX];
+        floor.walls.push(WallOp {
+            mode: BoolOp::Add,
+            rect: Rect {
+                x: 0.0,
+                y: 0.0,
+                w: 600.0,
+                h: 600.0,
+            },
+        });
+        for (id, center) in [
+            (1, (200.0, 200.0)),
+            (2, (400.0, 400.0)),
+            (3, (700.0, 700.0)),
+        ] {
+            floor.obstacles.push(Box2 {
+                id,
+                center,
+                size: (64.0, 64.0),
+                rot: 0.0,
+            });
+        }
+        // A small box inside the room grabs the obstacle it covers, not the room.
+        assert_eq!(
+            objects_in_marquee(&scene, FLOOR1_INDEX, (150.0, 150.0), (300.0, 300.0)),
+            vec![Selection::Obstacle(0)]
+        );
+        // A box that spills past the room's edges takes the room and its props.
+        assert_eq!(
+            objects_in_marquee(&scene, FLOOR1_INDEX, (-50.0, -50.0), (650.0, 650.0)),
+            vec![
+                Selection::Wall(0),
+                Selection::Obstacle(0),
+                Selection::Obstacle(1)
+            ]
         );
     }
 

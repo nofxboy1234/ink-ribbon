@@ -19,8 +19,11 @@ update.
 
 Open the map, press **Tab** to enter edit mode, and use the in-canvas tool bar:
 
-- **SELECT** — click to select, drag to move, corner handles to scale, the top
-  handle to rotate boxes. Shift-click adds to the selection.
+- **SELECT** — click to select; drag empty space to rubber-band a box around every
+  object it sweeps (containing rooms are skipped, so you grab the props inside);
+  drag a selection to move it, corner handles to scale, the top handle to rotate
+  boxes. Shift adds to the selection. Pan the map by dragging with the **middle**
+  mouse button.
 - **WALL+ / WALL-** — drag rectangles; a rectangle is a room (walkable inside,
   its wall drawn as a double line). Overlapping rooms union, so shared walls
   vanish. `WALL-` carves a notch out of the union (an enclosed carve keeps the
