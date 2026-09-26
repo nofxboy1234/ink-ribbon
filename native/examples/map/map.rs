@@ -1242,6 +1242,9 @@ struct State {
     // Reachable component per floor, computed from where the player is standing.
     reachable: [Vec<u8>; NUM_FLOORS],
     path: Vec<(f32, f32)>,
+    // Player nav cell the goal route was last computed for; lets the route update
+    // in realtime while the player moves, only when their cell changes.
+    route_cell: Option<(i32, i32)>,
     show_grid: bool,
     time: f32,
     zoom_target: f32,
@@ -1795,6 +1798,19 @@ fn update_player(state: &mut State, delta: f32) {
         return;
     }
     update_move(state, delta);
+    // Keep the selected goal route attached to the moving player. It is only
+    // recomputed when the player's nav cell changes, so a per-frame A* is
+    // avoided and the frame rate is unaffected.
+    if state.goal.is_some() {
+        let cell = source_to_cell(
+            &state.nav[state.player_floor],
+            state.player.0,
+            state.player.1,
+        );
+        if state.route_cell != Some(cell) {
+            refresh_goal_route(state);
+        }
+    }
     let turn = wrap_angle(state.facing_target - state.facing);
     state.facing += turn * (delta * PLAYER_TURN_RATE).min(1.0);
     state.player_vel = (0.0, 0.0);
@@ -1899,7 +1915,7 @@ fn start_move(state: &mut State, mut goal: (i32, i32)) {
     let (cells, path) = {
         let cells = match state
             .astar
-            .search_grid(grid.w, grid.h, start, goal, |x, y| grid.walkable(x, y))
+            .search_grid(grid.w, grid.h, start, goal, 0, |x, y| grid.walkable(x, y))
         {
             Some(c) if c.len() >= 2 => c,
             _ => return,
@@ -2473,22 +2489,35 @@ fn clear_goal_route(state: &mut State) {
 fn refresh_goal_route(state: &mut State) {
     state.path.clear();
     let Some(goal) = state.goal.and_then(|i| state.goals.get(i)).cloned() else {
+        state.route_cell = None;
         return;
     };
     let floor = state.player_floor;
     if goal.floor != floor || state.floor != floor {
+        state.route_cell = None;
         return;
     }
     if let Some(start) = snap_source(&state.nav[floor], state.player.0, state.player.1) {
         ensure_reachable(state, floor, start);
     }
-    state.path = route_to(
+    let mut path = route_to(
         &mut state.astar,
         &state.nav[floor],
         &state.reachable[floor],
         state.player,
         goal.pos,
     );
+    // Connect the route to the player's exact position so it stays attached while
+    // the player is mid-move.
+    if !path.is_empty() {
+        path.insert(0, state.player);
+    }
+    state.path = path;
+    state.route_cell = Some(source_to_cell(
+        &state.nav[floor],
+        state.player.0,
+        state.player.1,
+    ));
 }
 
 // Progress or a move changed what is available: refresh goals and the route.
@@ -5471,7 +5500,7 @@ fn update_hover(state: &mut State) {
     {
         let cells = match state
             .astar
-            .search_grid(grid.w, grid.h, start, cell, |x, y| grid.walkable(x, y))
+            .search_grid(grid.w, grid.h, start, cell, 0, |x, y| grid.walkable(x, y))
         {
             Some(c) if c.len() >= 2 => c,
             _ => return,
@@ -6421,16 +6450,32 @@ impl Astar {
         start: (i32, i32),
         goal: (i32, i32),
     ) -> Option<Vec<(i32, i32)>> {
-        self.search_grid(nav.w, nav.h, start, goal, |x, y| nav.walkable(x, y))
+        self.search_grid(nav.w, nav.h, start, goal, 0, |x, y| nav.walkable(x, y))
     }
 
-    // A* over any uniform-cost 4-neighbour grid described by `walkable`.
+    // A* that stops at the first walkable cell within `radius` of `goal`. Used to
+    // route to a target sitting on a wall (a door): it picks the nearest cell the
+    // player can actually stand on, from whichever side they are on.
+    fn search_near(
+        &mut self,
+        nav: &Nav,
+        start: (i32, i32),
+        goal: (i32, i32),
+        radius: i32,
+    ) -> Option<Vec<(i32, i32)>> {
+        self.search_grid(nav.w, nav.h, start, goal, radius, |x, y| nav.walkable(x, y))
+    }
+
+    // A* over any uniform-cost 4-neighbour grid described by `walkable`. With
+    // `radius == 0` the goal cell must be reached exactly; with a larger radius
+    // any cell within that Chebyshev distance of `goal` finishes the search.
     fn search_grid(
         &mut self,
         w: i32,
         h: i32,
         start: (i32, i32),
         goal: (i32, i32),
+        radius: i32,
         walkable: impl Fn(i32, i32) -> bool,
     ) -> Option<Vec<(i32, i32)>> {
         let n = (w * h) as usize;
@@ -6448,7 +6493,6 @@ impl Astar {
         let gen = self.gen;
 
         let sidx = (start.1 * w + start.0) as usize;
-        let gidx = (goal.1 * w + goal.0) as usize;
         let heuristic = |x: i32, y: i32| (x - goal.0).unsigned_abs() + (y - goal.1).unsigned_abs();
 
         self.heap.clear();
@@ -6458,13 +6502,15 @@ impl Astar {
             heuristic(start.0, start.1),
             sidx as i32,
         )));
+        let mut found: Option<i32> = None;
         while let Some(std::cmp::Reverse((_f, cur))) = self.heap.pop() {
             let cur = cur as usize;
-            if cur == gidx {
-                break;
-            }
             let cx = (cur as i32) % w;
             let cy = (cur as i32) / w;
+            if (cx - goal.0).abs() <= radius && (cy - goal.1).abs() <= radius {
+                found = Some(cur as i32);
+                break;
+            }
             let cg = self.g[cur];
             for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
                 let (nx, ny) = (cx + dx, cy + dy);
@@ -6482,11 +6528,8 @@ impl Astar {
                 }
             }
         }
-        if self.stamp[gidx] != gen {
-            return None;
-        }
+        let mut cur = found?;
         let mut cells = Vec::new();
-        let mut cur = gidx as i32;
         loop {
             let ci = cur as usize;
             cells.push(((ci as i32) % w, (ci as i32) / w));
@@ -6590,7 +6633,9 @@ fn closest_reachable_cell(nav: &Nav, reachable: &[u8], to: (f32, f32)) -> Option
     best.map(|(_, c)| c)
 }
 
-// Shortest route in source px to the reachable cell nearest `to`, or empty.
+// Shortest route in source px toward `to`, or empty. When `to` sits on a wall
+// (a door) the route stops at the nearest standable cell, chosen from whichever
+// side the player is on, so it is always the shortest approach.
 #[allow(dead_code)]
 fn route_to(
     astar: &mut Astar,
@@ -6602,10 +6647,14 @@ fn route_to(
     let Some(start) = snap_source(nav, from.0, from.1) else {
         return Vec::new();
     };
-    let Some(goal) = closest_reachable_cell(nav, reachable, to) else {
-        return Vec::new();
-    };
-    match astar.search(nav, start, goal) {
+    let goal = source_to_cell(nav, to.0, to.1);
+    // A walkable target is reached exactly; a wall-mounted target finishes at the
+    // nearest standable cell (the band plus clearance is a few cells wide).
+    let radius = if nav.walkable(goal.0, goal.1) { 0 } else { 4 };
+    let cells = astar.search_near(nav, start, goal, radius).or_else(|| {
+        closest_reachable_cell(nav, reachable, to).and_then(|g| astar.search(nav, start, g))
+    });
+    match cells {
         Some(cells) => simplify(
             cells
                 .iter()
@@ -8444,6 +8493,7 @@ fn main() {
         status_t: 0.0,
         reachable: std::array::from_fn(|_| Vec::new()),
         path: Vec::new(),
+        route_cell: None,
         show_grid: false,
         time: 0.0,
         zoom_target: DEFAULT_ZOOM,
@@ -9263,16 +9313,43 @@ mod tests {
         // A vertical wall at x == 20 for y < 30; the two sides only connect
         // around the bottom (y >= 30). The target sits on the wall.
         let nav = synthetic_nav(40, 40, |x, y| x == 20 && y < 30);
-        let reachable = reachable_from(&nav, (10, 10));
-        let from = cell_to_source(&nav, 10, 10);
         let to = cell_to_source(&nav, 20, 10);
-        let green = route_to(&mut Astar::new(), &nav, &reachable, from, to);
+        let wall_y = cell_to_source(&nav, 0, 30).1;
+
+        // From the left, the route approaches from the left and is direct.
+        let left = reachable_from(&nav, (10, 10));
+        let green = route_to(
+            &mut Astar::new(),
+            &nav,
+            &left,
+            cell_to_source(&nav, 10, 10),
+            to,
+        );
         assert!(!green.is_empty(), "expected a route");
         assert!(green.len() <= 3, "route should be direct, got {green:?}");
-        let wall_y = cell_to_source(&nav, 0, 30).1;
         assert!(
             green.iter().all(|p| p.1 < wall_y),
             "route took the long way around: {green:?}"
+        );
+
+        // After walking around to the far side, the route is short again (from
+        // the new side) rather than retracing the detour.
+        let right = reachable_from(&nav, (25, 10));
+        let green = route_to(
+            &mut Astar::new(),
+            &nav,
+            &right,
+            cell_to_source(&nav, 25, 10),
+            to,
+        );
+        assert!(!green.is_empty(), "expected a route from the far side");
+        assert!(
+            green.len() <= 3,
+            "route from the far side should be short, got {green:?}"
+        );
+        assert!(
+            green.iter().all(|p| p.1 < wall_y),
+            "route from the far side detoured: {green:?}"
         );
     }
 }
