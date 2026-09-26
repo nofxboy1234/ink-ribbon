@@ -4,8 +4,8 @@ use ink_ribbon_native::bake::{bake, bake_floor_nav, BakedBytes, OverlayBytes, CE
 use ink_ribbon_native::save::{format_unix_utc, PlayerSave};
 use ink_ribbon_native::scene::{
     BoolOp, Box2, Door, DoorKind, Floor, ItemDef, ItemKind, Link, Rect, Region, RegionState,
-    RoomLabel, Scene, StairNode, Trigger, WallOp, DOOR_LONG_PX, DOOR_THICK_PX, NUM_FLOORS,
-    ROOM_WALL_PX,
+    RoomLabel, Scene, StairNode, Trigger, WallOp, DOOR_LONG_PX, DOOR_THICK_PX, FLOOR_FRAMES,
+    NUM_FLOORS, ROOM_WALL_PX,
 };
 use ink_ribbon_native::walls::{region_rects, wall_plan, EdgeDir, WallPlan, WallTone};
 use sokol::{app as sapp, gfx as sg, gl as sgl, glue as sglue};
@@ -1596,21 +1596,15 @@ fn player_center_pan(
     l: &Layout,
     zoom: f32,
     player: (f32, f32),
-    frame: (f32, f32, f32, f32),
+    ref_frame: (f32, f32, f32, f32),
 ) -> (f32, f32) {
-    let (fx, fy, fw, fh) = frame;
-    let (iw, ih) = image_size(l, zoom, frame);
-    let (cx, cy) = cursor_center(l);
-    (
-        cx - (player.0 - fx) * iw / fw - l.map_x - (l.map_w - iw) * 0.5,
-        cy - (player.1 - fy) * ih / fh - l.map_y - (l.map_h - ih) * 0.5,
-    )
+    anchor_pan(l, zoom, player, cursor_center(l), ref_frame)
 }
 
 fn pan_to_center_player(state: &mut State) {
     // Computed for the default zoom so the player ends centred once zoom settles.
-    let frame = floor_frame(state, state.player_floor);
-    let (x, y) = player_center_pan(&state.layout, DEFAULT_ZOOM, state.player, frame);
+    let ref_frame = FLOOR_FRAMES[state.player_floor];
+    let (x, y) = player_center_pan(&state.layout, DEFAULT_ZOOM, state.player, ref_frame);
     state.pan_target_x = x;
     state.pan_target_y = y;
 }
@@ -1953,7 +1947,15 @@ fn hover_item_at(state: &State, cx: f32, cy: f32) -> Option<usize> {
         return None;
     }
     let frame = floor_frame(state, state.floor);
-    let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
+    let ref_frame = FLOOR_FRAMES[state.floor];
+    let (ox, oy, iw, ih) = map_rect(
+        &state.layout,
+        state.zoom,
+        state.pan_x,
+        state.pan_y,
+        frame,
+        ref_frame,
+    );
     let sx = frame.0 + (cx - ox) * frame.2 / iw;
     let sy = frame.1 + (cy - oy) * frame.3 / ih;
     state.items.iter().position(|item| {
@@ -2003,7 +2005,15 @@ fn set_edit(state: &mut State, on: bool) {
 // Reference coords -> source-composite pixels on the viewed floor.
 fn ref_to_source(state: &State, p: (f32, f32)) -> (f32, f32) {
     let frame = floor_frame(state, state.floor);
-    let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
+    let ref_frame = FLOOR_FRAMES[state.floor];
+    let (ox, oy, iw, ih) = map_rect(
+        &state.layout,
+        state.zoom,
+        state.pan_x,
+        state.pan_y,
+        frame,
+        ref_frame,
+    );
     (
         frame.0 + (p.0 - ox) * frame.2 / iw,
         frame.1 + (p.1 - oy) * frame.3 / ih,
@@ -4321,7 +4331,15 @@ fn rotate_geom(g: SelGeom, cursor: (f32, f32), snap: bool) -> SelGeom {
 
 fn handle_tol(state: &State) -> f32 {
     let frame = floor_frame(state, state.floor);
-    let (_, _, iw, _) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
+    let ref_frame = FLOOR_FRAMES[state.floor];
+    let (_, _, iw, _) = map_rect(
+        &state.layout,
+        state.zoom,
+        state.pan_x,
+        state.pan_y,
+        frame,
+        ref_frame,
+    );
     frame.2 / iw * 14.0
 }
 
@@ -5879,8 +5897,15 @@ extern "C" fn event(event: *const sapp::Event, user_data: *mut ffi::c_void) {
                 state.pinch_base_zoom = state.zoom_target;
                 let mid = screen_to_ref(&state.layout, mid_px.0, mid_px.1);
                 let frame = floor_frame(state, state.floor);
-                let (ox, oy, iw, ih) =
-                    map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
+                let ref_frame = FLOOR_FRAMES[state.floor];
+                let (ox, oy, iw, ih) = map_rect(
+                    &state.layout,
+                    state.zoom,
+                    state.pan_x,
+                    state.pan_y,
+                    frame,
+                    ref_frame,
+                );
                 state.pinch_src = (
                     frame.0 + (mid.0 - ox) * frame.2 / iw,
                     frame.1 + (mid.1 - oy) * frame.3 / ih,
@@ -6406,30 +6431,76 @@ fn filled_circle(cx: f32, cy: f32, radius: f32) {
 // squares and rectangles spanning roughly the same area as Floor 1. Deterministic
 // LCG per floor so the layout never changes between frames or runs.
 
-// Floor art frame inside the fixed map window, centred and scaled by zoom.
-fn image_size(l: &Layout, zoom: f32, frame: (f32, f32, f32, f32)) -> (f32, f32) {
-    let (_, _, frame_w, frame_h) = frame;
-    // Landscape fits the floor width; portrait fits the floor height.
+// The view scale is pinned to the floor's *reference* frame (its original
+// FLOOR_FRAMES crop): zoom 1 fits that frame to the map window. A frame that has
+// grown to hold extra content is drawn at the same scale and simply extends past
+// the window, so growing a frame never rescales the view. Returns the reference
+// frame's on-screen size plus the uniform source -> screen scale.
+fn view_base(l: &Layout, zoom: f32, ref_frame: (f32, f32, f32, f32)) -> (f32, f32, f32) {
+    let (_, _, ref_w, ref_h) = ref_frame;
+    // Landscape fits the reference width; portrait fits its height.
     if l.portrait {
         let ih = l.map_h * zoom;
-        (ih * frame_w / frame_h, ih)
+        (ref_w * ih / ref_h, ih, ih / ref_h)
     } else {
         let iw = l.map_w * zoom;
-        (iw, iw * frame_h / frame_w)
+        (iw, ref_h * iw / ref_w, iw / ref_w)
     }
 }
 
+// Screen rect of `frame`, anchored so the reference frame stays centred (plus
+// pan). Because the anchor is the reference, growing the frame extends the rect
+// instead of shrinking or recentring the art.
 fn map_rect(
     l: &Layout,
     zoom: f32,
     pan_x: f32,
     pan_y: f32,
     frame: (f32, f32, f32, f32),
+    ref_frame: (f32, f32, f32, f32),
 ) -> (f32, f32, f32, f32) {
-    let (image_width, image_height) = image_size(l, zoom, frame);
-    let x = l.map_x + (l.map_w - image_width) * 0.5 + pan_x;
-    let y = l.map_y + (l.map_h - image_height) * 0.5 + pan_y;
-    (x, y, image_width, image_height)
+    let (base_w, base_h, scale) = view_base(l, zoom, ref_frame);
+    let (fx, fy, frame_w, frame_h) = frame;
+    let (rx, ry, _, _) = ref_frame;
+    let x = l.map_x + (l.map_w - base_w) * 0.5 + pan_x - (fx - rx) * scale;
+    let y = l.map_y + (l.map_h - base_h) * 0.5 + pan_y - (fy - ry) * scale;
+    (x, y, frame_w * scale, frame_h * scale)
+}
+
+// Pan range that keeps `frame` over the map window (a smaller frame is centred),
+// with a little slack.
+fn pan_limits(
+    l: &Layout,
+    zoom: f32,
+    frame: (f32, f32, f32, f32),
+    ref_frame: (f32, f32, f32, f32),
+) -> ((f32, f32), (f32, f32)) {
+    let (base_w, base_h, scale) = view_base(l, zoom, ref_frame);
+    let (fx, fy, frame_w, frame_h) = frame;
+    let (rx, ry, _, _) = ref_frame;
+    let left0 = l.map_x + (l.map_w - base_w) * 0.5 - (fx - rx) * scale;
+    let top0 = l.map_y + (l.map_h - base_h) * 0.5 - (fy - ry) * scale;
+    let w = frame_w * scale;
+    let h = frame_h * scale;
+    let (min_x, max_x) = if w >= l.map_w {
+        (
+            (l.map_x + l.map_w) - (left0 + w) - PAN_MARGIN,
+            l.map_x - left0 + PAN_MARGIN,
+        )
+    } else {
+        let c = l.map_x + l.map_w * 0.5 - (left0 + w * 0.5);
+        (c - PAN_MARGIN, c + PAN_MARGIN)
+    };
+    let (min_y, max_y) = if h >= l.map_h {
+        (
+            (l.map_y + l.map_h) - (top0 + h) - PAN_MARGIN,
+            l.map_y - top0 + PAN_MARGIN,
+        )
+    } else {
+        let c = l.map_y + l.map_h * 0.5 - (top0 + h * 0.5);
+        (c - PAN_MARGIN, c + PAN_MARGIN)
+    };
+    ((min_x, max_x), (min_y, max_y))
 }
 
 // Capture the map point under the circle cursor when a zoom starts.
@@ -6441,7 +6512,8 @@ fn capture_zoom_anchor(state: &mut State) {
         return;
     }
     let frame = floor_frame(state, state.floor);
-    let (ox, oy, iw, ih) = map_rect(&l, state.zoom, state.pan_x, state.pan_y, frame);
+    let ref_frame = FLOOR_FRAMES[state.floor];
+    let (ox, oy, iw, ih) = map_rect(&l, state.zoom, state.pan_x, state.pan_y, frame, ref_frame);
     let sx = frame.0 + (cursor.0 - ox) * frame.2 / iw;
     let sy = frame.1 + (cursor.1 - oy) * frame.3 / ih;
     state.zoom_anchor = Some(ZoomAnchor {
@@ -6451,19 +6523,20 @@ fn capture_zoom_anchor(state: &mut State) {
     });
 }
 
-// Pan that places `src` at `ref_point` for the given zoom.
+// Pan that places `src` at `ref_point` for the given zoom. Depends only on the
+// reference frame, so it is unaffected by a grown frame.
 fn anchor_pan(
     l: &Layout,
     zoom: f32,
     src: (f32, f32),
     ref_point: (f32, f32),
-    frame: (f32, f32, f32, f32),
+    ref_frame: (f32, f32, f32, f32),
 ) -> (f32, f32) {
-    let (frame_x, frame_y, frame_w, frame_h) = frame;
-    let (iw, ih) = image_size(l, zoom, frame);
+    let (base_w, base_h, scale) = view_base(l, zoom, ref_frame);
+    let (rx, ry, _, _) = ref_frame;
     (
-        ref_point.0 - l.map_x - (l.map_w - iw) * 0.5 - (src.0 - frame_x) * iw / frame_w,
-        ref_point.1 - l.map_y - (l.map_h - ih) * 0.5 - (src.1 - frame_y) * ih / frame_h,
+        ref_point.0 - l.map_x - (l.map_w - base_w) * 0.5 - (src.0 - rx) * scale,
+        ref_point.1 - l.map_y - (l.map_h - base_h) * 0.5 - (src.1 - ry) * scale,
     )
 }
 
@@ -7064,7 +7137,15 @@ fn draw_floor(
     );
 
     let frame = floor_frame(state, state.floor);
-    let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
+    let ref_frame = FLOOR_FRAMES[state.floor];
+    let (ox, oy, iw, ih) = map_rect(
+        &state.layout,
+        state.zoom,
+        state.pan_x,
+        state.pan_y,
+        frame,
+        ref_frame,
+    );
 
     if state.show_grid {
         draw_nav_grid(&state.nav[state.floor], ox, oy, iw, ih);
@@ -7436,7 +7517,15 @@ fn draw_editor(
 ) {
     let font = state.font.as_ref().unwrap();
     let frame = floor_frame(state, state.floor);
-    let (ox, oy, iw, ih) = map_rect(&state.layout, state.zoom, state.pan_x, state.pan_y, frame);
+    let ref_frame = FLOOR_FRAMES[state.floor];
+    let (ox, oy, iw, ih) = map_rect(
+        &state.layout,
+        state.zoom,
+        state.pan_x,
+        state.pan_y,
+        frame,
+        ref_frame,
+    );
     let floor = &state.scene.floors[state.floor];
 
     #[allow(non_snake_case)]
@@ -8334,8 +8423,8 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     if let Some(a) = state.zoom_anchor {
         let l = state.layout;
         // Google-Maps style: keep the anchored map point under the cursor.
-        let frame = floor_frame(state, state.floor);
-        let (pan_x, pan_y) = anchor_pan(&l, state.zoom, a.src, a.cursor_ref, frame);
+        let ref_frame = FLOOR_FRAMES[state.floor];
+        let (pan_x, pan_y) = anchor_pan(&l, state.zoom, a.src, a.cursor_ref, ref_frame);
         state.pan_x = pan_x;
         state.pan_y = pan_y;
         state.pan_target_x = pan_x;
@@ -8361,8 +8450,8 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
         && !state.dragging
         && !state.pinching;
     if following {
-        let frame = floor_frame(state, state.player_floor);
-        let target = player_center_pan(&state.layout, state.zoom, state.player, frame);
+        let ref_frame = FLOOR_FRAMES[state.player_floor];
+        let target = player_center_pan(&state.layout, state.zoom, state.player, ref_frame);
         state.follow_target = follow_step(target, state.follow_target, delta);
         state.pan_target_x = state.follow_target.0;
         state.pan_target_y = state.follow_target.1;
@@ -8395,21 +8484,12 @@ extern "C" fn frame(user_data: *mut ffi::c_void) {
     {
         let l = state.layout;
         let frame = floor_frame(state, state.floor);
-        let (iw, ih) = image_size(&l, state.zoom, frame);
-        let max_x = if iw > l.map_w {
-            (iw - l.map_w) * 0.5
-        } else {
-            0.0
-        } + PAN_MARGIN;
-        let max_y = if ih > l.map_h {
-            (ih - l.map_h) * 0.5
-        } else {
-            0.0
-        } + PAN_MARGIN;
-        state.pan_x = state.pan_x.clamp(-max_x, max_x);
-        state.pan_y = state.pan_y.clamp(-max_y, max_y);
-        state.pan_target_x = state.pan_target_x.clamp(-max_x, max_x);
-        state.pan_target_y = state.pan_target_y.clamp(-max_y, max_y);
+        let ref_frame = FLOOR_FRAMES[state.floor];
+        let ((min_x, max_x), (min_y, max_y)) = pan_limits(&l, state.zoom, frame, ref_frame);
+        state.pan_x = state.pan_x.clamp(min_x, max_x);
+        state.pan_y = state.pan_y.clamp(min_y, max_y);
+        state.pan_target_x = state.pan_target_x.clamp(min_x, max_x);
+        state.pan_target_y = state.pan_target_y.clamp(min_y, max_y);
     }
 
     // Hovered key item under the active cursor (drives the popup label).
@@ -8902,12 +8982,12 @@ mod tests {
             };
             assert_eq!(l.portrait, portrait);
             let cursor = (l.map_x + l.map_w * 0.3, l.map_y + l.map_h * 0.4);
-            let (ox, oy, iw, ih) = map_rect(&l, DEFAULT_ZOOM, 0.0, 0.0, FLOOR1_FRAME);
+            let (ox, oy, iw, ih) = map_rect(&l, DEFAULT_ZOOM, 0.0, 0.0, FLOOR1_FRAME, FLOOR1_FRAME);
             let sx = FLOOR1_X + (cursor.0 - ox) * FLOOR1_W / iw;
             let sy = FLOOR1_Y + (cursor.1 - oy) * FLOOR1_H / ih;
             // Google style: the anchored point stays under the cursor.
             let (px, py) = anchor_pan(&l, 1.5, (sx, sy), cursor, FLOOR1_FRAME);
-            let (ox1, oy1, iw1, ih1) = map_rect(&l, 1.5, px, py, FLOOR1_FRAME);
+            let (ox1, oy1, iw1, ih1) = map_rect(&l, 1.5, px, py, FLOOR1_FRAME, FLOOR1_FRAME);
             let (rx, ry) = src_to_ref(FLOOR1_FRAME, ox1, oy1, iw1, ih1, sx, sy);
             assert!(
                 (rx - cursor.0).abs() < 1.0 && (ry - cursor.1).abs() < 1.0,
@@ -9046,13 +9126,32 @@ mod tests {
 
         // Each floor's on-screen image uses its own aspect ratio.
         let l = Layout::compute(1280.0, 720.0);
-        for (floor, &(_, _, w, h)) in FLOOR_FRAMES.iter().enumerate() {
-            let (iw, ih) = image_size(&l, 1.0, FLOOR_FRAMES[floor]);
+        for (floor, &frame) in FLOOR_FRAMES.iter().enumerate() {
+            let (_, _, iw, ih) = map_rect(&l, 1.0, 0.0, 0.0, frame, frame);
             assert!(
-                (iw / ih - w / h).abs() < 1e-3,
+                (iw / ih - frame.2 / frame.3).abs() < 1e-3,
                 "floor {floor} aspect drift: {iw}x{ih}"
             );
         }
+    }
+
+    #[test]
+    fn growing_a_frame_does_not_rescale_the_view() {
+        let l = Layout::compute(1280.0, 720.0);
+        let base = FLOOR1_FRAME;
+        let grown = (base.0, base.1, base.2 + 800.0, base.3 + 400.0);
+        // The grown frame keeps the reference's constant scale, so the same source
+        // point lands on the same screen point regardless of the frame size.
+        let (ox, oy, iw, _) = map_rect(&l, 1.0, 0.0, 0.0, base, base);
+        let (gx, gy, giw, _) = map_rect(&l, 1.0, 0.0, 0.0, grown, base);
+        assert!(giw > iw, "grown frame should be wider on screen");
+        let p = (base.0 + 200.0, base.1 + 150.0);
+        let a = src_to_ref(base, ox, oy, iw, base.3 * iw / base.2, p.0, p.1);
+        let b = src_to_ref(grown, gx, gy, giw, grown.3 * giw / grown.2, p.0, p.1);
+        assert!(
+            (a.0 - b.0).abs() < 1e-3 && (a.1 - b.1).abs() < 1e-3,
+            "frame growth moved the view: {a:?} vs {b:?}"
+        );
     }
 
     #[test]
@@ -9094,7 +9193,7 @@ mod tests {
         let l = Layout::compute(1280.0, 720.0);
         let player = (4000.0, 4600.0);
         let (px, py) = player_center_pan(&l, DEFAULT_ZOOM, player, FLOOR1_FRAME);
-        let (ox, oy, iw, ih) = map_rect(&l, DEFAULT_ZOOM, px, py, FLOOR1_FRAME);
+        let (ox, oy, iw, ih) = map_rect(&l, DEFAULT_ZOOM, px, py, FLOOR1_FRAME, FLOOR1_FRAME);
         let (rx, ry) = src_to_ref(FLOOR1_FRAME, ox, oy, iw, ih, player.0, player.1);
         let (cx, cy) = cursor_center(&l);
         assert!((rx - cx).abs() < 1.0 && (ry - cy).abs() < 1.0);
