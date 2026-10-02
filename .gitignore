@@ -1,0 +1,13 @@
+node_modules
+dist
+.void
+.wrangler
+__pycache__/
+*.tsbuildinfo
+.DS_Store
+notes/
+ref/
+
+target/
+web/public/game.js
+web/public/game.wasm

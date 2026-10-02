@@ -1,0 +1,10 @@
+[target.wasm32-unknown-emscripten]
+linker = "emcc"
+# sokol-rust's build.rs emits these link args, but Cargo does not forward a
+# dependency's link args to the final binary link. Keep them here so the game
+# uses WebGL2 (required for sokol's GLES3 backend) and can grow its heap.
+rustflags = [
+    "-C", "link-arg=-sUSE_WEBGL2",
+    "-C", "link-arg=-sALLOW_MEMORY_GROWTH=1",
+    "-C", "link-arg=-sEXPORTED_FUNCTIONS=['_main','__emscripten_stack_restore','_emscripten_stack_get_current']",
+]

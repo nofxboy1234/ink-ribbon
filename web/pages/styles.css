@@ -1,0 +1,151 @@
+:root {
+  --background: #201e1c;
+  --paper: #fcf8ed;
+  --cream: #fcf8ed;
+  --beige: #e0dac2;
+  --sky: #6db0db;
+  --steel: #084586;
+  --navy: #042568;
+  --slate: #6d7d8a;
+  --salmon: #e7907f;
+  --purple: #946ddb;
+  --pink: #db6d94;
+  --green: #6ddba8;
+  --teal: #6ddbd4;
+  --amber: #dbaa6d;
+  --lime: #d9db6d;
+  --red: #ff405d;
+  --panel: #17191b;
+  --line: #6d7d8a40;
+  --slot-line: #fcf8ed26;
+  --slot-fill: #fcf8ed08;
+  --menu-size: clamp(13px, 1.05vw, 18px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--paper);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: var(--menu-size);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.game-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  height: 100dvh;
+  min-height: 360px;
+  overflow: hidden;
+}
+
+.map-region {
+  position: relative;
+  min-width: 0;
+}
+
+.map-stage {
+  position: absolute;
+  inset: 0;
+}
+
+.game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  touch-action: none;
+  cursor: default;
+}
+
+.menu-region {
+  min-height: 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+  padding: 1.4em 1.2em 3em;
+  display: flex;
+  flex-direction: column;
+  gap: 1.8em;
+  scrollbar-width: thin;
+  scrollbar-color: var(--slate) transparent;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8em;
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 1.05em;
+  font-weight: 400;
+  letter-spacing: 0.34em;
+  color: var(--paper);
+}
+
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.inventory-slot {
+  aspect-ratio: 1;
+  border: 1px solid var(--slot-line);
+  background: var(--slot-fill);
+  box-shadow: inset 0 0 0 2px #00000055;
+}
+
+.inventory-space {
+  min-height: 24vh;
+  border: 1px dashed #fcf8ed14;
+}
+
+.craft-row,
+.file-row {
+  height: 2.6em;
+  border: 1px solid var(--slot-line);
+  background: var(--slot-fill);
+}
+
+.craft-space,
+.file-space {
+  min-height: 10vh;
+  border: 1px dashed #fcf8ed14;
+}
+
+@media (max-width: 860px) {
+  .game-shell {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .map-region {
+    height: 46vh;
+    min-height: 240px;
+  }
+
+  .menu-region {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    overflow: visible;
+  }
+
+  .inventory-space {
+    min-height: 18vh;
+  }
+}

@@ -1,0 +1,15 @@
+[package]
+name = "ink-ribbon-native"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "ink_ribbon_native"
+path = "src/lib.rs"
+
+[dependencies]
+sokol = { version = "*", git = "https://github.com/floooh/sokol-rust.git" }
+
+[[example]]
+name = "game"
+path = "examples/game/game.rs"
