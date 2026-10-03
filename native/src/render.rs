@@ -13,6 +13,8 @@ const PULSE_PERIOD: f32 = 1.6;
 const DOOR_THICKNESS: f32 = 0.24;
 const DOOR_INSET: f32 = 0.18;
 const WALL_THICKNESS: f32 = 0.05;
+const DISC_SEGMENTS: usize = 40;
+const RING_SEGMENTS: usize = 64;
 
 fn color(c: Rgba) {
     sgl::c4b(c[0], c[1], c[2], c[3]);
@@ -34,12 +36,11 @@ fn bar(a: (f32, f32), b: (f32, f32), thickness: f32, c: Rgba) {
 }
 
 fn disc(cx: f32, cy: f32, radius: f32, c: Rgba) {
-    let segments = 40;
     sgl::begin_triangles();
     color(c);
-    for i in 0..segments {
-        let a0 = TAU * i as f32 / segments as f32;
-        let a1 = TAU * (i + 1) as f32 / segments as f32;
+    for i in 0..DISC_SEGMENTS {
+        let a0 = TAU * i as f32 / DISC_SEGMENTS as f32;
+        let a1 = TAU * (i + 1) as f32 / DISC_SEGMENTS as f32;
         sgl::v2f(cx, cy);
         sgl::v2f(cx + radius * a0.cos(), cy + radius * a0.sin());
         sgl::v2f(cx + radius * a1.cos(), cy + radius * a1.sin());
@@ -48,11 +49,10 @@ fn disc(cx: f32, cy: f32, radius: f32, c: Rgba) {
 }
 
 fn ring(cx: f32, cy: f32, radius: f32, c: Rgba) {
-    let segments = 64;
     sgl::begin_line_strip();
     color(c);
-    for i in 0..=segments {
-        let a = TAU * i as f32 / segments as f32;
+    for i in 0..=RING_SEGMENTS {
+        let a = TAU * i as f32 / RING_SEGMENTS as f32;
         sgl::v2f(cx + radius * a.cos(), cy + radius * a.sin());
     }
     sgl::end();
