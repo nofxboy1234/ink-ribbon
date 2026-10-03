@@ -1,20 +1,39 @@
-pub const NORTH: u8 = 1 << 0;
-pub const EAST: u8 = 1 << 1;
-pub const SOUTH: u8 = 1 << 2;
-pub const WEST: u8 = 1 << 3;
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Direction {
+    North,
+    East,
+    South,
+    West,
+}
 
-pub const DIRECTIONS: [(u8, i32, i32); 4] =
-    [(NORTH, 0, -1), (EAST, 1, 0), (SOUTH, 0, 1), (WEST, -1, 0)];
+impl Direction {
+    pub const ALL: [Direction; 4] = [
+        Direction::North,
+        Direction::East,
+        Direction::South,
+        Direction::West,
+    ];
 
-pub const SIDES: [u8; 4] = [NORTH, EAST, SOUTH, WEST];
+    pub const fn bit(self) -> u8 {
+        1_u8 << self as u8
+    }
 
-pub fn opposite(dir: u8) -> u8 {
-    match dir {
-        NORTH => SOUTH,
-        SOUTH => NORTH,
-        EAST => WEST,
-        WEST => EAST,
-        _ => 0,
+    pub const fn delta(self) -> (i32, i32) {
+        match self {
+            Direction::North => (0, -1),
+            Direction::East => (1, 0),
+            Direction::South => (0, 1),
+            Direction::West => (-1, 0),
+        }
+    }
+
+    pub const fn opposite(self) -> Direction {
+        match self {
+            Direction::North => Direction::South,
+            Direction::South => Direction::North,
+            Direction::East => Direction::West,
+            Direction::West => Direction::East,
+        }
     }
 }
 
@@ -27,7 +46,7 @@ pub enum CellKind {
 #[derive(Clone, Copy, Debug)]
 pub struct Cell {
     pub kind: CellKind,
-    pub blocked: u8,
+    blocked: u8,
 }
 
 impl Cell {
@@ -38,8 +57,12 @@ impl Cell {
         }
     }
 
-    pub fn is_blocked(&self, dir: u8) -> bool {
-        self.blocked & dir != 0
+    pub fn is_blocked(&self, dir: Direction) -> bool {
+        self.blocked & dir.bit() != 0
+    }
+
+    fn block(&mut self, dir: Direction) {
+        self.blocked |= dir.bit();
     }
 }
 
@@ -79,8 +102,8 @@ impl Grid {
         &mut self.cells[index]
     }
 
-    pub fn set_blocked(&mut self, x: usize, y: usize, dir: u8) {
-        self.cell_mut(x, y).blocked |= dir;
+    pub fn set_blocked(&mut self, x: usize, y: usize, dir: Direction) {
+        self.cell_mut(x, y).block(dir);
     }
 
     pub fn cells(&self) -> &[Cell] {
@@ -113,8 +136,27 @@ mod tests {
     }
 
     #[test]
-    fn opposite_inverts_side() {
-        assert_eq!(opposite(NORTH), SOUTH);
-        assert_eq!(opposite(EAST), WEST);
+    fn opposite_inverts_direction() {
+        for dir in Direction::ALL {
+            assert_eq!(dir.opposite().opposite(), dir);
+        }
+    }
+
+    #[test]
+    fn direction_bits_are_distinct() {
+        let mut seen = 0u8;
+        for dir in Direction::ALL {
+            assert_eq!(seen & dir.bit(), 0);
+            seen |= dir.bit();
+        }
+        assert_eq!(seen, 0b1111);
+    }
+
+    #[test]
+    fn directions_point_the_right_way() {
+        assert_eq!(Direction::North.delta(), (0, -1));
+        assert_eq!(Direction::East.delta(), (1, 0));
+        assert_eq!(Direction::South.delta(), (0, 1));
+        assert_eq!(Direction::West.delta(), (-1, 0));
     }
 }

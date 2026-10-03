@@ -2,7 +2,7 @@ use sokol::gl as sgl;
 
 use crate::game::Game;
 use crate::geom::Layout;
-use crate::grid;
+use crate::grid::Direction;
 use crate::theme::{self, Rgba};
 
 const TAU: f32 = std::f32::consts::TAU;
@@ -79,7 +79,7 @@ fn draw_walls(game: &Game, layout: &Layout) {
     for y in 0..game.grid.rows {
         for x in 0..game.grid.cols {
             let cell = game.grid.cell(x, y);
-            for side in grid::SIDES {
+            for side in Direction::ALL {
                 if cell.is_blocked(side) {
                     let (a, b) = layout.edge(x, y, side);
                     bar(a, b, thickness, theme::WALL);

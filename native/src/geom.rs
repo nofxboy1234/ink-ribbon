@@ -1,4 +1,4 @@
-use crate::grid;
+use crate::grid::Direction;
 
 pub struct Layout {
     pub ox: f32,
@@ -45,15 +45,15 @@ impl Layout {
         (cx + self.cell * 0.5, cy + self.cell * 0.5)
     }
 
-    pub fn edge(&self, x: usize, y: usize, side: u8) -> ((f32, f32), (f32, f32)) {
+    pub fn edge(&self, x: usize, y: usize, side: Direction) -> ((f32, f32), (f32, f32)) {
         let (x0, y0) = self.cell_origin(x, y);
         let x1 = x0 + self.cell;
         let y1 = y0 + self.cell;
         match side {
-            grid::EAST => ((x1, y0), (x1, y1)),
-            grid::SOUTH => ((x1, y1), (x0, y1)),
-            grid::WEST => ((x0, y1), (x0, y0)),
-            _ => ((x0, y0), (x1, y0)),
+            Direction::East => ((x1, y0), (x1, y1)),
+            Direction::South => ((x1, y1), (x0, y1)),
+            Direction::West => ((x0, y1), (x0, y0)),
+            Direction::North => ((x0, y0), (x1, y0)),
         }
     }
 }
