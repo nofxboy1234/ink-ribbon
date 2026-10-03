@@ -11,7 +11,8 @@
     "typecheck": "cd web && npm run typecheck",
     "build:wasm": "cd native && ./build-wasm.sh",
     "copy:wasm": "cp target/wasm32-unknown-emscripten/release/game.js target/wasm32-unknown-emscripten/release/game.wasm web/public/",
-    "check:game": "cd native && cargo fmt --check && cargo check --bin game && cd ../web && npm run typecheck",
+    "check:game": "cd native && cargo fmt --check && cargo check --bin game && cargo test && cd ../web && npm run typecheck",
+    "test:rust": "cd native && cargo test",
     "dev": "npm run build:wasm && npm run copy:wasm && cd web && npm run dev"
   }
 }

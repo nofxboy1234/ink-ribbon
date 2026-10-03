@@ -101,7 +101,11 @@ fn draw_doors(game: &Game, layout: &Layout) {
             b.0 + (a.0 - b.0) * DOOR_INSET,
             b.1 + (a.1 - b.1) * DOOR_INSET,
         );
-        let c = if door.locked { theme::RED } else { theme::SKY };
+        let c = if door.locked {
+            theme::DOOR_LOCKED
+        } else {
+            theme::DOOR_UNLOCKED
+        };
         bar(start, end, thickness, c);
     }
 }
@@ -116,14 +120,19 @@ fn draw_player(game: &Game, layout: &Layout, elapsed: f32) {
     let radius = grace + (pulse_max - grace) * eased;
     let alpha = ((1.0 - phase) * 210.0) as u8;
 
-    ring(cx, cy, radius, theme::with_alpha(theme::PINK, alpha));
+    ring(
+        cx,
+        cy,
+        radius,
+        theme::with_alpha(theme::PLAYER_PULSE, alpha),
+    );
     ring(
         cx,
         cy,
         (radius - 1.5).max(grace + 1.0),
-        theme::with_alpha(theme::PINK, alpha / 2),
+        theme::with_alpha(theme::PLAYER_PULSE, alpha / 2),
     );
-    disc(cx, cy, grace, theme::PINK);
+    disc(cx, cy, grace, theme::PLAYER);
 }
 
 pub fn draw(game: &Game, layout: &Layout, elapsed: f32) {

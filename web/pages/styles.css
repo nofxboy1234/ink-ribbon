@@ -1,7 +1,7 @@
 :root {
   --cloud: #fdfbf6;
-  --sand: #faf3e7;
-  --pale-sky: #e7f0f5;
+  --sand: #f6f1e6;
+  --pale-sky: #e1ebed;
   --sky: #89bcdd;
   --sky-deep: #57a5d7;
   --sea: #4c98bf;
@@ -16,10 +16,10 @@
   --lime: #c8c77a;
   --terracotta: #b85c57;
 
-  --background: var(--pale-sky);
-  --panel: #f6f1e6;
+  --background: var(--sand);
+  --panel: var(--sand);
   --ink: var(--navy);
-  --line: #6d8fa755;
+  --line: #0a2b6555;
   --slot-line: #0a2b6533;
   --slot-fill: #0a2b6509;
   --menu-size: clamp(13px, 1.05vw, 18px);
