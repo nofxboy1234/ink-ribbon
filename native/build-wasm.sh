@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the sokol-rust game example for WASM (Emscripten).
+# Build the sokol-rust game binary for WASM (Emscripten).
 #
 # Prerequisites:
 #   1. Rust toolchain with the wasm32-unknown-emscripten target:
@@ -37,7 +37,7 @@ NATIVE_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$NATIVE_DIR/.." && pwd)"
 cd "$NATIVE_DIR"
 
-cargo build --release --target wasm32-unknown-emscripten --example game
+cargo build --release --target wasm32-unknown-emscripten --bin game
 
-BUILD_DIR="$ROOT_DIR/target/wasm32-unknown-emscripten/release/examples"
+BUILD_DIR="$ROOT_DIR/target/wasm32-unknown-emscripten/release"
 ls -lh "$BUILD_DIR"/game.{js,wasm}

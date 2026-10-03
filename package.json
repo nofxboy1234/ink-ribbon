@@ -10,8 +10,8 @@
     "fmt": "cd web && npm run fmt",
     "typecheck": "cd web && npm run typecheck",
     "build:wasm": "cd native && ./build-wasm.sh",
-    "copy:wasm": "cp target/wasm32-unknown-emscripten/release/examples/game.js target/wasm32-unknown-emscripten/release/examples/game.wasm web/public/",
-    "check:game": "cd native && cargo fmt --check && cargo check --example game && cd ../web && npm run typecheck",
+    "copy:wasm": "cp target/wasm32-unknown-emscripten/release/game.js target/wasm32-unknown-emscripten/release/game.wasm web/public/",
+    "check:game": "cd native && cargo fmt --check && cargo check --bin game && cd ../web && npm run typecheck",
     "dev": "npm run build:wasm && npm run copy:wasm && cd web && npm run dev"
   }
 }

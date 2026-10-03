@@ -9,7 +9,3 @@ path = "src/lib.rs"
 
 [dependencies]
 sokol = { version = "*", git = "https://github.com/floooh/sokol-rust.git" }
-
-[[example]]
-name = "game"
-path = "examples/game/game.rs"

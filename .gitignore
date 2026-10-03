@@ -11,3 +11,5 @@ ref/
 target/
 web/public/game.js
 web/public/game.wasm
+web/wrangler.jsonc.void-provision.lock
+web/wrangler.jsonc.void-provision.lock.recovery
