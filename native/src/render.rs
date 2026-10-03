@@ -123,7 +123,7 @@ fn draw_player(game: &Game, layout: &Layout, elapsed: f32) {
         (radius - 1.5).max(grace + 1.0),
         theme::with_alpha(theme::PINK, alpha / 2),
     );
-    disc(cx, cy, grace, theme::PAPER);
+    disc(cx, cy, grace, theme::PINK);
 }
 
 pub fn draw(game: &Game, layout: &Layout, elapsed: f32) {

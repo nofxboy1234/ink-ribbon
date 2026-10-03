@@ -1,24 +1,27 @@
 :root {
-  --background: #201e1c;
-  --paper: #fcf8ed;
-  --cream: #fcf8ed;
-  --beige: #e0dac2;
-  --sky: #6db0db;
-  --steel: #084586;
-  --navy: #042568;
-  --slate: #6d7d8a;
-  --salmon: #e7907f;
-  --purple: #946ddb;
-  --pink: #db6d94;
-  --green: #6ddba8;
-  --teal: #6ddbd4;
-  --amber: #dbaa6d;
-  --lime: #d9db6d;
-  --red: #ff405d;
-  --panel: #17191b;
-  --line: #6d7d8a40;
-  --slot-line: #fcf8ed26;
-  --slot-fill: #fcf8ed08;
+  --cloud: #fdfbf6;
+  --sand: #faf3e7;
+  --pale-sky: #e7f0f5;
+  --sky: #89bcdd;
+  --sky-deep: #57a5d7;
+  --sea: #4c98bf;
+  --navy: #0a2b65;
+  --slate: #6d8fa7;
+  --salmon: #d9beb3;
+  --periwinkle: #b1b4c7;
+  --pink: #dd8f98;
+  --seafoam: #6fb7a8;
+  --sea-glass: #7fc4c4;
+  --amber: #d9a86c;
+  --lime: #c8c77a;
+  --terracotta: #b85c57;
+
+  --background: var(--pale-sky);
+  --panel: #f6f1e6;
+  --ink: var(--navy);
+  --line: #6d8fa755;
+  --slot-line: #0a2b6533;
+  --slot-fill: #0a2b6509;
   --menu-size: clamp(13px, 1.05vw, 18px);
 }
 
@@ -34,7 +37,7 @@ body {
 
 body {
   background: var(--background);
-  color: var(--paper);
+  color: var(--ink);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: var(--menu-size);
   font-synthesis: none;
@@ -92,7 +95,7 @@ body {
   font-size: 1.05em;
   font-weight: 400;
   letter-spacing: 0.34em;
-  color: var(--paper);
+  color: var(--ink);
 }
 
 .inventory-grid {
@@ -105,12 +108,12 @@ body {
   aspect-ratio: 1;
   border: 1px solid var(--slot-line);
   background: var(--slot-fill);
-  box-shadow: inset 0 0 0 2px #00000055;
+  box-shadow: inset 0 0 0 2px #0a2b6512;
 }
 
 .inventory-space {
   min-height: 24vh;
-  border: 1px dashed #fcf8ed14;
+  border: 1px dashed #0a2b6524;
 }
 
 .craft-row,
@@ -123,7 +126,7 @@ body {
 .craft-space,
 .file-space {
   min-height: 10vh;
-  border: 1px dashed #fcf8ed14;
+  border: 1px dashed #0a2b6524;
 }
 
 @media (max-width: 860px) {
