@@ -275,27 +275,15 @@ and the material palette.
   different subdivision/header layouts.
 - `data/raw/` is not committed; `public/rpd/rpd.bin` is the derived scene.
 
-## 7. Grey blockout variant
+## 7. Grey blockout mode
 
-`tools/build_blockout.py` builds a separate `public/rpd/blockout.bin` from the
-same source meshes and the earlier floor-plan masks. The real asset is not
-touched.
+`/blockout` is a rendering mode over the same `rpd.bin`; there is no second
+mesh asset and the real page is untouched.
 
-- Floor plates: 3 m × 3 m × 0.28 m grey boxes at the real 0 / 5 / 10.25 m levels.
-- Walls: 0.22 m thick, 3.2 m tall grey boxes along the skeletonized wall runs.
-- Stairs: triangular wedge ramps spanning each stair flight from the lower plate
-  to the next, with floor tiles removed over the ramp opening.
-- Openings: source material names containing `door`/`window`/`glass` become
-  openings. Doors keep a lintel; windows keep a sill/head and a darker recessed
-  panel. Solid-wall runs are merged across small jogs and terminated with
-  jamb/corner posts so adjacent walls meet cleanly.
-- Stair, floor, wall and window colours are four close greys; no textures.
-- Output: 12,490 vertices, 22,820 triangles, 0.25 MB, same RPDW v3 chunk layout.
-
-Build it with:
-
-```bash
-npm run blockout
-```
-
-Then open `/blockout`; `/` remains the real-geometry scene.
+- `RpdScene` calls the exported `rpd_set_blockout(1)` after wasm startup.
+- The scene fragment shader replaces every material colour with one neutral
+  grey.
+- The composite shader compares each pixel's luminance with its neighbours and
+  multiplies the result toward black, producing the black edge lines.
+- Everything else — geometry, camera, fog, controls and the green FPS counter —
+  is shared with `/`.

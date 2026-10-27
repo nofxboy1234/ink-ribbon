@@ -82,3 +82,16 @@ body {
 .rpd-status[data-error="true"] .rpd-status-inner {
   color: #ffb4b4;
 }
+
+
+.rpd-fps {
+  position: fixed;
+  top: 12px;
+  right: 14px;
+  z-index: 4;
+  color: #43ff74;
+  font: 12px/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 7px rgba(67, 255, 116, 0.5);
+  pointer-events: none;
+}

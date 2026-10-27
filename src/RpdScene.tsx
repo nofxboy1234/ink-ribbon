@@ -5,6 +5,7 @@ type RpdModule = {
   _malloc: (size: number) => number;
   _free: (ptr: number) => void;
   _rpd_load_scene: (ptr: number, size: number) => number;
+  _rpd_set_blockout: (enabled: number) => void;
 };
 
 type RpdFactory = (options: {
@@ -47,16 +48,36 @@ const nextFrame = () =>
 type RpdSceneProps = {
   assetUrl?: string;
   label?: string;
+  mode?: "real" | "blockout";
 };
 
 export default function RpdScene({
   assetUrl = "/rpd/rpd.bin",
   label = "RPD floors one to three as a 3D model",
+  mode = "real",
 }: RpdSceneProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [progress, setProgress] = useState(0);
   const [hidden, setHidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fps, setFps] = useState(0);
+
+  useEffect(() => {
+    let raf = 0;
+    let frames = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      frames += 1;
+      if (now - last >= 500) {
+        setFps(Math.round((frames * 1000) / (now - last)));
+        frames = 0;
+        last = now;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -87,6 +108,8 @@ export default function RpdScene({
         });
         if (cancelled) return;
 
+        module._rpd_set_blockout(mode === "blockout" ? 1 : 0);
+
         if (import.meta.env.DEV) {
           (window as unknown as { __rpd?: RpdModule }).__rpd = module;
         }
@@ -112,7 +135,7 @@ export default function RpdScene({
       cancelled = true;
       controller.abort();
     };
-  }, [assetUrl]);
+  }, [assetUrl, mode]);
 
   const statusText = error ? `Scene error — ${error}` : `Loading RPD floors 1–3`;
 
@@ -125,6 +148,7 @@ export default function RpdScene({
         onContextMenu={(event) => event.preventDefault()}
         aria-label={label}
       />
+      <div className="rpd-fps">{fps > 0 ? `${fps} FPS` : "-- FPS"}</div>
       <div
         className="rpd-status"
         data-hidden={hidden}

@@ -5,9 +5,9 @@ floors 1–3, rendered in the browser with sokol compiled to WebAssembly. The
 surfaces are not textured; each source material uses one simple flat colour.
 Orbit the model, pan it, or hold right-click and fly through it.
 
-A second, separate scene at **`/blockout`** replaces the detail with a grey
-blockout: cubic floor plates and walls with triangular stair ramps. The real
-scene is untouched.
+A second scene at **`/blockout`** loads the same real geometry but renders it as
+a grey blockout with black screen-space edges. The real scene is untouched.
+A green FPS counter sits at the top right of both scenes.
 
 ![RPD floors 1–3](docs/preview.jpg)
 
@@ -25,9 +25,9 @@ scene is untouched.
   solid triangles in a simple key/fill/hemisphere light, with one flat colour per
   source material, then composites a restrained background gradient. No material
   textures are sampled.
-- **Blockout scene** — `/blockout` uses the same renderer and camera with a
-  separate asset: 3 m grey boxes for floor plates, 0.22 m thick grey wall boxes,
-  and triangular wedge ramps for the stairs.
+- **Blockout scene** — `/blockout` uses the same real `rpd.bin`, renderer and
+  camera. A renderer mode swaps every vertex colour for one grey and the
+  composite pass draws black edges from luminance discontinuities.
 - **Web app** — React 19 + TypeScript on [Void](https://github.com/voidzero-dev/void)
   1.3.0 (Vite 8) targeting Cloudflare Workers. Once the scene is loaded the
   page is only the canvas; no labels or UI sit on top of it.
@@ -70,9 +70,6 @@ uv run --with zstandard python tools/extract_rpd.py
 # 2. build public/rpd/rpd.bin from data/raw/rpd
 uv run --with numpy python tools/build_real.py
 
-# 3. build the separate grey blockout asset
-npm run blockout
-
 npm run wasm   # only needed after changing native/main.c
 ```
 
@@ -89,7 +86,8 @@ derived from `~/repos/reze`; see [docs/extraction.md](docs/extraction.md).
 | Hold right click + mouse | Free-look |
 | `W` / `S` (while flying) | Forward / back along the view |
 | `A` / `D` (while flying) | Strafe left / right |
-| `Q` / `E` (while flying) | Fly up / down |
+| `Q` (while flying) | Fly down |
+| `E` (while flying) | Fly up |
 | Scroll wheel (while flying) | Increase / decrease fly speed |
 | `R` | Reset camera |
 | One-finger drag | Orbit |
@@ -119,7 +117,6 @@ tools/extract_rpd.py       PAK lookup + extraction of the 49 RPD meshes
 tools/re_pak.py            minimal KPKA v4 reader (Murmur3 path hashes)
 tools/remesh.py            RE2 RT .mesh parser (LODs, groups, submeshes, buffers)
 tools/build_real.py        real LOD-0 geometry, flat material colours, RPDW v3 writer
-tools/build_blockout.py    grey box/ramp blockout asset
 tools/rpd_floor_meshes.txt exact PAK paths for floors 1-3
 native/main.c              sokol app: camera, input, solid-colour geometry pass
 native/third_party/sokol   vendored sokol headers (pinned commit)
@@ -129,7 +126,6 @@ src/wasm/rpd.js            generated Emscripten ES module (committed for deploy)
 pages/index.tsx            real-geometry page
 pages/blockout.tsx         grey blockout page (/blockout)
 public/rpd/rpd.bin         real RPD geometry + vertex colours (20.2 MB)
-public/rpd/blockout.bin    grey blockout asset (0.25 MB)
 public/rpd/rpd.wasm        compiled sokol renderer
 ```
 
@@ -151,14 +147,11 @@ Raw source: 1,790,053 triangles and 2,059,499 vertices. The asset holds
 expands the chunks into one indexed mesh and draws it in a single call. No
 textures, no simplification, no wireframe edge pass.
 
-The blockout builder reuses the earlier floor-mask and wall-skeleton pass. Floor
-plates are 3 m × 3 m × 0.28 m boxes, walls are 3.2 m tall × 0.22 m thick boxes,
-and each stair flight is a triangular wedge from the lower plate to the next.
-It writes `blockout.bin` in the same RPDW v3 format (12,490 vertices, 22,820
-triangles, 0.25 MB); `/blockout` loads it with the same camera and controls.
-Door and window materials become openings: doors keep a lintel, windows keep a
-sill/head and a darker grey panel, and jambs/corner posts tie adjacent wall runs
-together.
+The blockout is not a second asset: `/blockout` loads the same `rpd.bin` and
+sets a renderer flag. The scene shader replaces the per-material vertex colour
+with one grey, and the composite shader draws black edges where neighbouring
+pixels differ in luminance. Both scenes share the camera, controls, fog and the
+green FPS counter.
 
 ## Assets and licensing
 

@@ -49,7 +49,8 @@ through `locateFile`.
    light. There are no textures, no wireframe edges and no bloom.
 3. **Composite to the swapchain** — a fullscreen triangle samples the offscreen
    colour, adds a restrained radial background gradient, vignette and a little
-   grain.
+   grain. In blockout mode it also draws black luminance edges and has replaced
+   the scene's material colours with one grey.
 
 There is one draw range for the whole building; the asset's per-floor records
 are informational only.
@@ -65,7 +66,7 @@ orbit eye and orientation:
 
 - mouse movement looks around;
 - `W`/`S` move along the view direction, `A`/`D` strafe horizontally;
-- `Q`/`E` move world-up/world-down;
+- `E` moves up and `Q` moves down;
 - the scroll wheel adjusts fly speed (22 m/s default, 2–140 m/s range).
 
 Releasing the right button converts the current eye/orientation back into the

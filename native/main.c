@@ -89,6 +89,7 @@ static struct {
     bool key_w, key_a, key_s, key_d, key_q, key_e;
     float last_x, last_y, touch_pinch;
     float fly_speed;
+    bool blockout;
 } state;
 
 /* ------------------------------------------------------------------------- */
@@ -215,7 +216,8 @@ static const char *fs_source =
     "  float d = length(v_world - u_camera.xyz);\n"
     "  float fade = 1.0 - smoothstep(u_camera.w, u_fog.x, d);\n"
     "  fade = 0.10 + 0.90 * fade;\n"
-    "  vec3 col = v_color * (0.34 + 0.50 * key + 0.16 * fill + 0.12 * hemi) * fade;\n"
+    "  vec3 base = (u_fog.y > 0.5) ? vec3(0.59, 0.60, 0.61) : v_color;\n"
+    "  vec3 col = base * (0.34 + 0.50 * key + 0.16 * fill + 0.12 * hemi) * fade;\n"
     "  frag_color = vec4(col, 1.0);\n"
     "}\n";
 
@@ -232,10 +234,25 @@ static const char *composite_fs_source =
     "#version 300 es\n"
     "precision highp float;\n"
     "uniform sampler2D u_tex;\n"
+    "uniform vec4 u_params;\n"
     "in vec2 v_uv;\n"
     "out vec4 frag_color;\n"
     "void main() {\n"
     "  vec3 c = texture(u_tex, v_uv).rgb;\n"
+    "  if (u_params.x > 0.5) {\n"
+    "    vec2 p = u_params.yz;\n"
+    "    vec3 k = vec3(0.299, 0.587, 0.114);\n"
+    "    float l = dot(c, k);\n"
+    "    float e = 0.0;\n"
+    "    e = max(e, abs(l - dot(texture(u_tex, v_uv + vec2(p.x, 0.0)).rgb, k)));\n"
+    "    e = max(e, abs(l - dot(texture(u_tex, v_uv - vec2(p.x, 0.0)).rgb, k)));\n"
+    "    e = max(e, abs(l - dot(texture(u_tex, v_uv + vec2(0.0, p.y)).rgb, k)));\n"
+    "    e = max(e, abs(l - dot(texture(u_tex, v_uv - vec2(0.0, p.y)).rgb, k)));\n"
+    "    e = max(e, 0.7 * abs(l - dot(texture(u_tex, v_uv + p).rgb, k)));\n"
+    "    e = max(e, 0.7 * abs(l - dot(texture(u_tex, v_uv - p).rgb, k)));\n"
+    "    float edge = smoothstep(0.030, 0.100, e);\n"
+    "    c = mix(c, vec3(0.0), edge * 0.85);\n"
+    "  }\n"
     "  vec2 q = v_uv - 0.5;\n"
     "  float vig = smoothstep(0.95, 0.15, length(q));\n"
     "  vec3 bg = vec3(0.0040, 0.0045, 0.0055) * (0.20 + 0.80 * vig);\n"
@@ -341,6 +358,11 @@ static void create_composite_resources(void) {
     sd.texture_sampler_pairs[0].view_slot = 0;
     sd.texture_sampler_pairs[0].sampler_slot = 0;
     sd.texture_sampler_pairs[0].glsl_name = "u_tex";
+    sd.uniform_blocks[0].stage = SG_SHADERSTAGE_FRAGMENT;
+    sd.uniform_blocks[0].size = 16;
+    sd.uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140;
+    sd.uniform_blocks[0].glsl_uniforms[0].type = SG_UNIFORMTYPE_FLOAT4;
+    sd.uniform_blocks[0].glsl_uniforms[0].glsl_name = "u_params";
     sg_shader shd = sg_make_shader(&sd);
     state.target.pip = sg_make_pipeline(&(sg_pipeline_desc){
         .shader = shd,
@@ -534,8 +556,8 @@ static void frame(void) {
             if (state.key_s) { mx -= forward[0]; my -= forward[1]; mz -= forward[2]; }
             if (state.key_d) { mx += right[0]; mz += right[2]; }
             if (state.key_a) { mx -= right[0]; mz -= right[2]; }
-            if (state.key_q) my += 1.0f;
-            if (state.key_e) my -= 1.0f;
+            if (state.key_q) my -= 1.0f;
+            if (state.key_e) my += 1.0f;
             float len = sqrtf(mx * mx + my * my + mz * mz);
             if (len > 1e-5f) {
                 float step = state.fly_speed * dt / len;
@@ -562,6 +584,7 @@ static void frame(void) {
         fs_params_t fs = { 0 };
         fs.camera[0] = eye[0]; fs.camera[1] = eye[1]; fs.camera[2] = eye[2]; fs.camera[3] = fog_start;
         fs.fog[0] = fog_end;
+        fs.fog[1] = state.blockout ? 1.0f : 0.0f;
         sg_apply_pipeline(state.scene.pip);
         sg_apply_bindings(&(sg_bindings){
             .vertex_buffers[0] = state.scene.vbuf,
@@ -583,6 +606,13 @@ static void frame(void) {
         .views[0] = state.target.tex_view,
         .samplers[0] = state.target.sampler,
     });
+    float comp[4] = {
+        state.blockout ? 1.0f : 0.0f,
+        1.0f / (float)(state.target.width > 0 ? state.target.width : 1),
+        1.0f / (float)(state.target.height > 0 ? state.target.height : 1),
+        0.0f,
+    };
+    sg_apply_uniforms(0, &(sg_range){ comp, sizeof(comp) });
     sg_draw(0, 3, 1);
     sg_end_pass();
     sg_commit();
@@ -749,6 +779,10 @@ static void event(const sapp_event *e) {
         break;
     default: break;
     }
+}
+
+EMSCRIPTEN_KEEPALIVE void rpd_set_blockout(int enabled) {
+    state.blockout = enabled != 0;
 }
 
 EMSCRIPTEN_KEEPALIVE int rpd_load_scene(const uint8_t *data, int size) {
