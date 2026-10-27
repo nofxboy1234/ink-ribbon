@@ -49,8 +49,8 @@ through `locateFile`.
    light. There are no textures, no wireframe edges and no bloom.
 3. **Composite to the swapchain** — a fullscreen triangle samples the offscreen
    colour, adds a restrained radial background gradient, vignette and a little
-   grain. In blockout mode it also draws black luminance edges and has replaced
-   the scene's material colours with one grey.
+   grain. In blockout mode the scene's material colours are replaced with one
+   grey.
 
 There is one draw range for the whole building; the asset's per-floor records
 are informational only.

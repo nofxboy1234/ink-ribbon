@@ -283,7 +283,5 @@ mesh asset and the real page is untouched.
 - `RpdScene` calls the exported `rpd_set_blockout(1)` after wasm startup.
 - The scene fragment shader replaces every material colour with one neutral
   grey.
-- The composite shader compares each pixel's luminance with its neighbours and
-  multiplies the result toward black, producing the black edge lines.
 - Everything else — geometry, camera, fog, controls and the green FPS counter —
   is shared with `/`.

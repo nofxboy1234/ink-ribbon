@@ -234,25 +234,10 @@ static const char *composite_fs_source =
     "#version 300 es\n"
     "precision highp float;\n"
     "uniform sampler2D u_tex;\n"
-    "uniform vec4 u_params;\n"
     "in vec2 v_uv;\n"
     "out vec4 frag_color;\n"
     "void main() {\n"
     "  vec3 c = texture(u_tex, v_uv).rgb;\n"
-    "  if (u_params.x > 0.5) {\n"
-    "    vec2 p = u_params.yz;\n"
-    "    vec3 k = vec3(0.299, 0.587, 0.114);\n"
-    "    float l = dot(c, k);\n"
-    "    float e = 0.0;\n"
-    "    e = max(e, abs(l - dot(texture(u_tex, v_uv + vec2(p.x, 0.0)).rgb, k)));\n"
-    "    e = max(e, abs(l - dot(texture(u_tex, v_uv - vec2(p.x, 0.0)).rgb, k)));\n"
-    "    e = max(e, abs(l - dot(texture(u_tex, v_uv + vec2(0.0, p.y)).rgb, k)));\n"
-    "    e = max(e, abs(l - dot(texture(u_tex, v_uv - vec2(0.0, p.y)).rgb, k)));\n"
-    "    e = max(e, 0.7 * abs(l - dot(texture(u_tex, v_uv + p).rgb, k)));\n"
-    "    e = max(e, 0.7 * abs(l - dot(texture(u_tex, v_uv - p).rgb, k)));\n"
-    "    float edge = smoothstep(0.030, 0.100, e);\n"
-    "    c = mix(c, vec3(0.0), edge * 0.85);\n"
-    "  }\n"
     "  vec2 q = v_uv - 0.5;\n"
     "  float vig = smoothstep(0.95, 0.15, length(q));\n"
     "  vec3 bg = vec3(0.0040, 0.0045, 0.0055) * (0.20 + 0.80 * vig);\n"
@@ -358,11 +343,6 @@ static void create_composite_resources(void) {
     sd.texture_sampler_pairs[0].view_slot = 0;
     sd.texture_sampler_pairs[0].sampler_slot = 0;
     sd.texture_sampler_pairs[0].glsl_name = "u_tex";
-    sd.uniform_blocks[0].stage = SG_SHADERSTAGE_FRAGMENT;
-    sd.uniform_blocks[0].size = 16;
-    sd.uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140;
-    sd.uniform_blocks[0].glsl_uniforms[0].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[0].glsl_uniforms[0].glsl_name = "u_params";
     sg_shader shd = sg_make_shader(&sd);
     state.target.pip = sg_make_pipeline(&(sg_pipeline_desc){
         .shader = shd,
@@ -606,13 +586,6 @@ static void frame(void) {
         .views[0] = state.target.tex_view,
         .samplers[0] = state.target.sampler,
     });
-    float comp[4] = {
-        state.blockout ? 1.0f : 0.0f,
-        1.0f / (float)(state.target.width > 0 ? state.target.width : 1),
-        1.0f / (float)(state.target.height > 0 ? state.target.height : 1),
-        0.0f,
-    };
-    sg_apply_uniforms(0, &(sg_range){ comp, sizeof(comp) });
     sg_draw(0, 3, 1);
     sg_end_pass();
     sg_commit();

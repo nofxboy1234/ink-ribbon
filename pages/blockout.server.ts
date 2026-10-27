@@ -6,7 +6,7 @@ export const head = defineHead(() => ({
     {
       name: "description",
       content:
-        "The Raccoon Police Department floors 1–3 as a grey blockout with black screen-space edges, rendered with sokol and WebAssembly.",
+        "The Raccoon Police Department floors 1–3 as a plain grey blockout, rendered with sokol and WebAssembly.",
     },
     { name: "theme-color", content: "#000000" },
   ],

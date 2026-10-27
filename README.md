@@ -6,8 +6,8 @@ surfaces are not textured; each source material uses one simple flat colour.
 Orbit the model, pan it, or hold right-click and fly through it.
 
 A second scene at **`/blockout`** loads the same real geometry but renders it as
-a grey blockout with black screen-space edges. The real scene is untouched.
-A green FPS counter sits at the top right of both scenes.
+a plain grey blockout. The real scene is untouched. A green FPS counter sits at
+the top right of both scenes.
 
 ![RPD floors 1–3](docs/preview.jpg)
 
@@ -26,8 +26,7 @@ A green FPS counter sits at the top right of both scenes.
   source material, then composites a restrained background gradient. No material
   textures are sampled.
 - **Blockout scene** — `/blockout` uses the same real `rpd.bin`, renderer and
-  camera. A renderer mode swaps every vertex colour for one grey and the
-  composite pass draws black edges from luminance discontinuities.
+  camera. A renderer mode swaps every vertex colour for one neutral grey.
 - **Web app** — React 19 + TypeScript on [Void](https://github.com/voidzero-dev/void)
   1.3.0 (Vite 8) targeting Cloudflare Workers. Once the scene is loaded the
   page is only the canvas; no labels or UI sit on top of it.
@@ -149,9 +148,8 @@ textures, no simplification, no wireframe edge pass.
 
 The blockout is not a second asset: `/blockout` loads the same `rpd.bin` and
 sets a renderer flag. The scene shader replaces the per-material vertex colour
-with one grey, and the composite shader draws black edges where neighbouring
-pixels differ in luminance. Both scenes share the camera, controls, fog and the
-green FPS counter.
+with one grey. Both scenes share the camera, controls, fog and the green FPS
+counter.
 
 ## Assets and licensing
 
