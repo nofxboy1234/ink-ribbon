@@ -547,14 +547,14 @@ static void frame(void) {
             aim[0] = eye[0] + forward[0];
             aim[1] = eye[1] + forward[1];
             aim[2] = eye[2] + forward[2];
-            fog_start = state.scene_radius * 0.55f;
-            fog_end = state.scene_radius * 2.9f;
         } else {
             camera_eye(&state.camera, eye);
             memcpy(aim, state.camera.target, sizeof(aim));
-            fog_start = state.camera.distance - state.scene_radius * 0.55f;
-            fog_end = state.camera.distance + state.scene_radius * 1.15f;
         }
+        /* Fog must not depend on fly mode, otherwise pressing right-click
+           visibly darkens the existing view. */
+        fog_start = state.camera.distance - state.scene_radius * 0.55f;
+        fog_end = state.camera.distance + state.scene_radius * 1.15f;
         float up[3] = { 0.0f, 1.0f, 0.0f };
         mat4 proj = mat4_perspective(0.62f, (float)sapp_width() / (float)sapp_height(), 0.2f, 1600.0f);
         mat4 view = mat4_look_at(eye, aim, up);
