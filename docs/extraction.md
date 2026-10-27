@@ -281,7 +281,8 @@ and the material palette.
 mesh asset and the real page is untouched.
 
 - `RpdScene` calls the exported `rpd_set_blockout(1)` after wasm startup.
-- The scene fragment shader maps every material colour to a light pastel tint
-  (desaturated and lifted toward warm white).
+- The scene fragment shader hashes each material colour into a ten-colour
+  desaturated Dracula palette (purple, pink, cyan, green, orange, yellow, red,
+  blue, lavender, comment).
 - Everything else — geometry, camera, fog, controls and the green FPS counter —
   is shared with `/`.

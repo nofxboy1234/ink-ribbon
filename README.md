@@ -6,12 +6,12 @@ surfaces are not textured; each source material uses one simple flat colour.
 Orbit the model, pan it, or hold right-click and fly through it.
 
 A second scene at **`/blockout`** loads the same real geometry but renders it as
-a pastel-coloured blockout. The real scene is untouched. A green FPS counter sits at
+a desaturated Dracula-coloured blockout. The real scene is untouched. A green FPS counter sits at
 the top right of both scenes.
 
 ![RPD floors 1–3](docs/preview.jpg)
 
-![RPD pastel blockout](docs/blockout.jpg)
+![RPD Dracula blockout](docs/blockout.jpg)
 
 ## What is in here
 
@@ -26,7 +26,7 @@ the top right of both scenes.
   source material, then composites a restrained background gradient. No material
   textures are sampled.
 - **Blockout scene** — `/blockout` uses the same real `rpd.bin`, renderer and
-  camera. A renderer mode maps each material colour to a light pastel tint.
+  camera. A renderer mode maps each material colour to a desaturated Dracula palette colour.
 - **Web app** — React 19 + TypeScript on [Void](https://github.com/voidzero-dev/void)
   1.3.0 (Vite 8) targeting Cloudflare Workers. Once the scene is loaded the
   page is only the canvas; no labels or UI sit on top of it.
@@ -123,7 +123,7 @@ native/build.sh            Emscripten build
 src/RpdScene.tsx           React canvas + WASM loader with progress
 src/wasm/rpd.js            generated Emscripten ES module (committed for deploy)
 pages/index.tsx            real-geometry page
-pages/blockout.tsx         pastel blockout page (/blockout)
+pages/blockout.tsx         Dracula blockout page (/blockout)
 public/rpd/rpd.bin         real RPD geometry + vertex colours (20.2 MB)
 public/rpd/rpd.wasm        compiled sokol renderer
 ```
@@ -148,7 +148,7 @@ textures, no simplification, no wireframe edge pass.
 
 The blockout is not a second asset: `/blockout` loads the same `rpd.bin` and
 sets a renderer flag. The scene shader replaces the per-material vertex colour
-with a pastel tint. Both scenes share the camera, controls, fog and the green FPS
+with a desaturated Dracula colour. Both scenes share the camera, controls, fog and the green FPS
 counter.
 
 ## Assets and licensing
