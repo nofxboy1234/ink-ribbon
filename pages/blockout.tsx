@@ -5,7 +5,7 @@ export default function Page() {
   return (
     <RpdScene
       mode="blockout"
-      label="RPD floors one to three as a grey blockout"
+      label="RPD floors one to three as a pastel blockout"
     />
   );
 }
