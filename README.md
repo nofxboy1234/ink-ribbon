@@ -15,8 +15,8 @@ WebAssembly.
   (`sokol_app` + `sokol_gfx`), compiled to WebAssembly with Emscripten. It draws
   a black-filled cutaway with depth-faded white edges and a small bloom pass.
 - **Web app** — React 19 + TypeScript on [Void](https://github.com/voidzero-dev/void)
-  1.3.0 (Vite 8) targeting Cloudflare Workers. The page is only the canvas; no
-  labels, overlays, or UI sit on top of the scene.
+  1.3.0 (Vite 8) targeting Cloudflare Workers. Once the scene is loaded the
+  page is only the canvas; no labels or UI sit on top of it.
 
 ## Stack
 
