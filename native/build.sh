@@ -34,4 +34,5 @@ emcc "${ROOT}/native/main.c" \
     -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32
 
 mv "${ROOT}/src/wasm/rpd.wasm" "${ROOT}/public/rpd/rpd.wasm"
+chmod 644 "${ROOT}/public/rpd/rpd.wasm" "${ROOT}/src/wasm/rpd.js"
 ls -lh "${ROOT}/src/wasm/rpd.js" "${ROOT}/public/rpd/rpd.wasm"
