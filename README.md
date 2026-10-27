@@ -129,11 +129,14 @@ keeps LOD 0 and turns the geometry into three plates:
 2. **Walls** — vertical surfaces at each level projected into a 2D wall mask,
    skeletonized, then emitted as 4 m-tall wall runs. Openings and doors survive
    as gaps in the skeleton.
-3. **Stairs** — clusters of sloped triangles become simple stepped runs.
+3. **Stairs** — source-detected flights plus the main-hall and west upper
+   flights shown by the interactive RPD map. Every flight now reaches the next
+   plate through a slot cut in that plate, with a landing at each end.
 
-The result is 2,224 triangles and 1,593 lines from 1,790,053 source triangles.
-The renderer separates the plates by 6 m per floor so all three levels stay
-readable. The 3F clock-tower exterior sits above the third plate and is omitted.
+The result is 2,016 triangles and 1,861 lines from 1,790,053 source triangles.
+A 2× vertical scale puts the plates at 0 / 10 / 20.5 m, so the levels stay
+readable while the stairs keep their real rise. The 3F clock-tower exterior sits
+above the third plate and is omitted.
 
 ## Assets and licensing
 

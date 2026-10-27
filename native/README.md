@@ -54,9 +54,9 @@ through `locateFile`.
    MSAA sample count.
 
 The scene is split into three draw ranges (1F/2F/3F) from the asset header. The
-`y_offset` uniform places 1F at its real height, 2F 6 m higher and 3F 12 m
-higher, producing the exploded three-plate axonometric. The offsets are applied
-only in the renderer; the asset keeps the real floor elevations.
+asset is pre-scaled 2× vertically, putting the plates at 0 / 10 / 20.5 m and
+preserving the stair rises. The `y_offset` uniform is therefore zero; it remains
+available for a future exploded view.
 
 ## Input
 
@@ -82,7 +82,7 @@ jump. `fly_begin`/`fly_end` live next to `camera_eye` in `main.c`.
 - Default yaw −0.55 rad, pitch 0.72 rad.
 - Distance is 133 units on a 1600 px canvas, scaled up on narrower viewports;
   it is recomputed on resize until the user moves the camera.
-- Target is the X/Z centre of the scene bounds with Y at 34% of the exploded
+- Target is the X/Z centre of the scene bounds with Y at 34% of the scaled
   height range, which frames all three floor plates.
 
 The asset is in metres, Y-up, with the RPD main hall near the origin.

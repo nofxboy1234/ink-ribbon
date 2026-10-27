@@ -483,7 +483,7 @@ static bool upload_scene(scene_t *s) {
         s->floors[i].y_min = *(const float *)(f + 16);
         s->floors[i].y_max = *(const float *)(f + 20);
     }
-    for (int i = 0; i < MAX_FLOORS; i++) s->floor_offset[i] = 6.0f * (float)i;
+    for (int i = 0; i < MAX_FLOORS; i++) s->floor_offset[i] = 0.0f;
 
     s->vbuf = sg_make_buffer(&(sg_buffer_desc){
         .size = (size_t)vertex_count * 12,

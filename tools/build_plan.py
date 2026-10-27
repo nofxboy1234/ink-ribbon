@@ -45,9 +45,14 @@ TILE = 3.0                   # floor grid / tile size
 TILE_CELLS = int(round(TILE / CELL))
 FLOOR_MIN_AREA = 4.0         # m^2 per floor component
 WALL_MIN_LENGTH = 1.5        # m
-WALL_HEIGHT = 4.0            # m, cutaway wall height
+# The whole model is stretched vertically so the three plates separate without
+# breaking the real stair connections. Walls are generated at 2.5 m, which is
+# 4 m after the scale.
+Y_SCALE = 2.0
+WALL_HEIGHT = 2.0
 FOOTPRINT_DILATE_M = 1.5
 CEILING_CUT = 1.6
+HOLE_FILL_AREA = 2.5         # m^2; larger floor holes are stairwells/atria
 
 
 def room_floor(room: str) -> int:
@@ -76,7 +81,7 @@ def make_room_masks(rooms, floor: int, level: float, footprint: np.ndarray | Non
         if footprint is not None:
             mask &= footprint
         mask = filter_components(mask, 2.0)
-        mask = fill_holes(mask)
+        mask = fill_small_holes(mask)
         mask = filter_components(mask, FLOOR_MIN_AREA)
         if mask.any():
             masks.append(mask)
@@ -154,8 +159,44 @@ def fill_holes(mask: np.ndarray) -> np.ndarray:
     return ~outside | mask
 
 
-def mask_to_image(mask: np.ndarray) -> Image.Image:
-    return Image.fromarray((mask.astype(np.uint8) * 255), mode="L")
+def fill_small_holes(mask: np.ndarray, max_area: float = HOLE_FILL_AREA) -> np.ndarray:
+    """Fill only small floor gaps; stairwells and atria stay open."""
+    outside = np.zeros_like(mask, dtype=bool)
+    stack = []
+    for x in range(NX):
+        if not mask[0, x]:
+            stack.append((0, x))
+        if not mask[NZ - 1, x]:
+            stack.append((NZ - 1, x))
+    for z in range(NZ):
+        if not mask[z, 0]:
+            stack.append((z, 0))
+        if not mask[z, NX - 1]:
+            stack.append((z, NX - 1))
+    while stack:
+        z, x = stack.pop()
+        if outside[z, x] or mask[z, x]:
+            continue
+        outside[z, x] = True
+        for dz, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nz, nx = z + dz, x + dx
+            if 0 <= nz < NZ and 0 <= nx < NX and not outside[nz, nx] and not mask[nz, nx]:
+                stack.append((nz, nx))
+    holes = (~mask) & (~outside)
+    out = mask.copy()
+    for cells in label_components(holes):
+        if len(cells) * CELL * CELL <= max_area:
+            for z, x in cells:
+                out[z, x] = True
+    return out
+
+
+def rect_mask(x0: float, x1: float, z0: float, z1: float, pad: float = 0.0) -> np.ndarray:
+    xs = np.arange(NX) * CELL + X0
+    zs = np.arange(NZ) * CELL + Z0
+    x = (xs >= x0 - pad) & (xs < x1 + pad)
+    z = (zs >= z0 - pad) & (zs < z1 + pad)
+    return z[:, None] & x[None, :]
 
 
 def dilate(mask: np.ndarray, radius_m: float) -> np.ndarray:
@@ -212,6 +253,7 @@ class MeshWriter:
         r["edge_count"] = len(self.edges) // 2 - r["edge_start"]
 
     def vert(self, x: float, y: float, z: float) -> int:
+        y = y * Y_SCALE
         key = (round(x * 1000), round(y * 1000), round(z * 1000))
         idx = self._verts.get(key)
         if idx is None:
@@ -329,7 +371,7 @@ def load_rooms():
 # ---------------------------------------------------------------------------
 
 
-def add_floor_tiles(writer: MeshWriter, mask: np.ndarray, level: float):
+def add_floor_tiles(writer: MeshWriter, mask: np.ndarray, level: float, holes: np.ndarray | None = None):
     tiles_x = int(math.ceil((X1 - X0) / TILE))
     tiles_z = int(math.ceil((Z1 - Z0) / TILE))
     for tz in range(tiles_z):
@@ -346,6 +388,11 @@ def add_floor_tiles(writer: MeshWriter, mask: np.ndarray, level: float):
                             cells += 1
             if total == 0 or cells < max(4, total * 0.45):
                 continue
+            if holes is not None:
+                ix0 = tx * TILE_CELLS
+                iz0 = tz * TILE_CELLS
+                if np.any(holes[iz0 : iz0 + TILE_CELLS, ix0 : ix0 + TILE_CELLS]):
+                    continue
             x0 = X0 + tx * TILE
             x1 = x0 + TILE
             z0 = Z0 + tz * TILE
@@ -364,7 +411,7 @@ def add_floor_tiles(writer: MeshWriter, mask: np.ndarray, level: float):
 # ---------------------------------------------------------------------------
 
 
-def build_wall_skeleton(rooms, floor: int, level: float, floor_mask: np.ndarray) -> np.ndarray:
+def build_wall_skeleton(rooms, floor: int, level: float, floor_mask: np.ndarray, cut_mask: np.ndarray | None = None) -> np.ndarray:
     im = grid_mask()
     draw = ImageDraw.Draw(im)
     for room in rooms:
@@ -384,6 +431,8 @@ def build_wall_skeleton(rooms, floor: int, level: float, floor_mask: np.ndarray)
     raw = np.asarray(Image.fromarray((raw * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(3))) > 0
     allowed = dilate(floor_mask, 1.5)
     raw &= allowed
+    if cut_mask is not None:
+        raw &= ~cut_mask
     return skeletonize(raw)
 
 
@@ -426,7 +475,52 @@ def add_skeleton_walls(writer: MeshWriter, skel: np.ndarray, floor: int, level: 
             writer.quad((x, y0, z0), (x, y0, z1), (x, y1, z1), (x, y1, z0))
 
 
-def add_stairs(writer: MeshWriter, rooms, floor: int, level: float, floor_mask: np.ndarray):
+def floor_holes(mask: np.ndarray):
+    outside = np.zeros_like(mask, dtype=bool)
+    stack = []
+    for x in range(NX):
+        if not mask[0, x]:
+            stack.append((0, x))
+        if not mask[NZ - 1, x]:
+            stack.append((NZ - 1, x))
+    for z in range(NZ):
+        if not mask[z, 0]:
+            stack.append((z, 0))
+        if not mask[z, NX - 1]:
+            stack.append((z, NX - 1))
+    while stack:
+        z, x = stack.pop()
+        if outside[z, x] or mask[z, x]:
+            continue
+        outside[z, x] = True
+        for dz, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nz, nx = z + dz, x + dx
+            if 0 <= nz < NZ and 0 <= nx < NX and not outside[nz, nx] and not mask[nz, nx]:
+                stack.append((nz, nx))
+    holes = (~mask) & (~outside)
+    out = []
+    for cells in label_components(holes):
+        area = len(cells) * CELL * CELL
+        if area < 2.5 or area > 150.0:
+            continue
+        zs = [c[0] for c in cells]
+        xs = [c[1] for c in cells]
+        x0 = X0 + min(xs) * CELL
+        x1 = X0 + (max(xs) + 1) * CELL
+        z0 = Z0 + min(zs) * CELL
+        z1 = Z0 + (max(zs) + 1) * CELL
+        dx, dz = x1 - x0, z1 - z0
+        if dx < 1.2 or dz < 1.2:
+            continue
+        out.append((area, x0, x1, z0, z1))
+    return out
+
+
+def find_stairs(rooms, floor: int, level: float, floor_mask: np.ndarray):
+    """Detect stair flights that climb to the next plate."""
+    if floor >= len(LEVELS) - 1:
+        return []
+    next_level = LEVELS[floor + 1]
     slope_mask = grid_mask()
     draw = ImageDraw.Draw(slope_mask)
     for room in rooms:
@@ -434,7 +528,7 @@ def add_stairs(writer: MeshWriter, rooms, floor: int, level: float, floor_mask: 
             continue
         for tri in room["slope_points"]:
             cy = float(tri[:, 1].mean())
-            if cy < level + 0.25 or cy > level + 4.5:
+            if cy < level + 0.2 or cy > next_level + 0.5:
                 continue
             draw.polygon(
                 [((tri[i, 0] - X0) / CELL, (tri[i, 2] - Z0) / CELL) for i in range(3)],
@@ -442,9 +536,10 @@ def add_stairs(writer: MeshWriter, rooms, floor: int, level: float, floor_mask: 
             )
     mask = np.asarray(slope_mask, dtype=bool).copy()
     mask &= dilate(floor_mask, 3.0)
+    out = []
     for cells in label_components(mask):
         area = len(cells) * CELL * CELL
-        if area < 1.2:
+        if area < 1.0:
             continue
         zs = [c[0] for c in cells]
         xs = [c[1] for c in cells]
@@ -460,42 +555,116 @@ def add_stairs(writer: MeshWriter, rooms, floor: int, level: float, floor_mask: 
         width = dz if long_x else dx
         if run < 1.5 or width < 0.8:
             continue
-        ys = []
+        pts = []
         for room in rooms:
             if room["floor"] != floor:
                 continue
             for tri, cy in zip(room["slope_points"], room["slope_y"]):
-                if x0 <= tri[:, 0].mean() <= x1 and z0 <= tri[:, 2].mean() <= z1 and level <= cy <= level + 4.8:
-                    ys.append(float(cy))
-        if not ys:
+                mx = float(tri[:, 0].mean())
+                mz = float(tri[:, 2].mean())
+                if x0 <= mx <= x1 and z0 <= mz <= z1 and level <= cy <= next_level + 0.6:
+                    pts.append((mx, mz, float(cy)))
+        if not pts:
             continue
-        y0, y1 = min(ys), max(ys)
-        if y1 - y0 < 0.9:
+        ymin = min(p[2] for p in pts)
+        ymax = max(p[2] for p in pts)
+        if ymax < next_level - 1.8 or ymin > level + 1.8:
             continue
-        steps = max(4, min(14, int(round((y1 - y0) / 0.32))))
-        # Snap the stair footprint to the short axis centre.
+        mid = (x0 + x1) * 0.5 if long_x else (z0 + z1) * 0.5
+        low = [p[2] for p in pts if (p[0] if long_x else p[1]) < mid]
+        high = [p[2] for p in pts if (p[0] if long_x else p[1]) >= mid]
+        if not low or not high:
+            continue
+        top_high = sum(high) / len(high) > sum(low) / len(low)
+        top = x1 if long_x and top_high else x0 if long_x else z1 if top_high else z0
+        bottom = x0 if long_x and top_high else x1 if long_x else z0 if top_high else z1
+        # 1.2 m landing at each end of the flight.
+        sign = 1.0 if top > bottom else -1.0
+        t0, t1 = (top - 1.2 * sign, top) if sign > 0 else (top, top + 1.2)
         if long_x:
             zc = (z0 + z1) * 0.5
-            half = min(width, 2.2) * 0.5
-            za, zb = zc - half, zc + half
-            for i in range(steps):
-                ya = y1 - (y1 - y0) * i / steps
-                yb = y1 - (y1 - y0) * (i + 1) / steps
-                xa = x0 + run * i / steps
-                xb = x0 + run * (i + 1) / steps
-                writer.quad((xa, yb, za), (xb, yb, za), (xb, yb, zb), (xa, yb, zb))
-                writer.quad((xa, yb, za), (xa, ya, za), (xa, ya, zb), (xa, yb, zb))
+            half = min(width, 2.4) * 0.5
+            top_rect = (min(t0, t1), max(t0, t1), zc - half, zc + half)
+            bottom_rect = (bottom - 0.7, bottom + 0.7, zc - half, zc + half)
         else:
             xc = (x0 + x1) * 0.5
-            half = min(width, 2.2) * 0.5
-            xa_, xb_ = xc - half, xc + half
+            half = min(width, 2.4) * 0.5
+            top_rect = (xc - half, xc + half, min(t0, t1), max(t0, t1))
+            bottom_rect = (xc - half, xc + half, bottom - 0.7, bottom + 0.7)
+        out.append(
+            {
+                "bbox": (x0, x1, z0, z1),
+                "long_x": long_x,
+                "top_high": top_high,
+                "run": run,
+                "width": width,
+                "top": top,
+                "bottom": bottom,
+                "level": level,
+                "render_level": level * Y_SCALE,
+                "next_level": next_level,
+                "top_rect": top_rect,
+                "bottom_rect": bottom_rect,
+            }
+        )
+    return out
+
+
+def add_stairs(writer: MeshWriter, stairs, level: float):
+    for s in stairs:
+        rise = s["next_level"] - level
+        run = s["run"]
+        width = min(s["width"], 2.4)
+        steps = max(6, min(18, int(round(rise / 0.32))))
+        a0, a1 = s["bottom"], s["top"]
+        if s["long_x"]:
+            zc = (s["bbox"][2] + s["bbox"][3]) * 0.5
+            za, zb = zc - width * 0.5, zc + width * 0.5
             for i in range(steps):
-                ya = y1 - (y1 - y0) * i / steps
-                yb = y1 - (y1 - y0) * (i + 1) / steps
-                za = z0 + run * i / steps
-                zb = z0 + run * (i + 1) / steps
-                writer.quad((xa_, yb, za), (xb_, yb, za), (xb_, yb, zb), (xa_, yb, zb))
-                writer.quad((xa_, yb, za), (xa_, ya, za), (xa_, ya, zb), (xa_, yb, zb))
+                t0 = i / steps
+                t1 = (i + 1) / steps
+                y0 = level + rise * t0
+                y1 = level + rise * t1
+                xa = a0 + (a1 - a0) * t0
+                xb = a0 + (a1 - a0) * t1
+                writer.quad((xa, y1, za), (xb, y1, za), (xb, y1, zb), (xa, y1, zb))
+                writer.quad((xa, y1, za), (xa, y0, za), (xa, y0, zb), (xa, y1, zb))
+        else:
+            xc = (s["bbox"][0] + s["bbox"][1]) * 0.5
+            xa, xb = xc - width * 0.5, xc + width * 0.5
+            for i in range(steps):
+                t0 = i / steps
+                t1 = (i + 1) / steps
+                y0 = level + rise * t0
+                y1 = level + rise * t1
+                za = a0 + (a1 - a0) * t0
+                zb = a0 + (a1 - a0) * t1
+                writer.quad((xa, y1, za), (xb, y1, za), (xb, y1, zb), (xa, y1, zb))
+                writer.quad((xa, y1, za), (xa, y0, za), (xa, y0, zb), (xa, y1, zb))
+
+
+    for s in stairs:
+        for rect, y in ((s["bottom_rect"], s["level"] + 0.02), (s["top_rect"], s["next_level"] + 0.02)):
+            x0, x1, z0, z1 = rect
+            writer.quad((x0, y, z0), (x1, y, z0), (x1, y, z1), (x0, y, z1))
+
+def prune_stairs(flights):
+    """Drop near-duplicate flights detected twice in the same stairwell."""
+    kept = []
+    for s in sorted(flights, key=lambda f: -((f["bbox"][1] - f["bbox"][0]) * (f["bbox"][3] - f["bbox"][2]))):
+        x0, x1, z0, z1 = s["bbox"]
+        area = (x1 - x0) * (z1 - z0)
+        duplicate = False
+        for k in kept:
+            kx0, kx1, kz0, kz1 = k["bbox"]
+            ix = max(0.0, min(x1, kx1) - max(x0, kx0))
+            iz = max(0.0, min(z1, kz1) - max(z0, kz0))
+            if ix * iz > 0.5 * min(area, (kx1 - kx0) * (kz1 - kz0)):
+                duplicate = True
+                break
+        if not duplicate:
+            kept.append(s)
+    return kept
 
 
 # ---------------------------------------------------------------------------
@@ -522,20 +691,73 @@ def main():
     floor_masks = {floor: union_masks(room_masks[floor]) for floor in range(3)}
     floor_masks[0] = filter_components(floor_masks[0] | main_rect_mask(), FLOOR_MIN_AREA)
 
+    # Source-detected flights, plus the main-hall pair and the west 2F->3F
+    # pair that the simplified source pass misses.
+    stairs = {floor: find_stairs(rooms, floor, LEVELS[floor], floor_masks[floor]) for floor in range(3)}
+    manual = (
+        (0, -9.5, -5.5, -22.0, -15.0),
+        (0, 5.5, 9.5, -22.0, -15.0),
+        (1, -31.0, -27.0, 0.0, 6.0),
+        (1, -27.0, -23.0, -8.0, -2.0),
+    )
+    for floor, x0, x1, z0, z1 in manual:
+        stairs[floor].append(
+            {
+                "bbox": (x0, x1, z0, z1),
+                "long_x": False,
+                "run": z1 - z0,
+                "width": x1 - x0,
+                "top": z0,
+                "bottom": z1,
+                "level": LEVELS[floor],
+                "next_level": LEVELS[floor + 1],
+                "top_rect": (x0, x1, z0, z0 + 1.2),
+                "bottom_rect": (x0, x1, z1 - 1.2, z1),
+            }
+        )
+    for floor in range(3):
+        stairs[floor] = prune_stairs(stairs[floor])
+    holes = [floor_holes(floor_masks[floor]) for floor in range(3)]
+    hole_masks = [np.zeros((NZ, NX), dtype=bool) for _ in range(3)]
+    for floor, hs in enumerate(holes):
+        for _area, x0, x1, z0, z1 in hs:
+            hole_masks[floor] |= rect_mask(x0, x1, z0, z1, pad=0.05)
+    openings = [np.zeros((NZ, NX), dtype=bool) for _ in range(3)]
+    for floor, flights in stairs.items():
+        for s in flights:
+            if floor + 1 < 3:
+                x0, x1, z0, z1 = s["bbox"]
+                openings[floor + 1] |= rect_mask(x0, x1, z0, z1, pad=0.45)
+    for floor in range(3):
+        floor_masks[floor] &= ~openings[floor]
+        floor_masks[floor] = filter_components(floor_masks[floor], FLOOR_MIN_AREA)
+        hole_masks[floor] |= openings[floor]
+    stair_cut = [np.zeros((NZ, NX), dtype=bool) for _ in range(3)]
+    for floor, flights in stairs.items():
+        for s in flights:
+            x0, x1, z0, z1 = s["bbox"]
+            stair_cut[floor] |= rect_mask(x0, x1, z0, z1, pad=0.7)
+            if floor + 1 < 3:
+                x0, x1, z0, z1 = s["bbox"]
+                stair_cut[floor + 1] |= rect_mask(x0, x1, z0, z1, pad=0.7)
+
     writer = MeshWriter()
     stats = []
+    for floor in range(3):
+        print(f"  stairs below floor {floor + 1}: {len(stairs[floor])}")
     for floor, level in enumerate(LEVELS):
         writer.begin_floor(floor)
-        add_floor_tiles(writer, floor_masks[floor], level)
+        add_floor_tiles(writer, floor_masks[floor], level, holes=hole_masks[floor])
         if not args.no_walls:
-            skel = build_wall_skeleton(rooms, floor, level, floor_masks[floor])
+            skel = build_wall_skeleton(rooms, floor, level, floor_masks[floor], stair_cut[floor])
             add_skeleton_walls(writer, skel, floor, level)
-            add_stairs(writer, rooms, floor, level, floor_masks[floor])
+            add_stairs(writer, stairs[floor], level)
         writer.end_floor(floor)
         stats.append(
             {
                 "floor": floor + 1,
                 "level": level,
+                "render_level": level * Y_SCALE,
                 "floor_area": float(floor_masks[floor].sum() * CELL * CELL),
                 "triangles": writer.floor_ranges[floor]["tri_count"],
                 "edges": writer.floor_ranges[floor]["edge_count"],
@@ -563,8 +785,8 @@ def main():
         f.write(struct.pack("<3f", *bounds_max))
         for floor in range(3):
             r = writer.floor_ranges[floor]
-            y_min = LEVELS[floor]
-            y_max = LEVELS[floor] + WALL_HEIGHT
+            y_min = LEVELS[floor] * Y_SCALE
+            y_max = (LEVELS[floor] + WALL_HEIGHT) * Y_SCALE
             f.write(
                 struct.pack(
                     "<IIIIff",
@@ -584,14 +806,16 @@ def main():
         "asset": OUT_BIN.name,
         "version": 2,
         "method": "floor-plan abstraction",
-        "levels": list(LEVELS),
+        "levels": [round(level * Y_SCALE, 3) for level in LEVELS],
+        "source_levels": list(LEVELS),
+        "y_scale": Y_SCALE,
         "vertices": len(writer.positions) // 3,
         "triangles": len(writer.triangles) // 3,
         "edges": len(writer.edges) // 2,
         "bytes": OUT_BIN.stat().st_size,
         "bounds": {"min": bounds_min, "max": bounds_max},
         "floors": stats,
-        "wall_height": WALL_HEIGHT,
+        "wall_height": WALL_HEIGHT * Y_SCALE,
         "tile_size": TILE,
         "filters": {
             "cell": CELL,
@@ -599,6 +823,7 @@ def main():
             "wall_min_length": WALL_MIN_LENGTH,
             "footprint_dilate_m": FOOTPRINT_DILATE_M,
             "ceiling_cut": CEILING_CUT,
+            "hole_fill_area": HOLE_FILL_AREA,
         },
     }
     OUT_JSON.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")

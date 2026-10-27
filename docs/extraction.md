@@ -214,7 +214,8 @@ the streets/plazas around the building.
 Plates are emitted as **3 m fill tiles** where at least 45% of the underlying
 0.5 m cells are covered. Tiles contribute only fill triangles; the visible 3 m
 floor grid is generated in the fragment shader from world-space XZ coordinates,
-so it costs no index-buffer space and fades naturally with distance.
+so it costs no index-buffer space and fades naturally with distance. Small
+holes are filled, but stairwells and the central atrium stay open.
 
 ### 3.3 Walls
 
@@ -232,21 +233,28 @@ runs at the 0.5 m grid.
 
 ### 3.4 Stairs
 
-Sloped triangles in a floor's Y window are projected into the same 0.5 m raster
-and grouped into components. A component becomes a simple staircase when it is
-at least 1.2 m², has a horizontal run of 1.5 m, a width of 0.8 m, a height
-difference of 0.9 m, and a footprint no larger than 90 m². The builder draws
-4–14 tread and riser quads across the component's bounding rectangle. This is an
-approximation, not a reconstruction of each step.
+Stair flights are built from sloped source triangles, then extended to the plate
+above so they always connect. The simplified pass also adds the main-hall pair
+and the west 2F→3F pair visible in the MapGenie floor plans. For every flight:
 
-### 3.5 Renderer offsets
+- the upper plate gets a slot over the flight footprint;
+- wall runs crossing the flight and both landings are removed;
+- the flight rises from the lower plate to `next_level` and gets a small landing
+  quad at each end.
 
-The final asset keeps the three plates at their real Y values. The sokol
-renderer offsets 1F/2F/3F by 0 / 6 / 12 m respectively (`floor_offset` in
-`native/main.c`) so the three plans read as an exploded axonometric.
+The result is seven flights: four 1F→2F and three 2F→3F. They are schematic
+straight runs, not reconstructions of each tread. The 3F→4F clock-tower flight
+is omitted with the rest of the tower.
 
-**Result:** 1,790,053 source triangles → **2,224 triangles**, 2,306 vertices,
-**1,593 edges**, 66 KB.
+### 3.5 Vertical scale
+
+The asset is scaled 2× in Y (not offset per floor): the plates sit at 0 / 10 /
+20.5 m, walls stay 4 m tall, and stair rises scale with the plates. This keeps
+the exploded axonometric readable without breaking stair connections. The
+renderer's per-floor offset uniform is therefore zero.
+
+**Result:** 1,790,053 source triangles → **2,016 triangles**, 2,356 vertices,
+**1,861 edges**, 66 KB.
 
 ## 4. `rpd.bin` v2
 
@@ -301,8 +309,9 @@ The main thresholds are constants at the top of `build_plan.py`: `LEVELS`,
   omitted.
 - The 1F footprint is anchored by the 2F/3F room masks and the main hall. Without
   that clip, the outdoor terrain around the RPD dominates the plan.
-- Stairs are reconstructed from sloped clusters and their bounding boxes, so
-  they indicate direction and rise rather than exact treads.
+- Stairs are schematic: source-sloped flights plus the main-hall and west upper
+  flights cross-checked on MapGenie. They indicate connection and rise rather
+  than exact treads. The 3F clock-tower flight is not modelled.
 - The mesh parser handles the RE2 RT variant only. Other RE Engine versions use
   different subdivision/header layouts.
 - `data/raw/` is not committed; `public/rpd/rpd.bin` is the derived scene.
