@@ -1,0 +1,17 @@
+node_modules
+dist
+.void
+.wrangler
+.void-wrangler.jsonc
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+.DS_Store
+
+# Game data extracted from the local RE2 install, and intermediate builds.
+data/raw/
+native/build/
+
+# Void writes the connected Cloudflare account into this file.
+void.lock.json
