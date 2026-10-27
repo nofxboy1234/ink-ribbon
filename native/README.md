@@ -66,9 +66,9 @@ vertical FOV so a pixel of drag maps to a constant world distance.
 
 - Perspective, 0.62 rad vertical FOV.
 - Default yaw −0.55 rad, pitch 0.72 rad.
-- Distance is 140 units on a 1600 px canvas, scaled up on narrower viewports;
+- Distance is 133 units on a 1600 px canvas, scaled up on narrower viewports;
   it is recomputed on resize until the user moves the camera.
-- Target is the X/Z centre of the scene bounds with Y at 28% of the height
+- Target is the X/Z centre of the scene bounds with Y at 34% of the height
   range, which frames the main hall and the 3F clock tower.
 
 The asset is in metres, Y-up, with the RPD main hall near the origin.
