@@ -43,7 +43,8 @@ through `locateFile`.
 1. **Offscreen pass** — one RGBA8 color image and one depth image at canvas
    resolution, sample count 1.
 2. **Fill** — the scene's triangles with a very dark, normal-shaded material.
-   Depth writes are enabled.
+   Up-facing fill pixels get a procedural 3 m world-space grid from the fragment
+   shader, so floor grids cost no edge indices. Depth writes are enabled.
 3. **Wireframe** — the unique edge list with a small clipped-space depth bias
    (`clip.z -= 0.00012 * clip.w`) so edges survive against their own faces.
    Edges fade toward the background with view distance.

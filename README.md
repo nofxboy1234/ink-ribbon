@@ -111,7 +111,7 @@ native/build.sh            Emscripten build
 src/RpdScene.tsx           React canvas + WASM loader with progress
 src/wasm/rpd.js            generated Emscripten ES module (committed for deploy)
 pages/index.tsx            Void page
-public/rpd/rpd.bin         derived floor-plan scene (78 KB)
+public/rpd/rpd.bin         derived floor-plan scene (66 KB)
 public/rpd/rpd.wasm        compiled sokol renderer
 ```
 
@@ -124,13 +124,14 @@ keeps LOD 0 and turns the geometry into three plates:
 1. **Floor plates** — upward horizontal surfaces within 1.5 m of 0 / 5 / 10.25 m,
    with giant backdrop triangles (>50 m²) removed. Room masks are filled, the 1F
    mask is clipped to the upper-floor footprint plus the main hall, and the
-   plates are emitted as 3 m grid tiles.
+   plates are emitted as 3 m fill tiles; the visible 3 m grid is drawn
+   procedurally in the fragment shader.
 2. **Walls** — vertical surfaces at each level projected into a 2D wall mask,
    skeletonized, then emitted as 4 m-tall wall runs. Openings and doors survive
    as gaps in the skeleton.
 3. **Stairs** — clusters of sloped triangles become simple stepped runs.
 
-The result is 2,224 triangles and 3,134 lines from 1,790,053 source triangles.
+The result is 2,224 triangles and 1,593 lines from 1,790,053 source triangles.
 The renderer separates the plates by 6 m per floor so all three levels stay
 readable. The 3F clock-tower exterior sits above the third plate and is omitted.
 

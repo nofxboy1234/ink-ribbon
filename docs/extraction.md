@@ -211,9 +211,10 @@ to a building footprint derived from the 2F/3F room masks (dilated 1.5 m and
 hole-filled) plus the main hall rectangle `x[-11,11], z[-23,13]`. This removes
 the streets/plazas around the building.
 
-Plates are emitted as **3 m grid tiles** where at least 45% of the underlying
-0.5 m cells are covered. Every tile contributes two fill triangles and its four
-edges, giving the regular floor grid in the reference.
+Plates are emitted as **3 m fill tiles** where at least 45% of the underlying
+0.5 m cells are covered. Tiles contribute only fill triangles; the visible 3 m
+floor grid is generated in the fragment shader from world-space XZ coordinates,
+so it costs no index-buffer space and fades naturally with distance.
 
 ### 3.3 Walls
 
@@ -245,7 +246,7 @@ renderer offsets 1F/2F/3F by 0 / 6 / 12 m respectively (`floor_offset` in
 `native/main.c`) so the three plans read as an exploded axonometric.
 
 **Result:** 1,790,053 source triangles → **2,224 triangles**, 2,306 vertices,
-**3,134 edges**, 78 KB.
+**1,593 edges**, 66 KB.
 
 ## 4. `rpd.bin` v2
 

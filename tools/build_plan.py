@@ -232,17 +232,18 @@ class MeshWriter:
         self._edges.add(key)
         self.edges.extend(key)
 
-    def quad(self, p0, p1, p2, p3):
+    def quad(self, p0, p1, p2, p3, with_edges: bool = True):
         a = self.vert(*p0)
         b = self.vert(*p1)
         c = self.vert(*p2)
         d = self.vert(*p3)
         self.tri(a, b, c)
         self.tri(a, c, d)
-        self.edge(a, b)
-        self.edge(b, c)
-        self.edge(c, d)
-        self.edge(d, a)
+        if with_edges:
+            self.edge(a, b)
+            self.edge(b, c)
+            self.edge(c, d)
+            self.edge(d, a)
 
 
 # ---------------------------------------------------------------------------
@@ -349,7 +350,13 @@ def add_floor_tiles(writer: MeshWriter, mask: np.ndarray, level: float):
             x1 = x0 + TILE
             z0 = Z0 + tz * TILE
             z1 = z0 + TILE
-            writer.quad((x0, level, z0), (x1, level, z0), (x1, level, z1), (x0, level, z1))
+            writer.quad(
+                (x0, level, z0),
+                (x1, level, z0),
+                (x1, level, z1),
+                (x0, level, z1),
+                with_edges=False,
+            )
 
 
 # ---------------------------------------------------------------------------
