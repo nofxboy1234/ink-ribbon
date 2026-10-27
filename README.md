@@ -131,7 +131,7 @@ src/wasm/rpd.js            generated Emscripten ES module (committed for deploy)
 pages/index.tsx            real-geometry page
 pages/blockout.tsx         wireframe blockout page (/blockout)
 public/rpd/rpd.bin         real RPD geometry + vertex colours (20.2 MB)
-public/rpd/blockout.bin    simplified wireframe blockout (0.67 MB)
+public/rpd/blockout.bin    simplified wireframe blockout (0.85 MB)
 public/rpd/rpd.wasm        compiled sokol renderer
 ```
 

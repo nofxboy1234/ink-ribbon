@@ -44,7 +44,7 @@ FLOOR_BASE = (-1.0, 4.2, 9.2)
 TILE = 3.0                   # floor grid / tile size
 TILE_CELLS = int(round(TILE / CELL))
 FLOOR_MIN_AREA = 4.0         # m^2 per floor component
-WALL_MIN_LENGTH = 1.5        # m
+WALL_MIN_LENGTH = 0.75        # m
 Y_SCALE = 1.0
 WALL_HEIGHT = 3.2
 FLOOR_THICKNESS = 0.28
@@ -391,6 +391,7 @@ def load_rooms():
         tris = []
         doors = []
         windows = []
+        stair_tris = []
         for group in mesh.lods[0].groups:
             base = len(verts)
             gpos = remesh.positions(mesh, group)
@@ -400,6 +401,9 @@ def load_rooms():
                 for a, b, c in submesh_triangles(mesh, group, sub):
                     tri = np.asarray([gpos[a], gpos[b], gpos[c]], dtype=np.float32)
                     tris.append((a + base, b + base, c + base))
+                    mname = names[sub.material].lower() if sub.material < len(names) else ""
+                    if "stair" in mname:
+                        stair_tris.append(tri)
                     if kind is None:
                         continue
                     normal = np.cross(tri[1] - tri[0], tri[2] - tri[0])
@@ -475,6 +479,7 @@ def load_rooms():
                 "slope_y": cy[slope].astype(np.float32),
                 "opening_door": np.asarray(doors, dtype=np.float32).reshape(-1, 3, 3),
                 "opening_window": np.asarray(windows, dtype=np.float32).reshape(-1, 3, 3),
+                "stair_points": np.asarray(stair_tris, dtype=np.float32).reshape(-1, 3, 3),
             }
         )
     return rooms
@@ -584,7 +589,7 @@ def merge_wall_runs(runs):
     runs.sort()
     groups = []
     for run in runs:
-        if not groups or run[0] - groups[-1][-1][0] > 0.8:
+        if not groups or run[0] - groups[-1][-1][0] > 0.35:
             groups.append([run])
         else:
             groups[-1].append(run)
@@ -597,7 +602,7 @@ def merge_wall_runs(runs):
         intervals = sorted((a, b) for _c, a, b in group)
         merged = []
         for a, b in intervals:
-            if not merged or a > merged[-1][1] + 0.5:
+            if not merged or a > merged[-1][1] + 0.25:
                 merged.append([a, b])
             else:
                 merged[-1][1] = max(merged[-1][1], b)
@@ -786,6 +791,77 @@ def floor_holes(mask: np.ndarray):
     return out
 
 
+STAIR_SPECS = {
+    0: [
+        (-18.3, -10.1, -26.4, -14.2),
+        (-24.2, -8.2, -6.6, 5.3),
+        (14.0, 28.8, -22.7, -7.9),
+    ],
+    1: [
+        (-18.3, -10.1, -26.4, -14.2),
+        (21.8, 40.2, -13.3, -1.8),
+    ],
+}
+
+
+def stair_flights(rooms, level: float, next_level: float):
+    """Place simple flights on the source stairwell footprints."""
+    allpts = [tri.reshape(-1, 3) for room in rooms for tri in room["stair_points"]]
+    flights = []
+    floor = 0 if level < 1.0 else 1
+    for x0, x1, z0, z1 in STAIR_SPECS.get(floor, []):
+        pts = [p for p in allpts
+               if x0 - 0.2 <= p[:, 0].mean() <= x1 + 0.2
+               and z0 - 0.2 <= p[:, 2].mean() <= z1 + 0.2
+               and p[:, 1].max() >= level - 0.2
+               and p[:, 1].min() <= next_level + 0.2]
+        if not pts:
+            continue
+        p = np.concatenate(pts, axis=0)
+        y = p[:, 1]
+        A = np.column_stack((p[:, 0], p[:, 2], np.ones(len(p))))
+        try:
+            ax, az, _ = np.linalg.lstsq(A, y, rcond=None)[0]
+        except np.linalg.LinAlgError:
+            ax = az = 0.0
+        dx, dz = x1 - x0, z1 - z0
+        long_x = abs(ax) * dx >= abs(az) * dz
+        if abs(ax) < 1e-4 and abs(az) < 1e-4:
+            long_x = dx >= dz
+        run = dx if long_x else dz
+        width = dz if long_x else dx
+        if run < 2.0 or width < 0.8:
+            continue
+        if long_x:
+            top_high = ax >= 0.0
+            top = x1 if top_high else x0
+            bottom = x0 if top_high else x1
+            zc = (z0 + z1) * 0.5
+            half = min(width, 3.6) * 0.5
+            bbox = (x0, x1, zc - half, zc + half)
+            top_rect = (top - 1.2, top) if top_high else (top, top + 1.2)
+            bottom_rect = (bottom - 1.2, bottom) if not top_high else (bottom, bottom + 1.2)
+            top_rect = (top_rect[0], top_rect[1], bbox[2], bbox[3])
+            bottom_rect = (bottom_rect[0], bottom_rect[1], bbox[2], bbox[3])
+        else:
+            top_high = az >= 0.0
+            top = z1 if top_high else z0
+            bottom = z0 if top_high else z1
+            xc = (x0 + x1) * 0.5
+            half = min(width, 3.6) * 0.5
+            bbox = (xc - half, xc + half, z0, z1)
+            top_rect = (top - 1.2, top) if top_high else (top, top + 1.2)
+            bottom_rect = (bottom - 1.2, bottom) if not top_high else (bottom, bottom + 1.2)
+            top_rect = (bbox[0], bbox[1], top_rect[0], top_rect[1])
+            bottom_rect = (bbox[0], bbox[1], bottom_rect[0], bottom_rect[1])
+        flights.append({
+            "bbox": bbox, "long_x": long_x, "run": run, "width": width,
+            "top": top, "bottom": bottom, "level": level, "next_level": next_level,
+            "top_rect": top_rect, "bottom_rect": bottom_rect,
+        })
+    return flights
+
+
 def find_stairs(rooms, floor: int, level: float, floor_mask: np.ndarray):
     """Detect stair flights that climb to the next plate."""
     if floor >= len(LEVELS) - 1:
@@ -942,31 +1018,11 @@ def main():
     floor_masks = {floor: union_masks(room_masks[floor]) for floor in range(3)}
     floor_masks[0] = filter_components(floor_masks[0] | main_rect_mask(), FLOOR_MIN_AREA)
 
-    stairs = {floor: find_stairs(rooms, floor, LEVELS[floor], floor_masks[floor]) for floor in range(3)}
-    manual = (
-        (0, -9.5, -5.5, -22.0, -15.0),
-        (0, 5.5, 9.5, -22.0, -15.0),
-        (1, -31.0, -27.0, 0.0, 6.0),
-        (1, -27.0, -23.0, -8.0, -2.0),
-    )
-    for floor, x0, x1, z0, z1 in manual:
-        stairs[floor].append(
-            {
-                "bbox": (x0, x1, z0, z1),
-                "long_x": False,
-                "run": z1 - z0,
-                "width": x1 - x0,
-                "top": z0,
-                "bottom": z1,
-                "level": LEVELS[floor],
-                "next_level": LEVELS[floor + 1],
-                "top_rect": (x0, x1, z0, z0 + 1.2),
-                "bottom_rect": (x0, x1, z1 - 1.2, z1),
-            }
-        )
-    for floor in range(3):
-        stairs[floor] = prune_stairs(stairs[floor])
-
+    stairs = {
+        floor: stair_flights(rooms, LEVELS[floor], LEVELS[floor + 1])
+        for floor in range(2)
+    }
+    stairs[2] = []
     holes = [floor_holes(floor_masks[floor]) for floor in range(3)]
     hole_masks = [np.zeros((NZ, NX), dtype=bool) for _ in range(3)]
     for floor, hs in enumerate(holes):

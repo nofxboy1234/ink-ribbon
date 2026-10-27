@@ -280,14 +280,16 @@ and the material palette.
 `/blockout` uses a separate RPDW v4 asset, `public/rpd/blockout.bin`, built by
 `tools/build_blockout.py`. The real asset is untouched.
 
-- Walls are axis-aligned box runs split into 1.5 m panels. Door and window
-  materials become gaps, with lintels above doors and sills/heads around
-  windows.
+- Walls are axis-aligned box runs split into 1.5 m panels. Openings come from
+  the real wall coverage (low/middle/high bands), not from material names, so
+  there are no invented windows. Doors and windows are left as gaps where the
+  source wall is absent.
 - Floors are 3 m planes with their perimeter edges tagged as a dim grid.
-- Stairs are sloped planes at the source stair positions with tread lines.
+- Stairs are sloped planes on the source stairwell footprints (west, east and
+  west-office stairs) with tread lines.
 - Roofs and ceilings are not emitted.
-- Output: 15,604 vertices, 25,960 triangles, 22,560 structural edges and 1,214
-  floor-grid edges, 0.67 MB.
+- Output: 19,587 vertices, 31,810 triangles, 28,405 structural edges and 1,189
+  floor-grid edges, 0.85 MB.
 
 The renderer draws blockout fills as translucent white with alpha falling off
 with distance, then draws structural edges in bright wireframe and the floor
