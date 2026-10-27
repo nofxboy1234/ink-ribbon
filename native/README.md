@@ -53,8 +53,12 @@ through `locateFile`.
 
 For the blockout asset (RPDW v4), a separate fill pipeline draws translucent
 white surfaces with distance-based alpha, then a line pipeline draws bright
-structural edges followed by the smaller, dimmer floor-grid edge range. The
-real asset (RPDW v3) is a single solid draw range.
+structural edges followed by the smaller, dimmer floor-grid edge range.
+
+Blockout2 reuses the real RPDW v3 asset. At load it generates a position-only
+line buffer from triangle edges longer than 0.7 m, classifies horizontal floor
+edges into the dim grid range, and draws the translucent real fill followed by
+the white edges. The real page keeps the normal solid draw range.
 
 ## Input
 

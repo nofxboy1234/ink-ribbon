@@ -303,3 +303,18 @@ npm run blockout
 ```
 
 The real page at `/` remains the full LOD-0 geometry scene.
+
+## 8. Original-geometry wireframe
+
+`/blockout2` uses the full real `rpd.bin` rather than a simplified asset. In
+blockout2 mode the loader builds a line buffer from the triangle edges in the
+expanded real mesh:
+
+- Edges shorter than 0.7 m are dropped.
+- Horizontal edges at the three floor heights go into the dim floor-grid range.
+- All other kept edges are structural white lines.
+- The normal blockout fill and line shaders draw them with the same distance
+  fade and translucency.
+
+The result copies the original geometry and layout exactly, including roofs,
+ceilings, props and real stairs. No extra asset is shipped for this scene.

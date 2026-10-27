@@ -7,12 +7,15 @@ Orbit the model, pan it, or hold right-click and fly through it.
 
 A second scene at **`/blockout`** is a simplified architectural blockout of the
 same floors: white wireframe over black, translucent near surfaces, dim floor
-grids and simple stair planes. The real scene is untouched. A green FPS counter
-sits at the top right of both scenes.
+grids and simple stair planes. **`/blockout2`** copies the original full
+geometry into the same white-wireframe renderer. The real scene is untouched.
+A green FPS counter sits at the top right of all scenes.
 
 ![RPD floors 1–3](docs/preview.jpg)
 
 ![RPD wireframe blockout](docs/blockout.jpg)
+
+![RPD original geometry wireframe](docs/blockout2.jpg)
 
 ## What is in here
 
@@ -29,6 +32,9 @@ sits at the top right of both scenes.
 - **Blockout scene** — `/blockout` loads a separate simplified asset built from
   the same room masks: perpendicular panel walls, door/window gaps, 3 m floor
   grids and stair planes with tread lines.
+- **Original-geometry wireframe** — `/blockout2` loads the full `rpd.bin` and
+  builds a long-edge line buffer from its triangles at load, so the original
+  layout and detail render in the same blockout style.
 - **Web app** — React 19 + TypeScript on [Void](https://github.com/voidzero-dev/void)
   1.3.0 (Vite 8) targeting Cloudflare Workers. Once the scene is loaded the
   page is only the canvas; no labels or UI sit on top of it.
@@ -130,6 +136,7 @@ src/RpdScene.tsx           React canvas + WASM loader with progress
 src/wasm/rpd.js            generated Emscripten ES module (committed for deploy)
 pages/index.tsx            real-geometry page
 pages/blockout.tsx         wireframe blockout page (/blockout)
+pages/blockout2.tsx        original-geometry wireframe (/blockout2)
 public/rpd/rpd.bin         real RPD geometry + vertex colours (20.2 MB)
 public/rpd/blockout.bin    simplified wireframe blockout (0.85 MB)
 public/rpd/rpd.wasm        compiled sokol renderer
@@ -158,7 +165,10 @@ The blockout is a separate RPDW v4 asset (`public/rpd/blockout.bin`) built by
 floors are 3 m planes with dim grid edges; stairs are sloped planes with tread
 lines. Roofs and ceilings are omitted. The renderer draws translucent white
 fills that fade out with distance, bright structural wireframe, and dimmer floor
-grid lines. Both scenes share the camera, fog, controls and FPS counter.
+grid lines. `/blockout2` is the same renderer over the real asset: a load-time pass keeps
+triangle edges longer than 0.7 m, splits horizontal floor edges into a dim
+grid range, then draws the translucent fill and white lines. All three scenes
+share the camera, fog, controls and FPS counter.
 
 ## Assets and licensing
 
