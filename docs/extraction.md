@@ -275,46 +275,19 @@ and the material palette.
   different subdivision/header layouts.
 - `data/raw/` is not committed; `public/rpd/rpd.bin` is the derived scene.
 
-## 7. Wireframe blockout
+## 7. Wireframe modes
 
-`/blockout` uses a separate RPDW v4 asset, `public/rpd/blockout.bin`, built by
-`tools/build_blockout.py`. The real asset is untouched.
+Both `/blockout` and `/blockout2` use the full real `rpd.bin`; there is no
+second mesh asset. In either mode the loader builds a line buffer from the
+triangle edges in the expanded real mesh:
 
-- Walls are axis-aligned box runs split into 1.5 m panels. Openings come from
-  the real wall coverage (low/middle/high bands), not from material names, so
-  there are no invented windows. Doors and windows are left as gaps where the
-  source wall is absent.
-- Floors are 3 m planes with their perimeter edges tagged as a dim grid.
-- Stairs are sloped planes on the source stairwell footprints (west, east and
-  west-office stairs) with tread lines.
-- Roofs and ceilings are not emitted.
-- Output: 19,587 vertices, 31,810 triangles, 28,405 structural edges and 1,189
-  floor-grid edges, 0.85 MB.
-
-The renderer draws blockout fills as translucent white with alpha falling off
-with distance, then draws structural edges in bright wireframe and the floor
-grid at lower brightness. Near surfaces therefore read as semi-transparent
-material while distant ones collapse to pure wireframe.
-
-Build it with:
-
-```bash
-npm run blockout
-```
-
-The real page at `/` remains the full LOD-0 geometry scene.
-
-## 8. Original-geometry wireframe
-
-`/blockout2` uses the full real `rpd.bin` rather than a simplified asset. In
-blockout2 mode the loader builds a line buffer from the triangle edges in the
-expanded real mesh:
-
-- Edges shorter than 0.7 m are dropped.
-- Horizontal edges at the three floor heights go into the dim floor-grid range.
+- `/blockout` keeps edges longer than 2.5 m for a simplified structural plan.
+- `/blockout2` keeps edges longer than 0.7 m for the detailed original.
+- Horizontal edges at the three floor heights go into the dim floor-edge range.
 - All other kept edges are structural white lines.
-- The normal blockout fill and line shaders draw them with the same distance
-  fade and translucency.
+- The blockout fill and line shaders draw them with the same distance fade and
+  translucency.
 
-The result copies the original geometry and layout exactly, including roofs,
-ceilings, props and real stairs. No extra asset is shipped for this scene.
+Because the walls, stairs, doors and roof come from the original mesh, the
+layout is exact and no walls, openings or staircases are invented or omitted.
+The real page at `/` remains the full solid-colour scene.

@@ -30,7 +30,7 @@ emcc "${ROOT}/native/main.c" \
     -sINITIAL_MEMORY=67108864 \
     -sMAXIMUM_MEMORY=1073741824 \
     -sNO_EXIT_RUNTIME=1 \
-    -sEXPORTED_FUNCTIONS=_main,_malloc,_free,_rpd_load_scene,_rpd_set_blockout,_rpd_set_blockout2 \
+    -sEXPORTED_FUNCTIONS=_main,_malloc,_free,_rpd_load_scene,_rpd_set_blockout,_rpd_set_blockout2,_rpd_set_wire_mode \
     -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32
 
 mv "${ROOT}/src/wasm/rpd.wasm" "${ROOT}/public/rpd/rpd.wasm"

@@ -108,6 +108,7 @@ static struct {
     float fly_speed;
     bool blockout;
     bool blockout2;
+    int wire_mode;
 } state;
 
 /* ------------------------------------------------------------------------- */
@@ -454,7 +455,7 @@ static bool near_floor(float y) {
     return fabsf(y) < 0.16f || fabsf(y - 5.0f) < 0.16f || fabsf(y - 10.25f) < 0.16f;
 }
 
-static bool build_blockout2_lines(scene_t *s, const float *vp, int vc, const uint32_t *idx, int tc) {
+static bool build_blockout2_lines(scene_t *s, const float *vp, int vc, const uint32_t *idx, int tc, float min_len) {
     int ns = 0, ng = 0;
     for (int t = 0; t < tc; t++) {
         uint32_t i0 = idx[t * 3 + 0], i1 = idx[t * 3 + 1], i2 = idx[t * 3 + 2];
@@ -463,7 +464,7 @@ static bool build_blockout2_lines(scene_t *s, const float *vp, int vc, const uin
             uint32_t a = e[k][0], b = e[k][1];
             const float *pa = vp + (size_t)a * 4, *pb = vp + (size_t)b * 4;
             float dx = pa[0] - pb[0], dy = pa[1] - pb[1], dz = pa[2] - pb[2];
-            if (dx * dx + dy * dy + dz * dz < 0.49f) continue;
+            if (dx * dx + dy * dy + dz * dz < min_len * min_len) continue;
             if (fabsf(dy) < 0.06f && near_floor(pa[1]) && near_floor(pb[1])) ng++;
             else ns++;
         }
@@ -481,7 +482,7 @@ static bool build_blockout2_lines(scene_t *s, const float *vp, int vc, const uin
             uint32_t a = e[k][0], b = e[k][1];
             const float *pa = vp + (size_t)a * 4, *pb = vp + (size_t)b * 4;
             float dx = pa[0] - pb[0], dy = pa[1] - pb[1], dz = pa[2] - pb[2];
-            if (dx * dx + dy * dy + dz * dz < 0.49f) continue;
+            if (dx * dx + dy * dy + dz * dz < min_len * min_len) continue;
             int grid = fabsf(dy) < 0.06f && near_floor(pa[1]) && near_floor(pb[1]);
             int at = grid ? gi++ : si++;
             float *dst = pos + (size_t)at * 6;
@@ -628,7 +629,7 @@ static bool upload_scene(scene_t *s) {
         .data = { .ptr = ibuf, .size = ibytes },
         .label = "rpd-triangles",
     });
-    if (state.blockout2 && !build_blockout2_lines(s, (const float *)vbuf, (int)total_v, ibuf, (int)total_t)) {
+    if (state.wire_mode > 0 && !build_blockout2_lines(s, (const float *)vbuf, (int)total_v, ibuf, (int)total_t, state.wire_mode == 1 ? 2.5f : 0.7f)) {
         free(vbuf);
         free(ibuf);
         return false;
@@ -841,7 +842,7 @@ static void frame(void) {
             bf.line[0] = 0.52f;
             sg_apply_uniforms(1, &(sg_range){ &bf, sizeof(bf) });
             sg_draw(state.scene.structural_edges * 2, state.scene.grid_edges * 2, 1);
-        } else if (state.blockout2) {
+        } else if (state.wire_mode > 0) {
             block_fs_params_t bf = { 0 };
             bf.camera[0] = eye[0]; bf.camera[1] = eye[1]; bf.camera[2] = eye[2]; bf.camera[3] = fog_start;
             bf.fog[0] = fog_end;
@@ -1067,6 +1068,11 @@ EMSCRIPTEN_KEEPALIVE void rpd_set_blockout(int enabled) {
 
 EMSCRIPTEN_KEEPALIVE void rpd_set_blockout2(int enabled) {
     state.blockout2 = enabled != 0;
+}
+
+EMSCRIPTEN_KEEPALIVE void rpd_set_wire_mode(int mode) {
+    state.wire_mode = mode;
+    state.blockout2 = mode == 2;
 }
 
 EMSCRIPTEN_KEEPALIVE int rpd_load_scene(const uint8_t *data, int size) {
