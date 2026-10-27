@@ -22,6 +22,7 @@
 #define RPD_VERSION 2u
 #define MAX_FLOORS 3
 #define RPD_HEADER_SIZE 124
+#define RPD_PI 3.14159265358979323846f
 
 typedef struct {
     float m[16];
@@ -106,6 +107,17 @@ static struct {
     bool dragging;
     bool panning;
     bool user_moved;
+    bool fly_mode;
+    float fly_pos[3];
+    float fly_yaw;
+    float fly_pitch;
+    bool key_w;
+    bool key_a;
+    bool key_s;
+    bool key_d;
+    bool key_q;
+    bool key_e;
+    bool key_shift;
     float last_x;
     float last_y;
     float touch_pinch;
@@ -170,6 +182,44 @@ static void camera_eye(const camera_t *cam, float eye[3]) {
     eye[0] = cam->target[0] + cam->distance * cp * sinf(cam->yaw);
     eye[1] = cam->target[1] + cam->distance * sinf(cam->pitch);
     eye[2] = cam->target[2] + cam->distance * cp * cosf(cam->yaw);
+}
+
+static void camera_forward(float yaw, float pitch, float out[3]) {
+    float cp = cosf(pitch);
+    out[0] = cp * sinf(yaw);
+    out[1] = sinf(pitch);
+    out[2] = cp * cosf(yaw);
+}
+
+/* Right-click starts a free-fly camera. Its eye and orientation are seeded
+   from the current orbit camera so the view does not jump. Releasing the
+   button turns the current view back into an orbit around a point ahead. */
+static void fly_begin(void) {
+    if (state.fly_mode || !state.scene.loaded) return;
+    float eye[3];
+    camera_eye(&state.camera, eye);
+    state.fly_pos[0] = eye[0];
+    state.fly_pos[1] = eye[1];
+    state.fly_pos[2] = eye[2];
+    state.fly_yaw = state.camera.yaw + RPD_PI;
+    state.fly_pitch = -state.camera.pitch;
+    state.fly_mode = true;
+    state.dragging = false;
+    state.panning = false;
+}
+
+static void fly_end(void) {
+    if (!state.fly_mode) return;
+    float forward[3];
+    camera_forward(state.fly_yaw, state.fly_pitch, forward);
+    state.camera.yaw = state.fly_yaw - RPD_PI;
+    while (state.camera.yaw > RPD_PI) state.camera.yaw -= 2.0f * RPD_PI;
+    while (state.camera.yaw < -RPD_PI) state.camera.yaw += 2.0f * RPD_PI;
+    state.camera.pitch = -state.fly_pitch;
+    for (int i = 0; i < 3; i++) {
+        state.camera.target[i] = state.fly_pos[i] + forward[i] * state.camera.distance;
+    }
+    state.fly_mode = false;
 }
 
 /* ------------------------------------------------------------------------- */
@@ -484,6 +534,7 @@ static void create_pipelines(scene_t *s) {
 }
 
 static void reset_camera(void) {
+    state.fly_mode = false;
     const bounds_t *b = &state.scene.bounds;
     const scene_t *s = &state.scene;
     float mn[3] = { b->min[0], b->min[1], b->min[2] };
@@ -507,7 +558,10 @@ static void reset_camera(void) {
 }
 
 static void frame(void) {
-    state.time += 1.0f / 60.0f;
+    float dt = (float)sapp_frame_duration();
+    if (dt < 0.0f) dt = 0.0f;
+    if (dt > 0.1f) dt = 0.1f;
+    state.time += dt;
     if (state.scene.pending) {
         state.scene.pending = false;
         if (!upload_scene(&state.scene)) {
@@ -526,10 +580,54 @@ static void frame(void) {
 
     if (state.scene.loaded && state.scene.gpu_ready) {
         float eye[3];
-        camera_eye(&state.camera, eye);
+        float aim[3];
+        float fog_start;
+        float fog_end;
+        if (state.fly_mode) {
+            float forward[3];
+            camera_forward(state.fly_yaw, state.fly_pitch, forward);
+            float right[3] = { -forward[2], 0.0f, forward[0] };
+            float rl = sqrtf(right[0] * right[0] + right[2] * right[2]);
+            if (rl > 1e-5f) {
+                right[0] /= rl;
+                right[2] /= rl;
+            }
+            float mx = 0.0f;
+            float my = 0.0f;
+            float mz = 0.0f;
+            if (state.key_w) { mx += forward[0]; my += forward[1]; mz += forward[2]; }
+            if (state.key_s) { mx -= forward[0]; my -= forward[1]; mz -= forward[2]; }
+            if (state.key_d) { mx += right[0]; mz += right[2]; }
+            if (state.key_a) { mx -= right[0]; mz -= right[2]; }
+            if (state.key_q) my += 1.0f;
+            if (state.key_e) my -= 1.0f;
+            float len = sqrtf(mx * mx + my * my + mz * mz);
+            if (len > 1e-5f) {
+                float speed = 22.0f * (state.key_shift ? 3.0f : 1.0f);
+                float step = speed * dt / len;
+                state.fly_pos[0] += mx * step;
+                state.fly_pos[1] += my * step;
+                state.fly_pos[2] += mz * step;
+            }
+            eye[0] = state.fly_pos[0];
+            eye[1] = state.fly_pos[1];
+            eye[2] = state.fly_pos[2];
+            aim[0] = eye[0] + forward[0];
+            aim[1] = eye[1] + forward[1];
+            aim[2] = eye[2] + forward[2];
+            fog_start = state.scene_radius * 0.55f;
+            fog_end = state.scene_radius * 2.9f;
+        } else {
+            camera_eye(&state.camera, eye);
+            aim[0] = state.camera.target[0];
+            aim[1] = state.camera.target[1];
+            aim[2] = state.camera.target[2];
+            fog_start = state.camera.distance - state.scene_radius * 0.55f;
+            fog_end = state.camera.distance + state.scene_radius * 1.15f;
+        }
         float up[3] = { 0.0f, 1.0f, 0.0f };
         mat4 proj = mat4_perspective(0.62f, (float)sapp_width() / (float)sapp_height(), 0.5f, 1200.0f);
-        mat4 view = mat4_look_at(eye, state.camera.target, up);
+        mat4 view = mat4_look_at(eye, aim, up);
         mat4 vp = mat4_mul(proj, view);
 
         const scene_t *s = &state.scene;
@@ -544,8 +642,8 @@ static void frame(void) {
             fs.camera[0] = eye[0];
             fs.camera[1] = eye[1];
             fs.camera[2] = eye[2];
-            fs.camera[3] = state.camera.distance - state.scene_radius * 0.55f;
-            fs.fog[0] = state.camera.distance + state.scene_radius * 1.15f;
+            fs.camera[3] = fog_start;
+            fs.fog[0] = fog_end;
             fs.fog[1] = 1.0f;
             sg_apply_pipeline(s->fill_pip);
             sg_apply_bindings(&(sg_bindings){
@@ -610,7 +708,7 @@ static void init(void) {
     state.bloom.dirty = true;
     state.camera.yaw = -0.55f;
     state.camera.pitch = 0.72f;
-    state.camera.distance = 140.0f;
+    state.camera.distance = 133.0f;
     state.camera.target[1] = 12.0f;
 }
 
@@ -624,20 +722,32 @@ static void event(const sapp_event *e) {
     case SAPP_EVENTTYPE_MOUSE_DOWN:
         state.user_moved = true;
         if (e->mouse_button == SAPP_MOUSEBUTTON_LEFT) state.dragging = true;
-        if (e->mouse_button == SAPP_MOUSEBUTTON_RIGHT || e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) state.panning = true;
+        if (e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) fly_begin();
+        if (e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) state.panning = true;
         state.last_x = e->mouse_x;
         state.last_y = e->mouse_y;
         break;
     case SAPP_EVENTTYPE_MOUSE_UP:
         if (e->mouse_button == SAPP_MOUSEBUTTON_LEFT) state.dragging = false;
-        if (e->mouse_button == SAPP_MOUSEBUTTON_RIGHT || e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) state.panning = false;
+        if (e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) fly_end();
+        if (e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) state.panning = false;
+        break;
+    case SAPP_EVENTTYPE_MOUSE_LEAVE:
+        state.dragging = false;
+        state.panning = false;
+        fly_end();
         break;
     case SAPP_EVENTTYPE_MOUSE_MOVE: {
         float dx = e->mouse_x - state.last_x;
         float dy = e->mouse_y - state.last_y;
         state.last_x = e->mouse_x;
         state.last_y = e->mouse_y;
-        if (state.dragging) {
+        if (state.fly_mode) {
+            state.fly_yaw -= dx * 0.005f;
+            while (state.fly_yaw > RPD_PI) state.fly_yaw -= 2.0f * RPD_PI;
+            while (state.fly_yaw < -RPD_PI) state.fly_yaw += 2.0f * RPD_PI;
+            state.fly_pitch = fminf(1.45f, fmaxf(-1.45f, state.fly_pitch - dy * 0.005f));
+        } else if (state.dragging) {
             state.camera.yaw -= dx * 0.006f;
             state.camera.pitch = fminf(1.45f, fmaxf(0.08f, state.camera.pitch + dy * 0.006f));
         } else if (state.panning) {
@@ -660,7 +770,9 @@ static void event(const sapp_event *e) {
     }
     case SAPP_EVENTTYPE_MOUSE_SCROLL:
         state.user_moved = true;
-        state.camera.distance = fminf(700.0f, fmaxf(8.0f, state.camera.distance * (1.0f - e->scroll_y * 0.08f)));
+        if (!state.fly_mode) {
+            state.camera.distance = fminf(700.0f, fmaxf(8.0f, state.camera.distance * (1.0f - e->scroll_y * 0.08f)));
+        }
         break;
     case SAPP_EVENTTYPE_TOUCHES_BEGAN:
     case SAPP_EVENTTYPE_TOUCHES_MOVED:
@@ -718,10 +830,44 @@ static void event(const sapp_event *e) {
         break;
     }
     case SAPP_EVENTTYPE_KEY_DOWN:
-        if (e->key_code == SAPP_KEYCODE_R) {
+        switch (e->key_code) {
+        case SAPP_KEYCODE_W: state.key_w = true; break;
+        case SAPP_KEYCODE_A: state.key_a = true; break;
+        case SAPP_KEYCODE_S: state.key_s = true; break;
+        case SAPP_KEYCODE_D: state.key_d = true; break;
+        case SAPP_KEYCODE_Q: state.key_q = true; break;
+        case SAPP_KEYCODE_E: state.key_e = true; break;
+        case SAPP_KEYCODE_LEFT_SHIFT:
+        case SAPP_KEYCODE_RIGHT_SHIFT: state.key_shift = true; break;
+        case SAPP_KEYCODE_R:
+            fly_end();
+            state.dragging = false;
+            state.panning = false;
             state.user_moved = false;
             reset_camera();
+            break;
+        default: break;
         }
+        break;
+    case SAPP_EVENTTYPE_KEY_UP:
+        switch (e->key_code) {
+        case SAPP_KEYCODE_W: state.key_w = false; break;
+        case SAPP_KEYCODE_A: state.key_a = false; break;
+        case SAPP_KEYCODE_S: state.key_s = false; break;
+        case SAPP_KEYCODE_D: state.key_d = false; break;
+        case SAPP_KEYCODE_Q: state.key_q = false; break;
+        case SAPP_KEYCODE_E: state.key_e = false; break;
+        case SAPP_KEYCODE_LEFT_SHIFT:
+        case SAPP_KEYCODE_RIGHT_SHIFT: state.key_shift = false; break;
+        default: break;
+        }
+        break;
+    case SAPP_EVENTTYPE_UNFOCUSED:
+        state.key_w = state.key_a = state.key_s = state.key_d = false;
+        state.key_q = state.key_e = state.key_shift = false;
+        state.dragging = false;
+        state.panning = false;
+        fly_end();
         break;
     case SAPP_EVENTTYPE_RESIZED:
         state.bloom.dirty = true;

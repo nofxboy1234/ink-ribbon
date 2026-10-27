@@ -2,7 +2,7 @@
 
 A 3D wireframe map of the Raccoon Police Department, floors 1–3, extracted from
 *Resident Evil 2* (RT build) and rendered in the browser with sokol compiled to
-WebAssembly.
+WebAssembly. Orbit the model, pan it, or hold right-click and fly through it.
 
 ![RPD floors 1–3](docs/preview.jpg)
 
@@ -66,11 +66,19 @@ derived from `~/repos/reze`; see [docs/extraction.md](docs/extraction.md).
 | Input | Action |
 |---|---|
 | Left drag | Orbit |
-| Right or middle drag | Pan |
+| Middle drag | Pan |
 | Wheel / pinch | Zoom |
+| Hold right click + mouse | Free-look |
+| `W` / `S` (while flying) | Forward / back along the view |
+| `A` / `D` (while flying) | Strafe left / right |
+| `Q` / `E` (while flying) | Fly up / down |
+| `Shift` (while flying) | 3× fly speed |
 | `R` | Reset camera |
 | One-finger drag | Orbit |
 | Two-finger drag | Pan and pinch-zoom |
+
+Right click seeds the fly camera from the current orbit view. Releasing the
+button returns to orbit mode around a point ahead, so the transition is seamless.
 
 ## Deploy to Cloudflare
 

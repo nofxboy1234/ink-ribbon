@@ -62,6 +62,18 @@ floor view can be added without touching the asset.
 reset the camera. Drag scale is derived from the camera distance and the
 vertical FOV so a pixel of drag maps to a constant world distance.
 
+Holding the right mouse button enters a free-fly camera seeded from the current
+orbit eye and orientation:
+
+- mouse movement looks around;
+- `W`/`S` move along the view direction, `A`/`D` strafe horizontally;
+- `Q`/`E` move world-up/world-down;
+- left `Shift` multiplies speed by 3 (22 m/s base).
+
+Releasing the right button converts the current eye/orientation back into the
+orbit camera (target placed one orbit distance ahead), so the view does not
+jump. `fly_begin`/`fly_end` live next to `camera_eye` in `main.c`.
+
 ## Camera
 
 - Perspective, 0.62 rad vertical FOV.
