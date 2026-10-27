@@ -33,8 +33,8 @@ WebAssembly.
 ## Run it
 
 ```bash
-# Node 24.21+ is required by Void. This machine ships npm with omit=dev,
-# so install with:
+# Node 24.21+ is required by Void. If npm is configured with omit=dev,
+# install the build tooling explicitly:
 npm install --include=dev
 
 npm run dev
