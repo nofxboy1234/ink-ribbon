@@ -51,12 +51,14 @@ through `locateFile`.
    colour, adds a restrained radial background gradient, vignette and a little
    grain.
 
-Both wireframe scenes reuse the real RPDW v3 asset. At load they generate a
-position-only line buffer from long triangle edges: 2.5 m for `/blockout` and
-0.7 m for `/blockout2`. Horizontal floor edges go into a dimmer range. The
-renderer draws translucent real fill with distance-based alpha, then bright
-structural edges and the dim floor edges. The real page keeps the normal solid
-draw range.
+`/blockout` uses an RPDW v4 asset with per-room wall panels, floor plates and
+source stair triangles. A fill pipeline draws translucent white surfaces with
+distance-based alpha, then a line pipeline draws bright structural edges and a
+dimmer floor-edge range.
+
+`/blockout2` reuses the real RPDW v3 asset. At load it generates a position-only
+line buffer from triangle edges longer than 0.7 m and draws the same translucent
+fill plus white edges. The real page keeps the normal solid draw range.
 
 ## Input
 

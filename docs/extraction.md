@@ -275,19 +275,34 @@ and the material palette.
   different subdivision/header layouts.
 - `data/raw/` is not committed; `public/rpd/rpd.bin` is the derived scene.
 
-## 7. Wireframe modes
+## 7. Simplified blockout
 
-Both `/blockout` and `/blockout2` use the full real `rpd.bin`; there is no
-second mesh asset. In either mode the loader builds a line buffer from the
-triangle edges in the expanded real mesh:
+`/blockout` uses a separate RPDW v4 asset, `public/rpd/blockout.bin`, built by
+`tools/build_blockout.py`.
 
-- `/blockout` keeps edges longer than 2.5 m for a simplified structural plan.
-- `/blockout2` keeps edges longer than 0.7 m for the detailed original.
-- Horizontal edges at the three floor heights go into the dim floor-edge range.
-- All other kept edges are structural white lines.
-- The blockout fill and line shaders draw them with the same distance fade and
-  translucency.
+- Each real room mesh is processed separately: its vertical wall triangles are
+  projected into wall bands, and the bands become 1.5 m panel boxes with the
+  source door and window gaps.
+- Floors are 3 m plates derived from the real room floor masks.
+- Stair surfaces come directly from the source stair triangles, so their
+  positions and angles are the original ones. Vertical railing/stringer
+  triangles are excluded.
+- Roofs and ceilings are omitted.
+- Output: 26,719 vertices, 31,311 triangles, 38,283 structural edges and 1,028
+  floor edges, 1.01 MB.
 
-Because the walls, stairs, doors and roof come from the original mesh, the
-layout is exact and no walls, openings or staircases are invented or omitted.
-The real page at `/` remains the full solid-colour scene.
+The blockout renderer draws translucent white fills with distance-based alpha,
+bright structural edges and a dimmer floor-edge range.
+
+Build it with:
+
+```bash
+npm run blockout
+```
+
+## 8. Original-geometry wireframe
+
+`/blockout2` uses the full real `rpd.bin`. At load it builds a line buffer from
+triangle edges longer than 0.7 m, classifies horizontal floor edges into the
+dim range, and draws the original fill plus white edges. This preserves the
+complete original layout and detail; no extra asset is shipped for it.

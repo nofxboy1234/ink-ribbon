@@ -1,3 +1,5 @@
-# Development-only extraction pipeline (Python 3.11+).
+# Development-only extraction / blockout pipeline (Python 3.11+).
 zstandard>=0.23
 numpy>=2.0
+pillow>=11.0
+scikit-image>=0.25

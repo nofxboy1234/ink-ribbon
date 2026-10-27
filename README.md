@@ -5,11 +5,11 @@ floors 1–3, rendered in the browser with sokol compiled to WebAssembly. The
 surfaces are not textured; each source material uses one simple flat colour.
 Orbit the model, pan it, or hold right-click and fly through it.
 
-A second scene at **`/blockout`** renders the original geometry as a simplified
-white wireframe: long structural edges over black, translucent near surfaces
-and dim floor edges. **`/blockout2`** renders the same geometry with all longer
-detail edges. The real scene is untouched. A green FPS counter sits at the top
-right of all scenes.
+A second scene at **`/blockout`** is a simplified architectural blockout built
+from the real room geometry: panel walls, doors and windows, floor plates and
+stairs in their source positions. **`/blockout2`** renders the full original
+mesh as a white wireframe. The real scene is untouched. A green FPS counter
+sits at the top right of all scenes.
 
 ![RPD floors 1–3](docs/preview.jpg)
 
@@ -29,10 +29,10 @@ right of all scenes.
   solid triangles in a simple key/fill/hemisphere light, with one flat colour per
   source material, then composites a restrained background gradient. No material
   textures are sampled.
-- **Blockout scene** — `/blockout` loads the full `rpd.bin` and keeps triangle
-  edges longer than 2.5 m, so the walls, stairs and room layout are the original
-  ones with only the larger structural lines drawn.
-- **Original-geometry wireframe** — `/blockout2` uses the same real asset with a
+- **Blockout scene** — `/blockout` uses a simplified RPDW v4 asset derived from
+  the real room meshes: per-room wall panels with real openings, 3 m floor
+  plates and the real stair surfaces.
+- **Original-geometry wireframe** — `/blockout2` uses the full real asset with a
   0.7 m edge threshold, showing the original layout with more detail.
 - **Web app** — React 19 + TypeScript on [Void](https://github.com/voidzero-dev/void)
   1.3.0 (Vite 8) targeting Cloudflare Workers. Once the scene is loaded the
@@ -75,6 +75,9 @@ uv run --with zstandard python tools/extract_rpd.py
 
 # 2. build public/rpd/rpd.bin from data/raw/rpd
 uv run --with numpy python tools/build_real.py
+
+# 3. build the simplified blockout from the real room geometry
+npm run blockout
 
 npm run wasm   # only needed after changing native/main.c
 ```
@@ -123,6 +126,7 @@ tools/extract_rpd.py       PAK lookup + extraction of the 49 RPD meshes
 tools/re_pak.py            minimal KPKA v4 reader (Murmur3 path hashes)
 tools/remesh.py            RE2 RT .mesh parser (LODs, groups, submeshes, buffers)
 tools/build_real.py        real LOD-0 geometry, flat material colours, RPDW v3 writer
+tools/build_blockout.py    simplified per-room blockout, RPDW v4 writer
 tools/rpd_floor_meshes.txt exact PAK paths for floors 1-3
 native/main.c              sokol app: camera, input, solid-colour geometry pass
 native/third_party/sokol   vendored sokol headers (pinned commit)
@@ -133,6 +137,7 @@ pages/index.tsx            real-geometry page
 pages/blockout.tsx         wireframe blockout page (/blockout)
 pages/blockout2.tsx        original-geometry wireframe (/blockout2)
 public/rpd/rpd.bin         real RPD geometry + vertex colours (20.2 MB)
+public/rpd/blockout.bin    simplified per-room blockout (1.0 MB)
 public/rpd/rpd.wasm        compiled sokol renderer
 ```
 
@@ -154,13 +159,13 @@ Raw source: 1,790,053 triangles and 2,059,499 vertices. The asset holds
 expands the chunks into one indexed mesh and draws it in a single call. No
 textures, no simplification, no wireframe edge pass.
 
-`/blockout` and `/blockout2` both use the real asset. At load, blockout mode
-builds a line buffer from triangle edges: `/blockout` keeps edges longer than
-2.5 m for a simplified structural plan, while `/blockout2` keeps edges longer
-than 0.7 m. Horizontal edges at the three floor heights go into a dimmer grid
-range. Both modes draw translucent white fills with distance-based alpha and
-white structural lines over black. All three scenes share the camera, fog,
-controls and FPS counter.
+`/blockout` is a separate RPDW v4 asset built by `tools/build_blockout.py`. The
+builder reads each real room mesh, projects its vertical wall triangles into
+per-room wall bands, and emits 1.5 m panel boxes with the source door/window
+gaps. Floors are 3 m plates and the stair geometry comes directly from the
+source stair triangles. `/blockout2` is the real RPDW v3 asset with a 0.7 m
+detail-edge line buffer. All three scenes share the camera, fog, controls and
+FPS counter.
 
 ## Assets and licensing
 

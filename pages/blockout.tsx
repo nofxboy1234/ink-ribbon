@@ -4,9 +4,9 @@ import "./style.css";
 export default function Page() {
   return (
     <RpdScene
-      assetUrl="/rpd/rpd.bin"
+      assetUrl="/rpd/blockout.bin"
       mode="blockout"
-      label="The original RPD geometry as a simplified white wireframe"
+      label="RPD floors one to three as a simplified white wireframe blockout"
     />
   );
 }
