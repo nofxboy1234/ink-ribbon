@@ -58,9 +58,7 @@ A fill pipeline draws translucent white surfaces with
 distance-based alpha, then a line pipeline draws bright structural edges and a
 dimmer floor-edge range.
 
-`/blockout2` reuses the real RPDW v3 asset. At load it generates a position-only
-line buffer from triangle edges longer than 0.7 m and draws the same translucent
-fill plus white edges. The real page keeps the normal solid draw range.
+The real page keeps the normal solid draw range.
 
 ## Input
 

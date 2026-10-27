@@ -66,12 +66,7 @@ typedef struct {
     sg_buffer edge_ibuf;
     sg_pipeline pip;
     sg_pipeline block_fill_pip;
-    sg_pipeline block_fill_real_pip;
     sg_pipeline block_line_pip;
-    sg_buffer line_vbuf;
-    sg_buffer line_ibuf;
-    int line_struct_count;
-    int line_grid_count;
 } scene_t;
 
 typedef struct {
@@ -107,8 +102,6 @@ static struct {
     float last_x, last_y, touch_pinch;
     float fly_speed;
     bool blockout;
-    bool blockout2;
-    int wire_mode;
 } state;
 
 /* ------------------------------------------------------------------------- */
@@ -451,66 +444,6 @@ static sg_pipeline make_pipeline(sg_shader shader) {
     return sg_make_pipeline(&pd);
 }
 
-static bool near_floor(float y) {
-    return fabsf(y) < 0.16f || fabsf(y - 5.0f) < 0.16f || fabsf(y - 10.25f) < 0.16f;
-}
-
-static bool build_blockout2_lines(scene_t *s, const float *vp, int vc, const uint32_t *idx, int tc, float min_len) {
-    int ns = 0, ng = 0;
-    for (int t = 0; t < tc; t++) {
-        uint32_t i0 = idx[t * 3 + 0], i1 = idx[t * 3 + 1], i2 = idx[t * 3 + 2];
-        uint32_t e[3][2] = { { i0, i1 }, { i1, i2 }, { i2, i0 } };
-        for (int k = 0; k < 3; k++) {
-            uint32_t a = e[k][0], b = e[k][1];
-            const float *pa = vp + (size_t)a * 4, *pb = vp + (size_t)b * 4;
-            float dx = pa[0] - pb[0], dy = pa[1] - pb[1], dz = pa[2] - pb[2];
-            if (dx * dx + dy * dy + dz * dz < min_len * min_len) continue;
-            if (fabsf(dy) < 0.06f && near_floor(pa[1]) && near_floor(pb[1])) ng++;
-            else ns++;
-        }
-    }
-    if (ns + ng == 0) return true;
-    int n = ns + ng;
-    float *pos = (float *)malloc((size_t)n * 6 * sizeof(float));
-    uint32_t *li = (uint32_t *)malloc((size_t)n * 2 * sizeof(uint32_t));
-    if (!pos || !li) { free(pos); free(li); return false; }
-    int si = 0, gi = ns;
-    for (int t = 0; t < tc; t++) {
-        uint32_t i0 = idx[t * 3 + 0], i1 = idx[t * 3 + 1], i2 = idx[t * 3 + 2];
-        uint32_t e[3][2] = { { i0, i1 }, { i1, i2 }, { i2, i0 } };
-        for (int k = 0; k < 3; k++) {
-            uint32_t a = e[k][0], b = e[k][1];
-            const float *pa = vp + (size_t)a * 4, *pb = vp + (size_t)b * 4;
-            float dx = pa[0] - pb[0], dy = pa[1] - pb[1], dz = pa[2] - pb[2];
-            if (dx * dx + dy * dy + dz * dz < min_len * min_len) continue;
-            int grid = fabsf(dy) < 0.06f && near_floor(pa[1]) && near_floor(pb[1]);
-            int at = grid ? gi++ : si++;
-            float *dst = pos + (size_t)at * 6;
-            dst[0] = pa[0]; dst[1] = pa[1]; dst[2] = pa[2];
-            dst[3] = pb[0]; dst[4] = pb[1]; dst[5] = pb[2];
-        }
-    }
-    for (int i = 0; i < n * 2; i++) li[i] = (uint32_t)i;
-    s->line_struct_count = ns;
-    s->line_grid_count = ng;
-    s->line_vbuf = sg_make_buffer(&(sg_buffer_desc){
-        .size = (size_t)n * 6 * sizeof(float),
-        .data = { .ptr = pos, .size = (size_t)n * 6 * sizeof(float) },
-        .label = "blockout2-lines",
-    });
-    s->line_ibuf = sg_make_buffer(&(sg_buffer_desc){
-        .usage = { .index_buffer = true },
-        .size = (size_t)n * 2 * sizeof(uint32_t),
-        .data = { .ptr = li, .size = (size_t)n * 2 * sizeof(uint32_t) },
-        .label = "blockout2-line-indices",
-    });
-    free(pos);
-    free(li);
-    (void)vc;
-    return sg_query_buffer_state(s->line_vbuf) == SG_RESOURCESTATE_VALID &&
-           sg_query_buffer_state(s->line_ibuf) == SG_RESOURCESTATE_VALID;
-}
-
 static bool upload_blockout(scene_t *s, const uint8_t *p, size_t size) {
     if (size < 104) return false;
     uint32_t vc = *(const uint32_t *)(p + 8);
@@ -629,11 +562,6 @@ static bool upload_scene(scene_t *s) {
         .data = { .ptr = ibuf, .size = ibytes },
         .label = "rpd-triangles",
     });
-    if (state.wire_mode > 0 && !build_blockout2_lines(s, (const float *)vbuf, (int)total_v, ibuf, (int)total_t, state.wire_mode == 1 ? 2.5f : 0.7f)) {
-        free(vbuf);
-        free(ibuf);
-        return false;
-    }
     free(vbuf);
     free(ibuf);
     if (sg_query_buffer_state(s->vbuf) != SG_RESOURCESTATE_VALID ||
@@ -745,7 +673,6 @@ static void create_pipelines(scene_t *s) {
     sd.uniform_blocks[1].glsl_uniforms[2].glsl_name = "u_line";
     sg_shader block_line_shd = sg_make_shader(&sd);
     s->block_line_pip = make_block_pipeline(block_line_shd, true, 12);
-    s->block_fill_real_pip = make_block_pipeline(block_fill_shd, false, 16);
 }
 
 static void reset_camera(void) {
@@ -842,32 +769,6 @@ static void frame(void) {
             bf.line[0] = 0.52f;
             sg_apply_uniforms(1, &(sg_range){ &bf, sizeof(bf) });
             sg_draw(state.scene.structural_edges * 2, state.scene.grid_edges * 2, 1);
-        } else if (state.wire_mode > 0) {
-            block_fs_params_t bf = { 0 };
-            bf.camera[0] = eye[0]; bf.camera[1] = eye[1]; bf.camera[2] = eye[2]; bf.camera[3] = fog_start;
-            bf.fog[0] = fog_end;
-            sg_apply_pipeline(state.scene.block_fill_real_pip);
-            sg_apply_bindings(&(sg_bindings){
-                .vertex_buffers[0] = state.scene.vbuf,
-                .index_buffer = state.scene.tri_ibuf,
-            });
-            sg_apply_uniforms(0, &(sg_range){ &vs, sizeof(vs) });
-            sg_apply_uniforms(1, &(sg_range){ &bf, sizeof(bf) });
-            sg_draw(0, state.scene.triangle_count * 3, 1);
-            if (state.scene.line_struct_count + state.scene.line_grid_count > 0) {
-                sg_apply_pipeline(state.scene.block_line_pip);
-                sg_apply_bindings(&(sg_bindings){
-                    .vertex_buffers[0] = state.scene.line_vbuf,
-                    .index_buffer = state.scene.line_ibuf,
-                });
-                bf.line[0] = 1.0f;
-                sg_apply_uniforms(0, &(sg_range){ &vs, sizeof(vs) });
-                sg_apply_uniforms(1, &(sg_range){ &bf, sizeof(bf) });
-                sg_draw(0, state.scene.line_struct_count * 2, 1);
-                bf.line[0] = 0.48f;
-                sg_apply_uniforms(1, &(sg_range){ &bf, sizeof(bf) });
-                sg_draw(state.scene.line_struct_count * 2, state.scene.line_grid_count * 2, 1);
-            }
         } else {
             fs_params_t fs = { 0 };
             fs.camera[0] = eye[0]; fs.camera[1] = eye[1]; fs.camera[2] = eye[2]; fs.camera[3] = fog_start;
@@ -1066,14 +967,7 @@ EMSCRIPTEN_KEEPALIVE void rpd_set_blockout(int enabled) {
     state.blockout = enabled != 0;
 }
 
-EMSCRIPTEN_KEEPALIVE void rpd_set_blockout2(int enabled) {
-    state.blockout2 = enabled != 0;
-}
 
-EMSCRIPTEN_KEEPALIVE void rpd_set_wire_mode(int mode) {
-    state.wire_mode = mode;
-    state.blockout2 = mode == 2;
-}
 
 EMSCRIPTEN_KEEPALIVE int rpd_load_scene(const uint8_t *data, int size) {
     if (!data || size <= 0) return -1;

@@ -288,8 +288,11 @@ and the material palette.
   footprints. The two main-hall flights are placed from the hall's sloped
   `HallFloor02` strips.
 - Roofs and ceilings are omitted.
-- Output: 19,273 vertices, 27,072 triangles, 25,208 structural edges and 1,028
-  floor edges, 0.77 MB.
+- Blender assembles the walls, floor plates and stair planes, then exports the
+  simplified geometry back to OBJ; `tools/obj_to_blockout.py` writes the RPDW v4
+  asset.
+- Output: 24,146 vertices, 27,072 triangles, 28,685 structural edges and 1,732
+  floor edges, 0.86 MB.
 
 The blockout renderer draws translucent white fills with distance-based alpha,
 bright structural edges and a dimmer floor-edge range.
@@ -300,9 +303,7 @@ Build it with:
 npm run blockout
 ```
 
-## 8. Original-geometry wireframe
+The command writes the spec, exports the original architectural OBJ, opens it
+in headless Blender to replace the geometry, then converts the Blender export
+into the renderer asset.
 
-`/blockout2` uses the full real `rpd.bin`. At load it builds a line buffer from
-triangle edges longer than 0.7 m, classifies horizontal floor edges into the
-dim range, and draws the original fill plus white edges. This preserves the
-complete original layout and detail; no extra asset is shipped for it.

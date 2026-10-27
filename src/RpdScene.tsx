@@ -6,8 +6,6 @@ type RpdModule = {
   _free: (ptr: number) => void;
   _rpd_load_scene: (ptr: number, size: number) => number;
   _rpd_set_blockout: (enabled: number) => void;
-  _rpd_set_blockout2: (enabled: number) => void;
-  _rpd_set_wire_mode: (mode: number) => void;
 };
 
 type RpdFactory = (options: {
@@ -50,7 +48,7 @@ const nextFrame = () =>
 type RpdSceneProps = {
   assetUrl?: string;
   label?: string;
-  mode?: "real" | "blockout" | "blockout2";
+  mode?: "real" | "blockout";
 };
 
 export default function RpdScene({
@@ -110,7 +108,7 @@ export default function RpdScene({
         });
         if (cancelled) return;
 
-        module._rpd_set_wire_mode(mode === "blockout" ? 1 : mode === "blockout2" ? 2 : 0);
+        module._rpd_set_blockout(mode === "blockout" ? 1 : 0);
 
         if (import.meta.env.DEV) {
           (window as unknown as { __rpd?: RpdModule }).__rpd = module;

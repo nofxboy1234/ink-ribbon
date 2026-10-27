@@ -335,6 +335,76 @@ class MeshWriter:
             self.edge(u, v, self.EDGE_STRUCT)
 
 
+class SpecWriter:
+    """Collect simplified primitives for the Blender assembly pass."""
+    EDGE_STRUCT = 0
+    EDGE_GRID = 1
+
+    def __init__(self):
+        self.walls = []
+        self.floors = []
+        self.stairs = []
+        self.lines = []
+        self.triangles = []
+
+    def tri(self, a, b, c):
+        pass
+
+    def vert(self, x, y, z, colour=None):
+        return 0
+
+    def edge(self, a, b, kind=EDGE_STRUCT):
+        pass
+
+    def _line(self, p, q, kind=EDGE_STRUCT):
+        self.lines.append([[float(p[0]), float(p[1]), float(p[2])],
+                           [float(q[0]), float(q[1]), float(q[2])], kind])
+
+    def box(self, x0, x1, y0, y1, z0, z1, colour=None, kind=EDGE_STRUCT):
+        self.walls.append([x0, x1, y0, y1, z0, z1])
+
+    def wall_box_h(self, x0, x1, y0, y1, z0, z1):
+        n = max(1, int(math.ceil((x1 - x0) / PANEL)))
+        w = (x1 - x0) / n
+        for i in range(n):
+            self.box(x0 + i * w, x0 + (i + 1) * w, y0, y1, z0, z1)
+        if y1 - y0 > 2.2:
+            ym = y0 + 1.6
+            for z in (z0, z1):
+                self._line((x0, ym, z), (x1, ym, z), self.EDGE_STRUCT)
+
+    def wall_box_v(self, z0, z1, y0, y1, x0, x1):
+        n = max(1, int(math.ceil((z1 - z0) / PANEL)))
+        w = (z1 - z0) / n
+        for i in range(n):
+            self.box(x0, x1, y0, y1, z0 + i * w, z0 + (i + 1) * w)
+        if y1 - y0 > 2.2:
+            ym = y0 + 1.6
+            for x in (x0, x1):
+                self._line((x, ym, z0), (x, ym, z1), self.EDGE_STRUCT)
+
+    def plane(self, p0, p1, p2, p3, kind=EDGE_GRID):
+        self.floors.append([list(p0), list(p1), list(p2), list(p3)])
+
+    def stair_plane(self, long_x, a_bottom, a_top, b0, b1, y0, y1):
+        if long_x:
+            p0 = (a_bottom, y0, b0); p1 = (a_bottom, y0, b1)
+            p2 = (a_top, y1, b1); p3 = (a_top, y1, b0)
+        else:
+            p0 = (b0, y0, a_bottom); p1 = (b1, y0, a_bottom)
+            p2 = (b1, y1, a_top); p3 = (b0, y1, a_top)
+        self.stairs.append([list(p0), list(p1), list(p2), list(p3)])
+        steps = max(2, int(round(abs(y1 - y0) / 0.30)))
+        for i in range(1, steps):
+            t = i / steps
+            y = y0 + (y1 - y0) * t
+            a = a_bottom + (a_top - a_bottom) * t
+            if long_x:
+                self._line((a, y, b0), (a, y, b1), self.EDGE_STRUCT)
+            else:
+                self._line((b0, y, a), (b1, y, a), self.EDGE_STRUCT)
+
+
 # ---------------------------------------------------------------------------
 # read + classify
 # ---------------------------------------------------------------------------
@@ -1251,6 +1321,7 @@ def prune_stairs(flights):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-walls", action="store_true")
+    parser.add_argument("--spec", action="store_true")
     args = parser.parse_args()
 
     rooms = load_rooms()
@@ -1306,7 +1377,7 @@ def main():
             if floor + 1 < 3:
                 stair_cut[floor + 1] |= rect_mask(x0, x1, z0, z1, pad=0.7)
 
-    writer = MeshWriter()
+    writer = SpecWriter() if args.spec else MeshWriter()
     stats = []
     for floor, level in enumerate(LEVELS):
         tri_start = len(writer.triangles) // 3
@@ -1327,6 +1398,15 @@ def main():
             }
         )
 
+    if args.spec:
+        out = {"walls": writer.walls, "floors": writer.floors,
+               "stairs": writer.stairs, "lines": writer.lines}
+        out_path = ROOT / "build" / "blockout_spec.json"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(out), encoding="utf-8")
+        print(f"wrote {out_path.relative_to(ROOT)}: {len(writer.walls)} walls, "
+              f"{len(writer.floors)} floor tiles, {len(writer.stairs)} stairs")
+        return
     nv = len(writer.positions) // 3
     nt = len(writer.triangles) // 3
     es = len(writer.struct_edges) // 2

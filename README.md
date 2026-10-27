@@ -6,16 +6,13 @@ surfaces are not textured; each source material uses one simple flat colour.
 Orbit the model, pan it, or hold right-click and fly through it.
 
 A second scene at **`/blockout`** is a simplified architectural blockout built
-from the real room geometry: panel walls, doors and windows, floor plates and
-stairs in their source positions. **`/blockout2`** renders the full original
-mesh as a white wireframe. The real scene is untouched. A green FPS counter
-sits at the top right of all scenes.
+from the original room geometry: panel walls, doors and windows, floor plates
+and stairs in their source positions. The real scene is untouched. A green FPS
+counter sits at the top right of both scenes.
 
 ![RPD floors 1–3](docs/preview.jpg)
 
 ![RPD wireframe blockout](docs/blockout.jpg)
-
-![RPD original geometry wireframe](docs/blockout2.jpg)
 
 ## What is in here
 
@@ -32,8 +29,6 @@ sits at the top right of all scenes.
 - **Blockout scene** — `/blockout` uses a simplified RPDW v4 asset derived from
   the real room meshes: per-room wall panels with real openings, 3 m floor
   plates, and simple stair planes on the source stair footprints.
-- **Original-geometry wireframe** — `/blockout2` uses the full real asset with a
-  0.7 m edge threshold, showing the original layout with more detail.
 - **Web app** — React 19 + TypeScript on [Void](https://github.com/voidzero-dev/void)
   1.3.0 (Vite 8) targeting Cloudflare Workers. Once the scene is loaded the
   page is only the canvas; no labels or UI sit on top of it.
@@ -126,7 +121,10 @@ tools/extract_rpd.py       PAK lookup + extraction of the 49 RPD meshes
 tools/re_pak.py            minimal KPKA v4 reader (Murmur3 path hashes)
 tools/remesh.py            RE2 RT .mesh parser (LODs, groups, submeshes, buffers)
 tools/build_real.py        real LOD-0 geometry, flat material colours, RPDW v3 writer
-tools/build_blockout.py    simplified per-room blockout, RPDW v4 writer
+tools/build_blockout.py    blockout wall/floor/stair spec from room geometry
+tools/export_original_obj.py  original architectural geometry -> Blender OBJ
+tools/blockout_blender.py  replace geometry in Blender, export simplified OBJ
+tools/obj_to_blockout.py   Blender OBJ -> RPDW v4 blockout asset
 tools/rpd_floor_meshes.txt exact PAK paths for floors 1-3
 native/main.c              sokol app: camera, input, solid-colour geometry pass
 native/third_party/sokol   vendored sokol headers (pinned commit)
@@ -135,9 +133,8 @@ src/RpdScene.tsx           React canvas + WASM loader with progress
 src/wasm/rpd.js            generated Emscripten ES module (committed for deploy)
 pages/index.tsx            real-geometry page
 pages/blockout.tsx         wireframe blockout page (/blockout)
-pages/blockout2.tsx        original-geometry wireframe (/blockout2)
 public/rpd/rpd.bin         real RPD geometry + vertex colours (20.2 MB)
-public/rpd/blockout.bin    simplified per-room blockout (0.77 MB)
+public/rpd/blockout.bin    Blender-assembled blockout (0.86 MB)
 public/rpd/rpd.wasm        compiled sokol renderer
 ```
 
@@ -159,13 +156,11 @@ Raw source: 1,790,053 triangles and 2,059,499 vertices. The asset holds
 expands the chunks into one indexed mesh and draws it in a single call. No
 textures, no simplification, no wireframe edge pass.
 
-`/blockout` is a separate RPDW v4 asset built by `tools/build_blockout.py`. The
-builder reads each real room mesh, projects its vertical wall triangles into
-per-room wall bands, and emits 1.5 m panel boxes with the source door/window
-gaps. Floors are 3 m plates; stairs are simple sloped planes on the source
-footprints, including the two main-hall flights. `/blockout2` is the real RPDW v3 asset with a 0.7 m
-detail-edge line buffer. All three scenes share the camera, fog, controls and
-FPS counter.
+`/blockout` starts from a spec generated from the original room meshes. The
+spec is assembled in Blender as panel walls, 3 m floor plates and simple stair
+planes, then exported as OBJ and converted to the RPDW v4 blockout asset. The
+two main-hall flights are placed from the hall's real sloped floor strips.
+Both scenes share the camera, fog, controls and FPS counter.
 
 ## Assets and licensing
 
