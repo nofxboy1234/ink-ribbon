@@ -9,7 +9,6 @@
 #include <emscripten/emscripten.h>
 #include <math.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -20,7 +19,6 @@
 #include "sokol_glue.h"
 #include "sokol_log.h"
 
-#define RPD_MAGIC 0x57504452u /* "RPDW" */
 #define RPD_VERSION 2u
 #define MAX_FLOORS 3
 #define RPD_HEADER_SIZE 124
@@ -105,8 +103,6 @@ static struct {
     scene_t scene;
     camera_t camera;
     float scene_radius;
-    int width;
-    int height;
     bool dragging;
     bool panning;
     bool user_moved;
@@ -118,11 +114,6 @@ static struct {
 /* ------------------------------------------------------------------------- */
 /* math                                                                      */
 /* ------------------------------------------------------------------------- */
-
-static void mat4_identity(mat4 *m) {
-    memset(m, 0, sizeof(*m));
-    m->m[0] = m->m[5] = m->m[10] = m->m[15] = 1.0f;
-}
 
 static mat4 mat4_mul(mat4 a, mat4 b) {
     mat4 out;
@@ -733,8 +724,6 @@ static void event(const sapp_event *e) {
         }
         break;
     case SAPP_EVENTTYPE_RESIZED:
-        state.width = sapp_width();
-        state.height = sapp_height();
         state.bloom.dirty = true;
         if (!state.user_moved && state.scene.loaded) reset_camera();
         break;
@@ -744,8 +733,6 @@ static void event(const sapp_event *e) {
 }
 
 static void init_cb(void) {
-    state.width = sapp_width();
-    state.height = sapp_height();
     init();
 }
 
