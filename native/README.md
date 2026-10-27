@@ -66,7 +66,7 @@ orbit eye and orientation:
 - mouse movement looks around;
 - `W`/`S` move along the view direction, `A`/`D` strafe horizontally;
 - `Q`/`E` move world-up/world-down;
-- left `Shift` multiplies speed by 3 (22 m/s base).
+- the scroll wheel adjusts fly speed (22 m/s default, 2–140 m/s range).
 
 Releasing the right button converts the current eye/orientation back into the
 orbit camera (target placed one orbit distance ahead), so the view does not

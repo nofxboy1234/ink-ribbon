@@ -77,7 +77,7 @@ derived from `~/repos/reze`; see [docs/extraction.md](docs/extraction.md).
 | `W` / `S` (while flying) | Forward / back along the view |
 | `A` / `D` (while flying) | Strafe left / right |
 | `Q` / `E` (while flying) | Fly up / down |
-| `Shift` (while flying) | 3× fly speed |
+| Scroll wheel (while flying) | Increase / decrease fly speed |
 | `R` | Reset camera |
 | One-finger drag | Orbit |
 | Two-finger drag | Pan and pinch-zoom |

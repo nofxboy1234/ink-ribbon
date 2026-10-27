@@ -86,8 +86,9 @@ static struct {
     float fly_pos[3];
     float fly_yaw;
     float fly_pitch;
-    bool key_w, key_a, key_s, key_d, key_q, key_e, key_shift;
+    bool key_w, key_a, key_s, key_d, key_q, key_e;
     float last_x, last_y, touch_pinch;
+    float fly_speed;
 } state;
 
 /* ------------------------------------------------------------------------- */
@@ -537,8 +538,7 @@ static void frame(void) {
             if (state.key_e) my -= 1.0f;
             float len = sqrtf(mx * mx + my * my + mz * mz);
             if (len > 1e-5f) {
-                float speed = 22.0f * (state.key_shift ? 3.0f : 1.0f);
-                float step = speed * dt / len;
+                float step = state.fly_speed * dt / len;
                 state.fly_pos[0] += mx * step;
                 state.fly_pos[1] += my * step;
                 state.fly_pos[2] += mz * step;
@@ -602,6 +602,7 @@ static void init(void) {
     state.camera.pitch = 0.62f;
     state.camera.distance = 150.0f;
     state.camera.target[1] = 10.0f;
+    state.fly_speed = 22.0f;
 }
 
 static void cleanup(void) {
@@ -663,8 +664,11 @@ static void event(const sapp_event *e) {
     }
     case SAPP_EVENTTYPE_MOUSE_SCROLL:
         state.user_moved = true;
-        if (!state.fly_mode)
+        if (state.fly_mode) {
+            state.fly_speed = fminf(140.0f, fmaxf(2.0f, state.fly_speed * powf(1.22f, e->scroll_y)));
+        } else {
             state.camera.distance = fminf(700.0f, fmaxf(8.0f, state.camera.distance * (1.0f - e->scroll_y * 0.08f)));
+        }
         break;
     case SAPP_EVENTTYPE_TOUCHES_BEGAN:
     case SAPP_EVENTTYPE_TOUCHES_MOVED:
@@ -715,8 +719,6 @@ static void event(const sapp_event *e) {
         case SAPP_KEYCODE_D: state.key_d = true; break;
         case SAPP_KEYCODE_Q: state.key_q = true; break;
         case SAPP_KEYCODE_E: state.key_e = true; break;
-        case SAPP_KEYCODE_LEFT_SHIFT:
-        case SAPP_KEYCODE_RIGHT_SHIFT: state.key_shift = true; break;
         case SAPP_KEYCODE_R:
             fly_end(); state.dragging = false; state.panning = false; state.user_moved = false; reset_camera();
             break;
@@ -731,14 +733,12 @@ static void event(const sapp_event *e) {
         case SAPP_KEYCODE_D: state.key_d = false; break;
         case SAPP_KEYCODE_Q: state.key_q = false; break;
         case SAPP_KEYCODE_E: state.key_e = false; break;
-        case SAPP_KEYCODE_LEFT_SHIFT:
-        case SAPP_KEYCODE_RIGHT_SHIFT: state.key_shift = false; break;
         default: break;
         }
         break;
     case SAPP_EVENTTYPE_UNFOCUSED:
         state.key_w = state.key_a = state.key_s = state.key_d = false;
-        state.key_q = state.key_e = state.key_shift = false;
+        state.key_q = state.key_e = false;
         state.dragging = false;
         state.panning = false;
         fly_end();
