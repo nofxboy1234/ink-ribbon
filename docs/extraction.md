@@ -284,12 +284,12 @@ and the material palette.
   projected into wall bands, and the bands become 1.5 m panel boxes with the
   source door and window gaps.
 - Floors are 3 m plates derived from the real room floor masks.
-- Stair surfaces come directly from the source stair triangles, so their
-  positions and angles are the original ones. Vertical railing/stringer
-  triangles are excluded.
+- Stairs are simple sloped planes with tread lines, fitted to the source stair
+  footprints. The two main-hall flights are placed from the hall's sloped
+  `HallFloor02` strips.
 - Roofs and ceilings are omitted.
-- Output: 26,719 vertices, 31,311 triangles, 38,283 structural edges and 1,028
-  floor edges, 1.01 MB.
+- Output: 19,273 vertices, 27,072 triangles, 25,208 structural edges and 1,028
+  floor edges, 0.77 MB.
 
 The blockout renderer draws translucent white fills with distance-based alpha,
 bright structural edges and a dimmer floor-edge range.

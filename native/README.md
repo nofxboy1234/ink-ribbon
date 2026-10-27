@@ -52,7 +52,9 @@ through `locateFile`.
    grain.
 
 `/blockout` uses an RPDW v4 asset with per-room wall panels, floor plates and
-source stair triangles. A fill pipeline draws translucent white surfaces with
+simple stair planes on the source footprints.
+
+A fill pipeline draws translucent white surfaces with
 distance-based alpha, then a line pipeline draws bright structural edges and a
 dimmer floor-edge range.
 

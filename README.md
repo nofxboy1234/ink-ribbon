@@ -31,7 +31,7 @@ sits at the top right of all scenes.
   textures are sampled.
 - **Blockout scene** — `/blockout` uses a simplified RPDW v4 asset derived from
   the real room meshes: per-room wall panels with real openings, 3 m floor
-  plates and the real stair surfaces.
+  plates, and simple stair planes on the source stair footprints.
 - **Original-geometry wireframe** — `/blockout2` uses the full real asset with a
   0.7 m edge threshold, showing the original layout with more detail.
 - **Web app** — React 19 + TypeScript on [Void](https://github.com/voidzero-dev/void)
@@ -137,7 +137,7 @@ pages/index.tsx            real-geometry page
 pages/blockout.tsx         wireframe blockout page (/blockout)
 pages/blockout2.tsx        original-geometry wireframe (/blockout2)
 public/rpd/rpd.bin         real RPD geometry + vertex colours (20.2 MB)
-public/rpd/blockout.bin    simplified per-room blockout (1.0 MB)
+public/rpd/blockout.bin    simplified per-room blockout (0.77 MB)
 public/rpd/rpd.wasm        compiled sokol renderer
 ```
 
@@ -162,8 +162,8 @@ textures, no simplification, no wireframe edge pass.
 `/blockout` is a separate RPDW v4 asset built by `tools/build_blockout.py`. The
 builder reads each real room mesh, projects its vertical wall triangles into
 per-room wall bands, and emits 1.5 m panel boxes with the source door/window
-gaps. Floors are 3 m plates and the stair geometry comes directly from the
-source stair triangles. `/blockout2` is the real RPDW v3 asset with a 0.7 m
+gaps. Floors are 3 m plates; stairs are simple sloped planes on the source
+footprints, including the two main-hall flights. `/blockout2` is the real RPDW v3 asset with a 0.7 m
 detail-edge line buffer. All three scenes share the camera, fog, controls and
 FPS counter.
 

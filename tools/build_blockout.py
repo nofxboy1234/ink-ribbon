@@ -392,6 +392,14 @@ def load_rooms():
         doors = []
         windows = []
         stair_tris = []
+        arch_walls = []
+        wall_exclude = (
+            "fence", "railing", "statue", "door", "window", "glass", "stair",
+            "ceiling", "floor", "light", "lamp", "sign", "desk", "chair",
+            "table", "book", "vent", "pipe", "wire", "curtain", "plant",
+            "tree", "car", "debris", "rubble", "trash", "blood", "decal",
+            "cloth", "picture", "art",
+        )
         for group in mesh.lods[0].groups:
             base = len(verts)
             gpos = remesh.positions(mesh, group)
@@ -404,6 +412,11 @@ def load_rooms():
                     mname = names[sub.material].lower() if sub.material < len(names) else ""
                     if "stair" in mname and "town" not in mname and "unrain" not in mname:
                         stair_tris.append(tri)
+                    if not any(x in mname for x in wall_exclude):
+                        normal = np.cross(tri[1] - tri[0], tri[2] - tri[0])
+                        area = float(np.linalg.norm(normal)) * 0.5
+                        if area > 0.02 and abs(normal[1] / (2.0 * area)) < 0.4 and float(tri[:, 1].max() - tri[:, 1].min()) >= 0.8:
+                            arch_walls.append(tri)
                     if kind is None:
                         continue
                     normal = np.cross(tri[1] - tri[0], tri[2] - tri[0])
@@ -458,6 +471,12 @@ def load_rooms():
             & (y_min <= FLOOR_BASE[floor] + 1.6)
             & ((y_max - y_min) >= 1.6)
         )
+        all_vertical = (
+            (np.abs(ny) < 0.4)
+            & (area > 0.02)
+            & (area < 50.0)
+            & ((y_max - y_min) >= 0.8)
+        )
         slope = (
             (np.abs(ny) > 0.2)
             & (np.abs(ny) < 0.85)
@@ -473,6 +492,7 @@ def load_rooms():
                 "up_points": p[up].astype(np.float32),
                 "up_y": cy[up].astype(np.float32),
                 "wall_points": p[vertical].astype(np.float32),
+                "all_wall_points": np.asarray(arch_walls, dtype=np.float32).reshape(-1, 3, 3),
                 "wall_y0": y_min[vertical].astype(np.float32),
                 "wall_y1": y_max[vertical].astype(np.float32),
                 "slope_points": p[slope].astype(np.float32),
@@ -540,7 +560,8 @@ def build_wall_bands(rooms, floor: int, level: float, floor_mask: np.ndarray, cu
     for room in rooms:
         if room["floor"] != floor:
             continue
-        for tri, y0, y1 in zip(room["wall_points"], room["wall_y0"], room["wall_y1"]):
+        for tri in room["all_wall_points"]:
+            y0 = float(tri[:, 1].min()); y1 = float(tri[:, 1].max())
             if y1 < level + 0.15 or y0 > level + WALL_HEIGHT:
                 continue
             pts = [((tri[i, 0] - X0) / CELL, (tri[i, 2] - Z0) / CELL) for i in range(3)]
@@ -615,7 +636,7 @@ def room_wall_masks(room, level: float):
     images = [grid_mask(), grid_mask(), grid_mask()]
     draws = [ImageDraw.Draw(im) for im in images]
     bands = ((0.20, 0.90), (1.00, 2.00), (2.20, 3.10))
-    for tri in room["wall_points"]:
+    for tri in room["all_wall_points"]:
         y0 = float(tri[:, 1].min()); y1 = float(tri[:, 1].max())
         if y1 < level + 0.15 or y0 > level + WALL_HEIGHT:
             continue
@@ -774,6 +795,51 @@ def stair_regions(rooms, level: float, next_level: float, allowed: np.ndarray | 
             continue
         out.append({"bbox": (x0, x1, z0, z1), "level": level, "next_level": next_level})
     return out
+
+
+def flights_from_regions(rooms, regions, level: float, next_level: float):
+    allpts = [tri.reshape(-1, 3) for room in rooms for tri in room["stair_points"]]
+    flights = []
+    for reg in regions:
+        x0, x1, z0, z1 = reg["bbox"]
+        pts = [p for p in allpts
+               if x0 - 0.2 <= p[:, 0].mean() <= x1 + 0.2
+               and z0 - 0.2 <= p[:, 2].mean() <= z1 + 0.2
+               and p[:, 1].max() >= level - 0.2
+               and p[:, 1].min() <= next_level + 0.2]
+        ax = az = 0.0
+        if pts:
+            p = np.concatenate(pts, axis=0)
+            A = np.column_stack((p[:, 0], p[:, 2], np.ones(len(p))))
+            try:
+                ax, az, _ = np.linalg.lstsq(A, p[:, 1], rcond=None)[0]
+            except np.linalg.LinAlgError:
+                pass
+        dx, dz = x1 - x0, z1 - z0
+        long_x = abs(ax) * dx >= abs(az) * dz
+        if abs(ax) < 1e-4 and abs(az) < 1e-4:
+            long_x = dx >= dz
+        run = dx if long_x else dz
+        width = dz if long_x else dx
+        if run < 1.2 or width < 0.8:
+            continue
+        if long_x:
+            top_high = ax >= 0.0
+            top = x1 if top_high else x0
+            bottom = x0 if top_high else x1
+            zc = (z0 + z1) * 0.5
+            half = min(width, 3.6) * 0.5
+            bbox = (x0, x1, zc - half, zc + half)
+        else:
+            top_high = az >= 0.0
+            top = z1 if top_high else z0
+            bottom = z0 if top_high else z1
+            xc = (x0 + x1) * 0.5
+            half = min(width, 3.6) * 0.5
+            bbox = (xc - half, xc + half, z0, z1)
+        flights.append({"bbox": bbox, "long_x": long_x, "run": run, "width": min(width, 3.6),
+                        "top": top, "bottom": bottom, "level": level, "next_level": next_level})
+    return flights
 
 
 def add_stair_geometry(writer: MeshWriter, rooms, level: float, next_level: float, allowed: np.ndarray | None = None):
@@ -1206,6 +1272,17 @@ def main():
         for floor in range(2)
     }
     stairs[2] = []
+    stairs_flights = {
+        floor: flights_from_regions(rooms, stairs[floor], LEVELS[floor], LEVELS[floor + 1])
+        for floor in range(2)
+    }
+    stairs_flights[2] = []
+    stairs_flights[0].extend([
+        {"bbox": (-7.4, -4.0, -16.0, -8.8), "long_x": False, "run": 7.2, "width": 3.4,
+         "top": -8.8, "bottom": -16.0, "level": 0.0, "next_level": 5.0},
+        {"bbox": (4.0, 7.4, -16.0, -8.8), "long_x": False, "run": 7.2, "width": 3.4,
+         "top": -8.8, "bottom": -16.0, "level": 0.0, "next_level": 5.0},
+    ])
     holes = [floor_holes(floor_masks[floor]) for floor in range(3)]
     hole_masks = [np.zeros((NZ, NX), dtype=bool) for _ in range(3)]
     for floor, hs in enumerate(holes):
@@ -1239,7 +1316,7 @@ def main():
             wallmask = wallmask & floor_masks[floor]
             low = low & wallmask; mid = mid & wallmask; high = high & wallmask
             add_global_walls(writer, floor, level, wallmask, low, mid, high)
-            add_stair_geometry(writer, rooms, level, LEVELS[floor + 1] if floor + 1 < 3 else level + 5.0, floor_masks[floor] | stair_cut[floor])
+            add_stairs(writer, stairs_flights[floor], level)
         stats.append(
             {
                 "floor": floor + 1,
