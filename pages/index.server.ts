@@ -6,7 +6,7 @@ export const head = defineHead(() => ({
     {
       name: "description",
       content:
-        "A pannable, rotatable white-wireframe map of the Raccoon Police Department floors 1–3, rendered with sokol and WebAssembly.",
+        "An interactive 3D view of the Raccoon Police Department floors 1–3, built from the real level geometry with flat material colours and rendered with sokol and WebAssembly.",
     },
     { name: "theme-color", content: "#000000" },
   ],

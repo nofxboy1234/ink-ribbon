@@ -1,22 +1,24 @@
 # Ink Ribbon
 
-A 3D wireframe map of the Raccoon Police Department, floors 1–3, extracted from
-*Resident Evil 2* (RT build) and rendered in the browser with sokol compiled to
-WebAssembly. Orbit the model, pan it, or hold right-click and fly through it.
+The real Raccoon Police Department geometry from *Resident Evil 2* (RT build),
+floors 1–3, rendered in the browser with sokol compiled to WebAssembly. The
+surfaces are not textured; each source material uses one simple flat colour.
+Orbit the model, pan it, or hold right-click and fly through it.
 
 ![RPD floors 1–3](docs/preview.jpg)
 
 ## What is in here
 
 - **Level data** — all 49 RPD terrain meshes for 1F, 2F and 3F, read directly
-  from the game's PAK archives and reduced to a stylized architectural plan:
-  three floor plates on a 3 m grid, skeletonized room/corridor walls, and simple
-  stair runs. Props, mouldings, railings and high-frequency detail are dropped;
-  the room layout and scale are preserved.
+  from the game's PAK archives at LOD 0. This is the real level geometry: walls,
+  floors, stairs, props, railings, roofs and the clock tower. There is no
+  simplification pass and no texture data. The only removals are triangles
+  outside the RPD clip box, degenerates, and flat top-envelope surfaces.
 - **Renderer** — a C application using the latest [sokol](https://github.com/floooh/sokol)
   (`sokol_app` + `sokol_gfx`), compiled to WebAssembly with Emscripten. It draws
-  black-filled plates with depth-faded white edges, separates the three floors
-  vertically, and adds a small bloom pass.
+  solid triangles in a simple key/fill/hemisphere light, with one flat colour per
+  source material, then composites a restrained background gradient. No material
+  textures are sampled.
 - **Web app** — React 19 + TypeScript on [Void](https://github.com/voidzero-dev/void)
   1.3.0 (Vite 8) targeting Cloudflare Workers. Once the scene is loaded the
   page is only the canvas; no labels or UI sit on top of it.
@@ -31,7 +33,7 @@ WebAssembly. Orbit the model, pan it, or hold right-click and fly through it.
 | Void SDK / CLI | 1.3.0 |
 | sokol | `fe6e78dee2377e84bc6ade95f0dcd82b4fcd86e9` (2026-10-26) |
 | Emscripten | 6.0.13 |
-| Plan builder | numpy, Pillow, scikit-image |
+| Data builder | numpy |
 
 ## Run it
 
@@ -57,7 +59,7 @@ Rebuild the scene data from the installed game:
 uv run --with zstandard python tools/extract_rpd.py
 
 # 2. build public/rpd/rpd.bin from data/raw/rpd
-uv run --with numpy --with pillow --with scikit-image python tools/build_plan.py
+uv run --with numpy python tools/build_real.py
 npm run wasm   # only needed after changing native/main.c
 ```
 
@@ -103,40 +105,35 @@ the repository does not contain an account ID. A fresh clone only needs
 tools/extract_rpd.py       PAK lookup + extraction of the 49 RPD meshes
 tools/re_pak.py            minimal KPKA v4 reader (Murmur3 path hashes)
 tools/remesh.py            RE2 RT .mesh parser (LODs, groups, submeshes, buffers)
-tools/build_plan.py        floor plates, skeletonized walls, stairs, RPDW writer
+tools/build_real.py        real LOD-0 geometry, flat material colours, RPDW v3 writer
 tools/rpd_floor_meshes.txt exact PAK paths for floors 1-3
-native/main.c              sokol app: camera, input, wireframe + bloom passes
+native/main.c              sokol app: camera, input, solid-colour geometry pass
 native/third_party/sokol   vendored sokol headers (pinned commit)
 native/build.sh            Emscripten build
 src/RpdScene.tsx           React canvas + WASM loader with progress
 src/wasm/rpd.js            generated Emscripten ES module (committed for deploy)
 pages/index.tsx            Void page
-public/rpd/rpd.bin         derived floor-plan scene (66 KB)
+public/rpd/rpd.bin         real RPD geometry + vertex colours (20.2 MB)
 public/rpd/rpd.wasm        compiled sokol renderer
 ```
 
 ## Scene notes
 
 The source meshes are in world space. Each room is a set of mesh groups; face
-indices are relative to each material subdivision's vertex slice. The plan pass
-keeps LOD 0 and turns the geometry into three plates:
+indices are relative to each material subdivision's vertex slice. The build:
 
-1. **Floor plates** — upward horizontal surfaces within 1.5 m of 0 / 5 / 10.25 m,
-   with giant backdrop triangles (>50 m²) removed. Room masks are filled, the 1F
-   mask is clipped to the upper-floor footprint plus the main hall, and the
-   plates are emitted as 3 m fill tiles; the visible 3 m grid is drawn
-   procedurally in the fragment shader.
-2. **Walls** — vertical surfaces at each level projected into a 2D wall mask,
-   skeletonized, then emitted as 4 m-tall wall runs. Openings and doors survive
-   as gaps in the skeleton.
-3. **Stairs** — source-detected flights plus the main-hall and west upper
-   flights shown by the interactive RPD map. Every flight now reaches the next
-   plate through a slot cut in that plate, with a landing at each end.
+1. reads LOD 0 from all 49 meshes and keeps every triangle inside
+   `[-60, -8, -40] … [55, 55, 30]`;
+2. drops degenerate triangles and flat up-facing surfaces within 1.6 m of each
+   room's maximum Y (roof/ceiling caps);
+3. assigns one of twelve muted colours to each source material index;
+4. welds equal position+colour vertices into 19 chunks of at most 60k vertices;
+5. quantises positions to 16 bits per chunk and packs the result as RPDW v3.
 
-The result is 2,016 triangles and 1,861 lines from 1,790,053 source triangles.
-A 2× vertical scale puts the plates at 0 / 10 / 20.5 m, so the levels stay
-readable while the stairs keep their real rise. The 3F clock-tower exterior sits
-above the third plate and is omitted.
+Raw source: 1,790,053 triangles and 2,059,499 vertices. The asset holds
+1,716,488 triangles, 1,102,944 vertices and 19 chunks in 20.2 MB. The renderer
+expands the chunks into one indexed mesh and draws it in a single call. No
+textures, no simplification, no wireframe edge pass.
 
 ## Assets and licensing
 
@@ -145,6 +142,6 @@ The project code is MIT. The retail game assets remain the property of Capcom.
 demo runs without an installation. No original PAK files are redistributed.
 
 Third-party: sokol (zlib/libpng), Emscripten (MIT/NCSA), React (MIT), Void
-(MIT), scikit-image (BSD-3-Clause). The RE mesh layout was checked against
+(MIT), numpy (BSD-3-Clause). The RE mesh layout was checked against
 [NSACloud's RE Mesh Editor](https://github.com/NSACloud/RE-Mesh-Editor); no addon
 code is vendored or called at runtime.

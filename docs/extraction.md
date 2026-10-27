@@ -169,149 +169,108 @@ all RPD meshes).
 count is `index_count / 3`. The 121,284-byte face buffer of room `st4_313_0`
 therefore holds 20,213 triangles, not 60,642.
 
-## 3. Floor-plan abstraction
+## 3. Real geometry scene
 
-The previous pass drew the raw triangle soup. This pass reduces it to what the
-reference map actually communicates: room plates, wall runs and stairs. The
-builder is `tools/build_plan.py`.
+This pass replaces the stylized plan with the actual LOD-0 RPD meshes. The
+builder is `tools/build_real.py`. There is no simplification, no edge
+extraction and no texture data.
 
-### 3.1 Read, clip and classify
+### 3.1 Read, clip and filter
 
-LOD 0 is used from every room. Triangles are kept only if all vertices fall in
-`[-60, -8, -40] … [55, 55, 30]`; this removes the distant RPD backdrop. Each
-geometry class is then filtered:
+All 49 meshes are read at LOD 0. Triangles are kept when every vertex lies in
+`[-60, -8, -40] … [55, 55, 30]`; this removes the distant backdrop. Degenerate
+triangles and flat up-facing triangles within 1.6 m of each room's maximum Y
+(roof/ceiling caps) are dropped. Everything else remains: walls, floors, stairs,
+doors, railings, furniture, sloped roofs and the clock tower.
 
-- **Floor candidates:** upward-facing (`ny > 0.6`), 0.02–50 m², within the
-  floor's Y window, and at least 1.6 m below the room's maximum Y (no ceilings
-  or roofs).
-- **Wall candidates:** near-vertical (`|ny| < 0.4`), 0.02–50 m², at least 1.6 m
-  tall, with their bottom within 1.6 m of the floor base.
-- **Stair candidates:** `0.2 < |ny| < 0.85`, 0.05–25 m², within 5 m above the
-  floor base.
+Flat roofs are the exception: because each room's top is defined by its own mesh
+bounds, a room that shares a tall space with the tower can keep lower roof
+slopes. The result is a real building shell, not a cutaway.
 
-Giant terrain/backdrop triangles are excluded by the 50 m² cap. Without it,
-rooms such as `st4_201_0`, `st4_504_0` and `st4_603_0` contribute 1,000–10,000
-m² ground planes that swallow the building footprint.
+### 3.2 Flat material colours
 
-### 3.2 Plates
+The mesh header stores a material index per subdivision but no material names or
+textures. The builder maps the 35 indices onto twelve muted architectural
+colours (limestone, concrete, wood, blue-grey metal, slate, brick, etc.) and
+writes one RGB colour per vertex. There are no UVs and the fragment shader does
+not sample any material texture.
 
-The RPD's three main levels are at approximately **0.0 / 5.0 / 10.25 m**. The
-builder uses one plate level per source floor group:
+### 3.3 Chunking and quantization
 
-| Floor | Source rooms | Plate |
-|---|---|---|
-| 1F | `st4_1*`, `st4_2*`, `st4_3*` | 0.00 m |
-| 2F | `st4_4*`, `st4_5*` | 5.00 m |
-| 3F | `st4_6*` | 10.25 m |
+Source vertices are 2,059,499; many are duplicated across material slices. The
+builder hashes position (1 mm grid) plus material colour, producing 1,102,944
+vertices. Triangles are packed into 19 chunks with at most 60k unique vertices
+each, so local indices fit in `u16`.
 
-For each room and level, horizontal triangles within ±1.5 m are filled into a
-0.5 m occupancy raster. The mask is clipped, small components are dropped,
-holes are filled, and components below 4 m² are removed. The 1F mask is clipped
-to a building footprint derived from the 2F/3F room masks (dilated 1.5 m and
-hole-filled) plus the main hall rectangle `x[-11,11], z[-23,13]`. This removes
-the streets/plazas around the building.
+Each chunk stores:
 
-Plates are emitted as **3 m fill tiles** where at least 45% of the underlying
-0.5 m cells are covered. Tiles contribute only fill triangles; the visible 3 m
-floor grid is generated in the fragment shader from world-space XZ coordinates,
-so it costs no index-buffer space and fades naturally with distance. Small
-holes are filled, but stairwells and the central atrium stay open.
+- a float origin and a uniform scale;
+- positions as `u16[3]` relative to the origin (`origin + q * scale`);
+- colours as `u8[3]`;
+- triangle indices as `u16[3]`.
 
-### 3.3 Walls
+The chunk extent is at most the RPD width, so the position step is under 2 mm.
+The renderer expands everything into one float-position/`u8`-colour vertex
+buffer plus one `u32` index buffer and draws the whole building in one call.
 
-Vertical triangles within 1.2 m of a plate level are projected onto the XZ
-plane and drawn into a 0.5 m wall raster. The raster is dilated by one cell,
-clipped to the floor mask, and **skeletonized** with
-`skimage.morphology.skeletonize`. The one-pixel skeleton is then scanned for
-horizontal and vertical runs of at least 1.5 m, and each run becomes a 4 m-tall
-wall quad.
+**Result:** 1,790,053 source triangles → **1,716,488 triangles**, 1,102,944
+vertices, 19 chunks, 20.2 MB.
 
-This is what turns the panel-by-panel wall geometry into continuous room and
-corridor walls. Door openings survive as gaps in the skeleton; short jogs and
-door frames are discarded. Curved walls are approximated by stair-stepped
-runs at the 0.5 m grid.
-
-### 3.4 Stairs
-
-Stair flights are built from sloped source triangles, then extended to the plate
-above so they always connect. The simplified pass also adds the main-hall pair
-and the west 2F→3F pair visible in the MapGenie floor plans. For every flight:
-
-- the upper plate gets a slot over the flight footprint;
-- wall runs crossing the flight and both landings are removed;
-- the flight rises from the lower plate to `next_level` and gets a small landing
-  quad at each end.
-
-The result is seven flights: four 1F→2F and three 2F→3F. They are schematic
-straight runs, not reconstructions of each tread. The 3F→4F clock-tower flight
-is omitted with the rest of the tower.
-
-### 3.5 Vertical scale
-
-The asset is scaled 2× in Y (not offset per floor): the plates sit at 0 / 10 /
-20.5 m, walls stay 4 m tall, and stair rises scale with the plates. This keeps
-the exploded axonometric readable without breaking stair connections. The
-renderer's per-floor offset uniform is therefore zero.
-
-**Result:** 1,790,053 source triangles → **2,016 triangles**, 2,356 vertices,
-**1,861 edges**, 66 KB.
-
-## 4. `rpd.bin` v2
+## 4. `rpd.bin` v3
 
 ```
 0    char[4]  "RPDW"
-4    u32      version = 2
-8    u32      vertex_count
-12   u32      triangle_count
-16   u32      edge_count
+4    u32      version = 3
+8    u32      chunk_count
+12   u32      total_vertex_count
+16   u32      total_triangle_count
 20   u32      floor_count (3)
 24   u32      reserved
 28   f32[3]   bounds_min
 40   f32[3]   bounds_max
-52   floor[3] 24 bytes each:
-       u32 tri_start
-       u32 tri_count
-       u32 edge_start
-       u32 edge_count
+52   floor[3] 16 bytes each:
+       u32 chunk_start
+       u32 chunk_count
        f32 y_min
        f32 y_max
-124  f32[3]   positions[vertex_count]
-     u32[3]   triangle_indices[triangle_count]
-     u32[2]   edge_indices[edge_count]
+100  chunk[chunk_count]:
+       u32 vertex_count
+       u32 index_count        (indices, not triangles)
+       u32 floor
+       u32 reserved
+       f32 origin[3]
+       f32 scale
+       u16 positions[vertex_count * 3]
+       u8  colors[vertex_count * 3]
+       u16 indices[index_count]
+       pad to 4-byte boundary
 ```
 
-`rpd.json` records the method, plate levels, per-floor areas/counts, and the
-filter parameters.
+`rpd.json` records the method, per-floor bounds, chunk counts, the material
+palette and the clip/ceiling filters.
 
 ## 5. Reproduce
 
 ```bash
 uv run --with zstandard python tools/extract_rpd.py
-uv run --with numpy --with pillow --with scikit-image python tools/build_plan.py
+uv run --with numpy python tools/build_real.py
 ```
 
-`npm run data` runs both in sequence. `tools/build_plan.py` has one option:
-
-```bash
---no-walls    emit plates and stairs only (debug)
-```
-
-The main thresholds are constants at the top of `build_plan.py`: `LEVELS`,
-`TILE`, `WALL_HEIGHT`, `WALL_MIN_LENGTH`, `FLOOR_MIN_AREA` and
-`FOOTPRINT_DILATE_M`.
+`npm run data` runs both in sequence. The main constants are in
+`tools/build_real.py`: `CLIP_MIN`/`CLIP_MAX`, `CEILING_CUT`, `MAX_CHUNK_VERTS`
+and the material palette.
 
 ## 6. Notes and limits
 
 - Stage geometry is stored in world space, so no scene/prefab transforms were
   needed.
-- The plan is intentionally an interpretation. Only the three main plate levels
-  are used; mezzanines, the 3F clock-tower exterior, railings and all props are
-  omitted.
-- The 1F footprint is anchored by the 2F/3F room masks and the main hall. Without
-  that clip, the outdoor terrain around the RPD dominates the plan.
-- Stairs are schematic: source-sloped flights plus the main-hall and west upper
-  flights cross-checked on MapGenie. They indicate connection and rise rather
-  than exact treads. The 3F clock-tower flight is not modelled.
+- The model is the complete LOD-0 level within the clip box. There is no
+  collision, no UV/texture pass and no alpha-cutout material support.
+- Materials are identified only by their numeric index, so the colours convey
+  surface separation rather than exact real-world material identity.
+- The 20.2 MB asset is under Cloudflare's 25 MiB per-asset limit and is served
+  as one file. Initial load and wasm upload take a few seconds on a local
+  connection.
 - The mesh parser handles the RE2 RT variant only. Other RE Engine versions use
   different subdivision/header layouts.
 - `data/raw/` is not committed; `public/rpd/rpd.bin` is the derived scene.

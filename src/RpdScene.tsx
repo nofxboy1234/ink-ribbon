@@ -116,7 +116,7 @@ export default function RpdScene() {
         id="canvas"
         className="rpd-canvas"
         onContextMenu={(event) => event.preventDefault()}
-        aria-label="RPD floors one to three as a 3D wireframe"
+        aria-label="RPD floors one to three as a 3D model"
       />
       <div
         className="rpd-status"

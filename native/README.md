@@ -42,21 +42,17 @@ through `locateFile`.
 
 1. **Offscreen pass** — one RGBA8 color image and one depth image at canvas
    resolution, sample count 1.
-2. **Fill** — the scene's triangles with a very dark, normal-shaded material.
-   Up-facing fill pixels get a procedural 3 m world-space grid from the fragment
-   shader, so floor grids cost no edge indices. Depth writes are enabled.
-3. **Wireframe** — the unique edge list with a small clipped-space depth bias
-   (`clip.z -= 0.00012 * clip.w`) so edges survive against their own faces.
-   Edges fade toward the background with view distance.
-4. **Composite to the swapchain** — a fullscreen triangle samples the offscreen
-   color, adds a 9-tap threshold blur (bloom), a radial background gradient,
-   vignette and a small grain term. The composite pipeline uses the canvas's
-   MSAA sample count.
+2. **Solid geometry** — all chunks are expanded into one interleaved
+   position+colour vertex buffer and one `u32` index buffer, then drawn in a
+   single call. The fragment shader derives face normals from screen-space
+   derivatives, flips them toward the camera, and applies a key/fill/hemisphere
+   light. There are no textures, no wireframe edges and no bloom.
+3. **Composite to the swapchain** — a fullscreen triangle samples the offscreen
+   colour, adds a restrained radial background gradient, vignette and a little
+   grain.
 
-The scene is split into three draw ranges (1F/2F/3F) from the asset header. The
-asset is pre-scaled 2× vertically, putting the plates at 0 / 10 / 20.5 m and
-preserving the stair rises. The `y_offset` uniform is therefore zero; it remains
-available for a future exploded view.
+There is one draw range for the whole building; the asset's per-floor records
+are informational only.
 
 ## Input
 
@@ -79,10 +75,10 @@ jump. `fly_begin`/`fly_end` live next to `camera_eye` in `main.c`.
 ## Camera
 
 - Perspective, 0.62 rad vertical FOV.
-- Default yaw −0.55 rad, pitch 0.72 rad.
-- Distance is 133 units on a 1600 px canvas, scaled up on narrower viewports;
+- Default yaw −0.55 rad, pitch 0.62 rad.
+- Distance is 150 units on a 1600 px canvas, scaled up on narrower viewports;
   it is recomputed on resize until the user moves the camera.
-- Target is the X/Z centre of the scene bounds with Y at 34% of the scaled
-  height range, which frames all three floor plates.
+- Target is the X/Z centre of the scene bounds with Y at 40% of the height
+  range.
 
 The asset is in metres, Y-up, with the RPD main hall near the origin.
