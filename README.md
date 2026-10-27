@@ -5,7 +5,13 @@ floors 1–3, rendered in the browser with sokol compiled to WebAssembly. The
 surfaces are not textured; each source material uses one simple flat colour.
 Orbit the model, pan it, or hold right-click and fly through it.
 
+A second, separate scene at **`/blockout`** replaces the detail with a grey
+blockout: cubic floor plates and walls with triangular stair ramps. The real
+scene is untouched.
+
 ![RPD floors 1–3](docs/preview.jpg)
+
+![RPD greybox blockout](docs/blockout.jpg)
 
 ## What is in here
 
@@ -19,6 +25,9 @@ Orbit the model, pan it, or hold right-click and fly through it.
   solid triangles in a simple key/fill/hemisphere light, with one flat colour per
   source material, then composites a restrained background gradient. No material
   textures are sampled.
+- **Blockout scene** — `/blockout` uses the same renderer and camera with a
+  separate asset: 3 m grey boxes for floor plates, 0.22 m thick grey wall boxes,
+  and triangular wedge ramps for the stairs.
 - **Web app** — React 19 + TypeScript on [Void](https://github.com/voidzero-dev/void)
   1.3.0 (Vite 8) targeting Cloudflare Workers. Once the scene is loaded the
   page is only the canvas; no labels or UI sit on top of it.
@@ -60,6 +69,10 @@ uv run --with zstandard python tools/extract_rpd.py
 
 # 2. build public/rpd/rpd.bin from data/raw/rpd
 uv run --with numpy python tools/build_real.py
+
+# 3. build the separate grey blockout asset
+npm run blockout
+
 npm run wasm   # only needed after changing native/main.c
 ```
 
@@ -106,14 +119,17 @@ tools/extract_rpd.py       PAK lookup + extraction of the 49 RPD meshes
 tools/re_pak.py            minimal KPKA v4 reader (Murmur3 path hashes)
 tools/remesh.py            RE2 RT .mesh parser (LODs, groups, submeshes, buffers)
 tools/build_real.py        real LOD-0 geometry, flat material colours, RPDW v3 writer
+tools/build_blockout.py    grey box/ramp blockout asset
 tools/rpd_floor_meshes.txt exact PAK paths for floors 1-3
 native/main.c              sokol app: camera, input, solid-colour geometry pass
 native/third_party/sokol   vendored sokol headers (pinned commit)
 native/build.sh            Emscripten build
 src/RpdScene.tsx           React canvas + WASM loader with progress
 src/wasm/rpd.js            generated Emscripten ES module (committed for deploy)
-pages/index.tsx            Void page
+pages/index.tsx            real-geometry page
+pages/blockout.tsx         grey blockout page (/blockout)
 public/rpd/rpd.bin         real RPD geometry + vertex colours (20.2 MB)
+public/rpd/blockout.bin    grey blockout asset (0.09 MB)
 public/rpd/rpd.wasm        compiled sokol renderer
 ```
 
@@ -134,6 +150,12 @@ Raw source: 1,790,053 triangles and 2,059,499 vertices. The asset holds
 1,716,488 triangles, 1,102,944 vertices and 19 chunks in 20.2 MB. The renderer
 expands the chunks into one indexed mesh and draws it in a single call. No
 textures, no simplification, no wireframe edge pass.
+
+The blockout builder reuses the earlier floor-mask and wall-skeleton pass. Floor
+plates are 3 m × 3 m × 0.28 m boxes, walls are 3.2 m tall × 0.22 m thick boxes,
+and each stair flight is a triangular wedge from the lower plate to the next.
+It writes `blockout.bin` in the same RPDW v3 format (3,538 vertices, 9,296
+triangles, 0.09 MB); `/blockout` loads it with the same camera and controls.
 
 ## Assets and licensing
 

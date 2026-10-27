@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "data": "uv run --with zstandard python tools/extract_rpd.py && uv run --with numpy python tools/build_real.py",
     "wasm": "bash native/build.sh",
-    "deploy": "void deploy --platform cloudflare"
+    "deploy": "void deploy --platform cloudflare",
+    "blockout": "uv run --with numpy --with pillow --with scikit-image python tools/build_blockout.py"
   },
   "dependencies": {
     "hono": "4.13.14",

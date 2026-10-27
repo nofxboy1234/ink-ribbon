@@ -274,3 +274,24 @@ and the material palette.
 - The mesh parser handles the RE2 RT variant only. Other RE Engine versions use
   different subdivision/header layouts.
 - `data/raw/` is not committed; `public/rpd/rpd.bin` is the derived scene.
+
+## 7. Grey blockout variant
+
+`tools/build_blockout.py` builds a separate `public/rpd/blockout.bin` from the
+same source meshes and the earlier floor-plan masks. The real asset is not
+touched.
+
+- Floor plates: 3 m × 3 m × 0.28 m grey boxes at the real 0 / 5 / 10.25 m levels.
+- Walls: 0.22 m thick, 3.2 m tall grey boxes along the skeletonized wall runs.
+- Stairs: triangular wedge ramps spanning each stair flight from the lower plate
+  to the next, with floor tiles removed over the ramp opening.
+- Stair and floor colours are three close greys; no textures.
+- Output: 3,538 vertices, 9,296 triangles, 0.09 MB, same RPDW v3 chunk layout.
+
+Build it with:
+
+```bash
+npm run blockout
+```
+
+Then open `/blockout`; `/` remains the real-geometry scene.

@@ -12,15 +12,14 @@ type RpdFactory = (options: {
   locateFile: (path: string) => string;
 }) => Promise<RpdModule>;
 
-const ASSET_URL = "/rpd/rpd.bin";
-
 async function fetchScene(
+  url: string,
   signal: AbortSignal,
   onProgress: (fraction: number) => void,
 ): Promise<Uint8Array> {
-  const response = await fetch(ASSET_URL, { signal });
+  const response = await fetch(url, { signal });
   if (!response.ok || !response.body) {
-    throw new Error(`could not fetch ${ASSET_URL} (${response.status})`);
+    throw new Error(`could not fetch ${url} (${response.status})`);
   }
   const total = Number(response.headers.get("content-length")) || 0;
   const reader = response.body.getReader();
@@ -45,7 +44,15 @@ async function fetchScene(
 const nextFrame = () =>
   new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
-export default function RpdScene() {
+type RpdSceneProps = {
+  assetUrl?: string;
+  label?: string;
+};
+
+export default function RpdScene({
+  assetUrl = "/rpd/rpd.bin",
+  label = "RPD floors one to three as a 3D model",
+}: RpdSceneProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [progress, setProgress] = useState(0);
   const [hidden, setHidden] = useState(false);
@@ -65,7 +72,7 @@ export default function RpdScene() {
           throw new Error("this browser does not provide WebGL2");
         }
         const [asset, factory] = await Promise.all([
-          fetchScene(controller.signal, (fraction) => {
+          fetchScene(assetUrl, controller.signal, (fraction) => {
             if (!cancelled) setProgress(fraction);
           }),
           import("./wasm/rpd.js").then(
@@ -105,7 +112,7 @@ export default function RpdScene() {
       cancelled = true;
       controller.abort();
     };
-  }, []);
+  }, [assetUrl]);
 
   const statusText = error ? `Scene error — ${error}` : `Loading RPD floors 1–3`;
 
@@ -116,7 +123,7 @@ export default function RpdScene() {
         id="canvas"
         className="rpd-canvas"
         onContextMenu={(event) => event.preventDefault()}
-        aria-label="RPD floors one to three as a 3D model"
+        aria-label={label}
       />
       <div
         className="rpd-status"
