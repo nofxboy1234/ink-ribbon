@@ -510,9 +510,9 @@ static void reset_camera(void) {
     state.camera.yaw = -0.55f;
     state.camera.pitch = 0.72f;
 
-    state.camera.target[1] = mn[1] + 0.28f * (mx[1] - mn[1]);
+    state.camera.target[1] = mn[1] + 0.34f * (mx[1] - mn[1]);
     int w = sapp_width() > 0 ? sapp_width() : 1600;
-    state.camera.distance = 140.0f * fmaxf(1.0f, 900.0f / (float)w);
+    state.camera.distance = 133.0f * fmaxf(1.0f, 900.0f / (float)w);
 }
 
 static void frame(void) {
