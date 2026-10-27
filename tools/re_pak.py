@@ -121,7 +121,7 @@ def find(paths: list[str], game_dir: pathlib.Path = GAME_DIR) -> dict[str, PakEn
             continue
         for entry in _entries(archive, wanted):
             found[entry.path] = entry
-    missing = wanted.values() - found.keys()
+    missing = set(wanted.values()) - set(found)
     if missing:
         raise SystemExit("missing PAK entries:\n  " + "\n  ".join(sorted(missing)))
     return found
