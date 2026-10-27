@@ -60,6 +60,10 @@ export default function RpdScene() {
 
     const boot = async () => {
       try {
+        const probe = document.createElement("canvas");
+        if (!probe.getContext("webgl2")) {
+          throw new Error("this browser does not provide WebGL2");
+        }
         const [asset, factory] = await Promise.all([
           fetchScene(controller.signal, (fraction) => {
             if (!cancelled) setProgress(fraction);
