@@ -13,6 +13,7 @@ import array
 import json
 import math
 import pathlib
+import re
 import struct
 import sys
 
@@ -54,6 +55,7 @@ HOLE_FILL_AREA = 2.5         # m^2; larger floor holes are stairwells/atria
 GREY_FLOOR = (122, 124, 126)
 GREY_WALL = (148, 150, 152)
 GREY_RAMP = (108, 110, 112)
+GREY_WINDOW = (92, 98, 104)
 
 
 def room_floor(room: str) -> int:
@@ -291,19 +293,84 @@ class MeshWriter:
 # ---------------------------------------------------------------------------
 
 
+def submesh_triangles(mesh, group, sub):
+    index_size = 4 if mesh.has_32bit_indices else 2
+    fmt = "<%dI" if index_size == 4 else "<%dH"
+    count = sub.index_count
+    raw = struct.unpack_from(fmt % count, mesh.index_buffer, sub.index_start * index_size)
+    group_base = remesh.group_vertex_base(group)
+    local = sub.vertex_start - group_base
+    for i in range(0, count, 3):
+        yield raw[i] + local, raw[i + 1] + local, raw[i + 2] + local
+
+
+def material_names(data: bytes):
+    found = [m.group()[:-1].decode("ascii", "ignore") for m in re.finditer(rb"[ -~]{4,}\x00", data)]
+    return found
+
+
+def opening_kind(name: str) -> str | None:
+    low = name.lower()
+    if "window" in low or "glass" in low:
+        return "window"
+    if "door" in low and "frame" not in low:
+        return "door"
+    return None
+
+
+def opening_mask(rooms, floor: int, kind: str) -> np.ndarray:
+    im = grid_mask()
+    draw = ImageDraw.Draw(im)
+    for room in rooms:
+        if room["floor"] != floor:
+            continue
+        for tri in room["opening_" + kind]:
+            draw.polygon(
+                [((tri[i, 0] - X0) / CELL, (tri[i, 2] - Z0) / CELL) for i in range(3)],
+                fill=1,
+            )
+    return np.asarray(im, dtype=bool).copy()
+
+
 def load_rooms():
     rooms = []
     for path in sorted(RAW.glob("*.mesh")):
         name = path.stem
         floor = room_floor(name)
-        mesh = remesh.parse(path.read_bytes())
+        data = path.read_bytes()
+        mesh = remesh.parse(data)
+        names = material_names(data)
         verts = []
         tris = []
+        doors = []
+        windows = []
         for group in mesh.lods[0].groups:
             base = len(verts)
-            verts.extend(remesh.positions(mesh, group))
-            for a, b, c in remesh.triangles(mesh, group):
-                tris.append((a + base, b + base, c + base))
+            gpos = remesh.positions(mesh, group)
+            verts.extend(gpos)
+            for sub in group.submeshes:
+                kind = opening_kind(names[sub.material]) if sub.material < len(names) else None
+                for a, b, c in submesh_triangles(mesh, group, sub):
+                    tri = np.asarray([gpos[a], gpos[b], gpos[c]], dtype=np.float32)
+                    tris.append((a + base, b + base, c + base))
+                    if kind is None:
+                        continue
+                    normal = np.cross(tri[1] - tri[0], tri[2] - tri[0])
+                    area = float(np.linalg.norm(normal)) * 0.5
+                    if area < 1e-5:
+                        continue
+                    ny = normal[1] / (2.0 * area)
+                    if abs(ny) > 0.55:
+                        continue
+                    ylo = float(tri[:, 1].min())
+                    yhi = float(tri[:, 1].max())
+                    level = LEVELS[floor]
+                    if yhi < level + 0.2 or ylo > level + 2.4:
+                        continue
+                    if kind == "door":
+                        doors.append(tri)
+                    elif kind == "window":
+                        windows.append(tri)
         v = np.asarray(verts, dtype=np.float32)
         f = np.asarray(tris, dtype=np.int64)
         if len(f) == 0:
@@ -359,6 +426,8 @@ def load_rooms():
                 "wall_y1": y_max[vertical].astype(np.float32),
                 "slope_points": p[slope].astype(np.float32),
                 "slope_y": cy[slope].astype(np.float32),
+                "opening_door": np.asarray(doors, dtype=np.float32).reshape(-1, 3, 3),
+                "opening_window": np.asarray(windows, dtype=np.float32).reshape(-1, 3, 3),
             }
         )
     return rooms
@@ -403,14 +472,24 @@ def add_floor_tiles(writer: MeshWriter, mask: np.ndarray, level: float, holes: n
 # ---------------------------------------------------------------------------
 
 
-def build_wall_skeleton(rooms, floor: int, level: float, floor_mask: np.ndarray, cut_mask: np.ndarray | None = None) -> np.ndarray:
-    im = grid_mask()
-    draw = ImageDraw.Draw(im)
+def build_wall_bands(rooms, floor: int, level: float, floor_mask: np.ndarray, cut_mask: np.ndarray | None = None):
+    """Return the wall skeleton plus low/mid/high wall-coverage rasters.
+
+    A wall band is the projection of any vertical source triangle that crosses
+    that height. Sampling the bands along the skeleton separates solid wall,
+    doorway (no low/mid wall, lintel above) and window (sill below, gap, lintel
+    above).
+    """
+    band_lo = (0.20, 0.90)
+    band_mid = (1.00, 2.00)
+    band_hi = (2.20, 3.10)
+    images = [grid_mask(), grid_mask(), grid_mask()]
+    draws = [ImageDraw.Draw(im) for im in images]
     for room in rooms:
         if room["floor"] != floor:
             continue
-        for tri, y0 in zip(room["wall_points"], room["wall_y0"]):
-            if abs(y0 - level) > 1.2:
+        for tri, y0, y1 in zip(room["wall_points"], room["wall_y0"], room["wall_y1"]):
+            if y1 < level + 0.15 or y0 > level + WALL_HEIGHT:
                 continue
             pts = [((tri[i, 0] - X0) / CELL, (tri[i, 2] - Z0) / CELL) for i in range(3)]
             best = max(
@@ -418,52 +497,207 @@ def build_wall_skeleton(rooms, floor: int, level: float, floor_mask: np.ndarray,
                 key=lambda e: (pts[e[0]][0] - pts[e[1]][0]) ** 2
                 + (pts[e[0]][1] - pts[e[1]][1]) ** 2,
             )
-            draw.line([pts[best[0]], pts[best[1]]], fill=1, width=1)
-    raw = np.asarray(im, dtype=bool)
-    raw = np.asarray(Image.fromarray((raw * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(3))) > 0
+            for band, draw in zip((band_lo, band_mid, band_hi), draws):
+                if y0 <= level + band[1] and y1 >= level + band[0]:
+                    draw.line([pts[best[0]], pts[best[1]]], fill=1, width=1)
     allowed = dilate(floor_mask, 1.5)
-    raw &= allowed
-    if cut_mask is not None:
-        raw &= ~cut_mask
-    return skeletonize(raw)
+    raw = []
+    for im in images:
+        m = np.asarray(im, dtype=bool).copy()
+        m &= allowed
+        if cut_mask is not None:
+            m &= ~cut_mask
+        raw.append(m)
+    bands = raw
+    union = raw[0] | raw[1] | raw[2]
+    union = np.asarray(Image.fromarray((union * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(3))) > 0
+    return skeletonize(union), bands[0], bands[1], bands[2]
 
 
-def add_skeleton_walls(writer: MeshWriter, skel: np.ndarray, floor: int, level: float):
+def _band_hit_h(mask: np.ndarray, iz: int, ix: int) -> bool:
+    # Tolerate a one-cell row offset without smearing along the wall, which
+    # would close narrow doorways.
+    for dz in (-1, 0, 1):
+        z = iz + dz
+        if 0 <= z < NZ and 0 <= ix < NX and mask[z, ix]:
+            return True
+    return False
+
+
+def _band_hit_v(mask: np.ndarray, iz: int, ix: int) -> bool:
+    for dx in (-1, 0, 1):
+        x = ix + dx
+        if 0 <= iz < NZ and 0 <= x < NX and mask[iz, x]:
+            return True
+    return False
+
+
+def merge_wall_runs(runs):
+    """Merge nearly-collinear skeleton runs into long wall lines."""
+    runs.sort()
+    groups = []
+    for run in runs:
+        if not groups or run[0] - groups[-1][-1][0] > 0.8:
+            groups.append([run])
+        else:
+            groups[-1].append(run)
+    out = []
+    for group in groups:
+        total = sum(b - a for _c, a, b in group)
+        if total <= 0:
+            continue
+        coord = sum(c * (b - a) for c, a, b in group) / total
+        intervals = sorted((a, b) for _c, a, b in group)
+        merged = []
+        for a, b in intervals:
+            if not merged or a > merged[-1][1] + 0.5:
+                merged.append([a, b])
+            else:
+                merged[-1][1] = max(merged[-1][1], b)
+        for a, b in merged:
+            if b - a >= WALL_MIN_LENGTH:
+                out.append((coord, a, b))
+    return out
+
+
+def add_skeleton_walls(writer: MeshWriter, skel: np.ndarray, low: np.ndarray, mid: np.ndarray, high: np.ndarray, door_mask: np.ndarray, window_mask: np.ndarray, floor: int, level: float):
     y0 = level
     y1 = level + WALL_HEIGHT
     half = WALL_THICKNESS * 0.5
+    door_top = level + 2.10
+    sill_top = level + 0.90
+
+    hruns = []
     for iz in range(NZ):
-        row = skel[iz]
         ix = 0
         while ix < NX:
-            if not row[ix]:
+            if not skel[iz, ix]:
                 ix += 1
                 continue
             start = ix
-            while ix < NX and row[ix]:
+            while ix < NX and skel[iz, ix]:
                 ix += 1
-            if (ix - start) * CELL < WALL_MIN_LENGTH:
-                continue
-            x0 = X0 + start * CELL
-            x1 = X0 + ix * CELL
-            z = Z0 + (iz + 0.5) * CELL
-            writer.box(x0, x1, y0, y1, z - half, z + half, GREY_WALL)
+            if (ix - start) * CELL >= WALL_MIN_LENGTH:
+                hruns.append((Z0 + (iz + 0.5) * CELL, X0 + start * CELL, X0 + ix * CELL))
+    vruns = []
     for ix in range(NX):
-        col = skel[:, ix]
         iz = 0
         while iz < NZ:
-            if not col[iz]:
+            if not skel[iz, ix]:
                 iz += 1
                 continue
             start = iz
-            while iz < NZ and col[iz]:
+            while iz < NZ and skel[iz, ix]:
                 iz += 1
-            if (iz - start) * CELL < WALL_MIN_LENGTH:
-                continue
-            z0 = Z0 + start * CELL
-            z1 = Z0 + iz * CELL
-            x = X0 + (ix + 0.5) * CELL
+            if (iz - start) * CELL >= WALL_MIN_LENGTH:
+                vruns.append((X0 + (ix + 0.5) * CELL, Z0 + start * CELL, Z0 + iz * CELL))
+
+    def classify_h(coord, a, b, iz):
+        j0 = max(0, int(round((a - X0) / CELL)))
+        j1 = min(NX, int(round((b - X0) / CELL)))
+        out = []
+        for j in range(j0, j1):
+            if door_mask[iz, j]:
+                kind = "door"
+            elif window_mask[iz, j]:
+                kind = "window"
+            elif _band_hit_h(mid, iz, j):
+                kind = "solid"
+            elif _band_hit_h(low, iz, j) and _band_hit_h(high, iz, j):
+                kind = "window"
+            elif _band_hit_h(high, iz, j):
+                kind = "door"
+            elif _band_hit_h(low, iz, j):
+                kind = "half"
+            else:
+                kind = "none"
+            out.append(kind)
+        return j0, out
+
+    def classify_v(coord, a, b, ix):
+        i0 = max(0, int(round((a - Z0) / CELL)))
+        i1 = min(NZ, int(round((b - Z0) / CELL)))
+        out = []
+        for i in range(i0, i1):
+            if door_mask[i, ix]:
+                kind = "door"
+            elif window_mask[i, ix]:
+                kind = "window"
+            elif _band_hit_v(mid, i, ix):
+                kind = "solid"
+            elif _band_hit_v(low, i, ix) and _band_hit_v(high, i, ix):
+                kind = "window"
+            elif _band_hit_v(high, i, ix):
+                kind = "door"
+            elif _band_hit_v(low, i, ix):
+                kind = "half"
+            else:
+                kind = "none"
+            out.append(kind)
+        return i0, out
+
+    def emit_h(coord, j0, j1, kind):
+        if kind == "none" or j1 <= j0:
+            return
+        x0 = X0 + j0 * CELL - half
+        x1 = X0 + j1 * CELL + half
+        z = coord
+        top = sill_top if kind == "half" else y1
+        if kind == "solid":
+            writer.box(x0, x1, y0, y1, z - half, z + half, GREY_WALL)
+        elif kind == "window":
+            writer.box(x0, x1, y0, sill_top, z - half, z + half, GREY_WALL)
+            writer.box(x0, x1, door_top, y1, z - half, z + half, GREY_WALL)
+            writer.box(x0, x1, sill_top, door_top, z - 0.04, z + 0.04, GREY_WINDOW)
+        elif kind == "door":
+            writer.box(x0, x1, door_top, y1, z - half, z + half, GREY_WALL)
+        elif kind == "half":
+            writer.box(x0, x1, y0, sill_top, z - half, z + half, GREY_WALL)
+        size = 0.50 if kind == "solid" else 0.28
+        writer.box(x0 - size * 0.5, x0 + size * 0.5, y0, top, z - size * 0.5, z + size * 0.5, GREY_WALL)
+        writer.box(x1 - size * 0.5, x1 + size * 0.5, y0, top, z - size * 0.5, z + size * 0.5, GREY_WALL)
+
+    def emit_v(coord, i0, i1, kind):
+        if kind == "none" or i1 <= i0:
+            return
+        z0 = Z0 + i0 * CELL - half
+        z1 = Z0 + i1 * CELL + half
+        x = coord
+        top = sill_top if kind == "half" else y1
+        if kind == "solid":
             writer.box(x - half, x + half, y0, y1, z0, z1, GREY_WALL)
+        elif kind == "window":
+            writer.box(x - half, x + half, y0, sill_top, z0, z1, GREY_WALL)
+            writer.box(x - half, x + half, door_top, y1, z0, z1, GREY_WALL)
+            writer.box(x - 0.04, x + 0.04, sill_top, door_top, z0, z1, GREY_WINDOW)
+        elif kind == "door":
+            writer.box(x - half, x + half, door_top, y1, z0, z1, GREY_WALL)
+        elif kind == "half":
+            writer.box(x - half, x + half, y0, sill_top, z0, z1, GREY_WALL)
+        size = 0.50 if kind == "solid" else 0.28
+        writer.box(x - size * 0.5, x + size * 0.5, y0, top, z0 - size * 0.5, z0 + size * 0.5, GREY_WALL)
+        writer.box(x - size * 0.5, x + size * 0.5, y0, top, z1 - size * 0.5, z1 + size * 0.5, GREY_WALL)
+
+    for coord, a, b in merge_wall_runs(hruns):
+        iz = max(0, min(NZ - 1, int(round((coord - Z0) / CELL - 0.5))))
+        j0, kinds = classify_h(coord, a, b, iz)
+        j = 0
+        while j < len(kinds):
+            k = j
+            while k < len(kinds) and kinds[k] == kinds[j]:
+                k += 1
+            emit_h(coord, j0 + j, j0 + k, kinds[j])
+            j = k
+    for coord, a, b in merge_wall_runs(vruns):
+        ix = max(0, min(NX - 1, int(round((coord - X0) / CELL - 0.5))))
+        i0, kinds = classify_v(coord, a, b, ix)
+        j = 0
+        while j < len(kinds):
+            k = j
+            while k < len(kinds) and kinds[k] == kinds[j]:
+                k += 1
+            emit_v(coord, i0 + j, i0 + k, kinds[j])
+            j = k
 
 
 def floor_holes(mask: np.ndarray):
@@ -717,8 +951,10 @@ def main():
         tri_start = len(writer.triangles) // 3
         add_floor_tiles(writer, floor_masks[floor], level, holes=hole_masks[floor])
         if not args.no_walls:
-            skel = build_wall_skeleton(rooms, floor, level, floor_masks[floor], stair_cut[floor])
-            add_skeleton_walls(writer, skel, floor, level)
+            skel, low, mid, high = build_wall_bands(rooms, floor, level, floor_masks[floor], stair_cut[floor])
+            door_mask = opening_mask(rooms, floor, "door")
+            window_mask = opening_mask(rooms, floor, "window")
+            add_skeleton_walls(writer, skel, low, mid, high, door_mask, window_mask, floor, level)
             add_stairs(writer, stairs[floor], level)
         stats.append(
             {

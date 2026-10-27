@@ -129,7 +129,7 @@ src/wasm/rpd.js            generated Emscripten ES module (committed for deploy)
 pages/index.tsx            real-geometry page
 pages/blockout.tsx         grey blockout page (/blockout)
 public/rpd/rpd.bin         real RPD geometry + vertex colours (20.2 MB)
-public/rpd/blockout.bin    grey blockout asset (0.09 MB)
+public/rpd/blockout.bin    grey blockout asset (0.25 MB)
 public/rpd/rpd.wasm        compiled sokol renderer
 ```
 
@@ -154,8 +154,11 @@ textures, no simplification, no wireframe edge pass.
 The blockout builder reuses the earlier floor-mask and wall-skeleton pass. Floor
 plates are 3 m × 3 m × 0.28 m boxes, walls are 3.2 m tall × 0.22 m thick boxes,
 and each stair flight is a triangular wedge from the lower plate to the next.
-It writes `blockout.bin` in the same RPDW v3 format (3,538 vertices, 9,296
-triangles, 0.09 MB); `/blockout` loads it with the same camera and controls.
+It writes `blockout.bin` in the same RPDW v3 format (12,490 vertices, 22,820
+triangles, 0.25 MB); `/blockout` loads it with the same camera and controls.
+Door and window materials become openings: doors keep a lintel, windows keep a
+sill/head and a darker grey panel, and jambs/corner posts tie adjacent wall runs
+together.
 
 ## Assets and licensing
 

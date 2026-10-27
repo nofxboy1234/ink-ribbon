@@ -285,8 +285,12 @@ touched.
 - Walls: 0.22 m thick, 3.2 m tall grey boxes along the skeletonized wall runs.
 - Stairs: triangular wedge ramps spanning each stair flight from the lower plate
   to the next, with floor tiles removed over the ramp opening.
-- Stair and floor colours are three close greys; no textures.
-- Output: 3,538 vertices, 9,296 triangles, 0.09 MB, same RPDW v3 chunk layout.
+- Openings: source material names containing `door`/`window`/`glass` become
+  openings. Doors keep a lintel; windows keep a sill/head and a darker recessed
+  panel. Solid-wall runs are merged across small jogs and terminated with
+  jamb/corner posts so adjacent walls meet cleanly.
+- Stair, floor, wall and window colours are four close greys; no textures.
+- Output: 12,490 vertices, 22,820 triangles, 0.25 MB, same RPDW v3 chunk layout.
 
 Build it with:
 
