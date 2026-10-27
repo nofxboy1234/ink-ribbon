@@ -15,3 +15,7 @@ native/build/
 
 # Void writes the connected Cloudflare account into this file.
 void.lock.json
+
+# Python tooling
+__pycache__/
+*.pyc
