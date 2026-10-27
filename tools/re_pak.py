@@ -23,7 +23,8 @@ except ImportError as exc:  # pragma: no cover - clear error for new machines
 GAME_DIR = pathlib.Path(
     os.environ.get(
         "RE2_GAME_DIR",
-        "/home/dylan/.local/share/Steam/steamapps/common/RESIDENT EVIL 2  BIOHAZARD RE2",
+        pathlib.Path.home()
+        / ".local/share/Steam/steamapps/common/RESIDENT EVIL 2  BIOHAZARD RE2",
     )
 )
 ARCHIVES = (
