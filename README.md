@@ -9,11 +9,14 @@ WebAssembly. Orbit the model, pan it, or hold right-click and fly through it.
 ## What is in here
 
 - **Level data** — all 49 RPD terrain meshes for 1F, 2F and 3F, read directly
-  from the game's PAK archives, converted to one indexed triangle mesh with
-  ceilings cut away and simplified for real-time display.
+  from the game's PAK archives and reduced to a stylized architectural plan:
+  three floor plates on a 3 m grid, skeletonized room/corridor walls, and simple
+  stair runs. Props, mouldings, railings and high-frequency detail are dropped;
+  the room layout and scale are preserved.
 - **Renderer** — a C application using the latest [sokol](https://github.com/floooh/sokol)
   (`sokol_app` + `sokol_gfx`), compiled to WebAssembly with Emscripten. It draws
-  a black-filled cutaway with depth-faded white edges and a small bloom pass.
+  black-filled plates with depth-faded white edges, separates the three floors
+  vertically, and adds a small bloom pass.
 - **Web app** — React 19 + TypeScript on [Void](https://github.com/voidzero-dev/void)
   1.3.0 (Vite 8) targeting Cloudflare Workers. Once the scene is loaded the
   page is only the canvas; no labels or UI sit on top of it.
@@ -28,7 +31,7 @@ WebAssembly. Orbit the model, pan it, or hold right-click and fly through it.
 | Void SDK / CLI | 1.3.0 |
 | sokol | `fe6e78dee2377e84bc6ade95f0dcd82b4fcd86e9` (2026-10-26) |
 | Emscripten | 6.0.13 |
-| Mesh simplifier | `fast-simplification` 0.2.0 |
+| Plan builder | numpy, Pillow, scikit-image |
 
 ## Run it
 
@@ -54,7 +57,7 @@ Rebuild the scene data from the installed game:
 uv run --with zstandard python tools/extract_rpd.py
 
 # 2. build public/rpd/rpd.bin from data/raw/rpd
-uv run --with numpy --with fast-simplification python tools/build_scene.py
+uv run --with numpy --with pillow --with scikit-image python tools/build_plan.py
 npm run wasm   # only needed after changing native/main.c
 ```
 
@@ -100,7 +103,7 @@ the repository does not contain an account ID. A fresh clone only needs
 tools/extract_rpd.py       PAK lookup + extraction of the 49 RPD meshes
 tools/re_pak.py            minimal KPKA v4 reader (Murmur3 path hashes)
 tools/remesh.py            RE2 RT .mesh parser (LODs, groups, submeshes, buffers)
-tools/build_scene.py       cutaway filter, simplification, edge extraction, RPDW writer
+tools/build_plan.py        floor plates, skeletonized walls, stairs, RPDW writer
 tools/rpd_floor_meshes.txt exact PAK paths for floors 1-3
 native/main.c              sokol app: camera, input, wireframe + bloom passes
 native/third_party/sokol   vendored sokol headers (pinned commit)
@@ -108,22 +111,28 @@ native/build.sh            Emscripten build
 src/RpdScene.tsx           React canvas + WASM loader with progress
 src/wasm/rpd.js            generated Emscripten ES module (committed for deploy)
 pages/index.tsx            Void page
-public/rpd/rpd.bin         derived wireframe scene (3.3 MB)
+public/rpd/rpd.bin         derived floor-plan scene (78 KB)
 public/rpd/rpd.wasm        compiled sokol renderer
 ```
 
 ## Scene notes
 
 The source meshes are in world space. Each room is a set of mesh groups; face
-indices are relative to each material subdivision's vertex slice. The build
-keeps LOD 0, drops downward-facing surfaces and the top 1.6 m of horizontal
-surfaces (ceilings/roofs) so the map reads as a cutaway, clips distant backdrop
-geometry, simplifies each room, and extracts unique feature edges. The result is
-111,596 triangles and 29,437 lines from 1,790,053 source triangles.
+indices are relative to each material subdivision's vertex slice. The plan pass
+keeps LOD 0 and turns the geometry into three plates:
 
-The clock tower on 3F is real level geometry and is included; it rises above the
-main roof and can look detached at some angles because the atrium below it is
-open.
+1. **Floor plates** — upward horizontal surfaces within 1.5 m of 0 / 5 / 10.25 m,
+   with giant backdrop triangles (>50 m²) removed. Room masks are filled, the 1F
+   mask is clipped to the upper-floor footprint plus the main hall, and the
+   plates are emitted as 3 m grid tiles.
+2. **Walls** — vertical surfaces at each level projected into a 2D wall mask,
+   skeletonized, then emitted as 4 m-tall wall runs. Openings and doors survive
+   as gaps in the skeleton.
+3. **Stairs** — clusters of sloped triangles become simple stepped runs.
+
+The result is 2,224 triangles and 3,134 lines from 1,790,053 source triangles.
+The renderer separates the plates by 6 m per floor so all three levels stay
+readable. The 3F clock-tower exterior sits above the third plate and is omitted.
 
 ## Assets and licensing
 
@@ -132,6 +141,6 @@ The project code is MIT. The retail game assets remain the property of Capcom.
 demo runs without an installation. No original PAK files are redistributed.
 
 Third-party: sokol (zlib/libpng), Emscripten (MIT/NCSA), React (MIT), Void
-(MIT), `fast-simplification` (MIT). The RE mesh layout was checked against
+(MIT), scikit-image (BSD-3-Clause). The RE mesh layout was checked against
 [NSACloud's RE Mesh Editor](https://github.com/NSACloud/RE-Mesh-Editor); no addon
 code is vendored or called at runtime.

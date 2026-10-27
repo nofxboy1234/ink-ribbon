@@ -1,7 +1,7 @@
 /*
  * RPD wireframe renderer.
  *
- * The scene is a single indexed triangle mesh produced by tools/build_scene.py
+ * The scene is a single indexed triangle mesh produced by tools/build_plan.py
  * from the RE2 RT RPD floor 1-3 terrain meshes. It is drawn as a black-filled
  * cutaway with pale wireframe edges, then depth-faded toward the background.
  */
@@ -474,7 +474,7 @@ static bool upload_scene(scene_t *s) {
         s->floors[i].y_min = *(const float *)(f + 16);
         s->floors[i].y_max = *(const float *)(f + 20);
     }
-    for (int i = 0; i < MAX_FLOORS; i++) s->floor_offset[i] = 0.0f;
+    for (int i = 0; i < MAX_FLOORS; i++) s->floor_offset[i] = 6.0f * (float)i;
 
     s->vbuf = sg_make_buffer(&(sg_buffer_desc){
         .size = (size_t)vertex_count * 12,

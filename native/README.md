@@ -53,8 +53,9 @@ through `locateFile`.
    MSAA sample count.
 
 The scene is split into three draw ranges (1F/2F/3F) from the asset header. The
-`y_offset` uniform for each range is currently zero; it exists so an exploded
-floor view can be added without touching the asset.
+`y_offset` uniform places 1F at its real height, 2F 6 m higher and 3F 12 m
+higher, producing the exploded three-plate axonometric. The offsets are applied
+only in the renderer; the asset keeps the real floor elevations.
 
 ## Input
 
@@ -80,7 +81,7 @@ jump. `fly_begin`/`fly_end` live next to `camera_eye` in `main.c`.
 - Default yaw −0.55 rad, pitch 0.72 rad.
 - Distance is 133 units on a 1600 px canvas, scaled up on narrower viewports;
   it is recomputed on resize until the user moves the camera.
-- Target is the X/Z centre of the scene bounds with Y at 34% of the height
-  range, which frames the main hall and the 3F clock tower.
+- Target is the X/Z centre of the scene bounds with Y at 34% of the exploded
+  height range, which frames all three floor plates.
 
 The asset is in metres, Y-up, with the RPD main hall near the origin.

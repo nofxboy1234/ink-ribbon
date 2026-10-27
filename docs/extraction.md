@@ -169,36 +169,83 @@ all RPD meshes).
 count is `index_count / 3`. The 121,284-byte face buffer of room `st4_313_0`
 therefore holds 20,213 triangles, not 60,642.
 
-## 3. Cutaway and scene construction
+## 3. Floor-plan abstraction
 
-`tools/build_scene.py` processes the 49 meshes in floor order:
+The previous pass drew the raw triangle soup. This pass reduces it to what the
+reference map actually communicates: room plates, wall runs and stairs. The
+builder is `tools/build_plan.py`.
 
-1. **LOD 0 only.** Every RPD room has one LOD group.
-2. **Weld nothing; keep room-local vertices.** Rooms are separate draws in the
-   source and their shared walls are duplicated, which is harmless for an edge
-   renderer.
-3. **Drop downward-facing triangles** (`cross(b-a, c-a).y < 0`). This removes
-   floors' undersides and a large fraction of redundant double-sided surfaces.
-4. **Drop the room's top envelope.** Horizontal triangles (Y span < 0.35 m)
-   whose centroid is within 1.6 m of the room's maximum Y are ceilings or roofs.
-   Removing them turns each room into an open-topped cutaway.
-5. **Clip.** Triangles with any vertex outside
-   `[-60, -8, -40] … [55, 55, 30]` are backdrop geometry (distant walls, roof
-   tails, skyline pieces) and are dropped. This removes 81 triangles and the
-   long spikes visible in an unfiltered render.
-6. **Simplify** each room with `fast_simplification.simplify(..., agg=7)` at a
-   target reduction of 0.88. The source is heavily tessellated; the map only
-   needs the silhouette and architectural features.
-7. **Extract unique edges.** For each room, edges are keyed by their vertex
-   pair. An edge is kept when it is a boundary edge, at least 0.3 m long, the
-   adjacent face normals differ by at least 22°, or (via `--edge-long`, default
-   2.2 m) it is long enough to form a coarse floor grid. This keeps door frames,
-   wall/floor junctions and structural lines without drawing every sub-pixel
-   triangle edge.
-8. **Pack** positions, triangle indices and line indices into `rpd.bin`.
+### 3.1 Read, clip and classify
 
-Current result: 1,790,053 source triangles → 111,596 triangles, 147,078
-vertices, 29,437 edges, 3.3 MB.
+LOD 0 is used from every room. Triangles are kept only if all vertices fall in
+`[-60, -8, -40] … [55, 55, 30]`; this removes the distant RPD backdrop. Each
+geometry class is then filtered:
+
+- **Floor candidates:** upward-facing (`ny > 0.6`), 0.02–50 m², within the
+  floor's Y window, and at least 1.6 m below the room's maximum Y (no ceilings
+  or roofs).
+- **Wall candidates:** near-vertical (`|ny| < 0.4`), 0.02–50 m², at least 1.6 m
+  tall, with their bottom within 1.6 m of the floor base.
+- **Stair candidates:** `0.2 < |ny| < 0.85`, 0.05–25 m², within 5 m above the
+  floor base.
+
+Giant terrain/backdrop triangles are excluded by the 50 m² cap. Without it,
+rooms such as `st4_201_0`, `st4_504_0` and `st4_603_0` contribute 1,000–10,000
+m² ground planes that swallow the building footprint.
+
+### 3.2 Plates
+
+The RPD's three main levels are at approximately **0.0 / 5.0 / 10.25 m**. The
+builder uses one plate level per source floor group:
+
+| Floor | Source rooms | Plate |
+|---|---|---|
+| 1F | `st4_1*`, `st4_2*`, `st4_3*` | 0.00 m |
+| 2F | `st4_4*`, `st4_5*` | 5.00 m |
+| 3F | `st4_6*` | 10.25 m |
+
+For each room and level, horizontal triangles within ±1.5 m are filled into a
+0.5 m occupancy raster. The mask is clipped, small components are dropped,
+holes are filled, and components below 4 m² are removed. The 1F mask is clipped
+to a building footprint derived from the 2F/3F room masks (dilated 1.5 m and
+hole-filled) plus the main hall rectangle `x[-11,11], z[-23,13]`. This removes
+the streets/plazas around the building.
+
+Plates are emitted as **3 m grid tiles** where at least 45% of the underlying
+0.5 m cells are covered. Every tile contributes two fill triangles and its four
+edges, giving the regular floor grid in the reference.
+
+### 3.3 Walls
+
+Vertical triangles within 1.2 m of a plate level are projected onto the XZ
+plane and drawn into a 0.5 m wall raster. The raster is dilated by one cell,
+clipped to the floor mask, and **skeletonized** with
+`skimage.morphology.skeletonize`. The one-pixel skeleton is then scanned for
+horizontal and vertical runs of at least 1.5 m, and each run becomes a 4 m-tall
+wall quad.
+
+This is what turns the panel-by-panel wall geometry into continuous room and
+corridor walls. Door openings survive as gaps in the skeleton; short jogs and
+door frames are discarded. Curved walls are approximated by stair-stepped
+runs at the 0.5 m grid.
+
+### 3.4 Stairs
+
+Sloped triangles in a floor's Y window are projected into the same 0.5 m raster
+and grouped into components. A component becomes a simple staircase when it is
+at least 1.2 m², has a horizontal run of 1.5 m, a width of 0.8 m, a height
+difference of 0.9 m, and a footprint no larger than 90 m². The builder draws
+4–14 tread and riser quads across the component's bounding rectangle. This is an
+approximation, not a reconstruction of each step.
+
+### 3.5 Renderer offsets
+
+The final asset keeps the three plates at their real Y values. The sokol
+renderer offsets 1F/2F/3F by 0 / 6 / 12 m respectively (`floor_offset` in
+`native/main.c`) so the three plans read as an exploded axonometric.
+
+**Result:** 1,790,053 source triangles → **2,224 triangles**, 2,306 vertices,
+**3,134 edges**, 78 KB.
 
 ## 4. `rpd.bin` v2
 
@@ -224,33 +271,37 @@ vertices, 29,437 edges, 3.3 MB.
      u32[2]   edge_indices[edge_count]
 ```
 
-`rpd.json` records the same counts, source room names, per-floor ranges, and the
-filter statistics for inspection.
+`rpd.json` records the method, plate levels, per-floor areas/counts, and the
+filter parameters.
 
 ## 5. Reproduce
 
 ```bash
 uv run --with zstandard python tools/extract_rpd.py
-uv run --with numpy --with fast-simplification python tools/build_scene.py
+uv run --with numpy --with pillow --with scikit-image python tools/build_plan.py
 ```
 
-Useful flags:
+`npm run data` runs both in sequence. `tools/build_plan.py` has one option:
 
 ```bash
---keep-ceilings        keep the top-envelope cut (debug)
---no-dedupe            keep exact duplicate triangles
---reduction 0          skip simplification
---edge-min 0.3         minimum edge length in metres
---edge-angle 22        crease angle for feature edges
---edge-long 2.2        keep coplanar edges at least this long (0 disables)
+--no-walls    emit plates and stairs only (debug)
 ```
+
+The main thresholds are constants at the top of `build_plan.py`: `LEVELS`,
+`TILE`, `WALL_HEIGHT`, `WALL_MIN_LENGTH`, `FLOOR_MIN_AREA` and
+`FOOTPRINT_DILATE_M`.
 
 ## 6. Notes and limits
 
 - Stage geometry is stored in world space, so no scene/prefab transforms were
-  needed. The floor offsets in `rpd.json` are Y ranges from the mesh data.
-- Room `st4_602_0` is the 3F clock tower. Its base sits in the open atrium, so it
-  can read as detached from some camera angles.
+  needed.
+- The plan is intentionally an interpretation. Only the three main plate levels
+  are used; mezzanines, the 3F clock-tower exterior, railings and all props are
+  omitted.
+- The 1F footprint is anchored by the 2F/3F room masks and the main hall. Without
+  that clip, the outdoor terrain around the RPD dominates the plan.
+- Stairs are reconstructed from sloped clusters and their bounding boxes, so
+  they indicate direction and rise rather than exact treads.
 - The mesh parser handles the RE2 RT variant only. Other RE Engine versions use
   different subdivision/header layouts.
 - `data/raw/` is not committed; `public/rpd/rpd.bin` is the derived scene.
