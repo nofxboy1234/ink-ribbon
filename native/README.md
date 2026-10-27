@@ -49,11 +49,12 @@ through `locateFile`.
    light. There are no textures, no wireframe edges and no bloom.
 3. **Composite to the swapchain** — a fullscreen triangle samples the offscreen
    colour, adds a restrained radial background gradient, vignette and a little
-   grain. In blockout mode every material colour is mapped to a desaturated
-   Dracula palette colour.
+   grain.
 
-There is one draw range for the whole building; the asset's per-floor records
-are informational only.
+For the blockout asset (RPDW v4), a separate fill pipeline draws translucent
+white surfaces with distance-based alpha, then a line pipeline draws bright
+structural edges followed by the smaller, dimmer floor-grid edge range. The
+real asset (RPDW v3) is a single solid draw range.
 
 ## Input
 

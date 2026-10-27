@@ -275,14 +275,29 @@ and the material palette.
   different subdivision/header layouts.
 - `data/raw/` is not committed; `public/rpd/rpd.bin` is the derived scene.
 
-## 7. Grey blockout mode
+## 7. Wireframe blockout
 
-`/blockout` is a rendering mode over the same `rpd.bin`; there is no second
-mesh asset and the real page is untouched.
+`/blockout` uses a separate RPDW v4 asset, `public/rpd/blockout.bin`, built by
+`tools/build_blockout.py`. The real asset is untouched.
 
-- `RpdScene` calls the exported `rpd_set_blockout(1)` after wasm startup.
-- The scene fragment shader hashes each material colour into a ten-colour
-  desaturated Dracula palette (purple, pink, cyan, green, orange, yellow, red,
-  blue, lavender, comment).
-- Everything else — geometry, camera, fog, controls and the green FPS counter —
-  is shared with `/`.
+- Walls are axis-aligned box runs split into 1.5 m panels. Door and window
+  materials become gaps, with lintels above doors and sills/heads around
+  windows.
+- Floors are 3 m planes with their perimeter edges tagged as a dim grid.
+- Stairs are sloped planes at the source stair positions with tread lines.
+- Roofs and ceilings are not emitted.
+- Output: 15,604 vertices, 25,960 triangles, 22,560 structural edges and 1,214
+  floor-grid edges, 0.67 MB.
+
+The renderer draws blockout fills as translucent white with alpha falling off
+with distance, then draws structural edges in bright wireframe and the floor
+grid at lower brightness. Near surfaces therefore read as semi-transparent
+material while distant ones collapse to pure wireframe.
+
+Build it with:
+
+```bash
+npm run blockout
+```
+
+The real page at `/` remains the full LOD-0 geometry scene.
