@@ -289,8 +289,10 @@ not terrain. They are extracted with `tools/extract_props.py` into
 `data/raw/props` and appended to the real scene at their scene positions:
 `sm41_024_newpolicestatue01a` in the main hall and
 `sm46_011_crashheli01a` on the 2F helipad. The helicopter position is taken from
-the `st4_502_0` gimmick scene; the statue is placed at the corresponding
-main-hall gimmick position.
+the `st4_502_0` gimmick scene. The statue prop includes the half-basin, so its
+offset is fitted to the hall floor: the basin centre (local 0, 1.82) lands on
+the mid-point of the floor chord at (0, -11.47), and the basin rim sits at the
+hall floor level of 0.80. The resulting offset is (0.0, 1.75, -13.29).
 
 
 ## 9. Whole-RPD blockout
