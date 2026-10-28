@@ -12,7 +12,7 @@ type RpdFactory = (options: {
   locateFile: (path: string) => string;
 }) => Promise<RpdModule>;
 
-const ASSET_URL = "/rpd/rpd.bin?v=20261028";
+const CACHE_VERSION = "20261028";
 
 async function fetchScene(
   url: string,
@@ -47,10 +47,12 @@ const nextFrame = () =>
   new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
 type RpdSceneProps = {
+  assetUrl?: string;
   label?: string;
 };
 
 export default function RpdScene({
+  assetUrl = "/rpd/rpd.bin",
   label = "RPD floors one to three as a 3D model",
 }: RpdSceneProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -90,7 +92,7 @@ export default function RpdScene({
           throw new Error("this browser does not provide WebGL2");
         }
         const [asset, factory] = await Promise.all([
-          fetchScene(ASSET_URL, controller.signal, (fraction) => {
+          fetchScene(`${assetUrl}?v=${CACHE_VERSION}`, controller.signal, (fraction) => {
             if (!cancelled) setProgress(fraction);
           }),
           import("./wasm/rpd.js").then(
@@ -130,7 +132,7 @@ export default function RpdScene({
       cancelled = true;
       controller.abort();
     };
-  }, []);
+  }, [assetUrl]);
 
   const statusText = error ? `Scene error — ${error}` : `Loading RPD floors 1–3`;
 

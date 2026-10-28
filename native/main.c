@@ -550,11 +550,20 @@ static void reset_camera(void) {
     float dy = b->max[1] - b->min[1];
     float dz = b->max[2] - b->min[2];
     state.scene_radius = 0.5f * sqrtf(dx * dx + dy * dy + dz * dz);
-    state.camera.yaw = -0.55f;
-    state.camera.pitch = 0.62f;
-    state.camera.target[1] = b->min[1] + 0.40f * dy;
     int w = sapp_width() > 0 ? sapp_width() : 1600;
-    state.camera.distance = 150.0f * fmaxf(1.0f, 900.0f / (float)w);
+    if (state.scene_radius < 30.0f) {
+        state.camera.target[0] = 0.0f;
+        state.camera.target[1] = 2.5f;
+        state.camera.target[2] = 4.0f;
+        state.camera.yaw = 0.0f;
+        state.camera.pitch = 0.05f;
+        state.camera.distance = 14.0f;
+    } else {
+        state.camera.yaw = -0.55f;
+        state.camera.pitch = 0.62f;
+        state.camera.target[1] = b->min[1] + 0.40f * dy;
+        state.camera.distance = 2.2f * state.scene_radius * fmaxf(1.0f, 900.0f / (float)w);
+    }
 }
 
 static void frame(void) {

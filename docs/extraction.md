@@ -274,3 +274,14 @@ and the material palette.
 - The mesh parser handles the RE2 RT variant only. Other RE Engine versions use
   different subdivision/header layouts.
 - `data/raw/` is not committed; `public/rpd/rpd.bin` is the derived scene.
+
+
+## 8. Blender simple entrance
+
+`/simple` covers only the entrance hall. `tools/export_entrance_obj.py` exports
+the decompiled `st4_101_0` main-hall mesh as a Blender reference. The Blender
+script removes that reference and rebuilds the area with axis-aligned boxes,
+floor/balcony slabs, columns, railings and two stair wedges. It exports a small
+OBJ, and `tools/obj_to_simple.py` packs it as an RPDW v3 asset.
+
+The /simple asset is 196 vertices, 292 triangles and about 4 KB.

@@ -9,6 +9,8 @@ A green FPS counter sits at the top right of the scene.
 
 ![RPD floors 1–3](docs/preview.jpg)
 
+![RPD simplified entrance](docs/simple.jpg)
+
 ## What is in here
 
 - **Level data** — all 49 RPD terrain meshes for 1F, 2F and 3F, read directly
@@ -21,6 +23,10 @@ A green FPS counter sits at the top right of the scene.
   solid triangles in a simple key/fill/hemisphere light, with one flat grey per
   source material, then composites a restrained background gradient. No material
   textures are sampled.
+- **Simple entrance** — `/simple` is a Blender-assembled blockout of the
+  entrance hall. It replaces the decorative geometry with boxes, slabs and
+  stair wedges while keeping the entrance proportions and the player-position
+  sphere.
 - **Web app** — React 19 + TypeScript on [Void](https://github.com/voidzero-dev/void)
   1.3.0 (Vite 8) targeting Cloudflare Workers. Once the scene is loaded the
   page is only the canvas; no labels or UI sit on top of it.
@@ -62,6 +68,9 @@ uv run --with zstandard python tools/extract_rpd.py
 
 # 2. build public/rpd/rpd.bin from data/raw/rpd
 uv run --with numpy python tools/build_real.py
+
+# 3. build the Blender simplified entrance
+npm run simple
 
 npm run wasm   # only needed after changing native/main.c
 ```
@@ -110,6 +119,9 @@ tools/extract_rpd.py       PAK lookup + extraction of the 49 RPD meshes
 tools/re_pak.py            minimal KPKA v4 reader (Murmur3 path hashes)
 tools/remesh.py            RE2 RT .mesh parser (LODs, groups, submeshes, buffers)
 tools/build_real.py        real LOD-0 geometry, flat grey material palette, RPDW v3 writer
+tools/export_entrance_obj.py  main-hall reference OBJ for Blender
+tools/simple_blender.py    simple entrance boxes/wedges + OBJ export
+tools/obj_to_simple.py     Blender simple OBJ -> RPDW v3 asset
 tools/rpd_floor_meshes.txt exact PAK paths for floors 1-3
 native/main.c              sokol app: camera, input, solid-colour geometry pass
 native/third_party/sokol   vendored sokol headers (pinned commit)
@@ -117,6 +129,7 @@ native/build.sh            Emscripten build
 src/RpdScene.tsx           React canvas + WASM loader with progress
 src/wasm/rpd.js            generated Emscripten ES module (committed for deploy)
 pages/index.tsx            real-geometry page
+pages/simple.tsx           simplified entrance page (/simple)
 public/rpd/rpd.bin         real RPD geometry + grey vertex colours (20.2 MB)
 public/rpd/rpd.wasm        compiled sokol renderer
 ```
@@ -138,6 +151,12 @@ Raw source: 1,790,053 triangles and 2,059,499 vertices. The asset holds
 1,716,488 triangles, 1,102,944 vertices and 19 chunks in 20.2 MB. The renderer
 expands the chunks into one indexed mesh and draws it in a single call. No
 textures, no simplification, no wireframe edge pass.
+
+`/simple` imports the decompiled main-hall mesh into Blender as a reference,
+removes it, and rebuilds the entrance from axis-aligned boxes, floor slabs and
+two stair wedges. The Blender export is converted to a small RPDW v3 asset and
+rendered by the same sokol application. The blue sphere is drawn at the
+entrance by the renderer.
 
 ## Assets and licensing
 
