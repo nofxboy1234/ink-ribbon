@@ -143,7 +143,8 @@ Current result:
 | 3 | 0.981 | 0.996 | 0.969 | 0.987 | 0.991 | 0.953 |
 
 Floor precision is below 1 because the spec keeps floor slabs under stair
-footprints while the source plate mask excludes those footprints. Floor recall
+footprints and split-level mezzanine plates that sit outside the source band
+mask. Floor recall
 is the completeness number. The solid wall score is the mid-height wall band.
 The footprint score compares every wall box and every source wall face in plan,
 which is the wall-for-wall test. The remaining footprint gaps are mostly curved
@@ -217,7 +218,9 @@ railings, so its recall is not a main-shape target.
 - No roofs or ceilings. The model is meant to be read from above.
 - Door and window openings are full height. Lintels, sills and frames are
   omitted on purpose.
-- Props, railings, furniture and the statue are not modeled.
+- Props, railings, furniture and the statue are not modeled. The library
+  bookcases and gallery joinery are furniture and are omitted; the stair ramps
+  to the gallery remain.
 - Curved arches and the main-hall apse are approximated by axis-aligned walls
   and rectangular openings. Decorative arches, ceilings, the statue and
   furniture are not modeled.
