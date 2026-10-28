@@ -401,6 +401,25 @@ def main():
         img = composite(
             source_floor, all_source, spec_floor_img, all_spec, spec_floor["slabs"]
         )
+        marks = ImageDraw.Draw(img)
+        for stair in spec_floor["stairs"]:
+            marks.rectangle(
+                [
+                    ((stair["x0"] - X0) / CELL, (stair["z0"] - Z0) / CELL),
+                    ((stair["x1"] - X0) / CELL, (stair["z1"] - Z0) / CELL),
+                ],
+                outline=(60, 220, 90),
+                width=3,
+            )
+        for ramp in spec_floor["ramps"]:
+            marks.rectangle(
+                [
+                    ((ramp["x0"] - X0) / CELL, (ramp["z0"] - Z0) / CELL),
+                    ((ramp["x1"] - X0) / CELL, (ramp["z1"] - Z0) / CELL),
+                ],
+                outline=(220, 100, 220),
+                width=3,
+            )
         img.save(OUT / f"plan_f{floor}.png")
         print(
             f"floor {floor}: floor precision {fs['precision']:.3f} "
