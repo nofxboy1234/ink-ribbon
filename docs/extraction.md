@@ -209,8 +209,7 @@ The chunk extent is at most the RPD width, so the position step is under 2 mm.
 The renderer expands everything into one float-position/`u8`-colour vertex
 buffer plus one `u32` index buffer and draws the whole building in one call.
 
-**Result:** 1,790,053 source triangles → **1,790,053 triangles**, 1,116,068
-vertices, 19 chunks, 20.8 MB.
+**Result:** 1,790,053 source triangles plus 84,468 gimmick triangles → **1,874,521 triangles**, 1,151,085 vertices, 20 chunks, 21.6 MB.
 
 ## 4. `rpd.bin` v3
 
@@ -264,7 +263,7 @@ and the material palette.
   collision, no UV/texture pass and no alpha-cutout material support.
 - Materials are identified only by their numeric index, so the colours convey
   surface separation rather than exact real-world material identity.
-- The 20.8 MB asset is under Cloudflare's 25 MiB per-asset limit and is served
+- The 21.6 MB asset is under Cloudflare's 25 MiB per-asset limit and is served
   as one file. Initial load and wasm upload take a few seconds on a local
   connection.
 - The mesh parser handles the RE2 RT variant only. Other RE Engine versions use
@@ -281,3 +280,14 @@ floor/balcony slabs, columns, railings and two stair wedges. It exports a small
 OBJ, and `tools/obj_to_simple.py` packs it as an RPDW v3 asset.
 
 The /simple asset is 196 vertices, 292 triangles and about 4 KB.
+
+
+### 3.4 Gimmick props
+
+The main-hall statue and 2F crashed helicopter are separate gimmick meshes,
+not terrain. They are extracted with `tools/extract_props.py` into
+`data/raw/props` and appended to the real scene at their scene positions:
+`sm41_024_newpolicestatue01a` in the main hall and
+`sm46_011_crashheli01a` on the 2F helipad. The helicopter position is taken from
+the `st4_502_0` gimmick scene; the statue is placed at the corresponding
+main-hall gimmick position.

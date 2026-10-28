@@ -106,6 +106,36 @@ class Chunk:
         self.indices.extend((i0, i1, i2))
 
 
+PROP_SPECS = (
+    ("sm41_024_newpolicestatue01a", 0, (0.64, -0.2, -12.8)),
+    ("sm46_011_crashheli01a", 1, (26.1, 5.2, -9.95)),
+)
+
+
+def load_prop_triangles():
+    props_dir = ROOT / "data" / "raw" / "props"
+    loaded = []
+    for name, floor, offset in PROP_SPECS:
+        path = props_dir / f"{name}.mesh"
+        if not path.exists():
+            continue
+        mesh = remesh.parse(path.read_bytes())
+        tris = []
+        ox, oy, oz = offset
+        for group in mesh.lods[0].groups:
+            pos = np.asarray(remesh.positions(mesh, group), dtype=np.float64)
+            for sub in group.submeshes:
+                if sub.is_quad or sub.index_count == 0:
+                    continue
+                for a, b, c in submesh_triangles(mesh, group, sub):
+                    p0 = pos[a] + (ox, oy, oz)
+                    p1 = pos[b] + (ox, oy, oz)
+                    p2 = pos[c] + (ox, oy, oz)
+                    tris.append((sub.material, (p0, p1, p2)))
+        loaded.append((name, floor, tris))
+    return loaded
+
+
 def load_triangles():
     files = sorted(RAW.glob("*.mesh"), key=lambda p: (room_floor(p.stem), p.stem))
     floors = []
@@ -121,6 +151,7 @@ def load_triangles():
                 for a, b, c in submesh_triangles(mesh, group, sub):
                     tris.append((sub.material, (pos[a], pos[b], pos[c])))
         floors.append((path.stem, room_floor(path.stem), tris))
+    floors.extend(load_prop_triangles())
     return floors
 
 

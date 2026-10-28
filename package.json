@@ -9,10 +9,11 @@
     "preview": "vite preview",
     "postinstall": "void prepare",
     "typecheck": "tsc --noEmit",
-    "data": "uv run --with zstandard python tools/extract_rpd.py && uv run --with numpy python tools/build_real.py",
+    "data": "uv run --with zstandard python tools/extract_rpd.py && uv run --with zstandard python tools/extract_props.py && uv run --with numpy python tools/build_real.py",
     "wasm": "bash native/build.sh",
     "deploy": "void deploy --platform cloudflare",
-    "simple": "uv run --with numpy python tools/export_entrance_obj.py && blender -b -P tools/simple_blender.py && uv run --with numpy python tools/obj_to_simple.py"
+    "simple": "uv run --with numpy python tools/export_entrance_obj.py && blender -b -P tools/simple_blender.py && uv run --with numpy python tools/obj_to_simple.py",
+    "props": "uv run --with zstandard python tools/extract_props.py"
   },
   "dependencies": {
     "hono": "4.13.14",
