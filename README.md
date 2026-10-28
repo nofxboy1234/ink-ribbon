@@ -28,6 +28,11 @@ A green FPS counter sits at the top right of the scene.
   entrance hall. It replaces the decorative geometry with boxes, slabs and
   stair wedges while keeping the entrance proportions and the player-position
   sphere.
+- **Whole-RPD blockout.** Floors 1 to 3 as one Blender scene. The source
+  meshes stay in the scene as a wireframe reference. The simplified model adds
+  floor plates, walls with full-height opening gaps, square pillars, stair
+  wedges and ramp slabs. See [docs/blockout.md](docs/blockout.md). Build it with
+  `npm run blockout` and view it at `/simple2`.
 - **Web app** — React 19 + TypeScript on [Void](https://github.com/voidzero-dev/void)
   1.3.0 (Vite 8) targeting Cloudflare Workers. Once the scene is loaded the
   page is only the canvas; no labels or UI sit on top of it.
@@ -72,6 +77,10 @@ uv run --with numpy python tools/build_real.py
 
 # 3. build the Blender simplified entrance
 npm run simple
+
+# 4. build the whole-RPD blockout, its /simple2 asset and the checks
+npm run blockout
+npm run blockout-render   # optional: overview, main hall and per-floor renders
 
 npm run wasm   # only needed after changing native/main.c
 ```
@@ -124,6 +133,11 @@ tools/extract_props.py     extract statue/helicopter gimmick meshes from the PAK
 tools/export_entrance_obj.py  main-hall reference OBJ for Blender
 tools/simple_blender.py    simple entrance boxes/wedges + OBJ export
 tools/obj_to_simple.py     Blender simple OBJ -> RPDW v3 asset
+tools/blockout_common.py   mesh loading, material names, shared types
+tools/blockout_extract.py  source-fitted blockout spec and reference PLYs
+tools/blockout_scene.py    Blender scene, OBJ/GLB export and renders
+tools/blockout_verify.py   source-versus-blockout coverage and plan images
+docs/blockout.md           whole-RPD blockout pipeline and results
 tools/rpd_floor_meshes.txt exact PAK paths for floors 1-3
 native/main.c              sokol app: camera, input, solid-colour geometry pass
 native/third_party/sokol   vendored sokol headers (pinned commit)
@@ -132,8 +146,11 @@ src/RpdScene.tsx           React canvas + WASM loader with progress
 src/wasm/rpd.js            generated Emscripten ES module (committed for deploy)
 pages/index.tsx            real-geometry page
 pages/simple.tsx           simplified entrance page (/simple)
+pages/simple2.tsx          whole-RPD blockout page (/simple2)
 public/rpd/rpd.bin         real RPD geometry + grey vertex colours (20.2 MB)
 public/rpd/rpd.wasm        compiled sokol renderer
+public/rpd/simple.bin      simplified entrance asset
+public/rpd/simple2.bin     whole-RPD blockout asset
 ```
 
 ## Scene notes
@@ -158,6 +175,14 @@ removes it, and rebuilds the entrance from axis-aligned boxes, floor slabs and
 two stair wedges. The Blender export is converted to a small RPDW v3 asset and
 rendered by the same sokol application. The blue sphere is drawn at the
 entrance by the renderer.
+
+`build/rpd_blockout.blend` is the whole-RPD blockout. `RPD_Blockout` holds the
+simplified model and `RPD_Reference` holds the original LOD-0 triangles as a
+wireframe. Every primitive is fitted to the source coordinates, so the model
+uses the original metres with no scale factor. The scene is Z-up with
+`blender = (x, -z, y)`. `build/blockout/spec.json` records every slab, wall,
+pillar, stair and ramp, and `build/blockout/verify/` holds the source-versus-
+blockout plan overlays.
 
 ## Assets and licensing
 

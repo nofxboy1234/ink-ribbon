@@ -291,3 +291,19 @@ not terrain. They are extracted with `tools/extract_props.py` into
 `sm46_011_crashheli01a` on the 2F helipad. The helicopter position is taken from
 the `st4_502_0` gimmick scene; the statue is placed at the corresponding
 main-hall gimmick position.
+
+
+## 9. Whole-RPD blockout
+
+`tools/blockout_extract.py` reads all 49 meshes and writes a metre-space spec of
+floor plates, walls, pillars, stair wedges and ramp slabs. The material name
+remap at header offset `0x60` and the name table at `0x78` separate structural
+surfaces from props and exterior scenery. `tools/blockout_scene.py` assembles
+the spec in Blender, imports the original LOD-0 triangles as a wireframe
+reference, and writes `build/rpd_blockout.blend`, `blockout.obj` and
+`blockout.glb`. `tools/blockout_verify.py` rasterizes source and spec in plan
+view and writes coverage metrics and overlays.
+
+The model is deliberately a dollhouse: no roofs, ceilings, props or railings.
+Door and window runs become full-height gaps. The full method, current coverage
+numbers and limits are in [blockout.md](blockout.md).

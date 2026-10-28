@@ -13,6 +13,9 @@
     "wasm": "bash native/build.sh",
     "deploy": "void deploy --platform cloudflare",
     "simple": "uv run --with numpy python tools/export_entrance_obj.py && blender -b -P tools/simple_blender.py && uv run --with numpy python tools/obj_to_simple.py",
+    "blockout": "uv run --with numpy --with pillow --with shapely python tools/blockout_extract.py && blender -b -P tools/blockout_scene.py -- --no-render && npm run simple2 && uv run --with numpy --with pillow --with shapely python tools/blockout_verify.py",
+    "blockout-render": "blender -b -P tools/blockout_scene.py -- --workbench",
+    "simple2": "uv run --with numpy python tools/obj_to_simple.py --obj build/blockout/blockout.obj --out public/rpd/simple2.bin --meta public/rpd/simple2.json --method \"Blender whole-RPD blockout\" --pad 6",
     "props": "uv run --with zstandard python tools/extract_props.py"
   },
   "dependencies": {
