@@ -16,8 +16,8 @@ A green FPS counter sits at the top right of the scene.
 - **Level data** — all 49 RPD terrain meshes for 1F, 2F and 3F, read directly
   from the game's PAK archives at LOD 0. This is the real level geometry: walls,
   floors, stairs, props, railings, roofs and the clock tower. There is no
-  simplification pass and no texture data. The only removals are triangles
-  outside the RPD clip box, degenerates, and flat top-envelope surfaces.
+  simplification pass and no texture data. All LOD-0 triangles from the 49
+  meshes are kept; nothing is clipped, decimated or ceiling-trimmed.
 - **Renderer** — a C application using the latest [sokol](https://github.com/floooh/sokol)
   (`sokol_app` + `sokol_gfx`), compiled to WebAssembly with Emscripten. It draws
   solid triangles in a simple key/fill/hemisphere light, with one flat grey per
@@ -139,16 +139,14 @@ public/rpd/rpd.wasm        compiled sokol renderer
 The source meshes are in world space. Each room is a set of mesh groups; face
 indices are relative to each material subdivision's vertex slice. The build:
 
-1. reads LOD 0 from all 49 meshes and keeps every triangle inside
-   `[-60, -8, -40] … [55, 55, 30]`;
-2. drops degenerate triangles and flat up-facing surfaces within 1.6 m of each
-   room's maximum Y (roof/ceiling caps);
-3. assigns one of twelve grey shades to each source material index;
-4. welds equal position+colour vertices into 19 chunks of at most 60k vertices;
-5. quantises positions to 16 bits per chunk and packs the result as RPDW v3.
+1. reads every LOD-0 triangle from all 49 meshes;
+2. assigns one of twelve grey shades to each source material index;
+3. welds equal position+colour vertices into 19 chunks of at most 60k vertices;
+4. quantises positions to 16 bits per chunk and packs the result as RPDW v3.
 
-Raw source: 1,790,053 triangles and 2,059,499 vertices. The asset holds
-1,716,488 triangles, 1,102,944 vertices and 19 chunks in 20.2 MB. The renderer
+Raw source: 1,790,053 triangles and 2,059,499 vertices. The asset keeps all
+1,790,053 triangles, welding to 1,116,068 vertices in 19 chunks / 20.8 MB.
+Only the camera framing bounds are restricted to the RPD area. The renderer
 expands the chunks into one indexed mesh and draws it in a single call. No
 textures, no simplification, no wireframe edge pass.
 

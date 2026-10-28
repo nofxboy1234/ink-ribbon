@@ -175,17 +175,13 @@ This pass replaces the stylized plan with the actual LOD-0 RPD meshes. The
 builder is `tools/build_real.py`. There is no simplification, no edge
 extraction and no texture data.
 
-### 3.1 Read, clip and filter
+### 3.1 Read all LOD-0 geometry
 
-All 49 meshes are read at LOD 0. Triangles are kept when every vertex lies in
-`[-60, -8, -40] … [55, 55, 30]`; this removes the distant backdrop. Degenerate
-triangles and flat up-facing triangles within 1.6 m of each room's maximum Y
-(roof/ceiling caps) are dropped. Everything else remains: walls, floors, stairs,
-doors, railings, furniture, sloped roofs and the clock tower.
-
-Flat roofs are the exception: because each room's top is defined by its own mesh
-bounds, a room that shares a tall space with the tower can keep lower roof
-slopes. The result is a real building shell, not a cutaway.
+All 49 meshes are read at LOD 0. Every triangle is kept; there is no clip-box
+filter, no degenerate filter and no ceiling/roof trim. The resulting asset
+contains walls, floors, stairs, doors, railings, furniture, ceilings, roofs,
+distant backdrop triangles and the clock tower. Only the camera framing bounds
+are restricted to the RPD area.
 
 ### 3.2 Flat grey materials
 
@@ -198,7 +194,7 @@ not sample any material texture.
 ### 3.3 Chunking and quantization
 
 Source vertices are 2,059,499; many are duplicated across material slices. The
-builder hashes position (1 mm grid) plus material colour, producing 1,102,944
+builder hashes position (1 mm grid) plus material colour, producing 1,116,068
 vertices. Triangles are packed into 19 chunks with at most 60k unique vertices
 each, so local indices fit in `u16`.
 
@@ -213,8 +209,8 @@ The chunk extent is at most the RPD width, so the position step is under 2 mm.
 The renderer expands everything into one float-position/`u8`-colour vertex
 buffer plus one `u32` index buffer and draws the whole building in one call.
 
-**Result:** 1,790,053 source triangles → **1,716,488 triangles**, 1,102,944
-vertices, 19 chunks, 20.2 MB.
+**Result:** 1,790,053 source triangles → **1,790,053 triangles**, 1,116,068
+vertices, 19 chunks, 20.8 MB.
 
 ## 4. `rpd.bin` v3
 
@@ -247,7 +243,7 @@ vertices, 19 chunks, 20.2 MB.
 ```
 
 `rpd.json` records the method, per-floor bounds, chunk counts, the material
-palette and the clip/ceiling filters.
+palette and the unfiltered geometry flag.
 
 ## 5. Reproduce
 
@@ -264,11 +260,11 @@ and the material palette.
 
 - Stage geometry is stored in world space, so no scene/prefab transforms were
   needed.
-- The model is the complete LOD-0 level within the clip box. There is no
+- The model contains every LOD-0 triangle from the extracted meshes. There is no
   collision, no UV/texture pass and no alpha-cutout material support.
 - Materials are identified only by their numeric index, so the colours convey
   surface separation rather than exact real-world material identity.
-- The 20.2 MB asset is under Cloudflare's 25 MiB per-asset limit and is served
+- The 20.8 MB asset is under Cloudflare's 25 MiB per-asset limit and is served
   as one file. Initial load and wasm upload take a few seconds on a local
   connection.
 - The mesh parser handles the RE2 RT variant only. Other RE Engine versions use

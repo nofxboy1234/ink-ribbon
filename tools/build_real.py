@@ -24,9 +24,8 @@ OUT_BIN = ROOT / "public" / "rpd" / "rpd.bin"
 OUT_JSON = ROOT / "public" / "rpd" / "rpd.json"
 
 FLOOR_OF_ROOM = {"1": 0, "2": 0, "3": 0, "4": 1, "5": 1, "6": 2}
-CLIP_MIN = np.array([-60.0, -8.0, -40.0], dtype=np.float64)
-CLIP_MAX = np.array([55.0, 55.0, 30.0], dtype=np.float64)
-CEILING_CUT = 1.6
+FRAME_MIN = np.array([-60.0, -8.0, -40.0], dtype=np.float64)
+FRAME_MAX = np.array([55.0, 55.0, 30.0], dtype=np.float64)
 MAX_CHUNK_VERTS = 60000
 VERSION = 3
 
@@ -113,10 +112,6 @@ def load_triangles():
     for path in files:
         mesh = remesh.parse(path.read_bytes())
         lod = mesh.lods[0]
-        room_top = max(
-            (max(p[1] for p in remesh.positions(mesh, g)) for g in lod.groups),
-            default=0.0,
-        )
         tris = []
         for group in lod.groups:
             pos = np.asarray(remesh.positions(mesh, group), dtype=np.float64)
@@ -124,22 +119,7 @@ def load_triangles():
                 if sub.is_quad or sub.index_count == 0:
                     continue
                 for a, b, c in submesh_triangles(mesh, group, sub):
-                    p0, p1, p2 = pos[a], pos[b], pos[c]
-                    if np.any(p0 < CLIP_MIN) or np.any(p0 > CLIP_MAX):
-                        continue
-                    if np.any(p1 < CLIP_MIN) or np.any(p1 > CLIP_MAX):
-                        continue
-                    if np.any(p2 < CLIP_MIN) or np.any(p2 > CLIP_MAX):
-                        continue
-                    n = np.cross(p1 - p0, p2 - p0)
-                    area = float(np.linalg.norm(n)) * 0.5
-                    if area < 1e-5:
-                        continue
-                    ny = n[1] / (2.0 * area)
-                    cy = (p0[1] + p1[1] + p2[1]) / 3.0
-                    if ny > 0.6 and cy > room_top - CEILING_CUT:
-                        continue
-                    tris.append((sub.material, (p0, p1, p2)))
+                    tris.append((sub.material, (pos[a], pos[b], pos[c])))
         floors.append((path.stem, room_floor(path.stem), tris))
     return floors
 
@@ -181,15 +161,19 @@ def build():
         total_v += nv
         total_t += ni // 3
 
-    bounds_min = np.array([1e9, 1e9, 1e9])
-    bounds_max = np.array([-1e9, -1e9, -1e9])
+    points = [origin + q.astype(np.float64) * scale for _floor, origin, scale, q, _cols, _idx in packed]
+    allpts = np.concatenate([p for p in points if len(p)], axis=0)
+    inside = np.all((allpts >= FRAME_MIN) & (allpts <= FRAME_MAX), axis=1)
+    framing = allpts[inside] if np.any(inside) else allpts
+    bounds_min = framing.min(axis=0)
+    bounds_max = framing.max(axis=0)
     floor_bounds = [[1e9, -1e9] for _ in range(3)]
-    for floor, origin, scale, q, cols, idx in packed:
-        mx = origin + q.astype(np.float64) * scale
-        bounds_min = np.minimum(bounds_min, mx.min(axis=0))
-        bounds_max = np.maximum(bounds_max, mx.max(axis=0))
-        floor_bounds[floor][0] = min(floor_bounds[floor][0], float(mx[:, 1].min()))
-        floor_bounds[floor][1] = max(floor_bounds[floor][1], float(mx[:, 1].max()))
+    for (floor, origin, scale, q, _cols, _idx), pts in zip(packed, points):
+        p = origin + q.astype(np.float64) * scale
+        mask = np.all((p >= FRAME_MIN) & (p <= FRAME_MAX), axis=1)
+        if np.any(mask):
+            floor_bounds[floor][0] = min(floor_bounds[floor][0], float(p[mask, 1].min()))
+            floor_bounds[floor][1] = max(floor_bounds[floor][1], float(p[mask, 1].max()))
 
     OUT_BIN.parent.mkdir(parents=True, exist_ok=True)
     with OUT_BIN.open("wb") as f:
@@ -232,7 +216,7 @@ def build():
             for i in range(3)
         ],
         "materials": {str(m): list(material_colour(m)) for m in materials},
-        "filters": {"clip": [CLIP_MIN.tolist(), CLIP_MAX.tolist()], "ceiling_cut": CEILING_CUT},
+        "filters": {"geometry": "all LOD-0 triangles; framing bounds only"},
     }
     OUT_JSON.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
     print(
