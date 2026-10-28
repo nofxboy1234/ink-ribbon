@@ -12,12 +12,14 @@ type RpdFactory = (options: {
   locateFile: (path: string) => string;
 }) => Promise<RpdModule>;
 
+const ASSET_URL = "/rpd/rpd.bin?v=20261028";
+
 async function fetchScene(
   url: string,
   signal: AbortSignal,
   onProgress: (fraction: number) => void,
 ): Promise<Uint8Array> {
-  const response = await fetch(url, { signal });
+  const response = await fetch(url, { signal, cache: "no-store" });
   if (!response.ok || !response.body) {
     throw new Error(`could not fetch ${url} (${response.status})`);
   }
@@ -88,7 +90,7 @@ export default function RpdScene({
           throw new Error("this browser does not provide WebGL2");
         }
         const [asset, factory] = await Promise.all([
-          fetchScene("/rpd/rpd.bin", controller.signal, (fraction) => {
+          fetchScene(ASSET_URL, controller.signal, (fraction) => {
             if (!cancelled) setProgress(fraction);
           }),
           import("./wasm/rpd.js").then(
