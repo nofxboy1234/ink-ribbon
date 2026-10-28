@@ -5,7 +5,6 @@ type RpdModule = {
   _malloc: (size: number) => number;
   _free: (ptr: number) => void;
   _rpd_load_scene: (ptr: number, size: number) => number;
-  _rpd_set_blockout: (enabled: number) => void;
 };
 
 type RpdFactory = (options: {
@@ -46,15 +45,11 @@ const nextFrame = () =>
   new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
 type RpdSceneProps = {
-  assetUrl?: string;
   label?: string;
-  mode?: "real" | "blockout";
 };
 
 export default function RpdScene({
-  assetUrl = "/rpd/rpd.bin",
   label = "RPD floors one to three as a 3D model",
-  mode = "real",
 }: RpdSceneProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [progress, setProgress] = useState(0);
@@ -93,7 +88,7 @@ export default function RpdScene({
           throw new Error("this browser does not provide WebGL2");
         }
         const [asset, factory] = await Promise.all([
-          fetchScene(assetUrl, controller.signal, (fraction) => {
+          fetchScene("/rpd/rpd.bin", controller.signal, (fraction) => {
             if (!cancelled) setProgress(fraction);
           }),
           import("./wasm/rpd.js").then(
@@ -107,8 +102,6 @@ export default function RpdScene({
           locateFile: (path: string) => `/rpd/${path}`,
         });
         if (cancelled) return;
-
-        module._rpd_set_blockout(mode === "blockout" ? 1 : 0);
 
         if (import.meta.env.DEV) {
           (window as unknown as { __rpd?: RpdModule }).__rpd = module;
@@ -135,7 +128,7 @@ export default function RpdScene({
       cancelled = true;
       controller.abort();
     };
-  }, [assetUrl, mode]);
+  }, []);
 
   const statusText = error ? `Scene error — ${error}` : `Loading RPD floors 1–3`;
 

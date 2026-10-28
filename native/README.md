@@ -51,15 +51,6 @@ through `locateFile`.
    colour, adds a restrained radial background gradient, vignette and a little
    grain.
 
-`/blockout` uses an RPDW v4 asset with per-room wall panels, floor plates and
-simple stair planes on the source footprints.
-
-A fill pipeline draws translucent white surfaces with
-distance-based alpha, then a line pipeline draws bright structural edges and a
-dimmer floor-edge range.
-
-The real page keeps the normal solid draw range.
-
 ## Input
 
 `sapp_event` handles mouse orbit/pan/zoom, one- and two-finger touch, and `R` to

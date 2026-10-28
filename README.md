@@ -2,17 +2,12 @@
 
 The real Raccoon Police Department geometry from *Resident Evil 2* (RT build),
 floors 1–3, rendered in the browser with sokol compiled to WebAssembly. The
-surfaces are not textured; each source material uses one simple flat colour.
+surfaces are not textured; each source material uses a distinct flat grey.
 Orbit the model, pan it, or hold right-click and fly through it.
 
-A second scene at **`/blockout`** is a simplified architectural blockout built
-from the original room geometry: panel walls, doors and windows, floor plates
-and stairs in their source positions. The real scene is untouched. A green FPS
-counter sits at the top right of both scenes.
+A green FPS counter sits at the top right of the scene.
 
 ![RPD floors 1–3](docs/preview.jpg)
-
-![RPD wireframe blockout](docs/blockout.jpg)
 
 ## What is in here
 
@@ -23,12 +18,9 @@ counter sits at the top right of both scenes.
   outside the RPD clip box, degenerates, and flat top-envelope surfaces.
 - **Renderer** — a C application using the latest [sokol](https://github.com/floooh/sokol)
   (`sokol_app` + `sokol_gfx`), compiled to WebAssembly with Emscripten. It draws
-  solid triangles in a simple key/fill/hemisphere light, with one flat colour per
+  solid triangles in a simple key/fill/hemisphere light, with one flat grey per
   source material, then composites a restrained background gradient. No material
   textures are sampled.
-- **Blockout scene** — `/blockout` uses a simplified RPDW v4 asset derived from
-  the real room meshes: per-room wall panels with real openings, 3 m floor
-  plates, and simple stair planes on the source stair footprints.
 - **Web app** — React 19 + TypeScript on [Void](https://github.com/voidzero-dev/void)
   1.3.0 (Vite 8) targeting Cloudflare Workers. Once the scene is loaded the
   page is only the canvas; no labels or UI sit on top of it.
@@ -70,9 +62,6 @@ uv run --with zstandard python tools/extract_rpd.py
 
 # 2. build public/rpd/rpd.bin from data/raw/rpd
 uv run --with numpy python tools/build_real.py
-
-# 3. build the simplified blockout from the real room geometry
-npm run blockout
 
 npm run wasm   # only needed after changing native/main.c
 ```
@@ -120,11 +109,7 @@ the repository does not contain an account ID. A fresh clone only needs
 tools/extract_rpd.py       PAK lookup + extraction of the 49 RPD meshes
 tools/re_pak.py            minimal KPKA v4 reader (Murmur3 path hashes)
 tools/remesh.py            RE2 RT .mesh parser (LODs, groups, submeshes, buffers)
-tools/build_real.py        real LOD-0 geometry, flat material colours, RPDW v3 writer
-tools/build_blockout.py    blockout wall/floor/stair spec from room geometry
-tools/export_original_obj.py  original architectural geometry -> Blender OBJ
-tools/blockout_blender.py  replace geometry in Blender, export simplified OBJ
-tools/obj_to_blockout.py   Blender OBJ -> RPDW v4 blockout asset
+tools/build_real.py        real LOD-0 geometry, flat grey material palette, RPDW v3 writer
 tools/rpd_floor_meshes.txt exact PAK paths for floors 1-3
 native/main.c              sokol app: camera, input, solid-colour geometry pass
 native/third_party/sokol   vendored sokol headers (pinned commit)
@@ -132,9 +117,7 @@ native/build.sh            Emscripten build
 src/RpdScene.tsx           React canvas + WASM loader with progress
 src/wasm/rpd.js            generated Emscripten ES module (committed for deploy)
 pages/index.tsx            real-geometry page
-pages/blockout.tsx         wireframe blockout page (/blockout)
-public/rpd/rpd.bin         real RPD geometry + vertex colours (20.2 MB)
-public/rpd/blockout.bin    Blender-assembled blockout (0.86 MB)
+public/rpd/rpd.bin         real RPD geometry + grey vertex colours (20.2 MB)
 public/rpd/rpd.wasm        compiled sokol renderer
 ```
 
@@ -147,7 +130,7 @@ indices are relative to each material subdivision's vertex slice. The build:
    `[-60, -8, -40] … [55, 55, 30]`;
 2. drops degenerate triangles and flat up-facing surfaces within 1.6 m of each
    room's maximum Y (roof/ceiling caps);
-3. assigns one of twelve muted colours to each source material index;
+3. assigns one of twelve grey shades to each source material index;
 4. welds equal position+colour vertices into 19 chunks of at most 60k vertices;
 5. quantises positions to 16 bits per chunk and packs the result as RPDW v3.
 
@@ -155,12 +138,6 @@ Raw source: 1,790,053 triangles and 2,059,499 vertices. The asset holds
 1,716,488 triangles, 1,102,944 vertices and 19 chunks in 20.2 MB. The renderer
 expands the chunks into one indexed mesh and draws it in a single call. No
 textures, no simplification, no wireframe edge pass.
-
-`/blockout` starts from a spec generated from the original room meshes. The
-spec is assembled in Blender as panel walls, 3 m floor plates and simple stair
-planes, then exported as OBJ and converted to the RPDW v4 blockout asset. The
-two main-hall flights are placed from the hall's real sloped floor strips.
-Both scenes share the camera, fog, controls and FPS counter.
 
 ## Assets and licensing
 

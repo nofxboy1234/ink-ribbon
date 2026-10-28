@@ -36,20 +36,20 @@ def room_floor(room: str) -> int:
 
 
 def material_colour(index: int):
-    """Muted, simple material palette; no texture lookups anywhere."""
+    """Neutral grey material palette; no texture lookups anywhere."""
     palette = (
-        (0.63, 0.61, 0.56),  # limestone / plaster
-        (0.49, 0.49, 0.48),  # concrete
-        (0.55, 0.44, 0.36),  # wood
-        (0.39, 0.43, 0.47),  # blue-grey metal
-        (0.68, 0.65, 0.59),  # pale stone
-        (0.31, 0.33, 0.35),  # dark metal
-        (0.57, 0.51, 0.43),  # tan
-        (0.44, 0.47, 0.43),  # muted green-grey
-        (0.60, 0.47, 0.42),  # muted brick
-        (0.50, 0.38, 0.34),  # dark wood
-        (0.71, 0.69, 0.64),  # light stone
-        (0.35, 0.38, 0.41),  # slate
+        (0.66, 0.66, 0.66),
+        (0.48, 0.48, 0.48),
+        (0.58, 0.58, 0.58),
+        (0.39, 0.39, 0.39),
+        (0.72, 0.72, 0.72),
+        (0.30, 0.30, 0.30),
+        (0.54, 0.54, 0.54),
+        (0.45, 0.45, 0.45),
+        (0.62, 0.62, 0.62),
+        (0.35, 0.35, 0.35),
+        (0.78, 0.78, 0.78),
+        (0.42, 0.42, 0.42),
     )
     r, g, b = palette[index % len(palette)]
     lift = 0.025 * (index // len(palette))

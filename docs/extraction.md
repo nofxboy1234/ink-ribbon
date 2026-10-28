@@ -187,12 +187,12 @@ Flat roofs are the exception: because each room's top is defined by its own mesh
 bounds, a room that shares a tall space with the tower can keep lower roof
 slopes. The result is a real building shell, not a cutaway.
 
-### 3.2 Flat material colours
+### 3.2 Flat grey materials
 
 The mesh header stores a material index per subdivision but no material names or
 textures. The builder maps the 35 indices onto twelve muted architectural
-colours (limestone, concrete, wood, blue-grey metal, slate, brick, etc.) and
-writes one RGB colour per vertex. There are no UVs and the fragment shader does
+shades (limestone, concrete, wood, metal, slate, brick, etc.) and
+writes one grey RGB value per vertex. There are no UVs and the fragment shader does
 not sample any material texture.
 
 ### 3.3 Chunking and quantization
@@ -274,36 +274,3 @@ and the material palette.
 - The mesh parser handles the RE2 RT variant only. Other RE Engine versions use
   different subdivision/header layouts.
 - `data/raw/` is not committed; `public/rpd/rpd.bin` is the derived scene.
-
-## 7. Simplified blockout
-
-`/blockout` uses a separate RPDW v4 asset, `public/rpd/blockout.bin`, built by
-`tools/build_blockout.py`.
-
-- Each real room mesh is processed separately: its vertical wall triangles are
-  projected into wall bands, and the bands become 1.5 m panel boxes with the
-  source door and window gaps.
-- Floors are 3 m plates derived from the real room floor masks.
-- Stairs are simple sloped planes with tread lines, fitted to the source stair
-  footprints. The two main-hall flights are placed from the hall's sloped
-  `HallFloor02` strips.
-- Roofs and ceilings are omitted.
-- Blender assembles the walls, floor plates and stair planes, then exports the
-  simplified geometry back to OBJ; `tools/obj_to_blockout.py` writes the RPDW v4
-  asset.
-- Output: 24,146 vertices, 27,072 triangles, 28,685 structural edges and 1,732
-  floor edges, 0.86 MB.
-
-The blockout renderer draws translucent white fills with distance-based alpha,
-bright structural edges and a dimmer floor-edge range.
-
-Build it with:
-
-```bash
-npm run blockout
-```
-
-The command writes the spec, exports the original architectural OBJ, opens it
-in headless Blender to replace the geometry, then converts the Blender export
-into the renderer asset.
-

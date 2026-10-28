@@ -37,12 +37,6 @@ typedef struct {
 } fs_params_t;
 
 typedef struct {
-    float camera[4];
-    float fog[4];
-    float line[4];
-} block_fs_params_t;
-
-typedef struct {
     float yaw;
     float pitch;
     float distance;
@@ -57,16 +51,10 @@ typedef struct {
     size_t size;
     int vertex_count;
     int triangle_count;
-    int structural_edges;
-    int grid_edges;
     bounds_t bounds;
-    bool blockout_asset;
     sg_buffer vbuf;
     sg_buffer tri_ibuf;
-    sg_buffer edge_ibuf;
     sg_pipeline pip;
-    sg_pipeline block_fill_pip;
-    sg_pipeline block_line_pip;
 } scene_t;
 
 typedef struct {
@@ -101,7 +89,6 @@ static struct {
     bool key_w, key_a, key_s, key_d, key_q, key_e;
     float last_x, last_y, touch_pinch;
     float fly_speed;
-    bool blockout;
 } state;
 
 /* ------------------------------------------------------------------------- */
@@ -218,20 +205,6 @@ static const char *fs_source =
     "in vec3 v_world;\n"
     "in vec3 v_color;\n"
     "out vec4 frag_color;\n"
-    "vec3 dracula(vec3 c) {\n"
-    "  float h = fract(dot(c, vec3(12.9898, 78.233, 37.719)));\n"
-    "  int i = int(floor(h * 10.0));\n"
-    "  if (i == 0) return vec3(0.71, 0.65, 0.84);\n"
-    "  if (i == 1) return vec3(0.84, 0.63, 0.75);\n"
-    "  if (i == 2) return vec3(0.63, 0.83, 0.87);\n"
-    "  if (i == 3) return vec3(0.63, 0.84, 0.66);\n"
-    "  if (i == 4) return vec3(0.84, 0.71, 0.56);\n"
-    "  if (i == 5) return vec3(0.84, 0.83, 0.64);\n"
-    "  if (i == 6) return vec3(0.84, 0.60, 0.60);\n"
-    "  if (i == 7) return vec3(0.60, 0.64, 0.77);\n"
-    "  if (i == 8) return vec3(0.72, 0.69, 0.78);\n"
-    "  return vec3(0.65, 0.66, 0.72);\n"
-    "}\n"
     "void main() {\n"
     "  vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));\n"
     "  vec3 view = normalize(u_camera.xyz - v_world);\n"
@@ -242,48 +215,9 @@ static const char *fs_source =
     "  float d = length(v_world - u_camera.xyz);\n"
     "  float fade = 1.0 - smoothstep(u_camera.w, u_fog.x, d);\n"
     "  fade = 0.10 + 0.90 * fade;\n"
-    "  vec3 base = (u_fog.y > 0.5) ? dracula(v_color) : v_color;\n"
+    "  vec3 base = v_color;\n"
     "  vec3 col = base * (0.34 + 0.50 * key + 0.16 * fill + 0.12 * hemi) * fade;\n"
     "  frag_color = vec4(col, 1.0);\n"
-    "}\n";
-
-static const char *block_vs_source =
-    "#version 300 es\n"
-    "uniform mat4 u_view_proj;\n"
-    "in vec3 position;\n"
-    "out vec3 v_world;\n"
-    "void main() {\n"
-    "  v_world = position;\n"
-    "  gl_Position = u_view_proj * vec4(position, 1.0);\n"
-    "}\n";
-
-static const char *block_fill_fs_source =
-    "#version 300 es\n"
-    "precision highp float;\n"
-    "uniform vec4 u_camera;\n"
-    "uniform vec4 u_fog;\n"
-    "uniform vec4 u_line;\n"
-    "in vec3 v_world;\n"
-    "out vec4 frag_color;\n"
-    "void main() {\n"
-    "  float d = length(v_world - u_camera.xyz);\n"
-    "  float near = 1.0 - smoothstep(u_camera.w, u_fog.x, d);\n"
-    "  frag_color = vec4(vec3(0.94, 0.94, 0.92), 0.30 * near);\n"
-    "}\n";
-
-static const char *block_line_fs_source =
-    "#version 300 es\n"
-    "precision highp float;\n"
-    "uniform vec4 u_camera;\n"
-    "uniform vec4 u_fog;\n"
-    "uniform vec4 u_line;\n"
-    "in vec3 v_world;\n"
-    "out vec4 frag_color;\n"
-    "void main() {\n"
-    "  float d = length(v_world - u_camera.xyz);\n"
-    "  float fade = 1.0 - 0.58 * smoothstep(u_camera.w, u_fog.x, d);\n"
-    "  vec3 c = vec3(0.94, 0.94, 0.92) * u_line.x * fade;\n"
-    "  frag_color = vec4(c, 0.92 * fade);\n"
     "}\n";
 
 static const char *composite_vs_source =
@@ -444,56 +378,11 @@ static sg_pipeline make_pipeline(sg_shader shader) {
     return sg_make_pipeline(&pd);
 }
 
-static bool upload_blockout(scene_t *s, const uint8_t *p, size_t size) {
-    if (size < 104) return false;
-    uint32_t vc = *(const uint32_t *)(p + 8);
-    uint32_t tc = *(const uint32_t *)(p + 12);
-    uint32_t es = *(const uint32_t *)(p + 16);
-    uint32_t eg = *(const uint32_t *)(p + 20);
-    if (vc == 0 || tc == 0 || es + eg == 0) return false;
-    const float *hb = (const float *)(p + 32);
-    s->bounds.min[0] = hb[0]; s->bounds.min[1] = hb[1]; s->bounds.min[2] = hb[2];
-    s->bounds.max[0] = hb[3]; s->bounds.max[1] = hb[4]; s->bounds.max[2] = hb[5];
-    size_t vbytes = (size_t)vc * 12;
-    size_t tbytes = (size_t)tc * 12;
-    size_t ebytes = (size_t)(es + eg) * 8;
-    size_t off = 104;
-    if (off + vbytes + tbytes + ebytes > size) return false;
-    const uint8_t *vp = p + off;
-    const uint8_t *tp = vp + vbytes;
-    const uint8_t *ep = tp + tbytes;
-    s->vertex_count = (int)vc;
-    s->triangle_count = (int)tc;
-    s->structural_edges = (int)es;
-    s->grid_edges = (int)eg;
-    s->blockout_asset = true;
-    s->vbuf = sg_make_buffer(&(sg_buffer_desc){
-        .size = vbytes, .data = { .ptr = vp, .size = vbytes }, .label = "blockout-vertices",
-    });
-    s->tri_ibuf = sg_make_buffer(&(sg_buffer_desc){
-        .usage = { .index_buffer = true }, .size = tbytes,
-        .data = { .ptr = tp, .size = tbytes }, .label = "blockout-triangles",
-    });
-    s->edge_ibuf = sg_make_buffer(&(sg_buffer_desc){
-        .usage = { .index_buffer = true }, .size = ebytes,
-        .data = { .ptr = ep, .size = ebytes }, .label = "blockout-edges",
-    });
-    if (sg_query_buffer_state(s->vbuf) != SG_RESOURCESTATE_VALID ||
-        sg_query_buffer_state(s->tri_ibuf) != SG_RESOURCESTATE_VALID ||
-        sg_query_buffer_state(s->edge_ibuf) != SG_RESOURCESTATE_VALID) return false;
-    s->gpu_ready = true;
-    s->loaded = true;
-    return true;
-}
-
 static bool upload_scene(scene_t *s) {
     if (!s->data || s->size < RPD_HEADER_SIZE) return false;
     const uint8_t *p = s->data;
     if (memcmp(p, "RPDW", 4) != 0) return false;
-    uint32_t version = *(const uint32_t *)(p + 4);
-    if (version == 4) return upload_blockout(s, p, s->size);
-    if (version != RPD_VERSION) return false;
-    s->blockout_asset = false;
+    if (*(const uint32_t *)(p + 4) != RPD_VERSION) return false;
     uint32_t chunk_count = *(const uint32_t *)(p + 8);
     uint32_t total_v = *(const uint32_t *)(p + 12);
     uint32_t total_t = *(const uint32_t *)(p + 16);
@@ -575,31 +464,6 @@ fail:
     return false;
 }
 
-static sg_pipeline make_block_pipeline(sg_shader shader, bool lines, int stride) {
-    sg_pipeline_desc pd;
-    memset(&pd, 0, sizeof(pd));
-    pd.shader = shader;
-    pd.layout.buffers[0].stride = stride;
-    pd.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
-    pd.primitive_type = lines ? SG_PRIMITIVETYPE_LINES : SG_PRIMITIVETYPE_TRIANGLES;
-    pd.index_type = SG_INDEXTYPE_UINT32;
-    pd.cull_mode = SG_CULLMODE_NONE;
-    pd.face_winding = SG_FACEWINDING_CCW;
-    pd.sample_count = 1;
-    pd.depth.compare = SG_COMPAREFUNC_LESS_EQUAL;
-    pd.depth.write_enabled = !lines;
-    pd.colors[0].blend = (sg_blend_state){
-        .enabled = true,
-        .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
-        .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-        .op_rgb = SG_BLENDOP_ADD,
-        .src_factor_alpha = SG_BLENDFACTOR_ONE,
-        .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-        .op_alpha = SG_BLENDOP_ADD,
-    };
-    return sg_make_pipeline(&pd);
-}
-
 static void create_pipelines(scene_t *s) {
     sg_shader_desc sd;
     memset(&sd, 0, sizeof(sd));
@@ -626,53 +490,6 @@ static void create_pipelines(scene_t *s) {
     sg_shader shd = sg_make_shader(&sd);
     s->pip = make_pipeline(shd);
 
-    memset(&sd, 0, sizeof(sd));
-    sd.vertex_func.source = block_vs_source;
-    sd.vertex_func.entry = "main";
-    sd.fragment_func.source = block_fill_fs_source;
-    sd.fragment_func.entry = "main";
-    sd.attrs[0].base_type = SG_SHADERATTRBASETYPE_FLOAT;
-    sd.attrs[0].glsl_name = "position";
-    sd.uniform_blocks[0].stage = SG_SHADERSTAGE_VERTEX;
-    sd.uniform_blocks[0].size = sizeof(vs_params_t);
-    sd.uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140;
-    sd.uniform_blocks[0].glsl_uniforms[0].type = SG_UNIFORMTYPE_MAT4;
-    sd.uniform_blocks[0].glsl_uniforms[0].glsl_name = "u_view_proj";
-    sd.uniform_blocks[1].stage = SG_SHADERSTAGE_FRAGMENT;
-    sd.uniform_blocks[1].size = sizeof(block_fs_params_t);
-    sd.uniform_blocks[1].layout = SG_UNIFORMLAYOUT_STD140;
-    sd.uniform_blocks[1].glsl_uniforms[0].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[0].glsl_name = "u_camera";
-    sd.uniform_blocks[1].glsl_uniforms[1].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[1].glsl_name = "u_fog";
-    sd.uniform_blocks[1].glsl_uniforms[2].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[2].glsl_name = "u_line";
-    sg_shader block_fill_shd = sg_make_shader(&sd);
-    s->block_fill_pip = make_block_pipeline(block_fill_shd, false, 12);
-
-    memset(&sd, 0, sizeof(sd));
-    sd.vertex_func.source = block_vs_source;
-    sd.vertex_func.entry = "main";
-    sd.fragment_func.source = block_line_fs_source;
-    sd.fragment_func.entry = "main";
-    sd.attrs[0].base_type = SG_SHADERATTRBASETYPE_FLOAT;
-    sd.attrs[0].glsl_name = "position";
-    sd.uniform_blocks[0].stage = SG_SHADERSTAGE_VERTEX;
-    sd.uniform_blocks[0].size = sizeof(vs_params_t);
-    sd.uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140;
-    sd.uniform_blocks[0].glsl_uniforms[0].type = SG_UNIFORMTYPE_MAT4;
-    sd.uniform_blocks[0].glsl_uniforms[0].glsl_name = "u_view_proj";
-    sd.uniform_blocks[1].stage = SG_SHADERSTAGE_FRAGMENT;
-    sd.uniform_blocks[1].size = sizeof(block_fs_params_t);
-    sd.uniform_blocks[1].layout = SG_UNIFORMLAYOUT_STD140;
-    sd.uniform_blocks[1].glsl_uniforms[0].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[0].glsl_name = "u_camera";
-    sd.uniform_blocks[1].glsl_uniforms[1].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[1].glsl_name = "u_fog";
-    sd.uniform_blocks[1].glsl_uniforms[2].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[2].glsl_name = "u_line";
-    sg_shader block_line_shd = sg_make_shader(&sd);
-    s->block_line_pip = make_block_pipeline(block_line_shd, true, 12);
 }
 
 static void reset_camera(void) {
@@ -744,32 +561,7 @@ static void frame(void) {
         mat4 proj = mat4_perspective(0.62f, (float)sapp_width() / (float)sapp_height(), 0.2f, 1600.0f);
         mat4 view = mat4_look_at(eye, aim, up);
         vs_params_t vs = { .view_proj = mat4_mul(proj, view) };
-        if (state.scene.blockout_asset) {
-            block_fs_params_t bf = { 0 };
-            bf.camera[0] = eye[0]; bf.camera[1] = eye[1]; bf.camera[2] = eye[2]; bf.camera[3] = fog_start;
-            bf.fog[0] = fog_end;
-            sg_apply_pipeline(state.scene.block_fill_pip);
-            sg_apply_bindings(&(sg_bindings){
-                .vertex_buffers[0] = state.scene.vbuf,
-                .index_buffer = state.scene.tri_ibuf,
-            });
-            sg_apply_uniforms(0, &(sg_range){ &vs, sizeof(vs) });
-            sg_apply_uniforms(1, &(sg_range){ &bf, sizeof(bf) });
-            sg_draw(0, state.scene.triangle_count * 3, 1);
-
-            sg_apply_pipeline(state.scene.block_line_pip);
-            sg_apply_bindings(&(sg_bindings){
-                .vertex_buffers[0] = state.scene.vbuf,
-                .index_buffer = state.scene.edge_ibuf,
-            });
-            bf.line[0] = 1.0f;
-            sg_apply_uniforms(0, &(sg_range){ &vs, sizeof(vs) });
-            sg_apply_uniforms(1, &(sg_range){ &bf, sizeof(bf) });
-            sg_draw(0, state.scene.structural_edges * 2, 1);
-            bf.line[0] = 0.52f;
-            sg_apply_uniforms(1, &(sg_range){ &bf, sizeof(bf) });
-            sg_draw(state.scene.structural_edges * 2, state.scene.grid_edges * 2, 1);
-        } else {
+        {
             fs_params_t fs = { 0 };
             fs.camera[0] = eye[0]; fs.camera[1] = eye[1]; fs.camera[2] = eye[2]; fs.camera[3] = fog_start;
             fs.fog[0] = fog_end;
@@ -963,9 +755,7 @@ static void event(const sapp_event *e) {
     }
 }
 
-EMSCRIPTEN_KEEPALIVE void rpd_set_blockout(int enabled) {
-    state.blockout = enabled != 0;
-}
+
 
 
 
