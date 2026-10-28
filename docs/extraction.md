@@ -289,11 +289,7 @@ not terrain. They are extracted with `tools/extract_props.py` into
 `data/raw/props` and appended to the real scene at their scene positions:
 `sm41_024_newpolicestatue01a` in the main hall and
 `sm46_011_crashheli01a` on the 2F helipad. The helicopter position is taken from
-the `st4_502_0` gimmick scene. Where the decompiled meshes leave a hole that
-you can see straight through, `FILL_SPECS` in `tools/build_real.py` adds a
-floor quad and any missing wall sides. The first entry closes a 3.6 by 0.9 m
-slot at x 8.8 to 12.4, z -26.2 to -25.3 on the second floor, between the main
-hall and the east wing. The statue prop includes the half-basin, so its
+the `st4_502_0` gimmick scene. The statue prop includes the half-basin, so its
 offset is fitted to the hall floor: the basin centre (local 0, 1.82) lands on
 the mid-point of the floor chord at (0, -11.47), and the basin rim sits at the
 hall floor level of 0.80. The resulting offset is (0.0, 1.75, -13.29).
