@@ -106,6 +106,8 @@ class Chunk:
         self.indices.extend((i0, i1, i2))
 
 
+MANUAL_MATERIAL = 10
+
 PROP_SPECS = (
     # The statue prop includes the half-basin. Its basin centre (local
     # 0, 1.82) is aligned to the mid-point of the hall floor chord at
@@ -113,6 +115,47 @@ PROP_SPECS = (
     ("sm41_024_newpolicestatue01a", 0, (0.0, 1.75, -13.29)),
     ("sm46_011_crashheli01a", 1, (26.1, 5.2, -9.95)),
 )
+
+
+# Gaps the decompiled meshes leave open. Each entry adds a floor quad, plus
+# walls on any named side. Sides: "w" low x, "e" high x, "s" low z, "n" high z.
+FILL_SPECS = (
+    # The statue prop is a half-basin, so its south side is open over the void
+    # between the two grand flights. A plinth plate at 0.79 closes the view
+    # through it and gives the basin rim a floor to sit on.
+    {
+        "floor": 0,
+        "x": (-3.9, 3.9),
+        "z": (-16.0, -9.6),
+        "y": 0.79,
+        "walls": (),
+    },
+)
+
+
+def load_fill_triangles():
+    """Synthetic quads that close holes the decompiled meshes leave open."""
+    out = []
+    for spec in FILL_SPECS:
+        x0, x1 = spec["x"]
+        z0, z1 = spec["z"]
+        y = spec["y"]
+        colour = MANUAL_MATERIAL
+        out.append((colour, ((x0, y, z0), (x1, y, z0), (x1, y, z1))))
+        out.append((colour, ((x0, y, z0), (x1, y, z1), (x0, y, z1))))
+        top = spec.get("wall_top")
+        for side in spec.get("walls", ()):
+            if side == "w":
+                quad = ((x0, y, z0), (x0, y, z1), (x0, top, z1), (x0, top, z0))
+            elif side == "e":
+                quad = ((x1, y, z1), (x1, y, z0), (x1, top, z0), (x1, top, z1))
+            elif side == "s":
+                quad = ((x1, y, z0), (x0, y, z0), (x0, top, z0), (x1, top, z0))
+            else:
+                quad = ((x0, y, z1), (x1, y, z1), (x1, top, z1), (x0, top, z1))
+            out.append((colour, (quad[0], quad[1], quad[2])))
+            out.append((colour, (quad[0], quad[2], quad[3])))
+    return out
 
 
 def load_prop_triangles():
@@ -160,6 +203,9 @@ def load_triangles():
 
 def build():
     floors = load_triangles()
+    fills = load_fill_triangles()
+    if fills:
+        floors.append(("fill", 0, list(fills)))
     chunks: list[Chunk] = []
     current = None
     for _room, floor, tris in floors:

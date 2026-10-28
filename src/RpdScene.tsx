@@ -5,6 +5,14 @@ type RpdModule = {
   _malloc: (size: number) => number;
   _free: (ptr: number) => void;
   _rpd_load_scene: (ptr: number, size: number) => number;
+  _rpd_get_camera: (ptr: number) => number;
+  _rpd_set_camera: (
+    x: number,
+    y: number,
+    z: number,
+    yaw: number,
+    pitch: number,
+  ) => number;
 };
 
 type RpdFactory = (options: {
@@ -111,6 +119,18 @@ export default function RpdScene({
           (window as unknown as { __rpd?: RpdModule }).__rpd = module;
         }
 
+        const cameraPtr = module._malloc(6 * 4);
+        const readCamera = () => {
+          module._rpd_get_camera(cameraPtr);
+          const view = new Float32Array(
+            module.HEAPU8.buffer,
+            cameraPtr,
+            6,
+          );
+          return [
+            view[0], view[1], view[2], view[3], view[4],
+          ] as const;
+        };
         const ptr = module._malloc(asset.byteLength);
         module.HEAPU8.set(asset, ptr);
         const result = module._rpd_load_scene(ptr, asset.byteLength);
@@ -119,7 +139,36 @@ export default function RpdScene({
 
         await nextFrame();
         await nextFrame();
+        const requested = new URLSearchParams(location.hash.slice(1)).get("cam");
+        if (requested) {
+          const parts = requested.split(",").map(Number);
+          if (parts.length === 5 && parts.every((v) => Number.isFinite(v))) {
+            module._rpd_set_camera(
+              parts[0], parts[1], parts[2], parts[3], parts[4],
+            );
+            await nextFrame();
+            await nextFrame();
+          }
+        }
         if (!cancelled) setHidden(true);
+
+        // Mirror the live view into the URL so a pose can be reopened or sent.
+        let last = "";
+        const syncCamera = () => {
+          if (cancelled) return;
+          const values = readCamera();
+          const text = values
+            .map((v) => (Math.round(v * 100) / 100).toString())
+            .join(",");
+          if (text !== last) {
+            last = text;
+            const url = `${location.pathname}${location.search}#cam=${text}`;
+            history.replaceState(null, "", url);
+          }
+          window.setTimeout(syncCamera, 250);
+        };
+        syncCamera();
+        void cameraPtr;
       } catch (cause) {
         if (cancelled || controller.signal.aborted) return;
         console.error(cause);

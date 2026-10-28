@@ -825,6 +825,46 @@ static void event(const sapp_event *e) {
 
 
 
+/* Camera access for the viewer. The web client mirrors the pose into the URL
+   hash so any view can be reopened or reported exactly. Both calls use fly
+   mode, so the reported and restored yaw/pitch mean the same thing. */
+EMSCRIPTEN_KEEPALIVE int rpd_get_camera(float *out) {
+    if (!out) return -1;
+    float eye[3];
+    if (state.fly_mode) {
+        eye[0] = state.fly_pos[0];
+        eye[1] = state.fly_pos[1];
+        eye[2] = state.fly_pos[2];
+        out[3] = state.fly_yaw;
+        out[4] = state.fly_pitch;
+    } else {
+        camera_eye(&state.camera, eye);
+        out[3] = state.camera.yaw + RPD_PI;
+        out[4] = -state.camera.pitch;
+    }
+    out[0] = eye[0];
+    out[1] = eye[1];
+    out[2] = eye[2];
+    out[5] = state.fly_mode ? 1.0f : 0.0f;
+    return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_set_camera(float x, float y, float z, float yaw, float pitch) {
+    state.fly_mode = true;
+    state.fly_pos[0] = x;
+    state.fly_pos[1] = y;
+    state.fly_pos[2] = z;
+    state.fly_yaw = yaw;
+    state.fly_pitch = pitch;
+    state.camera.yaw = yaw - RPD_PI;
+    while (state.camera.yaw > RPD_PI) state.camera.yaw -= 2.0f * RPD_PI;
+    while (state.camera.yaw < -RPD_PI) state.camera.yaw += 2.0f * RPD_PI;
+    state.camera.pitch = -pitch;
+    state.user_moved = true;
+    return 0;
+}
+
+
 EMSCRIPTEN_KEEPALIVE int rpd_load_scene(const uint8_t *data, int size) {
     if (!data || size <= 0) return -1;
     if (state.scene.data) free(state.scene.data);
