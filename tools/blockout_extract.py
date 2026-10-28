@@ -31,7 +31,7 @@ BAND = {1: (-1.2, 4.6), 2: (3.9, 9.4), 3: (9.2, 14.8)}
 BASE = {1: 0.0, 2: 5.0, 3: 10.25}
 SLAB_THICKNESS = 0.25
 WALL_THICKNESS = 0.16
-MIN_WALL_LENGTH = 0.9
+MIN_WALL_LENGTH = 0.25
 MIN_WALL_HEIGHT = 0.55
 
 
@@ -52,13 +52,15 @@ def xz_polygon(tri) -> Polygon:
     )
 
 
-def floor_surfaces(tris, names, floor: int):
+def floor_surfaces(tris, names, floor: int, include_stairs: bool = False):
     lo, hi = BAND[floor]
     if len(tris) == 0:
         return tris, names
     _, area, ny = tri_geometry(tris)
     y = tris[:, :, 1]
-    material_ok = np.array([common.is_floor_material(name) for name in names])
+    material_ok = np.array(
+        [common.is_floor_material(name, include_stairs) for name in names]
+    )
     keep = material_ok & (ny > 0.7) & (area > 0.008)
     keep &= (y.max(axis=1) > lo) & (y.min(axis=1) < hi)
     return tris[keep], names[keep]
@@ -329,7 +331,7 @@ class Plane:
         self.runs = []
 
 
-def build_walls(tris, area, ny, ymin, ymax, level, floor, pillar_boxes):
+def build_walls(tris, area, ny, ymin, ymax, level, floor, exclude_boxes):
     lo, hi = BAND[floor]
     keep = (
         (np.abs(ny) < 0.35)
@@ -345,10 +347,10 @@ def build_walls(tris, area, ny, ymin, ymax, level, floor, pillar_boxes):
     ymin = ymin[keep]
     ymax = ymax[keep]
 
-    if pillar_boxes:
+    if exclude_boxes:
         centroid = tris.mean(axis=1)
         drop = np.zeros(len(tris), bool)
-        for p in pillar_boxes:
+        for p in exclude_boxes:
             drop |= (
                 (centroid[:, 0] >= p["x0"] - 0.02)
                 & (centroid[:, 0] <= p["x1"] + 0.02)
@@ -396,14 +398,19 @@ def build_walls(tris, area, ny, ymin, ymax, level, floor, pillar_boxes):
         pl.top = min(max(pl.top, pl.base + 0.4), hi)
         ncol = int(math.ceil((umax - pl.umin) / cell)) + 1
         nrow = int(math.ceil((pl.top - pl.base) / cell)) + 1
-        grid = np.zeros((nrow, ncol), bool)
+        grid_image = Image.new("1", (ncol, nrow), 0)
+        grid_draw = ImageDraw.Draw(grid_image)
         for j in idx:
             tri = tris[j]
-            c0 = int((float(tri[:, uaxis].min()) - pl.umin) / cell)
-            c1 = int((float(tri[:, uaxis].max()) - pl.umin) / cell)
-            r0 = max(0, int((float(tri[:, 1].min()) - pl.base) / cell))
-            r1 = min(nrow - 1, int((float(tri[:, 1].max()) - pl.base) / cell))
-            grid[r0 : r1 + 1, c0 : c1 + 1] = True
+            points = [
+                (
+                    (float(point[uaxis]) - pl.umin) / cell,
+                    (float(point[1]) - pl.base) / cell,
+                )
+                for point in tri
+            ]
+            grid_draw.polygon(points, fill=1)
+        grid = np.asarray(grid_image, dtype=bool)
         pl.grid = grid
         low = grid[: max(1, int(0.9 / cell))].any(axis=0)
         mid = grid[int(1.0 / cell) : max(2, int(2.0 / cell))].any(axis=0)
@@ -423,35 +430,10 @@ def build_walls(tris, area, ny, ymin, ymax, level, floor, pillar_boxes):
         pl.runs = runs
         pl.u_max = umax
 
-    # Pair the two faces of the same wall.
-    used = np.zeros(len(planes), bool)
-    pairs = []
-    for i, a in enumerate(planes):
-        if used[i] or not a.runs:
-            continue
-        best = None
-        best_score = 0.0
-        for j in range(i + 1, len(planes)):
-            b = planes[j]
-            if used[j] or b.axis != a.axis or not b.runs:
-                continue
-            dist = abs(b.plane - a.plane)
-            if dist > 0.32:
-                continue
-            overlap = min(a.u_max, b.u_max) - max(a.umin, b.umin)
-            if overlap <= 0.0:
-                continue
-            score = overlap / max(0.01, min(a.u_max - a.umin, b.u_max - b.umin))
-            if score > 0.5 and score > best_score:
-                best = j
-                best_score = score
-        if best is not None:
-            pairs.append((i, best))
-            used[i] = used[best] = True
-    for i, a in enumerate(planes):
-        if not used[i]:
-            pairs.append((i, None))
-            used[i] = True
+    # Keep each wall face as its own thin wall. Pairing the two faces of a
+    # wall merges their extents, and the two faces do not always cover the
+    # same runs.
+    pairs = [(i, None) for i, a in enumerate(planes) if a.runs]
 
     walls = []
     for i, j in pairs:
@@ -459,30 +441,47 @@ def build_walls(tris, area, ny, ymin, ymax, level, floor, pillar_boxes):
         b = planes[j] if j is not None else None
         thickness = WALL_THICKNESS
         center = a.plane
+        master = a
         if b is not None:
             thickness = max(WALL_THICKNESS, abs(b.plane - a.plane) + 0.05)
             center = (a.plane + b.plane) * 0.5
-        for c0, c1, kind in a.runs:
-            # Door and window runs are lintels and sills. The blockout keeps
-            # the opening, not the detail above or below it.
-            if kind in ("door", "window"):
-                continue
-            u0 = a.umin + c0 * cell
-            u1 = a.umin + c1 * cell
+            a_cover = sum(run[1] - run[0] for run in a.runs)
+            b_cover = sum(run[1] - run[0] for run in b.runs)
+            if b_cover > a_cover:
+                master = b
+        for c0, c1, kind in master.runs:
+            u0 = master.umin + c0 * cell
+            u1 = master.umin + c1 * cell
             if u1 - u0 < MIN_WALL_LENGTH:
                 continue
-            if a.top - a.base < MIN_WALL_HEIGHT and kind == "solid":
+            sub = master.grid[:, c0:c1]
+            occupied = np.where(sub.any(axis=1))[0]
+            if len(occupied) == 0:
                 continue
+            run_top = master.base + (int(occupied.max()) + 1) * cell
+            run_top = min(run_top, master.top)
+            if run_top - master.base < MIN_WALL_HEIGHT and kind == "solid":
+                continue
+            bounds = opening_bounds(sub, master.base, cell)
+            open_bottom, open_top = (master.base, run_top) if bounds is None else bounds
+            if kind in ("door", "window") and (
+                open_top - open_bottom < 0.5 or open_top < master.base + 0.8
+            ):
+                kind = "solid"
+                open_bottom = master.base
+                open_top = run_top
             walls.append(
                 {
                     "axis": "x" if a.axis == 0 else "z",
                     "plane": round(center, 3),
                     "u0": round(u0, 3),
                     "u1": round(u1, 3),
-                    "y0": round(a.base, 3),
-                    "y1": round(a.top, 3),
+                    "y0": round(master.base, 3),
+                    "y1": round(run_top, 3),
                     "thickness": round(thickness, 3),
                     "kind": kind,
+                    "open_bottom": round(open_bottom, 3),
+                    "open_top": round(open_top, 3),
                 }
             )
     # Drop exact duplicates produced by overlapping room meshes.
@@ -490,9 +489,33 @@ def build_walls(tris, area, ny, ymin, ymax, level, floor, pillar_boxes):
     for w in walls:
         key = (
             w["axis"], w["plane"], w["u0"], w["u1"], w["y0"], w["y1"], w["kind"],
+            w["open_bottom"], w["open_top"],
         )
         unique[key] = w
     return list(unique.values())
+
+
+def opening_bounds(sub, base, cell):
+    """Median opening bottom/top for a run's occupancy grid."""
+    bottoms = []
+    tops = []
+    for c in range(sub.shape[1]):
+        rows = np.where(sub[:, c])[0]
+        if len(rows) < 2:
+            continue
+        if rows[0] > 0:
+            bottoms.append(base)
+            tops.append(base + rows[0] * cell)
+            continue
+        gaps = np.where(np.diff(rows) > 1)[0]
+        if len(gaps) == 0:
+            continue
+        gap = gaps[int(np.argmax(np.diff(rows)[gaps]))]
+        bottoms.append(base + (rows[gap] + 1) * cell)
+        tops.append(base + rows[gap + 1] * cell)
+    if not bottoms:
+        return None
+    return float(np.median(bottoms)), float(np.median(tops))
 
 
 def fit_plane(points: np.ndarray):
@@ -804,76 +827,283 @@ def detect_stairs_and_ramps(all_tris, all_names, tris, names, assigned, levels, 
     return stairs, ramps
 
 
-def prune_isolated(spec):
-    """Drop detached strips and elements that float outside the floor plates.
-
-    The source meshes include a few exterior ledges and stray wall fragments.
-    They are not part of the building blockout. A slab group survives when it
-    is the largest on its floor or at least 25 m2. Walls, pillars, stairs and
-    ramps survive when their centre is within 2.5 m of a kept plate.
-    """
-    from shapely.geometry import Point
-
-    for floor in spec["floors"]:
-        plates = []
-        for i, slab in enumerate(floor["slabs"]):
-            try:
-                poly = Polygon(slab["rings"][0], slab["rings"][1:])
-            except Exception:
-                continue
-            if poly.area > 0:
-                plates.append((i, poly))
-        if not plates:
+def add_missing_floors(spec, batches):
+    """Add slabs for source floor plates the height-peak pass did not cover."""
+    cell = 0.05
+    x0, x1 = -46.0, 48.0
+    z0, z1 = -36.0, 20.0
+    w = int((x1 - x0) / cell) + 1
+    h = int((z1 - z0) / cell) + 1
+    for floor_spec in spec["floors"]:
+        floor = floor_spec["floor"]
+        covered_arr = np.zeros((h, w), dtype=bool)
+        for slab in floor_spec["slabs"]:
+            layer = Image.new("L", (w, h), 0)
+            draw = ImageDraw.Draw(layer)
+            rings = slab["rings"]
+            draw.polygon(
+                [((x - x0) / cell, (z - z0) / cell) for x, z in rings[0]], fill=255
+            )
+            for hole in rings[1:]:
+                draw.polygon(
+                    [((x - x0) / cell, (z - z0) / cell) for x, z in hole], fill=0
+                )
+            covered_arr |= np.asarray(layer, dtype=bool)
+        covered = np.asarray(
+            Image.fromarray((covered_arr * 255).astype(np.uint8)).filter(
+                ImageFilter.MaxFilter(5)
+            ),
+            dtype=bool,
+        )
+        all_tris, all_names = common.join(batches, floor)
+        plate_tris, _plate_names = floor_surfaces(
+            all_tris, all_names, floor, include_stairs=False
+        )
+        if len(plate_tris) == 0:
             continue
-        groups = []
-        used = set()
-        for i, poly in plates:
-            if i in used:
+        centres = plate_tris.mean(axis=1)
+        stair_boxes = floor_spec.get("stairs", [])
+        in_stair = np.zeros(len(plate_tris), dtype=bool)
+        for stair in stair_boxes:
+            in_stair |= (
+                (centres[:, 0] >= stair["x0"] - 0.25)
+                & (centres[:, 0] <= stair["x1"] + 0.25)
+                & (centres[:, 2] >= stair["z0"] - 0.25)
+                & (centres[:, 2] <= stair["z1"] + 0.25)
+            )
+        uncovered = []
+        for index, (tri, centre) in enumerate(zip(plate_tris, centres)):
+            if in_stair[index]:
                 continue
-            group = [i]
-            used.add(i)
-            changed = True
-            while changed:
-                changed = False
-                for j, other in plates:
-                    if j in used:
+            ix = int((centre[0] - x0) / cell)
+            iz = int((centre[2] - z0) / cell)
+            if not (0 <= ix < w and 0 <= iz < h):
+                continue
+            if covered[iz, ix]:
+                continue
+            uncovered.append(tri)
+        if not uncovered:
+            continue
+        ut = np.asarray(uncovered, dtype=np.float32)
+        added = 0
+        ymean = ut[:, :, 1].mean(axis=1)
+        bins = np.round(ymean / 0.2) * 0.2
+        for bin_value in np.unique(bins):
+            subset = ut[bins == bin_value]
+            if len(subset) == 0:
+                continue
+            subset_area = tri_geometry(subset)[1]
+            if float(subset_area.sum()) < 0.8:
+                continue
+            for comp in raster_components(subset, cell=0.15, dilate=0.15):
+                if comp["area"] < 0.8:
+                    continue
+                sel = (
+                    (subset[:, :, 0].mean(axis=1) >= comp["x0"] - 0.1)
+                    & (subset[:, :, 0].mean(axis=1) <= comp["x1"] + 0.1)
+                    & (subset[:, :, 2].mean(axis=1) >= comp["z0"] - 0.1)
+                    & (subset[:, :, 2].mean(axis=1) <= comp["z1"] + 0.1)
+                )
+                group = subset[sel]
+                if len(group) == 0:
+                    continue
+                area = tri_geometry(group)[1]
+                if float(area.sum()) < 0.8:
+                    continue
+                y = group[:, :, 1].mean(axis=1)
+                if float(y.max() - y.min()) > 0.25:
+                    continue
+                level = float(np.average(y, weights=area))
+                close = any(
+                    abs(level - slab["level"]) < 0.2
+                    for slab in floor_spec["slabs"]
+                )
+                min_area = 0.8 if close else 5.0
+                if float(area.sum()) < min_area:
+                    continue
+                polys = []
+                for tri in group:
+                    try:
+                        poly = xz_polygon(tri)
+                    except Exception:
                         continue
-                    if any(plates[k][1].distance(other) < 1.5 for k in group):
-                        group.append(j)
-                        used.add(j)
-                        changed = True
-            groups.append(group)
-        largest = max(groups, key=lambda g: sum(plates[i][1].area for i in g))
-        keep_ids = set()
-        for group in groups:
-            area_sum = sum(plates[i][1].area for i in group)
-            if group is largest or area_sum >= 25.0:
-                keep_ids.update(group)
-        kept_slabs = [plates[i] for i in keep_ids]
-        floor["slabs"] = [floor["slabs"][i] for i in sorted(keep_ids)]
-        if not kept_slabs:
+                    if poly.area > 1e-4:
+                        polys.append(poly)
+                if not polys:
+                    continue
+                geom = unary_union(polys).buffer(0.02).simplify(0.03)
+                parts = list(geom.geoms) if hasattr(geom, "geoms") else [geom]
+                for part in parts:
+                    if part.area < min_area:
+                        continue
+                    part = fill_small_holes(part)
+                    rings = [list(part.exterior.coords)] + [
+                        list(r.coords) for r in part.interiors
+                    ]
+                    floor_spec["slabs"].append(
+                        {
+                            "level": round(level, 3),
+                            "area": round(float(part.area), 2),
+                            "rings": [
+                                [
+                                    [round(float(x), 3), round(float(z), 3)]
+                                    for x, z in ring
+                                ]
+                                for ring in rings
+                            ],
+                        }
+                    )
+                    added += 1
+        floor_spec["slabs"].sort(key=lambda slab: slab["level"])
+        floor_spec["levels"] = sorted(
+            {round(float(slab["level"]), 3) for slab in floor_spec["slabs"]}
+        )
+        if added:
+            print(f"  added {added} missing floor slabs on floor {floor}")
+
+
+def add_missing_flights(spec, batches):
+    """Turn uncovered sloped or stepped source surfaces into wedges."""
+    cell = 0.05
+    x0, x1 = -46.0, 48.0
+    z0, z1 = -36.0, 20.0
+    w = int((x1 - x0) / cell) + 1
+    h = int((z1 - z0) / cell) + 1
+    for floor_spec in spec["floors"]:
+        floor = floor_spec["floor"]
+        image = Image.new("L", (w, h), 0)
+        draw = ImageDraw.Draw(image)
+        for slab in floor_spec["slabs"]:
+            rings = slab["rings"]
+            draw.polygon(
+                [((x - x0) / cell, (z - z0) / cell) for x, z in rings[0]], fill=255
+            )
+            for hole in rings[1:]:
+                draw.polygon(
+                    [((x - x0) / cell, (z - z0) / cell) for x, z in hole], fill=0
+                )
+        for stair in floor_spec["stairs"]:
+            draw.rectangle(
+                [
+                    ((stair["x0"] - x0) / cell, (stair["z0"] - z0) / cell),
+                    ((stair["x1"] - x0) / cell, (stair["z1"] - z0) / cell),
+                ],
+                fill=255,
+            )
+        covered = np.asarray(image.filter(ImageFilter.MaxFilter(5)), dtype=bool)
+        all_tris, all_names = common.join(batches, floor)
+        up_tris, _up_names = floor_surfaces(
+            all_tris, all_names, floor, include_stairs=True
+        )
+        if len(up_tris) == 0:
             continue
-        plates_union = unary_union([p for _i, p in kept_slabs])
-        for key in ("walls", "pillars"):
-            kept = []
-            for item in floor[key]:
-                if key == "walls":
-                    if item["axis"] == "x":
-                        cx, cz = item["plane"], (item["u0"] + item["u1"]) * 0.5
-                    else:
-                        cx, cz = (item["u0"] + item["u1"]) * 0.5, item["plane"]
-                elif key == "pillars":
-                    cx = (item["x0"] + item["x1"]) * 0.5
-                    cz = (item["z0"] + item["z1"]) * 0.5
-                elif key == "stairs":
-                    cx = (item["x0"] + item["x1"]) * 0.5
-                    cz = (item["z0"] + item["z1"]) * 0.5
-                else:
-                    cx = sum(c[0] for c in item["corners"]) / 4.0
-                    cz = sum(c[2] for c in item["corners"]) / 4.0
-                if plates_union.distance(Point(cx, cz)) <= 2.5:
-                    kept.append(item)
-            floor[key] = kept
+        centres = up_tris.mean(axis=1)
+        uncovered = []
+        for tri, centre in zip(up_tris, centres):
+            ix = int((centre[0] - x0) / cell)
+            iz = int((centre[2] - z0) / cell)
+            if not (0 <= ix < w and 0 <= iz < h):
+                continue
+            if covered[iz, ix]:
+                continue
+            uncovered.append(tri)
+        if not uncovered:
+            continue
+        ut = np.asarray(uncovered, dtype=np.float32)
+        added = 0
+        for comp in raster_components(ut, cell=0.15, dilate=0.2):
+            if comp["area"] < 2.0:
+                continue
+            sel = (
+                (ut[:, :, 0].mean(axis=1) >= comp["x0"] - 0.1)
+                & (ut[:, :, 0].mean(axis=1) <= comp["x1"] + 0.1)
+                & (ut[:, :, 2].mean(axis=1) >= comp["z0"] - 0.1)
+                & (ut[:, :, 2].mean(axis=1) <= comp["z1"] + 0.1)
+            )
+            group = ut[sel]
+            if len(group) == 0:
+                continue
+            area = tri_geometry(group)[1]
+            if float(area.sum()) < 2.0:
+                continue
+            flights = detect_tread_stairs(
+                group,
+                np.zeros(len(group), dtype=bool),
+                floor_spec["levels"],
+                floor,
+            )
+            for flight in flights:
+                area_box = (flight["x1"] - flight["x0"]) * (
+                    flight["z1"] - flight["z0"]
+                )
+                if area_box < 0.5:
+                    continue
+                duplicate = False
+                for other in floor_spec["stairs"]:
+                    ix = max(
+                        0.0,
+                        min(flight["x1"], other["x1"]) - max(flight["x0"], other["x0"]),
+                    )
+                    iz = max(
+                        0.0,
+                        min(flight["z1"], other["z1"]) - max(flight["z0"], other["z0"]),
+                    )
+                    if ix * iz > 0.5 * area_box:
+                        duplicate = True
+                        break
+                if duplicate:
+                    continue
+                flight["source"] = "missing flight"
+                floor_spec["stairs"].append(flight)
+                added += 1
+        if added:
+            print(f"  added {added} missing flights on floor {floor}")
+
+
+def add_upper_flights(spec, batches):
+    """Add a second wedge for treads above a clipped lower flight."""
+    for floor_spec in spec["floors"]:
+        floor = floor_spec["floor"]
+        all_tris, all_names = common.join(batches, floor)
+        up_tris, _up_names = floor_surfaces(
+            all_tris, all_names, floor, include_stairs=True
+        )
+        if len(up_tris) == 0:
+            continue
+        centres = up_tris.mean(axis=1)
+        ymean = up_tris[:, :, 1].mean(axis=1)
+        added = 0
+        for stair in list(floor_spec["stairs"]):
+            if stair["y1"] - stair["y0"] > 4.5:
+                continue
+            mask = (
+                (centres[:, 0] >= stair["x0"] - 0.5)
+                & (centres[:, 0] <= stair["x1"] + 0.5)
+                & (centres[:, 2] >= stair["z0"] - 0.5)
+                & (centres[:, 2] <= stair["z1"] + 0.5)
+                & (ymean > stair["y1"] + 0.15)
+                & (ymean < stair["y1"] + 4.5)
+            )
+            group = up_tris[mask]
+            if len(group) < 5:
+                continue
+            area = tri_geometry(group)[1]
+            if float(area.sum()) < 1.0:
+                continue
+            flights = detect_tread_stairs(
+                group,
+                np.zeros(len(group), dtype=bool),
+                floor_spec["levels"],
+                floor,
+            )
+            for flight in flights:
+                if flight["y1"] < stair["y1"] + 0.5:
+                    continue
+                flight["source"] = "upper flight"
+                floor_spec["stairs"].append(flight)
+                added += 1
+        if added:
+            print(f"  added {added} upper flights on floor {floor}")
 
 
 def write_reference(batches, floor: int):
@@ -937,7 +1167,9 @@ def main():
     for floor in floors:
         lo, hi = BAND[floor]
         all_tris, all_names = common.join(batches, floor)
-        tris, names = floor_surfaces(all_tris, all_names, floor)
+        tris, names = floor_surfaces(
+            all_tris, all_names, floor, include_stairs=True
+        )
         vertical, vertical_names = vertical_surfaces(all_tris, all_names, floor)
         _, area, _ny = tri_geometry(tris)
         ymean = tris[:, :, 1].mean(axis=1)
@@ -968,8 +1200,19 @@ def main():
         slabs, assigned = build_slabs(tris, area, ymean, levels, floor)
         pillars = detect_pillars(vertical, varea, vny, vymin, vymax, floor)
         pillars = merge_pillars(pillars, detect_named_pillars(vertical, vertical_names, floor))
-        walls = build_walls(vertical, varea, vny, vymin, vymax, level, floor, pillars)
-        stairs, ramps = detect_stairs_and_ramps(all_tris, all_names, tris, names, assigned, all_levels, floor)
+        stairs, ramps = detect_stairs_and_ramps(
+            all_tris, all_names, tris, names, assigned, all_levels, floor
+        )
+        walls = build_walls(
+            vertical,
+            varea,
+            vny,
+            vymin,
+            vymax,
+            level,
+            floor,
+            list(pillars) + list(stairs),
+        )
         spec["floors"].append(
             {
                 "floor": floor,
@@ -992,7 +1235,9 @@ def main():
                 spec["reference"].append({"floor": floor, **ref})
                 print(f"  reference {ref['file']}: {ref['triangles']:,} tris, {ref['bytes']/1e6:.1f} MB")
 
-    prune_isolated(spec)
+    add_missing_floors(spec, batches)
+    add_missing_flights(spec, batches)
+    add_upper_flights(spec, batches)
     spec["counts"] = {
         "triangles": int(total),
         "slabs": sum(len(f["slabs"]) for f in spec["floors"]),

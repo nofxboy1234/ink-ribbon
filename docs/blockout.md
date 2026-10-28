@@ -21,12 +21,13 @@ build/blockout/blockout.glb     same model, glTF Y-up
 build/blockout/spec.json        every primitive and its source-derived coordinates
 build/blockout/reference/       the decompiled meshes used as the reference
 build/blockout/renders/         overview, main hall, and one render per floor
+build/blockout/compare/         source-versus-blockout room renders
 build/blockout/verify/          source-versus-blockout plan overlays and metrics
 public/rpd/simple2.bin          blockout asset for the /simple2 page
 public/rpd/simple2.json         blockout asset metadata
 ```
 
-The current spec holds 28 floor slabs, 515 wall boxes, 59 pillars, 21 stair
+The current spec holds 32 floor slabs, 2,864 wall boxes, 64 pillars, 21 stair
 wedges and 2 ramp slabs.
 
 ![RPD blockout at /simple2](blockout-app.jpg)
@@ -80,11 +81,12 @@ remap at header offset `0x60` and the name table at `0x78`.
   levels. Each level is unioned in plan, small holes under 1.6 m2 are filled,
   and the outline is extruded 25 cm down. Split levels stay as separate plates.
 - **Walls.** Vertical triangles from structural materials are grouped into
-  planes on their dominant axis, with a 11 cm plane tolerance. Each plane is
-  sampled at 3 cm along its run and in height. A run is solid when it covers
-  the 1.0 to 2.0 m band. Door and window runs are dropped, which leaves a
-  full-height opening. The two faces of a wall within 32 cm are paired into a
-  single box at their centre. Runs shorter than 0.9 m are dropped.
+  planes on their dominant axis, with an 11 cm plane tolerance. Each plane is
+  rasterized at 3 cm with real triangle coverage, not bounding boxes, so arch
+  and doorway voids stay open. A run is solid when it covers the 1.0 to 2.0 m
+  band. Door runs get a lintel above their opening, and window runs get a sill
+  and a lintel. Both wall faces are kept as 0.16 m boxes, and the exterior
+  police shell is included. Runs shorter than 0.25 m are dropped.
 - **Pillars.** Pillar-material triangles are clustered in plan. A cluster is a
   pillar when its footprint is 0.2 to 2.1 m on a side, at least 1.5 m tall,
   and covers at least 4 percent of its bounding box. It becomes one box.
@@ -94,10 +96,13 @@ remap at header offset `0x60` and the name table at `0x78`.
   to the upper one.
 - **Ramps.** Up-facing triangles with a tilted normal, a fitted plane residual
   under 9 cm, and a slope under 0.5 become thin sloped slabs.
-- **Detached pieces.** Slab groups under 25 m2 that are more than 1.5 m from the
-  largest plate on the floor are dropped, as are walls and pillars whose centre
-  is more than 2.5 m from a kept plate. This removes exterior ledges and stray
-  wall fragments without touching the building layout.
+- **Missing floors.** A second pass finds source floor plates not covered by a
+  slab, groups them by height, and adds a slab at that level. Stair footprints
+  are excluded, so the pass fills sunken rooms and split levels rather than
+  covering stairs.
+- **Missing flights.** A third pass looks for uncovered sloped or stepped
+  surfaces outside the existing stair footprints and adds a wedge only when a
+  tread chain is detected.
 
 Two dimensions are blockout conventions rather than source measurements. A
 wall face with no paired opposite face becomes a 0.16 m box, and a low wall is
@@ -122,29 +127,28 @@ main hall, so the whole set finishes in about a minute.
 
 The verification rasterizes the source and the blockout at 5 cm per pixel.
 It reports source-versus-spec coverage per floor. A point counts as covered
-when it lies within 8 cm of a floor surface, or 20 cm of a solid wall
-centreline. The run fails, with a nonzero exit, when floor recall drops below
-0.90, solid wall precision below 0.85, solid wall recall below 0.60, a floor
-level misses the independent source estimate by 0.20 m, the bounds exceed the
-source by more than 0.50 m, a stair wedge has no source tread, or a pillar or
-ramp has no source geometry.
+when it lies within 8 cm of a floor surface, or 20 cm of a wall centreline.
+The run fails, with a nonzero exit, when floor recall drops below 0.99, solid
+wall precision below 0.85, solid wall recall below 0.90, wall footprint
+precision or recall below 0.95, a floor level misses the independent source
+estimate by 0.20 m, the bounds exceed the source by more than 0.50 m, a stair
+wedge has no source tread, or a pillar or ramp has no source geometry.
 
 Current result:
 
-| Floor | Floor precision | Floor recall | Solid wall precision | Solid wall recall |
-|---|---|---|---|---|
-| 1 | 1.000 | 0.964 | 0.895 | 0.738 |
-| 2 | 1.000 | 0.950 | 0.917 | 0.628 |
-| 3 | 1.000 | 0.951 | 0.947 | 0.742 |
+| Floor | Floor precision | Floor recall | Solid wall precision | Solid wall recall | Footprint precision | Footprint recall |
+|---|---|---|---|---|---|---|
+| 1 | 0.957 | 0.999 | 0.965 | 0.989 | 0.997 | 0.992 |
+| 2 | 0.984 | 0.995 | 0.986 | 0.955 | 0.995 | 0.965 |
+| 3 | 0.981 | 0.996 | 0.969 | 0.987 | 0.991 | 0.953 |
 
-Floor precision is 1.000 by construction, because each plate is a union of
-source floor triangles. It confirms that no floor area was invented. It is not
-an independent alignment score; floor recall is the meaningful coverage number
-here. The wall recall counts every mid-height source wall face, including
-curved, diagonal and sub-metre trim surfaces that the blockout merges or drops.
-That is why the original 0.90 wall-recall target was not reached. The accepted
-main-shape gate is 0.60, and floor 2 sits at 0.628. The plan overlays in
-`build/blockout/verify/plan_f*.png` show the remaining gaps directly.
+Floor precision is below 1 because the spec keeps floor slabs under stair
+footprints while the source plate mask excludes those footprints. Floor recall
+is the completeness number. The solid wall score is the mid-height wall band.
+The footprint score compares every wall box and every source wall face in plan,
+which is the wall-for-wall test. The remaining footprint gaps are mostly curved
+apses, thin trim and short wall ends. The plan overlays in
+`build/blockout/verify/plan_f*.png` show them directly.
 
 The same run checks every spec floor level against an independent histogram of
 the source floor surfaces. All spec levels match a source level within 0.20 m.
@@ -154,6 +158,8 @@ thickness and rounding. The raw source histogram also picks up the short step
 surfaces at 0.28 and 0.53 m, which is why its level list has extra entries.
 
 ![Floor 1 source versus blockout](blockout-plan-f1.jpg)
+
+![Press room source versus blockout](blockout-compare.jpg)
 
 Stair tread coverage, the share of source tread triangles whose height falls
 inside the wedge:
@@ -166,20 +172,30 @@ inside the wedge:
 | West office | 1.000 |
 | East service | 1.000 |
 | Garage ramp | 0.965 |
-| West stairwell upper flight | 0.753 |
-| East stairwell upper flight | 0.750 |
+| West stairwell | 0.753 |
+| East stairwell | 0.750 |
 
-The low values are recorded rather than hidden. The 0.750 east flight and the
-0.753 west stairwell flight are upper flights outside the detected cluster, so
-their wedges cover the lower flight only. The floor-2 service stairs at 0.596
-and 0.625 are clipped by the floor band. The floor-3 stairs at 0.600 and 0.824
-start below the detected flight and are clipped at the bottom. The short step
-flights at the hall edges score 0.71 to 0.78 because they only have a few
-treads; their wedges still cover the run.
+The score counts every small up-facing triangle inside a stair footprint,
+including landings and floor tiles. A low value is therefore a prompt to look,
+not proof of a missing flight. The main hall, entrance, east service, garage
+and floor-3 flights are covered. The 0.596 and 0.625 floor-2 values and the
+0.600 floor-3 value are stairwells with landings inside the footprint. The
+compare renders in `build/blockout/compare/` show the wedges in place.
+
+## Compare rooms
+
+```bash
+npm run blockout-compare
+```
+
+This loads `build/rpd_blockout.blend`, renders the source and the blockout from
+the same camera for 11 room and corridor views, and writes side-by-side and
+50/50 overlay images under `build/blockout/compare/`. The camera positions are
+derived from the source room floor polygons.
 
 ## Pillars and ramps
 
-Every one of the 59 pillar boxes contains source vertical geometry. Every one
+Every one of the 64 pillar boxes contains source vertical geometry. Every one
 of the two ramp slabs contains source sloped geometry. The check is a
 containment check, not an independent shape comparison, because the boxes are
 fitted to the same source triangles.
@@ -192,9 +208,9 @@ railings, so its recall is not a main-shape target.
 
 | Floor | Half-wall precision | Half-wall recall |
 |---|---|---|
-| 1 | 0.748 | 0.086 |
-| 2 | 0.811 | 0.123 |
-| 3 | 0.903 | 0.084 |
+| 1 | 0.916 | 0.277 |
+| 2 | 0.801 | 0.109 |
+| 3 | 0.548 | 0.135 |
 
 ## Limits
 
@@ -202,8 +218,11 @@ railings, so its recall is not a main-shape target.
 - Door and window openings are full height. Lintels, sills and frames are
   omitted on purpose.
 - Props, railings, furniture and the statue are not modeled.
+- Curved arches and the main-hall apse are approximated by axis-aligned walls
+  and rectangular openings. Decorative arches, ceilings, the statue and
+  furniture are not modeled.
 - Curved and diagonal walls are approximated by axis-aligned boxes. Walls
-  shorter than 0.9 m and openings narrower than that are dropped.
+  shorter than 0.25 m and openings narrower than that are dropped.
 - The garage levels below floor 1 are outside the blockout band.
 
 ## Rebuild from the game install

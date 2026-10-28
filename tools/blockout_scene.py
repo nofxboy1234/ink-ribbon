@@ -298,7 +298,33 @@ def build_floor(spec_floor, parent):
         else:
             z0, z1 = plane - t, plane + t
             x0, x1 = u0, u1
-        if kind == "half":
+        if kind == "door":
+            top = wall["open_top"]
+            if y1 - top > 0.05:
+                objects.append(
+                    add_box(
+                        f"F{floor}_Lintel_{i:03d}",
+                        x0, x1, top, y1, z0, z1, wall_mat, root,
+                    )
+                )
+        elif kind == "window":
+            sill = wall["open_bottom"]
+            top = wall["open_top"]
+            if sill - y0 > 0.05:
+                objects.append(
+                    add_box(
+                        f"F{floor}_Sill_{i:03d}",
+                        x0, x1, y0, sill, z0, z1, wall_mat, root,
+                    )
+                )
+            if y1 - top > 0.05:
+                objects.append(
+                    add_box(
+                        f"F{floor}_Lintel_{i:03d}",
+                        x0, x1, top, y1, z0, z1, wall_mat, root,
+                    )
+                )
+        elif kind == "half":
             if y1 - y0 > 0.2:
                 objects.append(
                     add_box(
@@ -397,7 +423,7 @@ def setup_cameras():
     cameras = []
     for name, loc, target, lens in (
         ("Overview", (62, -62, 58), (0, 0, 5), 55),
-        ("MainHall", (0, -10.5, 2.6), (0, 10, 3.8), 24),
+        ("MainHall", (0, -2, 3.0), (0, 12, 3.8), 20),
         ("FloorView", (58, -58, 48), (0, 0, 0), 55),
         ("Top", (0, 0, 90), (0, 0, 0), 55),
     ):

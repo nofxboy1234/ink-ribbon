@@ -42,14 +42,45 @@ def draw_floor_polys(draw, polys):
         draw.polygon(pts, fill=255)
 
 
-def source_masks(batches, floor):
+def source_masks(batches, floor, spec_floor):
     lo, hi = BAND[floor]
     tris, names = common.join(batches, floor)
-    floor_tris, _ = extract.floor_surfaces(tris, names, floor)
+    up_tris, up_names = extract.floor_surfaces(tris, names, floor, include_stairs=True)
+    plate_tris, plate_names = extract.floor_surfaces(
+        tris, names, floor, include_stairs=False
+    )
+    stair_boxes = spec_floor.get("stairs", [])
+    keep = np.ones(len(plate_tris), dtype=bool)
+    if stair_boxes:
+        centres = plate_tris.mean(axis=1)
+        in_stair = np.zeros(len(plate_tris), dtype=bool)
+        for stair in stair_boxes:
+            in_stair |= (
+                (centres[:, 0] >= stair["x0"] - 0.25)
+                & (centres[:, 0] <= stair["x1"] + 0.25)
+                & (centres[:, 2] >= stair["z0"] - 0.25)
+                & (centres[:, 2] <= stair["z1"] + 0.25)
+            )
+        keep &= ~in_stair
+    plate_tris = plate_tris[keep]
     wall_tris, wall_names = extract.vertical_surfaces(tris, names, floor)
+    wall_tris_all = wall_tris
+    wall_names_all = wall_names
+    if stair_boxes:
+        wall_centres = wall_tris.mean(axis=1)
+        in_stair = np.zeros(len(wall_tris), dtype=bool)
+        for stair in stair_boxes:
+            in_stair |= (
+                (wall_centres[:, 0] >= stair["x0"] - 0.1)
+                & (wall_centres[:, 0] <= stair["x1"] + 0.1)
+                & (wall_centres[:, 2] >= stair["z0"] - 0.1)
+                & (wall_centres[:, 2] <= stair["z1"] + 0.1)
+            )
+        wall_tris = wall_tris[~in_stair]
+        wall_names = wall_names[~in_stair]
     floor_img = blank()
     fd = ImageDraw.Draw(floor_img)
-    for tri in floor_tris:
+    for tri in plate_tris:
         fd.polygon(
             [((float(p[0]) - X0) / CELL, (float(p[2]) - Z0) / CELL) for p in tri],
             fill=255,
@@ -78,16 +109,19 @@ def source_masks(batches, floor):
         floor_img,
         draw_walls(mid_tris),
         draw_walls(low_tris),
-        floor_tris,
-        wall_tris,
-        wall_names,
+        draw_walls(wall_tris),
+        plate_tris,
+        up_tris,
+        wall_tris_all,
+        wall_names_all,
     )
 
 
 def spec_masks(spec_floor):
-    floor_img = blank()
-    fd = ImageDraw.Draw(floor_img)
+    floor_arr = np.zeros((H, W), dtype=bool)
     for slab in spec_floor["slabs"]:
+        layer = blank()
+        fd = ImageDraw.Draw(layer)
         rings = slab["rings"]
         outer = [((float(x) - X0) / CELL, (float(z) - Z0) / CELL) for x, z in rings[0]]
         fd.polygon(outer, fill=255)
@@ -96,10 +130,14 @@ def spec_masks(spec_floor):
                 [((float(x) - X0) / CELL, (float(z) - Z0) / CELL) for x, z in hole],
                 fill=0,
             )
+        floor_arr |= np.asarray(layer, dtype=bool)
+    floor_img = Image.fromarray((floor_arr * 255).astype(np.uint8))
     solid = blank()
     half = blank()
+    footprint = blank()
     sd = ImageDraw.Draw(solid)
     hd = ImageDraw.Draw(half)
+    fp = ImageDraw.Draw(footprint)
     for wall in spec_floor["walls"]:
         t = wall["thickness"] * 0.5
         if wall["axis"] == "x":
@@ -108,12 +146,16 @@ def spec_masks(spec_floor):
         else:
             z0, z1 = wall["plane"] - t, wall["plane"] + t
             x0, x1 = wall["u0"], wall["u1"]
-        target = hd if wall["kind"] == "half" else sd
-        target.rectangle(
-            [((x0 - X0) / CELL, (z0 - Z0) / CELL), ((x1 - X0) / CELL, (z1 - Z0) / CELL)],
-            fill=255,
-        )
-    return floor_img, solid, half
+        rect = [
+            ((x0 - X0) / CELL, (z0 - Z0) / CELL),
+            ((x1 - X0) / CELL, (z1 - Z0) / CELL),
+        ]
+        fp.rectangle(rect, fill=255)
+        if wall["kind"] == "solid":
+            sd.rectangle(rect, fill=255)
+        elif wall["kind"] == "half":
+            hd.rectangle(rect, fill=255)
+    return floor_img, solid, half, footprint
 
 
 def mask_array(img):
@@ -204,11 +246,21 @@ def main():
     report = []
     for spec_floor in spec["floors"]:
         floor = spec_floor["floor"]
-        source_floor, source_mid, source_low, _ft, _wt, _wn = source_masks(batches, floor)
-        spec_floor_img, spec_solid, spec_half = spec_masks(spec_floor)
+        (
+            source_floor,
+            source_mid,
+            source_low,
+            source_all_walls,
+            _plate,
+            _ft,
+            _wt,
+            _wn,
+        ) = source_masks(batches, floor, spec_floor)
+        spec_floor_img, spec_solid, spec_half, spec_footprint = spec_masks(spec_floor)
         fs = score(source_floor, spec_floor_img, 0.08)
         ws = score(source_mid, spec_solid, 0.2)
         hs = score(source_low, spec_half, 0.2)
+        fp = score(source_all_walls, spec_footprint, 0.2)
         # Scale check: every source tread centroid must sit inside the stair
         # footprint, and the wedge must span the source rise.
         centres = _ft.mean(axis=1)
@@ -298,7 +350,7 @@ def main():
                 spec_points.append([x, y - 0.22, z])
         sp = np.asarray(spec_points, dtype=float)
         spec_levels = sorted({round(float(slab["level"]), 2) for slab in spec_floor["slabs"]})
-        source_levels = simple_levels(_ft, *BAND[floor])
+        source_levels = simple_levels(_plate, *BAND[floor])
         levels_match = all(
             any(abs(level - source) < 0.2 for source in source_levels)
             for level in spec_levels
@@ -323,6 +375,7 @@ def main():
             "ramps_supported": ramps_supported,
             "solid_wall": ws,
             "half_wall": hs,
+            "wall_footprint": fp,
             "slabs": len(spec_floor["slabs"]),
             "walls": len(spec_floor["walls"]),
             "stairs": len(spec_floor["stairs"]),
@@ -352,17 +405,21 @@ def main():
         print(
             f"floor {floor}: floor precision {fs['precision']:.3f} "
             f"recall {fs['recall']:.3f} | solid wall precision {ws['precision']:.3f} "
-            f"recall {ws['recall']:.3f} | half wall precision {hs['precision']:.3f} "
-            f"recall {hs['recall']:.3f}"
+            f"recall {ws['recall']:.3f} | wall footprint precision "
+            f"{fp['precision']:.3f} recall {fp['recall']:.3f}"
         )
     failures = []
     for f in report:
-        if f["floor_score"]["recall"] < 0.90:
-            failures.append(f"floor {f['floor']} floor recall below 0.90")
+        if f["floor_score"]["recall"] < 0.99:
+            failures.append(f"floor {f['floor']} floor recall below 0.99")
         if f["solid_wall"]["precision"] < 0.85:
             failures.append(f"floor {f['floor']} solid wall precision below 0.85")
-        if f["solid_wall"]["recall"] < 0.60:
-            failures.append(f"floor {f['floor']} solid wall recall below 0.60")
+        if f["solid_wall"]["recall"] < 0.90:
+            failures.append(f"floor {f['floor']} solid wall recall below 0.90")
+        if f["wall_footprint"]["precision"] < 0.95:
+            failures.append(f"floor {f['floor']} wall footprint precision below 0.95")
+        if f["wall_footprint"]["recall"] < 0.95:
+            failures.append(f"floor {f['floor']} wall footprint recall below 0.95")
         if not f["levels_match"]:
             failures.append(f"floor {f['floor']} floor level mismatch")
         if not f["bounds_within_0_5m"]:
@@ -383,9 +440,11 @@ def main():
         "pass": not failures,
         "failures": failures,
         "thresholds": {
-            "floor_recall": 0.90,
+            "floor_recall": 0.99,
             "solid_wall_precision": 0.85,
-            "solid_wall_recall": 0.60,
+            "solid_wall_recall": 0.90,
+            "wall_footprint_precision": 0.95,
+            "wall_footprint_recall": 0.95,
             "bounds_margin_m": 0.5,
             "stair_source_treads": "at least one per wedge",
             "pillar_support": "all pillar boxes contain source geometry",

@@ -133,16 +133,23 @@ def is_outside(material: str) -> bool:
 
 def is_wall_material(material: str) -> bool:
     low = material.lower()
+    if "stair" in low:
+        return False
+    if any(k in low for k in ("townpolice00", "townpolice01", "townpolice00noshadow")):
+        return True
     if is_outside(low):
         return False
     return not any(k in low for k in NON_WALL)
 
 
-def is_floor_material(material: str) -> bool:
+def is_floor_material(material: str, include_stairs: bool = False) -> bool:
     low = material.lower()
     if is_outside(low):
         return False
-    return not any(k in low for k in NON_FLOOR)
+    if "stairsfloor" in low:
+        return True
+    bad = NON_FLOOR if include_stairs else NON_FLOOR + ("stair",)
+    return not any(k in low for k in bad)
 
 
 def to_blender(x: float, y: float, z: float) -> tuple[float, float, float]:

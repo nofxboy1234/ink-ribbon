@@ -81,6 +81,7 @@ npm run simple
 # 4. build the whole-RPD blockout, its /simple2 asset and the checks
 npm run blockout
 npm run blockout-render   # optional: overview, main hall and per-floor renders
+npm run blockout-compare  # optional: source-versus-blockout room comparisons
 
 npm run wasm   # only needed after changing native/main.c
 ```
@@ -137,6 +138,8 @@ tools/blockout_common.py   mesh loading, material names, shared types
 tools/blockout_extract.py  source-fitted blockout spec and reference PLYs
 tools/blockout_scene.py    Blender scene, OBJ/GLB export and renders
 tools/blockout_verify.py   source-versus-blockout coverage and plan images
+tools/blockout_compare.py  same-camera source and blockout room renders
+tools/blockout_compare_compose.py  side-by-side comparison images
 docs/blockout.md           whole-RPD blockout pipeline and results
 tools/rpd_floor_meshes.txt exact PAK paths for floors 1-3
 native/main.c              sokol app: camera, input, solid-colour geometry pass
