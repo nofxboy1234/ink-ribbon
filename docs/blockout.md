@@ -159,17 +159,19 @@ Current result:
 
 | Floor | Floor precision | Floor recall | Solid wall precision | Solid wall recall | Footprint precision | Footprint recall |
 |---|---|---|---|---|---|---|
-| 1 | 1.000 | 1.000 | 0.963 | 0.989 | 0.999 | 0.992 |
-| 2 | 1.000 | 0.997 | 0.981 | 0.959 | 0.998 | 0.970 |
-| 3 | 1.000 | 0.999 | 0.974 | 0.987 | 1.000 | 0.954 |
+| 1 | 1.000 | 1.000 | 0.963 | 0.989 | 0.997 | 0.994 |
+| 2 | 1.000 | 0.997 | 0.981 | 0.959 | 0.997 | 0.976 |
+| 3 | 1.000 | 0.999 | 0.974 | 0.987 | 0.999 | 0.959 |
 
 Floor precision is 1.000 because stair footprints are cleared from both masks
 and every other plate comes from a source floor triangle. Floor recall is the
 completeness number. The solid wall score is the mid-height wall band.
 The footprint score compares every wall box and every source wall face in plan,
-which is the wall-for-wall test. The remaining footprint gaps are mostly curved
-apses, thin trim and short wall ends. The plan overlays in
-`build/blockout/verify/plan_f*.png` show them directly.
+which is the wall-for-wall test. Pillar boxes count as wall coverage because a
+pillar face is a vertical box too. What the footprint score still misses is
+scattered sub-metre slivers from trim, curved apses and short wall ends, not
+whole walls. The plan overlays in `build/blockout/verify/plan_f*.png` show them
+directly.
 
 The same run checks every spec floor level against a histogram of the source
 floor surfaces. All spec levels match a source level within 0.20 m. Bounds are

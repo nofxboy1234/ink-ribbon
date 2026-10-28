@@ -152,6 +152,15 @@ def spec_masks(spec_floor):
             sd.rectangle(rect, fill=255)
         elif wall["kind"] == "half":
             hd.rectangle(rect, fill=255)
+    # A pillar is a vertical box like a wall, so it covers wall faces too.
+    for pillar in spec_floor["pillars"]:
+        fp.rectangle(
+            [
+                ((pillar["x0"] - X0) / CELL, (pillar["z0"] - Z0) / CELL),
+                ((pillar["x1"] - X0) / CELL, (pillar["z1"] - Z0) / CELL),
+            ],
+            fill=255,
+        )
     return floor_img, solid, half, footprint
 
 
