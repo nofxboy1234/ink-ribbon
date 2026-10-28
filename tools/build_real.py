@@ -107,7 +107,7 @@ class Chunk:
 
 
 PROP_SPECS = (
-    ("sm41_024_newpolicestatue01a", 0, (0.64, -0.2, -12.8)),
+    ("sm41_024_newpolicestatue01a", 0, (0.64, 1.67, -12.8)),
     ("sm46_011_crashheli01a", 1, (26.1, 5.2, -9.95)),
 )
 
