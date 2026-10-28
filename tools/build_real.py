@@ -123,24 +123,100 @@ FILL_SPECS = (
     # The statue prop is a half-basin, so its south side is open over the void
     # between the two grand flights. A plinth plate at 0.79 closes the view
     # through it and gives the basin rim a floor to sit on.
+    {"floor": 0, "x": (-3.9, 3.9), "z": (-16.0, -9.6), "y": 0.79, "walls": ()},
+    # 2F east floor the meshes leave out. Both rings come from the marked
+    # outline unprojected through the reported camera and clipped to the shell.
     {
-        "floor": 0,
-        "x": (-3.9, 3.9),
-        "z": (-16.0, -9.6),
-        "y": 0.79,
+        "floor": 1,
+        "y": 5.20,
         "walls": (),
+        "ring": [
+            [32.12, -3.16], [33.46, -3.17], [33.43, -2.82], [32.88, -2.82],
+            [32.85, -3.01], [32.2, -3.01], [33.55, -0.64], [35.64, -0.54],
+            [40.15, -0.54], [40.18, -0.87], [40.72, -0.88], [40.77, -0.54],
+            [42.88, -0.54], [42.82, -0.62], [42.82, -3.12], [42.63, -3.19],
+            [41.07, -3.19], [40.89, -3.12], [40.86, -3.02], [40.77, -3.06],
+            [40.74, -2.82], [40.16, -2.84], [40.17, -3.19], [40.63, -3.2],
+            [40.61, -4.9], [40.35, -5.05], [40.27, -5.04], [40.23, -3.36],
+            [33.02, -3.36], [32.97, -3.49],
+        ],
+    },
+    {
+        "floor": 1,
+        "y": 5.20,
+        "walls": (),
+        "ring": [
+            [43.44, -0.17], [48.11, 0.06], [48.57, 0.05], [48.36, -0.32],
+            [43.44, -3.23],
+        ],
     },
 )
+
+
+def _triangulate(ring):
+    """Ear-clip a simple polygon given as (x, z) points."""
+    pts = list(ring)
+    if len(pts) < 3:
+        return []
+    area = 0.0
+    for i in range(len(pts)):
+        x0, z0 = pts[i]
+        x1, z1 = pts[(i + 1) % len(pts)]
+        area += x0 * z1 - x1 * z0
+    if area < 0:
+        pts.reverse()
+    out = []
+    guard = 0
+    while len(pts) > 3 and guard < 10000:
+        guard += 1
+        clipped = False
+        for i in range(len(pts)):
+            ax, az = pts[i - 1]
+            bx, bz = pts[i]
+            cx, cz = pts[(i + 1) % len(pts)]
+            cross = (bx - ax) * (cz - az) - (bz - az) * (cx - ax)
+            if cross <= 1e-9:
+                continue
+            inside = False
+            for px, pz in pts:
+                if (px, pz) in ((ax, az), (bx, bz), (cx, cz)):
+                    continue
+                d1 = (bx - ax) * (pz - az) - (bz - az) * (px - ax)
+                d2 = (cx - bx) * (pz - bz) - (cz - bz) * (px - bx)
+                d3 = (ax - cx) * (pz - cz) - (az - cz) * (px - cx)
+                if d1 >= 0 and d2 >= 0 and d3 >= 0:
+                    inside = True
+                    break
+            if inside:
+                continue
+            out.append(((ax, az), (bx, bz), (cx, cz)))
+            del pts[i]
+            clipped = True
+            break
+        if not clipped:
+            break
+    if len(pts) == 3:
+        out.append(tuple(pts))
+    return out
 
 
 def load_fill_triangles():
     """Synthetic quads that close holes the decompiled meshes leave open."""
     out = []
     for spec in FILL_SPECS:
-        x0, x1 = spec["x"]
-        z0, z1 = spec["z"]
         y = spec["y"]
         colour = MANUAL_MATERIAL
+        if "ring" in spec:
+            for tri in _triangulate(spec["ring"]):
+                out.append(
+                    (
+                        colour,
+                        tuple((float(px), y, float(pz)) for px, pz in tri),
+                    )
+                )
+            continue
+        x0, x1 = spec["x"]
+        z0, z1 = spec["z"]
         out.append((colour, ((x0, y, z0), (x1, y, z0), (x1, y, z1))))
         out.append((colour, ((x0, y, z0), (x1, y, z1), (x0, y, z1))))
         top = spec.get("wall_top")
