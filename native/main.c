@@ -54,6 +54,9 @@ typedef struct {
     bounds_t bounds;
     sg_buffer vbuf;
     sg_buffer tri_ibuf;
+    sg_buffer sphere_vbuf;
+    sg_buffer sphere_ibuf;
+    int sphere_index_count;
     sg_pipeline pip;
 } scene_t;
 
@@ -378,6 +381,52 @@ static sg_pipeline make_pipeline(sg_shader shader) {
     return sg_make_pipeline(&pd);
 }
 
+static void create_sphere(scene_t *s) {
+    const int seg = 32, ring = 16;
+    const float radius = 0.45f;
+    const float cx = 0.0f, cy = radius + 0.82f, cz = 8.5f;
+    const int vc = (ring + 1) * (seg + 1);
+    const int tc = ring * seg * 2;
+    uint8_t *verts = (uint8_t *)malloc((size_t)vc * 16);
+    uint32_t *idx = (uint32_t *)malloc((size_t)tc * 3 * sizeof(uint32_t));
+    if (!verts || !idx) { free(verts); free(idx); return; }
+    for (int r = 0; r <= ring; r++) {
+        float v = (float)r / (float)ring;
+        float phi = v * RPD_PI;
+        for (int c = 0; c <= seg; c++) {
+            float u = (float)c / (float)seg;
+            float theta = u * 2.0f * RPD_PI;
+            float x = cx + radius * sinf(phi) * cosf(theta);
+            float y = cy + radius * cosf(phi);
+            float z = cz + radius * sinf(phi) * sinf(theta);
+            uint8_t *p = verts + ((size_t)r * (seg + 1) + c) * 16;
+            memcpy(p, &x, 4); memcpy(p + 4, &y, 4); memcpy(p + 8, &z, 4);
+            p[12] = 58; p[13] = 155; p[14] = 255; p[15] = 255;
+        }
+    }
+    int k = 0;
+    for (int r = 0; r < ring; r++) {
+        for (int c = 0; c < seg; c++) {
+            uint32_t a = (uint32_t)(r * (seg + 1) + c);
+            uint32_t b = a + 1;
+            uint32_t d = a + (uint32_t)(seg + 1);
+            uint32_t e = d + 1;
+            idx[k++] = a; idx[k++] = d; idx[k++] = b;
+            idx[k++] = b; idx[k++] = d; idx[k++] = e;
+        }
+    }
+    s->sphere_vbuf = sg_make_buffer(&(sg_buffer_desc){
+        .size = (size_t)vc * 16, .data = { .ptr = verts, .size = (size_t)vc * 16 }, .label = "spawn-sphere",
+    });
+    s->sphere_ibuf = sg_make_buffer(&(sg_buffer_desc){
+        .usage = { .index_buffer = true }, .size = (size_t)tc * 3 * sizeof(uint32_t),
+        .data = { .ptr = idx, .size = (size_t)tc * 3 * sizeof(uint32_t) }, .label = "spawn-sphere-indices",
+    });
+    s->sphere_index_count = tc * 3;
+    free(verts);
+    free(idx);
+}
+
 static bool upload_scene(scene_t *s) {
     if (!s->data || s->size < RPD_HEADER_SIZE) return false;
     const uint8_t *p = s->data;
@@ -455,6 +504,7 @@ static bool upload_scene(scene_t *s) {
     free(ibuf);
     if (sg_query_buffer_state(s->vbuf) != SG_RESOURCESTATE_VALID ||
         sg_query_buffer_state(s->tri_ibuf) != SG_RESOURCESTATE_VALID) return false;
+    create_sphere(s);
     s->gpu_ready = true;
     s->loaded = true;
     return true;
@@ -573,6 +623,13 @@ static void frame(void) {
             sg_apply_uniforms(0, &(sg_range){ &vs, sizeof(vs) });
             sg_apply_uniforms(1, &(sg_range){ &fs, sizeof(fs) });
             sg_draw(0, state.scene.triangle_count * 3, 1);
+            if (state.scene.sphere_index_count > 0) {
+                sg_apply_bindings(&(sg_bindings){
+                    .vertex_buffers[0] = state.scene.sphere_vbuf,
+                    .index_buffer = state.scene.sphere_ibuf,
+                });
+                sg_draw(0, state.scene.sphere_index_count, 1);
+            }
         }
     }
     sg_end_pass();
