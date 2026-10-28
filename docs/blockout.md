@@ -27,7 +27,7 @@ public/rpd/simple2.bin          blockout asset for the /simple2 page
 public/rpd/simple2.json         blockout asset metadata
 ```
 
-The current spec holds 32 floor slabs, 2,864 wall boxes, 64 pillars, 21 stair
+The current spec holds 35 floor slabs, 2,864 wall boxes, 64 pillars, 21 stair
 wedges and 2 ramp slabs.
 
 ![RPD blockout at /simple2](blockout-app.jpg)

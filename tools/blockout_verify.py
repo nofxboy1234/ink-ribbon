@@ -349,7 +349,13 @@ def main():
                 spec_points.append([x, y, z])
                 spec_points.append([x, y - 0.22, z])
         sp = np.asarray(spec_points, dtype=float)
-        spec_levels = sorted({round(float(slab["level"]), 2) for slab in spec_floor["slabs"]})
+        spec_levels = sorted(
+            {
+                round(float(slab["level"]), 2)
+                for slab in spec_floor["slabs"]
+                if not slab.get("mezzanine")
+            }
+        )
         source_levels = simple_levels(_plate, *BAND[floor])
         levels_match = all(
             any(abs(level - source) < 0.2 for source in source_levels)

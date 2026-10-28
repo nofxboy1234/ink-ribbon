@@ -2,9 +2,9 @@
   "asset": "simple2.bin",
   "version": 3,
   "method": "Blender whole-RPD blockout",
-  "vertices": 26048,
-  "triangles": 40316,
-  "bytes": 476460,
+  "vertices": 26328,
+  "triangles": 40872,
+  "bytes": 482316,
   "bounds": {
     "min": [
       -50.749000549316406,

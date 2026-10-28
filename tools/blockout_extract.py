@@ -1106,6 +1106,105 @@ def add_upper_flights(spec, batches):
             print(f"  added {added} upper flights on floor {floor}")
 
 
+def add_mezzanines(spec, batches):
+    """Add split-level gallery floors that sit just above a floor band."""
+    for floor_spec in spec["floors"]:
+        floor = floor_spec["floor"]
+        if floor >= 3:
+            continue
+        lo = BAND[floor][1]
+        hi = BASE[floor + 1] - 0.05
+        if hi <= lo:
+            continue
+        candidates = []
+        for batch in batches:
+            if batch.floor != floor:
+                continue
+            if not common.is_floor_material(batch.material, include_stairs=False):
+                continue
+            t = batch.tris
+            n = np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0])
+            a = np.linalg.norm(n, axis=1) * 0.5
+            ny = n[:, 1] / np.maximum(2 * a, 1e-9)
+            y = t[:, :, 1].mean(axis=1)
+            keep = (ny > 0.7) & (a > 0.01) & (y > lo) & (y < hi)
+            if keep.any():
+                candidates.append((t[keep], a[keep]))
+        if not candidates:
+            continue
+        tris = np.concatenate([c[0] for c in candidates])
+        areas = np.concatenate([c[1] for c in candidates])
+        ymean = tris[:, :, 1].mean(axis=1)
+        for bin_value in np.unique(np.round(ymean / 0.2) * 0.2):
+            subset = tris[np.abs(ymean - bin_value) < 0.12]
+            if len(subset) == 0:
+                continue
+            sub_area = tri_geometry(subset)[1]
+            if float(sub_area.sum()) < 5.0:
+                continue
+            level = float(np.average(subset[:, :, 1].mean(axis=1), weights=sub_area))
+            polys = []
+            for tri in subset:
+                try:
+                    poly = xz_polygon(tri)
+                except Exception:
+                    continue
+                if poly.area > 0.01:
+                    polys.append(poly)
+            if not polys:
+                continue
+            geom = unary_union(polys).buffer(0.02).simplify(0.03)
+            parts = list(geom.geoms) if hasattr(geom, "geoms") else [geom]
+            for part in parts:
+                if part.area < 5.0:
+                    continue
+                part = fill_small_holes(part)
+                rings = [list(part.exterior.coords)] + [
+                    list(r.coords) for r in part.interiors
+                ]
+                floor_spec["slabs"].append(
+                    {
+                        "level": round(level, 3),
+                        "area": round(float(part.area), 2),
+                        "rings": [
+                            [[round(float(x), 3), round(float(z), 3)] for x, z in ring]
+                            for ring in rings
+                        ],
+                        "mezzanine": True,
+                    }
+                )
+                # Connect the gallery to the nearest existing stair below it.
+                best = None
+                best_overlap = 0.0
+                for stair in floor_spec["stairs"]:
+                    ix = max(
+                        0.0,
+                        min(part.bounds[2], stair["x1"]) - max(part.bounds[0], stair["x0"]),
+                    )
+                    iz = max(
+                        0.0,
+                        min(part.bounds[3], stair["z1"]) - max(part.bounds[1], stair["z0"]),
+                    )
+                    if ix * iz > best_overlap and stair["y1"] < level - 0.3:
+                        best_overlap = ix * iz
+                        best = stair
+                if best is not None:
+                    floor_spec["stairs"].append(
+                        {
+                            "x0": best["x0"],
+                            "x1": best["x1"],
+                            "z0": best["z0"],
+                            "z1": best["z1"],
+                            "y0": best["y1"],
+                            "y1": round(level, 2),
+                            "axis": best["axis"],
+                            "high": best["high"],
+                            "source": "gallery connector",
+                        }
+                    )
+                print(f"  added mezzanine on floor {floor} at {level:.2f} ({part.area:.1f} m2)")
+
+
 def write_reference(batches, floor: int):
     tris, _ = common.join(batches, floor)
     if len(tris) == 0:
@@ -1236,6 +1335,7 @@ def main():
                 print(f"  reference {ref['file']}: {ref['triangles']:,} tris, {ref['bytes']/1e6:.1f} MB")
 
     add_missing_floors(spec, batches)
+    add_mezzanines(spec, batches)
     add_missing_flights(spec, batches)
     add_upper_flights(spec, batches)
     spec["counts"] = {
