@@ -44,25 +44,16 @@ def draw_floor_polys(draw, polys):
 
 def source_masks(batches, floor, spec_floor):
     lo, hi = BAND[floor]
+    # Walls key by room, the same as the extractor.
     tris, names = common.join(batches, floor)
-    up_tris, up_names = extract.floor_surfaces(tris, names, floor, include_stairs=True)
+    band_tris, band_names = common.join_band(batches)
+    up_tris, up_names = extract.floor_surfaces(
+        band_tris, band_names, floor, include_stairs=True
+    )
     plate_tris, plate_names = extract.floor_surfaces(
-        tris, names, floor, include_stairs=False
+        band_tris, band_names, floor, include_stairs=False
     )
     stair_boxes = spec_floor.get("stairs", [])
-    keep = np.ones(len(plate_tris), dtype=bool)
-    if stair_boxes:
-        centres = plate_tris.mean(axis=1)
-        in_stair = np.zeros(len(plate_tris), dtype=bool)
-        for stair in stair_boxes:
-            in_stair |= (
-                (centres[:, 0] >= stair["x0"] - 0.25)
-                & (centres[:, 0] <= stair["x1"] + 0.25)
-                & (centres[:, 2] >= stair["z0"] - 0.25)
-                & (centres[:, 2] <= stair["z1"] + 0.25)
-            )
-        keep &= ~in_stair
-    plate_tris = plate_tris[keep]
     wall_tris, wall_names = extract.vertical_surfaces(tris, names, floor)
     wall_tris_all = wall_tris
     wall_names_all = wall_names
@@ -78,13 +69,16 @@ def source_masks(batches, floor, spec_floor):
             )
         wall_tris = wall_tris[~in_stair]
         wall_names = wall_names[~in_stair]
-    floor_img = blank()
-    fd = ImageDraw.Draw(floor_img)
+    floor_arr = np.zeros((H, W), dtype=bool)
     for tri in plate_tris:
-        fd.polygon(
+        layer = blank()
+        ImageDraw.Draw(layer).polygon(
             [((float(p[0]) - X0) / CELL, (float(p[2]) - Z0) / CELL) for p in tri],
             fill=255,
         )
+        floor_arr |= np.asarray(layer, dtype=bool)
+    floor_arr = extract.stair_free(floor_arr, stair_boxes, CELL, X0, Z0)
+    floor_img = Image.fromarray((floor_arr * 255).astype(np.uint8))
     width = max(1, int(round(0.10 / CELL)))
     level = extract.BASE[floor]
     y = wall_tris[:, :, 1]
@@ -131,6 +125,9 @@ def spec_masks(spec_floor):
                 fill=0,
             )
         floor_arr |= np.asarray(layer, dtype=bool)
+    floor_arr = extract.stair_free(
+        floor_arr, spec_floor.get("stairs", []), CELL, X0, Z0
+    )
     floor_img = Image.fromarray((floor_arr * 255).astype(np.uint8))
     solid = blank()
     half = blank()
@@ -273,7 +270,7 @@ def main():
                 & (centres[:, 2] >= stair["z0"] - 0.25)
                 & (centres[:, 2] <= stair["z1"] + 0.25)
                 & (tread_area < 1.0)
-                & (tread_area > 0.03)
+                & (tread_area > 0.001)
             )
             selected = _ft[inside]
             source_lo = float(selected[:, :, 1].min()) if len(selected) else 0.0
@@ -433,6 +430,15 @@ def main():
             f"recall {ws['recall']:.3f} | wall footprint precision "
             f"{fp['precision']:.3f} recall {fp['recall']:.3f}"
         )
+    slab_levels = sorted(
+        {round(float(slab["level"]), 2) for f in spec["floors"] for slab in f["slabs"]}
+    )
+    for f in report:
+        for check in f["stair_checks"]:
+            check["connects"] = all(
+                any(abs(end - level) <= 0.35 for level in slab_levels)
+                for end in check["spec_y"]
+            )
     failures = []
     for f in report:
         if f["floor_score"]["recall"] < 0.99:
@@ -451,6 +457,8 @@ def main():
             failures.append(f"floor {f['floor']} bounds outside source by more than 0.5 m")
         if any(s["source_treads"] == 0 for s in f["stair_checks"]):
             failures.append(f"floor {f['floor']} stair wedge without source treads")
+        if any(not s["connects"] for s in f["stair_checks"]):
+            failures.append(f"floor {f['floor']} stair wedge does not reach a floor")
         if f["pillars_supported"] != f["pillars"]:
             failures.append(f"floor {f['floor']} pillar without source support")
         if f["ramps_supported"] != f["ramps"]:
@@ -472,6 +480,7 @@ def main():
             "wall_footprint_recall": 0.95,
             "bounds_margin_m": 0.5,
             "stair_source_treads": "at least one per wedge",
+            "stair_connection": "both ends within 0.35 m of a slab level",
             "pillar_support": "all pillar boxes contain source geometry",
             "ramp_support": "all ramp slabs contain source geometry",
         },

@@ -66,6 +66,18 @@ def floor_surfaces(tris, names, floor: int, include_stairs: bool = False):
     return tris[keep], names[keep]
 
 
+def floor_surfaces_all(tris, names):
+    """Up-facing floor or stair-material triangles, ignoring the height band."""
+    if len(tris) == 0:
+        return tris, names
+    _, area, ny = tri_geometry(tris)
+    material_ok = np.array(
+        [common.is_floor_material(name, include_stairs=True) for name in names]
+    )
+    keep = material_ok & (ny > 0.7) & (area > 0.008)
+    return tris[keep], names[keep]
+
+
 def vertical_surfaces(tris, names, floor: int):
     lo, hi = BAND[floor]
     if len(tris) == 0:
@@ -78,14 +90,21 @@ def vertical_surfaces(tris, names, floor: int):
     return tris[keep], names[keep]
 
 
-def find_levels(tris: np.ndarray, area: np.ndarray, lo: float, hi: float):
+def find_levels(
+    tris: np.ndarray,
+    area: np.ndarray,
+    lo: float,
+    hi: float,
+    threshold: float = 5.0,
+    merge: float = 0.4,
+):
     y = tris[:, :, 1].mean(axis=1)
     step = 0.1
     bins = np.arange(lo, hi + step, step)
     hist, edges = np.histogram(y, bins=bins, weights=area)
     total = float(area.sum())
     smooth = np.convolve(hist, np.ones(3) / 3.0, mode="same")
-    threshold = max(5.0, total * 0.008)
+    threshold = max(threshold, total * 0.001)
     peaks: list[tuple[float, float]] = []
     for i in range(1, len(smooth) - 1):
         if (
@@ -97,7 +116,7 @@ def find_levels(tris: np.ndarray, area: np.ndarray, lo: float, hi: float):
     peaks.sort()
     merged: list[tuple[float, float]] = []
     for p, weight in peaks:
-        if merged and abs(p - merged[-1][0]) < 0.4:
+        if merged and abs(p - merged[-1][0]) < merge:
             level = (merged[-1][0] * merged[-1][1] + p * weight) / (merged[-1][1] + weight)
             merged[-1] = (level, merged[-1][1] + weight)
         else:
@@ -118,13 +137,25 @@ def fill_small_holes(poly: Polygon, max_area: float = 1.6) -> Polygon:
     return Polygon(poly.exterior, holes)
 
 
-def build_slabs(tris, area, ymean, levels, floor):
+def build_slabs(tris, area, ymean, levels, floor, min_part: float = 3.0):
+    """Union plate triangles into slabs, each assigned to its nearest level.
+
+    Nearest-level assignment leaves no gap between two adjacent levels, which
+    a fixed window does around stepped floors such as the main hall.
+    """
     slabs = []
     assigned = np.zeros(len(tris), dtype=bool)
-    for level in levels:
-        mask = np.abs(ymean - level) < 0.16
+    if len(levels) == 0:
+        return slabs, assigned
+    level_array = np.asarray(levels, dtype=float)
+    distance = np.abs(ymean[:, None] - level_array[None, :])
+    nearest = distance.argmin(axis=1)
+    rows = np.arange(len(ymean))
+    for index, level in enumerate(levels):
+        mask = (nearest == index) & (distance[rows, index] < 0.35)
         if mask.sum() == 0:
             continue
+        level = float(np.average(ymean[mask], weights=area[mask]))
         polys = []
         for tri in tris[mask]:
             try:
@@ -139,7 +170,7 @@ def build_slabs(tris, area, ymean, levels, floor):
         parts = list(geom.geoms) if hasattr(geom, "geoms") else [geom]
         kept = 0
         for part in parts:
-            if part.area < 3.0:
+            if part.area < min_part:
                 continue
             part = fill_small_holes(part)
             rings = [list(part.exterior.coords)] + [list(r.coords) for r in part.interiors]
@@ -157,6 +188,18 @@ def build_slabs(tris, area, ymean, levels, floor):
         if kept:
             assigned |= mask
     return slabs, assigned
+
+
+def stair_free(mask, boxes, cell=0.05, x0=-46.0, z0=-36.0):
+    """Clear stair footprints from a plan mask at raster resolution."""
+    out = mask.copy()
+    for stair in boxes:
+        iz0 = max(0, int(round((stair["z0"] - z0) / cell)))
+        iz1 = int(round((stair["z1"] - z0) / cell)) + 1
+        ix0 = max(0, int(round((stair["x0"] - x0) / cell)))
+        ix1 = int(round((stair["x1"] - x0) / cell)) + 1
+        out[iz0:iz1, ix0:ix1] = False
+    return out
 
 
 def raster_components(tris, cell=0.12, dilate=0.3):
@@ -551,41 +594,8 @@ def _extend_levels(y0, y1, levels):
     return y0, y1
 
 
-def _wedge_from_bbox(bbox, points, levels):
-    w = bbox["x1"] - bbox["x0"]
-    d = bbox["z1"] - bbox["z0"]
-    run_x = w >= d
-    y0 = float(points[:, 1].min())
-    y1 = float(points[:, 1].max())
-    y0, y1 = _extend_levels(y0, y1, levels)
-    if y1 - y0 < 0.45:
-        return None
-    if run_x:
-        low_end = points[points[:, 0] <= bbox["x0"] + 0.35]
-        high_end = points[points[:, 0] >= bbox["x1"] - 0.35]
-        axis, high = "x", "max"
-    else:
-        low_end = points[points[:, 2] <= bbox["z0"] + 0.35]
-        high_end = points[points[:, 2] >= bbox["z1"] - 0.35]
-        axis, high = "z", "max"
-    if len(low_end) and len(high_end):
-        if float(high_end[:, 1].mean()) < float(low_end[:, 1].mean()):
-            high = "min"
-    return {
-        "x0": round(bbox["x0"], 2),
-        "x1": round(bbox["x1"], 2),
-        "z0": round(bbox["z0"], 2),
-        "z1": round(bbox["z1"], 2),
-        "y0": round(y0, 2),
-        "y1": round(y1, 2),
-        "axis": axis,
-        "high": high,
-    }
-
-
-def detect_tread_stairs(tris, assigned, levels, floor):
+def detect_tread_stairs(tris, assigned, levels, lo, hi):
     """Find flights as chains of small horizontal treads with rising height."""
-    lo, hi = BAND[floor]
     y = tris[:, :, 1].mean(axis=1)
     _, area, _ = tri_geometry(tris)
     level_gap = np.min(
@@ -688,7 +698,27 @@ def detect_tread_stairs(tris, assigned, levels, floor):
     return stairs
 
 
-def detect_ramps(tris, assigned, stairs, floor):
+def dedupe_flights(items):
+    """Keep the largest footprint when two flights cover the same plan area."""
+    kept = []
+    for item in sorted(
+        items, key=lambda s: -((s["x1"] - s["x0"]) * (s["z1"] - s["z0"]))
+    ):
+        box = (item["x0"], item["x1"], item["z0"], item["z1"])
+        area_box = (box[1] - box[0]) * (box[3] - box[2])
+        duplicate = False
+        for other in kept:
+            overlap_x = max(0.0, min(box[1], other["x1"]) - max(box[0], other["x0"]))
+            overlap_z = max(0.0, min(box[3], other["z1"]) - max(box[2], other["z0"]))
+            if overlap_x * overlap_z > 0.55 * area_box:
+                duplicate = True
+                break
+        if not duplicate:
+            kept.append(item)
+    return kept
+
+
+def detect_tread_ramps(tris, assigned, stairs, floor):
     lo, hi = BAND[floor]
     y = tris[:, :, 1].mean(axis=1)
     _, area, ny = tri_geometry(tris)
@@ -732,7 +762,12 @@ def detect_ramps(tris, assigned, stairs, floor):
         gx, gz, intercept, resid = fit
         slope = math.hypot(gx, gz)
         rise = float(pts[:, 1].max() - pts[:, 1].min())
-        if resid > 0.09 or not (0.05 < slope < 0.5) or rise < 0.1:
+        if resid > 0.09 or not (0.05 < slope < 0.5):
+            continue
+        # A short stub is sloped trim, not a ramp that connects two levels.
+        if max(w, d) < 2.5:
+            continue
+        if rise < 0.5:
             continue
         corners = []
         for x, z in (
@@ -758,451 +793,148 @@ def detect_ramps(tris, assigned, stairs, floor):
     return ramps
 
 
-def detect_stairs_and_ramps(all_tris, all_names, tris, names, assigned, levels, floor):
-    lo, hi = BAND[floor]
-    stairs = detect_tread_stairs(tris, assigned, levels, floor)
+def detect_stair_components(all_tris, all_names):
+    """Flights from stair materials, with their full vertical rise.
 
-    stair_mat = np.array(
-        ["stair" in name.lower() and "town" not in name.lower() for name in all_names]
+    The room meshes split one stairwell across several files, so the rise is
+    measured on every stair triangle at once and not inside a height band.
+    """
+    is_stair = np.array(
+        ["stair" in str(name).lower() and "town" not in str(name).lower() for name in all_names]
     )
-    if stair_mat.any():
-        st = all_tris[stair_mat]
-        sy = st[:, :, 1].mean(axis=1)
-        st = st[(sy > lo + 0.05) & (sy < hi - 0.05)]
-        if len(st):
-            for c in raster_components(st, cell=0.12, dilate=0.15):
-                w = c["x1"] - c["x0"]
-                d = c["z1"] - c["z0"]
-                run, width = max(w, d), min(w, d)
-                if run < 0.9 or run > 12.0 or width < 0.55 or width > 8.0:
-                    continue
-                pts = _component_points(st, c)
-                if len(pts) < 8:
-                    continue
-                item = _wedge_from_bbox(c, pts, levels)
-                if item is not None:
-                    # A long, low strip of stair material is a walkway or a
-                    # railing, not a flight.
-                    if item["y1"] - item["y0"] < 0.8:
-                        continue
-                    item["source"] = "stair material"
-                    stairs.append(item)
-
-    def dedupe(items):
-        kept = []
-        for item in sorted(
-            items,
-            key=lambda s: -((s["x1"] - s["x0"]) * (s["z1"] - s["z0"])),
-        ):
-            box = (item["x0"], item["x1"], item["z0"], item["z1"])
-            area_box = (box[1] - box[0]) * (box[3] - box[2])
-            dup = False
-            for other in kept:
-                ob = (other["x0"], other["x1"], other["z0"], other["z1"])
-                ix = max(0.0, min(box[1], ob[1]) - max(box[0], ob[0]))
-                iz = max(0.0, min(box[3], ob[3]) - max(box[2], ob[2]))
-                if ix * iz > 0.55 * area_box:
-                    dup = True
-                    break
-            if not dup:
-                kept.append(item)
-        return kept
-
-    named = dedupe([s for s in stairs if s.get("source") == "stair material"])
-    precise = [s for s in stairs if s.get("source") != "stair material"]
-    precise = dedupe(precise)
-    for item in named:
-        area_item = (item["x1"] - item["x0"]) * (item["z1"] - item["z0"])
-        overlap = False
-        for other in precise:
-            ix = max(0.0, min(item["x1"], other["x1"]) - max(item["x0"], other["x0"]))
-            iz = max(0.0, min(item["z1"], other["z1"]) - max(item["z0"], other["z0"]))
-            if ix * iz > 0.25 * area_item:
-                overlap = True
-                break
-        if not overlap:
-            precise.append(item)
-    stairs = dedupe(precise)
-    ramps = dedupe(detect_ramps(tris, assigned, stairs, floor))
-    return stairs, ramps
-
-
-def add_missing_floors(spec, batches):
-    """Add slabs for source floor plates the height-peak pass did not cover."""
-    cell = 0.05
-    x0, x1 = -46.0, 48.0
-    z0, z1 = -36.0, 20.0
-    w = int((x1 - x0) / cell) + 1
-    h = int((z1 - z0) / cell) + 1
-    for floor_spec in spec["floors"]:
-        floor = floor_spec["floor"]
-        covered_arr = np.zeros((h, w), dtype=bool)
-        for slab in floor_spec["slabs"]:
-            layer = Image.new("L", (w, h), 0)
-            draw = ImageDraw.Draw(layer)
-            rings = slab["rings"]
-            draw.polygon(
-                [((x - x0) / cell, (z - z0) / cell) for x, z in rings[0]], fill=255
-            )
-            for hole in rings[1:]:
-                draw.polygon(
-                    [((x - x0) / cell, (z - z0) / cell) for x, z in hole], fill=0
-                )
-            covered_arr |= np.asarray(layer, dtype=bool)
-        covered = np.asarray(
-            Image.fromarray((covered_arr * 255).astype(np.uint8)).filter(
-                ImageFilter.MaxFilter(5)
-            ),
-            dtype=bool,
-        )
-        all_tris, all_names = common.join(batches, floor)
-        plate_tris, _plate_names = floor_surfaces(
-            all_tris, all_names, floor, include_stairs=False
-        )
-        if len(plate_tris) == 0:
+    if not is_stair.any():
+        return []
+    st = all_tris[is_stair]
+    flights = []
+    for c in raster_components(st, cell=0.12, dilate=0.15):
+        w = c["x1"] - c["x0"]
+        d = c["z1"] - c["z0"]
+        run, width = max(w, d), min(w, d)
+        if run < 0.9 or run > 14.0 or width < 0.55 or width > 8.0:
             continue
-        centres = plate_tris.mean(axis=1)
-        stair_boxes = floor_spec.get("stairs", [])
-        in_stair = np.zeros(len(plate_tris), dtype=bool)
-        for stair in stair_boxes:
-            in_stair |= (
-                (centres[:, 0] >= stair["x0"] - 0.25)
-                & (centres[:, 0] <= stair["x1"] + 0.25)
-                & (centres[:, 2] >= stair["z0"] - 0.25)
-                & (centres[:, 2] <= stair["z1"] + 0.25)
-            )
-        uncovered = []
-        for index, (tri, centre) in enumerate(zip(plate_tris, centres)):
-            if in_stair[index]:
-                continue
-            ix = int((centre[0] - x0) / cell)
-            iz = int((centre[2] - z0) / cell)
-            if not (0 <= ix < w and 0 <= iz < h):
-                continue
-            if covered[iz, ix]:
-                continue
-            uncovered.append(tri)
-        if not uncovered:
+        pts = _component_points(st, c)
+        if len(pts) < 8:
             continue
-        ut = np.asarray(uncovered, dtype=np.float32)
-        added = 0
-        ymean = ut[:, :, 1].mean(axis=1)
-        bins = np.round(ymean / 0.2) * 0.2
-        for bin_value in np.unique(bins):
-            subset = ut[bins == bin_value]
-            if len(subset) == 0:
-                continue
-            subset_area = tri_geometry(subset)[1]
-            if float(subset_area.sum()) < 0.8:
-                continue
-            for comp in raster_components(subset, cell=0.15, dilate=0.15):
-                if comp["area"] < 0.8:
-                    continue
-                sel = (
-                    (subset[:, :, 0].mean(axis=1) >= comp["x0"] - 0.1)
-                    & (subset[:, :, 0].mean(axis=1) <= comp["x1"] + 0.1)
-                    & (subset[:, :, 2].mean(axis=1) >= comp["z0"] - 0.1)
-                    & (subset[:, :, 2].mean(axis=1) <= comp["z1"] + 0.1)
-                )
-                group = subset[sel]
-                if len(group) == 0:
-                    continue
-                area = tri_geometry(group)[1]
-                if float(area.sum()) < 0.8:
-                    continue
-                y = group[:, :, 1].mean(axis=1)
-                if float(y.max() - y.min()) > 0.25:
-                    continue
-                level = float(np.average(y, weights=area))
-                close = any(
-                    abs(level - slab["level"]) < 0.2
-                    for slab in floor_spec["slabs"]
-                )
-                min_area = 0.8 if close else 5.0
-                if float(area.sum()) < min_area:
-                    continue
-                polys = []
-                for tri in group:
-                    try:
-                        poly = xz_polygon(tri)
-                    except Exception:
-                        continue
-                    if poly.area > 1e-4:
-                        polys.append(poly)
-                if not polys:
-                    continue
-                geom = unary_union(polys).buffer(0.02).simplify(0.03)
-                parts = list(geom.geoms) if hasattr(geom, "geoms") else [geom]
-                for part in parts:
-                    if part.area < min_area:
-                        continue
-                    part = fill_small_holes(part)
-                    rings = [list(part.exterior.coords)] + [
-                        list(r.coords) for r in part.interiors
-                    ]
-                    floor_spec["slabs"].append(
-                        {
-                            "level": round(level, 3),
-                            "area": round(float(part.area), 2),
-                            "rings": [
-                                [
-                                    [round(float(x), 3), round(float(z), 3)]
-                                    for x, z in ring
-                                ]
-                                for ring in rings
-                            ],
-                        }
-                    )
-                    added += 1
-        floor_spec["slabs"].sort(key=lambda slab: slab["level"])
-        floor_spec["levels"] = sorted(
-            {round(float(slab["level"]), 3) for slab in floor_spec["slabs"]}
+        y0 = float(np.percentile(pts[:, 1], 2))
+        y1 = float(np.percentile(pts[:, 1], 98))
+        if y1 - y0 < 0.8:
+            continue
+        axis = "x" if w >= d else "z"
+        if axis == "x":
+            low_end = pts[pts[:, 0] <= c["x0"] + 0.35]
+            high_end = pts[pts[:, 0] >= c["x1"] - 0.35]
+        else:
+            low_end = pts[pts[:, 2] <= c["z0"] + 0.35]
+            high_end = pts[pts[:, 2] >= c["z1"] - 0.35]
+        high = "max"
+        if len(low_end) and len(high_end):
+            if float(high_end[:, 1].mean()) < float(low_end[:, 1].mean()):
+                high = "min"
+        flights.append(
+            {
+                "x0": round(c["x0"], 2),
+                "x1": round(c["x1"], 2),
+                "z0": round(c["z0"], 2),
+                "z1": round(c["z1"], 2),
+                "y0": round(y0, 2),
+                "y1": round(y1, 2),
+                "axis": axis,
+                "high": high,
+                "source": "stair component",
+            }
         )
-        if added:
-            print(f"  added {added} missing floor slabs on floor {floor}")
+    return flights
 
 
-def add_missing_flights(spec, batches):
-    """Turn uncovered sloped or stepped source surfaces into wedges."""
-    cell = 0.05
-    x0, x1 = -46.0, 48.0
-    z0, z1 = -36.0, 20.0
-    w = int((x1 - x0) / cell) + 1
-    h = int((z1 - z0) / cell) + 1
+def partition_flights(flights, storey_levels):
+    """Split a multi-storey flight at each storey it passes, snapped to floors."""
+    def snap(value):
+        near = [level for level in storey_levels if abs(level - value) <= 0.6]
+        return min(near, key=lambda level: abs(level - value)) if near else value
+
+    parts = []
+    for flight in flights:
+        y0, y1 = snap(float(flight["y0"])), snap(float(flight["y1"]))
+        if y1 <= y0:
+            continue
+        cuts = [level for level in storey_levels if y0 + 1.0 < level < y1 - 1.0]
+        bounds = [y0] + cuts + [y1]
+        for lo, hi in zip(bounds, bounds[1:]):
+            if hi - lo < 0.8:
+                continue
+            item = dict(flight)
+            item["y0"] = round(float(lo), 2)
+            item["y1"] = round(float(hi), 2)
+            parts.append(item)
+    return parts
+
+
+def detect_stairs_and_ramps(tris, assigned, levels, floor, flights):
+    ramps = dedupe_flights(detect_tread_ramps(tris, assigned, flights, floor))
+    return list(flights), ramps
+
+
+def add_stair_landings(spec):
+    """Give every flight a plate to land on at both ends.
+
+    A switchback turns on a landing that the stair mesh carries, not a floor
+    plate, so the blockout needs that landing built from the flight footprint.
+    """
+    floors = [f["floor"] for f in spec["floors"]]
+    levels = sorted(
+        {round(float(slab["level"]), 2) for f in spec["floors"] for slab in f["slabs"]}
+    )
+
+    def overlap(a, b):
+        width = max(0.0, min(a["x1"], b["x1"]) - max(a["x0"], b["x0"]))
+        depth = max(0.0, min(a["z1"], b["z1"]) - max(a["z0"], b["z0"]))
+        return width * depth
+
+    pending = []
     for floor_spec in spec["floors"]:
-        floor = floor_spec["floor"]
-        image = Image.new("L", (w, h), 0)
-        draw = ImageDraw.Draw(image)
-        for slab in floor_spec["slabs"]:
-            rings = slab["rings"]
-            draw.polygon(
-                [((x - x0) / cell, (z - z0) / cell) for x, z in rings[0]], fill=255
-            )
-            for hole in rings[1:]:
-                draw.polygon(
-                    [((x - x0) / cell, (z - z0) / cell) for x, z in hole], fill=0
-                )
         for stair in floor_spec["stairs"]:
-            draw.rectangle(
-                [
-                    ((stair["x0"] - x0) / cell, (stair["z0"] - z0) / cell),
-                    ((stair["x1"] - x0) / cell, (stair["z1"] - z0) / cell),
+            for value in (float(stair["y0"]), float(stair["y1"])):
+                if any(abs(value - level) <= 0.35 for level in levels):
+                    continue
+                pending.append({"y": value, "stairs": [stair]})
+
+    groups = []
+    for item in pending:
+        for group in groups:
+            if abs(group["y"] - item["y"]) <= 0.6 and any(
+                overlap(group["stairs"][0], stair) > 0.2 for stair in item["stairs"]
+            ):
+                count = len(group["stairs"])
+                group["y"] = (group["y"] * count + item["y"]) / (count + 1)
+                group["stairs"].extend(item["stairs"])
+                break
+        else:
+            groups.append(item)
+
+    for group in groups:
+        y = round(float(group["y"]), 2)
+        floor = max(f for f in floors if BAND[f][0] <= y)
+        target = next(f for f in spec["floors"] if f["floor"] == floor)
+        x0 = min(s["x0"] for s in group["stairs"])
+        x1 = max(s["x1"] for s in group["stairs"])
+        z0 = min(s["z0"] for s in group["stairs"])
+        z1 = max(s["z1"] for s in group["stairs"])
+        target["slabs"].append(
+            {
+                "level": y,
+                "area": round((x1 - x0) * (z1 - z0), 2),
+                "rings": [
+                    [
+                        [round(x0, 3), round(z0, 3)],
+                        [round(x1, 3), round(z0, 3)],
+                        [round(x1, 3), round(z1, 3)],
+                        [round(x0, 3), round(z1, 3)],
+                    ]
                 ],
-                fill=255,
-            )
-        covered = np.asarray(image.filter(ImageFilter.MaxFilter(5)), dtype=bool)
-        all_tris, all_names = common.join(batches, floor)
-        up_tris, _up_names = floor_surfaces(
-            all_tris, all_names, floor, include_stairs=True
+                "mezzanine": True,
+            }
         )
-        if len(up_tris) == 0:
-            continue
-        centres = up_tris.mean(axis=1)
-        uncovered = []
-        for tri, centre in zip(up_tris, centres):
-            ix = int((centre[0] - x0) / cell)
-            iz = int((centre[2] - z0) / cell)
-            if not (0 <= ix < w and 0 <= iz < h):
-                continue
-            if covered[iz, ix]:
-                continue
-            uncovered.append(tri)
-        if not uncovered:
-            continue
-        ut = np.asarray(uncovered, dtype=np.float32)
-        added = 0
-        for comp in raster_components(ut, cell=0.15, dilate=0.2):
-            if comp["area"] < 2.0:
-                continue
-            sel = (
-                (ut[:, :, 0].mean(axis=1) >= comp["x0"] - 0.1)
-                & (ut[:, :, 0].mean(axis=1) <= comp["x1"] + 0.1)
-                & (ut[:, :, 2].mean(axis=1) >= comp["z0"] - 0.1)
-                & (ut[:, :, 2].mean(axis=1) <= comp["z1"] + 0.1)
-            )
-            group = ut[sel]
-            if len(group) == 0:
-                continue
-            area = tri_geometry(group)[1]
-            if float(area.sum()) < 2.0:
-                continue
-            flights = detect_tread_stairs(
-                group,
-                np.zeros(len(group), dtype=bool),
-                floor_spec["levels"],
-                floor,
-            )
-            for flight in flights:
-                area_box = (flight["x1"] - flight["x0"]) * (
-                    flight["z1"] - flight["z0"]
-                )
-                if area_box < 0.5:
-                    continue
-                duplicate = False
-                for other in floor_spec["stairs"]:
-                    ix = max(
-                        0.0,
-                        min(flight["x1"], other["x1"]) - max(flight["x0"], other["x0"]),
-                    )
-                    iz = max(
-                        0.0,
-                        min(flight["z1"], other["z1"]) - max(flight["z0"], other["z0"]),
-                    )
-                    if ix * iz > 0.5 * area_box:
-                        duplicate = True
-                        break
-                if duplicate:
-                    continue
-                flight["source"] = "missing flight"
-                floor_spec["stairs"].append(flight)
-                added += 1
-        if added:
-            print(f"  added {added} missing flights on floor {floor}")
-
-
-def add_upper_flights(spec, batches):
-    """Add a second wedge for treads above a clipped lower flight."""
-    for floor_spec in spec["floors"]:
-        floor = floor_spec["floor"]
-        all_tris, all_names = common.join(batches, floor)
-        up_tris, _up_names = floor_surfaces(
-            all_tris, all_names, floor, include_stairs=True
-        )
-        if len(up_tris) == 0:
-            continue
-        centres = up_tris.mean(axis=1)
-        ymean = up_tris[:, :, 1].mean(axis=1)
-        added = 0
-        for stair in list(floor_spec["stairs"]):
-            if stair["y1"] - stair["y0"] > 4.5:
-                continue
-            mask = (
-                (centres[:, 0] >= stair["x0"] - 0.5)
-                & (centres[:, 0] <= stair["x1"] + 0.5)
-                & (centres[:, 2] >= stair["z0"] - 0.5)
-                & (centres[:, 2] <= stair["z1"] + 0.5)
-                & (ymean > stair["y1"] + 0.15)
-                & (ymean < stair["y1"] + 4.5)
-            )
-            group = up_tris[mask]
-            if len(group) < 5:
-                continue
-            area = tri_geometry(group)[1]
-            if float(area.sum()) < 1.0:
-                continue
-            flights = detect_tread_stairs(
-                group,
-                np.zeros(len(group), dtype=bool),
-                floor_spec["levels"],
-                floor,
-            )
-            for flight in flights:
-                if flight["y1"] < stair["y1"] + 0.5:
-                    continue
-                flight["source"] = "upper flight"
-                floor_spec["stairs"].append(flight)
-                added += 1
-        if added:
-            print(f"  added {added} upper flights on floor {floor}")
-
-
-def add_mezzanines(spec, batches):
-    """Add split-level gallery floors that sit just above a floor band."""
-    for floor_spec in spec["floors"]:
-        floor = floor_spec["floor"]
-        if floor >= 3:
-            continue
-        lo = BAND[floor][1]
-        hi = BASE[floor + 1] - 0.05
-        if hi <= lo:
-            continue
-        candidates = []
-        for batch in batches:
-            if batch.floor != floor:
-                continue
-            if not common.is_floor_material(batch.material, include_stairs=False):
-                continue
-            t = batch.tris
-            n = np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0])
-            a = np.linalg.norm(n, axis=1) * 0.5
-            ny = n[:, 1] / np.maximum(2 * a, 1e-9)
-            y = t[:, :, 1].mean(axis=1)
-            keep = (ny > 0.7) & (a > 0.01) & (y > lo) & (y < hi)
-            if keep.any():
-                candidates.append((t[keep], a[keep]))
-        if not candidates:
-            continue
-        tris = np.concatenate([c[0] for c in candidates])
-        areas = np.concatenate([c[1] for c in candidates])
-        ymean = tris[:, :, 1].mean(axis=1)
-        for bin_value in np.unique(np.round(ymean / 0.2) * 0.2):
-            subset = tris[np.abs(ymean - bin_value) < 0.12]
-            if len(subset) == 0:
-                continue
-            sub_area = tri_geometry(subset)[1]
-            if float(sub_area.sum()) < 5.0:
-                continue
-            level = float(np.average(subset[:, :, 1].mean(axis=1), weights=sub_area))
-            polys = []
-            for tri in subset:
-                try:
-                    poly = xz_polygon(tri)
-                except Exception:
-                    continue
-                if poly.area > 0.01:
-                    polys.append(poly)
-            if not polys:
-                continue
-            geom = unary_union(polys).buffer(0.02).simplify(0.03)
-            parts = list(geom.geoms) if hasattr(geom, "geoms") else [geom]
-            for part in parts:
-                if part.area < 5.0:
-                    continue
-                part = fill_small_holes(part)
-                rings = [list(part.exterior.coords)] + [
-                    list(r.coords) for r in part.interiors
-                ]
-                floor_spec["slabs"].append(
-                    {
-                        "level": round(level, 3),
-                        "area": round(float(part.area), 2),
-                        "rings": [
-                            [[round(float(x), 3), round(float(z), 3)] for x, z in ring]
-                            for ring in rings
-                        ],
-                        "mezzanine": True,
-                    }
-                )
-                # Connect the gallery to the nearest existing stair below it.
-                best = None
-                best_overlap = 0.0
-                for stair in floor_spec["stairs"]:
-                    ix = max(
-                        0.0,
-                        min(part.bounds[2], stair["x1"]) - max(part.bounds[0], stair["x0"]),
-                    )
-                    iz = max(
-                        0.0,
-                        min(part.bounds[3], stair["z1"]) - max(part.bounds[1], stair["z0"]),
-                    )
-                    if ix * iz > best_overlap and stair["y1"] < level - 0.3:
-                        best_overlap = ix * iz
-                        best = stair
-                if best is not None:
-                    floor_spec["stairs"].append(
-                        {
-                            "x0": best["x0"],
-                            "x1": best["x1"],
-                            "z0": best["z0"],
-                            "z1": best["z1"],
-                            "y0": best["y1"],
-                            "y1": round(level, 2),
-                            "axis": best["axis"],
-                            "high": best["high"],
-                            "source": "gallery connector",
-                        }
-                    )
-                print(f"  added mezzanine on floor {floor} at {level:.2f} ({part.area:.1f} m2)")
+        print(f"  landing at {y:.2f} on floor {floor} for {len(group['stairs'])} flights")
 
 
 def write_reference(batches, floor: int):
@@ -1262,45 +994,104 @@ def main():
         "floors": [],
         "reference": [],
     }
+    band_tris, band_names = common.join_band(batches)
+
+    # Floors key by height, so every mesh contributes. The main-hall gallery
+    # lives in a floor-1 room mesh and is a floor-2 plate.
     prepared = {}
     for floor in floors:
         lo, hi = BAND[floor]
-        all_tris, all_names = common.join(batches, floor)
-        tris, names = floor_surfaces(
-            all_tris, all_names, floor, include_stairs=True
+        plates, _plate_names = floor_surfaces(
+            band_tris, band_names, floor, include_stairs=False
         )
-        vertical, vertical_names = vertical_surfaces(all_tris, all_names, floor)
-        _, area, _ny = tri_geometry(tris)
-        ymean = tris[:, :, 1].mean(axis=1)
-        levels = find_levels(tris, area, lo, hi)
+        _, parea, pny = tri_geometry(plates)
+        flat = pny > 0.97
+        plates, parea = plates[flat], parea[flat]
+        pymean = plates[:, :, 1].mean(axis=1) if len(plates) else np.zeros(0)
+        levels = find_levels(plates, parea, lo, hi, threshold=2.0, merge=0.22)
+
+        # Walls key by room, because one tall wall spans every height band and
+        # each room mesh already owns it once.
+        room_tris, room_names = common.join(batches, floor)
+        vertical, vertical_names = vertical_surfaces(room_tris, room_names, floor)
         prepared[floor] = {
-            "all_tris": all_tris,
-            "all_names": all_names,
-            "tris": tris,
-            "names": names,
+            "plates": plates,
+            "parea": parea,
+            "pymean": pymean,
+            "levels": levels,
             "vertical": vertical,
             "vertical_names": vertical_names,
-            "area": area,
-            "ymean": ymean,
-            "levels": levels,
         }
-    all_levels = sorted({lvl for p in prepared.values() for lvl in p["levels"]})
+
+    slabs_by_floor = {}
+    assigned_by_floor = {}
+    for floor in floors:
+        p = prepared[floor]
+        slabs, assigned = build_slabs(
+            p["plates"],
+            p["parea"],
+            p["pymean"],
+            p["levels"],
+            floor,
+            min_part=1.5,
+        )
+        slabs_by_floor[floor] = slabs
+        assigned_by_floor[floor] = assigned
+
+    storey_levels = sorted(
+        {
+            round(float(slab["level"]), 2)
+            for floor in floors
+            for slab in slabs_by_floor[floor]
+            if sum(
+                s["area"]
+                for s in slabs_by_floor[floor]
+                if abs(float(s["level"]) - float(slab["level"])) < 0.05
+            )
+            >= 15.0
+        }
+    )
+
+    # Stairs are 3D objects that cross height bands. Detect every flight once
+    # over the whole building, then split it at the storeys it serves.
+    surfaces, _surface_names = floor_surfaces_all(band_tris, band_names)
+    _, surface_area, _surface_ny = tri_geometry(surfaces)
+    surface_y = surfaces[:, :, 1].mean(axis=1)
+    assigned = np.zeros(len(surfaces), bool)
+    for floor in floors:
+        for slab in slabs_by_floor[floor]:
+            near = np.abs(surface_y - float(slab["level"])) < 0.2
+            if near.any():
+                assigned |= near
+    flights = detect_tread_stairs(surfaces, assigned, storey_levels, -2.0, 15.0)
+    flights += detect_stair_components(band_tris, band_names)
+    flights = dedupe_flights(flights)
+    flights = [
+        flight
+        for flight in flights
+        if (flight["x1"] - flight["x0"]) * (flight["z1"] - flight["z0"]) >= 0.8
+        and flight["y1"] - flight["y0"] >= 0.3
+    ]
+    flights = partition_flights(flights, storey_levels)
+
     for floor in floors:
         lo, hi = BAND[floor]
         level = BASE[floor]
         p = prepared[floor]
-        all_tris, all_names = p["all_tris"], p["all_names"]
-        tris, names = p["tris"], p["names"]
         vertical, vertical_names = p["vertical"], p["vertical_names"]
-        area, ymean, levels = p["area"], p["ymean"], p["levels"]
+        levels = p["levels"]
         _, varea, vny = tri_geometry(vertical)
         vymin = vertical[:, :, 1].min(axis=1)
         vymax = vertical[:, :, 1].max(axis=1)
-        slabs, assigned = build_slabs(tris, area, ymean, levels, floor)
+        stairs = [
+            f for f in flights if lo - 0.1 <= f["y0"] <= hi
+        ]
         pillars = detect_pillars(vertical, varea, vny, vymin, vymax, floor)
-        pillars = merge_pillars(pillars, detect_named_pillars(vertical, vertical_names, floor))
+        pillars = merge_pillars(
+            pillars, detect_named_pillars(vertical, vertical_names, floor)
+        )
         stairs, ramps = detect_stairs_and_ramps(
-            all_tris, all_names, tris, names, assigned, all_levels, floor
+            p["plates"], assigned_by_floor[floor], levels, floor, stairs
         )
         walls = build_walls(
             vertical,
@@ -1316,7 +1107,7 @@ def main():
             {
                 "floor": floor,
                 "levels": [round(float(x), 3) for x in levels],
-                "slabs": slabs,
+                "slabs": slabs_by_floor[floor],
                 "walls": walls,
                 "pillars": pillars,
                 "stairs": stairs,
@@ -1325,19 +1116,19 @@ def main():
         )
         print(
             f"floor {floor}: levels {[round(x, 2) for x in levels]}, "
-            f"{len(slabs)} slabs, {len(walls)} walls, {len(pillars)} pillars, "
-            f"{len(stairs)} stairs, {len(ramps)} ramps"
+            f"{len(slabs_by_floor[floor])} slabs, {len(walls)} walls, "
+            f"{len(pillars)} pillars, {len(stairs)} stairs, {len(ramps)} ramps"
         )
         if not args.skip_reference:
             ref = write_reference(batches, floor)
             if ref:
                 spec["reference"].append({"floor": floor, **ref})
-                print(f"  reference {ref['file']}: {ref['triangles']:,} tris, {ref['bytes']/1e6:.1f} MB")
+                print(
+                    f"  reference {ref['file']}: {ref['triangles']:,} tris, "
+                    f"{ref['bytes']/1e6:.1f} MB"
+                )
 
-    add_missing_floors(spec, batches)
-    add_mezzanines(spec, batches)
-    add_missing_flights(spec, batches)
-    add_upper_flights(spec, batches)
+    add_stair_landings(spec)
     spec["counts"] = {
         "triangles": int(total),
         "slabs": sum(len(f["slabs"]) for f in spec["floors"]),

@@ -40,6 +40,12 @@ NON_FLOOR = tuple(k for k in NON_WALL if k != "floor") + (
     "arch",
 )
 
+# Horizontal surfaces that are the top of a structural element, not a floor.
+NON_PLATE = (
+    "pillar", "wall", "frame", "counter", "boiler", "sill", "ledge",
+    "rail", "trim", "cornice", "beam", "ceiling", "molding", "moulding",
+)
+
 # Sky and backdrop materials, never part of the building.
 OUTSIDE = ("town", "asphalt", "ground", "wild", "rain", "decal", "border", "build")
 
@@ -114,6 +120,17 @@ def load_rooms(raw: pathlib.Path = RAW) -> list[Batch]:
     return batches
 
 
+def join_band(batches: list[Batch]) -> tuple[np.ndarray, np.ndarray]:
+    """Return every triangle, ignoring the room's nominal floor."""
+    if not batches:
+        return np.zeros((0, 3, 3), np.float32), np.zeros(0, dtype=object)
+    tris = np.concatenate([b.tris for b in batches])
+    names = np.concatenate(
+        [np.full(len(b.tris), b.material, dtype=object) for b in batches]
+    )
+    return tris, names
+
+
 def join(batches: list[Batch], floor: int) -> tuple[np.ndarray, np.ndarray]:
     """Return (triangles, material names) for one floor."""
     picked = [b for b in batches if b.floor == floor]
@@ -149,7 +166,9 @@ def is_floor_material(material: str, include_stairs: bool = False) -> bool:
     if "stairsfloor" in low:
         return True
     bad = NON_FLOOR if include_stairs else NON_FLOOR + ("stair",)
-    return not any(k in low for k in bad)
+    if any(k in low for k in bad):
+        return False
+    return not any(k in low for k in NON_PLATE)
 
 
 def to_blender(x: float, y: float, z: float) -> tuple[float, float, float]:

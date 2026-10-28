@@ -27,12 +27,14 @@ RENDERS = BUILD / "renders"
 
 HALF_WALL_HEIGHT = 0.95
 
+# Stairs carry a warm tint so circulation reads at a glance against the
+# neutral floors and walls.
 FLOOR_COLOURS = {
-    "floor": (0.58, 0.59, 0.57, 1.0),
-    "wall": (0.28, 0.29, 0.29, 1.0),
-    "pillar": (0.52, 0.53, 0.51, 1.0),
-    "stair": (0.38, 0.39, 0.38, 1.0),
-    "ramp": (0.44, 0.45, 0.44, 1.0),
+    "floor": (0.62, 0.63, 0.61, 1.0),
+    "wall": (0.29, 0.30, 0.31, 1.0),
+    "pillar": (0.46, 0.47, 0.46, 1.0),
+    "stair": (0.72, 0.50, 0.30, 1.0),
+    "ramp": (0.72, 0.50, 0.30, 1.0),
 }
 
 
@@ -423,7 +425,7 @@ def setup_cameras():
     cameras = []
     for name, loc, target, lens in (
         ("Overview", (62, -62, 58), (0, 0, 5), 55),
-        ("MainHall", (0, -2, 3.0), (0, 12, 3.8), 20),
+        ("MainHall", (0, -8.5, 2.0), (0, 16.4, 4.4), 18),
         ("FloorView", (58, -58, 48), (0, 0, 0), 55),
         ("Top", (0, 0, 90), (0, 0, 0), 55),
     ):

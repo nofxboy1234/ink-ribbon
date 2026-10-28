@@ -10,6 +10,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUT = ROOT / "build/blockout/compare"
 VIEWS = [
     "f1_main_hall",
+    "f1_hall_stairs",
     "f1_west_office",
     "f1_east_corridor",
     "f1_press_room",

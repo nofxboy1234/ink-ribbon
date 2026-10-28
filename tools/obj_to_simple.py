@@ -17,11 +17,11 @@ COLOURS = {
     "simple_stair": (128, 128, 128),
     "simple_trim": (184, 184, 184),
     "simple_plinth": (79, 79, 79),
-    "Blockout_Floor": (190, 190, 190),
-    "Blockout_Wall": (135, 135, 135),
-    "Blockout_Pillar": (205, 205, 205),
-    "Blockout_Stair": (162, 162, 162),
-    "Blockout_Ramp": (172, 172, 172),
+    "Blockout_Floor": (176, 178, 174),
+    "Blockout_Wall": (118, 120, 122),
+    "Blockout_Pillar": (152, 154, 152),
+    "Blockout_Stair": (214, 156, 104),
+    "Blockout_Ramp": (214, 156, 104),
 }
 
 

@@ -30,9 +30,10 @@ A green FPS counter sits at the top right of the scene.
   sphere.
 - **Whole-RPD blockout.** Floors 1 to 3 as one Blender scene. The source
   meshes stay in the scene as a wireframe reference. The simplified model adds
-  floor plates, walls with full-height opening gaps, square pillars, stair
-  wedges and ramp slabs. See [docs/blockout.md](docs/blockout.md). Build it with
-  `npm run blockout` and view it at `/simple2`.
+  floor plates, walls with door and window openings, square pillars and stair
+  wedges that span the storeys they serve. See
+  [docs/blockout.md](docs/blockout.md). Build it with `npm run blockout` and
+  view it at `/simple2`.
 - **Web app** — React 19 + TypeScript on [Void](https://github.com/voidzero-dev/void)
   1.3.0 (Vite 8) targeting Cloudflare Workers. Once the scene is loaded the
   page is only the canvas; no labels or UI sit on top of it.
