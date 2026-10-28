@@ -57,10 +57,17 @@ def source_masks(batches, floor, spec_floor):
     wall_tris, wall_names = extract.vertical_surfaces(tris, names, floor)
     wall_tris_all = wall_tris
     wall_names_all = wall_names
-    if stair_boxes:
+    # The forecourt steps sit outside the building, so a wall near them is a
+    # retaining wall the blockout keeps. Only interior stairwells mask walls.
+    wall_stairs = [
+        stair
+        for stair in stair_boxes
+        if stair.get("source") != "entrance steps"
+    ]
+    if wall_stairs:
         wall_centres = wall_tris.mean(axis=1)
         in_stair = np.zeros(len(wall_tris), dtype=bool)
-        for stair in stair_boxes:
+        for stair in wall_stairs:
             in_stair |= (
                 (wall_centres[:, 0] >= stair["x0"] - 0.1)
                 & (wall_centres[:, 0] <= stair["x1"] + 0.1)
@@ -249,6 +256,8 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     spec = json.loads(SPEC.read_text(encoding="utf-8"))
     batches = common.load_rooms()
+    band_tris, band_names = common.join_band(batches)
+    stair_surfaces, _stair_names = extract.floor_surfaces_all(band_tris, band_names)
     report = []
     for spec_floor in spec["floors"]:
         floor = spec_floor["floor"]
@@ -269,8 +278,8 @@ def main():
         fp = score(source_all_walls, spec_footprint, 0.2)
         # Scale check: every source tread centroid must sit inside the stair
         # footprint, and the wedge must span the source rise.
-        centres = _ft.mean(axis=1)
-        tread_area = extract.tri_geometry(_ft)[1]
+        centres = stair_surfaces.mean(axis=1)
+        tread_area = extract.tri_geometry(stair_surfaces)[1]
         stair_checks = []
         for stair in spec_floor["stairs"]:
             inside = (
@@ -281,7 +290,7 @@ def main():
                 & (tread_area < 1.0)
                 & (tread_area > 0.001)
             )
-            selected = _ft[inside]
+            selected = stair_surfaces[inside]
             source_lo = float(selected[:, :, 1].min()) if len(selected) else 0.0
             source_hi = float(selected[:, :, 1].max()) if len(selected) else 0.0
             covered = (
@@ -442,10 +451,29 @@ def main():
     slab_levels = sorted(
         {round(float(slab["level"]), 2) for f in spec["floors"] for slab in f["slabs"]}
     )
+    endpoints = [
+        (float(stair["y0"]), stair) for f in spec["floors"] for stair in f["stairs"]
+    ] + [(float(stair["y1"]), stair) for f in spec["floors"] for stair in f["stairs"]]
+
+    def meets_another(check, end):
+        for value, stair in endpoints:
+            if abs(value - end) > 0.35:
+                continue
+            box = [stair["x0"], stair["x1"], stair["z0"], stair["z1"]]
+            other = check["bbox"]
+            width = max(0.0, min(box[1], other[1]) - max(box[0], other[0]))
+            depth = max(0.0, min(box[3], other[3]) - max(box[2], other[2]))
+            if width * depth > 0.2 and box != other:
+                return True
+        return False
+
     for f in report:
         for check in f["stair_checks"]:
+            # A staircase split into contiguous wedges meets itself at each
+            # internal boundary, so a shared flight end counts as a floor.
             check["connects"] = all(
                 any(abs(end - level) <= 0.35 for level in slab_levels)
+                or meets_another(check, end)
                 for end in check["spec_y"]
             )
     failures = []

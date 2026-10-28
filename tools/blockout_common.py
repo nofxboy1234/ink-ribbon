@@ -161,6 +161,10 @@ def is_wall_material(material: str) -> bool:
 
 def is_floor_material(material: str, include_stairs: bool = False) -> bool:
     low = material.lower()
+    # The forecourt staircase is tagged as exterior ground, but it is the only
+    # way in and out of the building.
+    if "townstairs" in low:
+        return include_stairs
     if is_outside(low):
         return False
     if "stairsfloor" in low:

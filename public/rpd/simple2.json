@@ -2,13 +2,13 @@
   "asset": "simple2.bin",
   "version": 3,
   "method": "Blender whole-RPD blockout",
-  "vertices": 25864,
-  "triangles": 39652,
-  "bytes": 470820,
+  "vertices": 27696,
+  "triangles": 42392,
+  "bytes": 503748,
   "bounds": {
     "min": [
       -50.749000549316406,
-      -6.245999813079834,
+      -10.050000190734863,
       -43.900001525878906
     ],
     "max": [
@@ -20,7 +20,7 @@
   "geometry_bounds": {
     "min": [
       -44.749001,
-      -0.246,
+      -4.05,
       -37.900002
     ],
     "max": [

@@ -27,10 +27,11 @@ public/rpd/simple2.bin          blockout asset for the /simple2 page
 public/rpd/simple2.json         blockout asset metadata
 ```
 
-The current spec holds 41 floor slabs, 2,939 wall boxes, 64 pillars and 11
-stair wedges. Every wedge spans the storeys it serves, so eleven wedges cover
-the whole building: the two grand flights, three stairwells split across
-floors, the two long east ramps and the west office stair.
+The current spec holds 47 floor slabs, 2,928 wall boxes, 64 pillars and 19
+stair wedges. Every wedge spans the storeys it serves, and a switchback
+stairwell is two half-width flights that meet on a turn landing, so the east
+stairwell is six wedges across three floors. The forecourt staircase in front
+of the main doors is modelled too, because it is the only way in.
 
 ![RPD blockout at /simple2](blockout-app.jpg)
 
@@ -97,8 +98,12 @@ remap at header offset `0x60` and the name table at `0x78`.
   coverage, not bounding boxes, so arch and doorway voids stay open. A run is
   solid when it covers the 1.0 to 2.0 m band. Door runs get a lintel above
   their opening, and window runs get a sill and a lintel. Both wall faces are
-  kept as 0.16 m boxes, and the exterior police shell is included. Runs shorter
-  than 0.25 m are dropped.
+  kept as 0.16 m boxes, and the exterior police shell is included. A run of
+  empty columns under 0.45 m is closed into its neighbour, because it is
+  rasterizer noise and not an opening, and every run on a plane uses the
+  plane's top height. Together those two rules stop a wall from having thin
+  vertical slots or a stepped top along its length. Runs shorter than 0.25 m
+  are dropped.
 - **Pillars.** Pillar-material triangles are clustered in plan. A cluster is a
   pillar when its footprint is 0.2 to 2.1 m on a side, at least 1.5 m tall,
   and covers at least 4 percent of its bounding box. It becomes one box.
@@ -107,13 +112,22 @@ remap at header offset `0x60` and the name table at `0x78`.
   from stair-material clusters and from chains of small horizontal treads whose
   heights rise in 8 to 45 cm steps. Each flight's rise is measured on every
   source triangle it contains, then snapped within 0.6 m to a storey level.
-  A flight that passes a storey is split there, so one stairwell becomes one
-  wedge per floor and every wedge starts and ends on a plate.
-- **Landings.** A switchback turns on a landing that the stair mesh carries,
-  not a floor plate. Where a flight ends with no slab within 0.35 m, a landing
-  plate is added at that height over the flight footprint, merged with any
-  other flight ending in the same place. Landings are excluded from the storey
+  A flight that passes a storey is split there, so every wedge starts and ends
+  on a plate. A component wider than 2.5 m across its run whose two halves rise
+  in opposite directions is a switchback. It becomes two half-width flights,
+  one taking the lower half of each storey and one the upper half, which is the
+  real slope and meets at a turn landing.
+- **Landings.** A flight can end on a turn that the stair mesh carries, not a
+  floor plate. Where a flight ends with no slab within 0.35 m, a landing strip
+  1.5 m deep is added at the top of the flight, merged with any other flight
+  ending in the same place. A strip rather than a full-footprint plate keeps
+  the landing from roofing the ramp. Landings are excluded from the storey
   level check.
+- **Entrance steps.** The forecourt staircase is tagged as exterior ground, so
+  the floor and stair passes skip it and the model had a hole in front of the
+  main doors. It descends 4.6 m and splays wider at the bottom, so it is split
+  into 1 m height bands that each carry their own footprint, and the bottom
+  band lands on a plate at -3.80 m.
 - **Ramps.** Up-facing triangles with a tilted normal, a fitted plane residual
   under 9 cm, a slope under 0.5, a run of at least 2.5 m and a rise of at least
   0.5 m become thin sloped slabs. On this level set every sloped run is part of
@@ -148,7 +162,9 @@ wall precision below 0.85, solid wall recall below 0.90, wall footprint
 precision or recall below 0.95, a floor level misses the independent source
 estimate by 0.20 m, the bounds exceed the source by more than 0.50 m, a stair
 wedge has no source tread, a stair wedge does not reach a slab at both ends,
-or a pillar or ramp has no source geometry.
+or a pillar or ramp has no source geometry. A stair end counts as connected
+when it meets a slab level or another flight's end, because a staircase split
+into contiguous wedges meets itself.
 
 Stair footprints are cleared from both floor masks at raster resolution, so a
 slab under a stairwell is neither credited nor penalised. Without that the
@@ -159,9 +175,9 @@ Current result:
 
 | Floor | Floor precision | Floor recall | Solid wall precision | Solid wall recall | Footprint precision | Footprint recall |
 |---|---|---|---|---|---|---|
-| 1 | 1.000 | 1.000 | 0.963 | 0.989 | 0.997 | 0.994 |
-| 2 | 1.000 | 0.997 | 0.981 | 0.959 | 0.997 | 0.976 |
-| 3 | 1.000 | 0.999 | 0.974 | 0.987 | 0.999 | 0.959 |
+| 1 | 1.000 | 1.000 | 0.963 | 0.990 | 0.997 | 0.994 |
+| 2 | 1.000 | 0.997 | 0.982 | 0.959 | 0.997 | 0.976 |
+| 3 | 1.000 | 0.999 | 0.973 | 0.987 | 0.999 | 0.961 |
 
 Floor precision is 1.000 because stair footprints are cleared from both masks
 and every other plate comes from a source floor triangle. Floor recall is the
@@ -185,11 +201,11 @@ and the stair meshes, which the blockout replaces with wedges.
 
 Stair connection, measured against the slab level set:
 
-| Floor | Flights | Both ends on a slab |
+| Floor | Flights | Both ends connected |
 |---|---|---|
-| 1 | 5 | 5 |
-| 2 | 5 | 5 |
-| 3 | 1 | 1 |
+| 1 | 11 | 11 |
+| 2 | 6 | 6 |
+| 3 | 2 | 2 |
 
 The connection check is what catches a flight that rises only part way. Tread
 coverage is still reported per flight, but it counts every up-facing source
@@ -227,9 +243,9 @@ railings, so its recall is not a main-shape target.
 
 | Floor | Half-wall precision | Half-wall recall |
 |---|---|---|
-| 1 | 0.893 | 0.283 |
-| 2 | 0.832 | 0.119 |
-| 3 | 0.496 | 0.134 |
+| 1 | 0.894 | 0.284 |
+| 2 | 0.839 | 0.123 |
+| 3 | 0.563 | 0.143 |
 
 ## Limits
 

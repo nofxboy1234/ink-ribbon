@@ -463,6 +463,21 @@ def build_walls(tris, area, ny, ymin, ymax, level, floor, exclude_boxes):
             "solid",
             np.where(low & high, "window", np.where(low, "half", np.where(high, "door", "none"))),
         )
+        close_cells = max(1, int(round(0.45 / cell)))
+        i = 0
+        while i < len(kind):
+            if kind[i] != "none":
+                i += 1
+                continue
+            j = i
+            while j < len(kind) and kind[j] == "none":
+                j += 1
+            if j - i <= close_cells:
+                if i > 0 and kind[i - 1] != "none":
+                    kind[i:j] = kind[i - 1]
+                elif j < len(kind) and kind[j] != "none":
+                    kind[i:j] = kind[j]
+            i = j
         runs = []
         start = 0
         for i in range(1, len(kind) + 1):
@@ -501,8 +516,7 @@ def build_walls(tris, area, ny, ymin, ymax, level, floor, exclude_boxes):
             occupied = np.where(sub.any(axis=1))[0]
             if len(occupied) == 0:
                 continue
-            run_top = master.base + (int(occupied.max()) + 1) * cell
-            run_top = min(run_top, master.top)
+            run_top = master.top
             if run_top - master.base < MIN_WALL_HEIGHT and kind == "solid":
                 continue
             bounds = opening_bounds(sub, master.base, cell)
@@ -805,6 +819,9 @@ def detect_stair_components(all_tris, all_names):
     if not is_stair.any():
         return []
     st = all_tris[is_stair]
+    _sn, s_area, s_ny = tri_geometry(st)
+    # Treads and landings carry the rise direction; stringers and walls do not.
+    treads = st[(s_ny > 0.9) & (s_area > 0.05)]
     flights = []
     for c in raster_components(st, cell=0.12, dilate=0.15):
         w = c["x1"] - c["x0"]
@@ -815,6 +832,7 @@ def detect_stair_components(all_tris, all_names):
         pts = _component_points(st, c)
         if len(pts) < 8:
             continue
+        tread_pts = _component_points(treads, c)
         y0 = float(np.percentile(pts[:, 1], 2))
         y1 = float(np.percentile(pts[:, 1], 98))
         if y1 - y0 < 0.8:
@@ -830,20 +848,75 @@ def detect_stair_components(all_tris, all_names):
         if len(low_end) and len(high_end):
             if float(high_end[:, 1].mean()) < float(low_end[:, 1].mean()):
                 high = "min"
-        flights.append(
-            {
-                "x0": round(c["x0"], 2),
-                "x1": round(c["x1"], 2),
-                "z0": round(c["z0"], 2),
-                "z1": round(c["z1"], 2),
-                "y0": round(y0, 2),
-                "y1": round(y1, 2),
-                "axis": axis,
-                "high": high,
-                "source": "stair component",
-            }
-        )
+        item = {
+            "x0": round(c["x0"], 2),
+            "x1": round(c["x1"], 2),
+            "z0": round(c["z0"], 2),
+            "z1": round(c["z1"], 2),
+            "y0": round(y0, 2),
+            "y1": round(y1, 2),
+            "axis": axis,
+            "high": high,
+            "source": "stair component",
+        }
+        flights.extend(_split_switchback(item, tread_pts if len(tread_pts) >= 16 else pts))
     return flights
+
+
+def _split_switchback(item, pts):
+    """A wide stairwell is two flights that rise in opposite directions.
+
+    Each half keeps the full run and takes half the storey rise, which is the
+    real switchback geometry, instead of one ramp across the whole width.
+    """
+    run_axis = 0 if item["axis"] == "x" else 2
+    split_axis = 2 if run_axis == 0 else 0
+    width = (item["z1"] - item["z0"]) if split_axis == 2 else (item["x1"] - item["x0"])
+    if width < 2.5:
+        return [item]
+    low_edge = item["z0"] if split_axis == 2 else item["x0"]
+    high_edge = item["z1"] if split_axis == 2 else item["x1"]
+    middle = (low_edge + high_edge) / 2
+    halves = []
+    for lower in (True, False):
+        if split_axis == 2:
+            side = pts[:, 2] <= middle if lower else pts[:, 2] > middle
+        else:
+            side = pts[:, 0] <= middle if lower else pts[:, 0] > middle
+        if side.sum() < 8:
+            return [item]
+        u = pts[side, run_axis]
+        y = pts[side, 1]
+        rise = float(y[u >= np.percentile(u, 75)].mean()) - float(
+            y[u <= np.percentile(u, 25)].mean()
+        )
+        halves.append((side, rise))
+    if halves[0][1] * halves[1][1] >= 0:
+        return [item]
+    out = []
+    for index, (side, rise) in enumerate(halves):
+        sub = dict(item)
+        if split_axis == 2:
+            sub["z0"], sub["z1"] = (
+                item["z0"],
+                round(middle, 2),
+            ) if index == 0 else (
+                round(middle, 2),
+                item["z1"],
+            )
+        else:
+            sub["x0"], sub["x1"] = (
+                item["x0"],
+                round(middle, 2),
+            ) if index == 0 else (
+                round(middle, 2),
+                item["x1"],
+            )
+        sub["high"] = "max" if rise > 0 else "min"
+        sub["switchback"] = True
+        sub["switchback_role"] = "lower" if index == 0 else "upper"
+        out.append(sub)
+    return out
 
 
 def partition_flights(flights, storey_levels):
@@ -862,6 +935,18 @@ def partition_flights(flights, storey_levels):
         for lo, hi in zip(bounds, bounds[1:]):
             if hi - lo < 0.8:
                 continue
+            if flight.get("switchback") and hi - lo >= 2.0:
+                # One half of the stairwell takes the lower half of the storey
+                # and the other half takes the upper, so each ramp has the
+                # real slope and they meet at the turn.
+                middle = round(float((lo + hi) / 2), 2)
+                item = dict(flight)
+                if flight.get("switchback_role") == "lower":
+                    item["y0"], item["y1"] = round(float(lo), 2), middle
+                else:
+                    item["y0"], item["y1"] = middle, round(float(hi), 2)
+                parts.append(item)
+                continue
             item = dict(flight)
             item["y0"] = round(float(lo), 2)
             item["y1"] = round(float(hi), 2)
@@ -872,6 +957,70 @@ def partition_flights(flights, storey_levels):
 def detect_stairs_and_ramps(tris, assigned, levels, floor, flights):
     ramps = dedupe_flights(detect_tread_ramps(tris, assigned, flights, floor))
     return list(flights), ramps
+
+
+def add_entrance_stairs(spec, batches):
+    """The forecourt staircase is the entrance floor, not scenery.
+
+    Its material is tagged as exterior ground, so the floor and stair passes
+    skip it. It descends 4.6 m to the forecourt and splays wider at the bottom,
+    so it is split into height bands that each carry their own footprint.
+    """
+    tris = []
+    for batch in batches:
+        if "townstairs" not in batch.material.lower():
+            continue
+        t = batch.tris
+        centre = t.mean(axis=1)
+        keep = (centre[:, 2] > 10.0) & (centre[:, 2] < 21.0)
+        if keep.any():
+            tris.append(t[keep])
+    if not tris:
+        return
+    tris = np.concatenate(tris)
+    _, area, ny = tri_geometry(tris)
+    up = ny > 0.8
+    tris, area = tris[up], area[up]
+    if len(tris) == 0:
+        return
+    y = tris[:, :, 1].mean(axis=1)
+    lo, hi = float(np.percentile(y, 1)), float(np.percentile(y, 99))
+    target = spec["floors"][0]
+    step = 1.0
+    edges = [lo]
+    while edges[-1] < hi:
+        edges.append(min(hi, edges[-1] + step))
+    added = 0
+    for y0, y1 in zip(edges, edges[1:]):
+        sel = (y >= y0) & (y <= y1)
+        if area[sel].sum() < 1.0:
+            continue
+        group = tris[sel]
+        x0, x1 = float(group[:, :, 0].min()), float(group[:, :, 0].max())
+        z0, z1 = float(group[:, :, 2].min()), float(group[:, :, 2].max())
+        centre = group.mean(axis=1)
+        low = centre[:, 2] <= z0 + 0.35
+        high = centre[:, 2] >= z1 - 0.35
+        high_side = "max"
+        if low.any() and high.any():
+            if group[high, :, 1].mean() < group[low, :, 1].mean():
+                high_side = "min"
+        target["stairs"].append(
+            {
+                "x0": round(x0, 2),
+                "x1": round(x1, 2),
+                "z0": round(z0, 2),
+                "z1": round(z1, 2),
+                "y0": round(y0, 2),
+                "y1": round(y1, 2),
+                "axis": "z",
+                "high": high_side,
+                "source": "entrance steps",
+            }
+        )
+        added += 1
+    if added:
+        print(f"  added {added} entrance step wedges on floor 1")
 
 
 def add_stair_landings(spec):
@@ -890,13 +1039,31 @@ def add_stair_landings(spec):
         depth = max(0.0, min(a["z1"], b["z1"]) - max(a["z0"], b["z0"]))
         return width * depth
 
+    all_stairs = [stair for f in spec["floors"] for stair in f["stairs"]]
     pending = []
     for floor_spec in spec["floors"]:
         for stair in floor_spec["stairs"]:
             for value in (float(stair["y0"]), float(stair["y1"])):
                 if any(abs(value - level) <= 0.35 for level in levels):
                     continue
-                pending.append({"y": value, "stairs": [stair]})
+                # A height shared with another flight is a join, not a turn.
+                if any(
+                    other is not stair
+                    and (
+                        abs(float(other["y0"]) - value) <= 0.35
+                        or abs(float(other["y1"]) - value) <= 0.35
+                    )
+                    and overlap(stair, other)
+                    > 0.5 * min(
+                        (stair["x1"] - stair["x0"]) * (stair["z1"] - stair["z0"]),
+                        (other["x1"] - other["x0"]) * (other["z1"] - other["z0"]),
+                    )
+                    for other in all_stairs
+                ):
+                    continue
+                pending.append(
+                    {"y": value, "stairs": [stair], "end": value == float(stair["y0"])}
+                )
 
     groups = []
     for item in pending:
@@ -913,12 +1080,32 @@ def add_stair_landings(spec):
 
     for group in groups:
         y = round(float(group["y"]), 2)
-        floor = max(f for f in floors if BAND[f][0] <= y)
+        below = [f for f in floors if BAND[f][0] <= y]
+        floor = max(below) if below else min(floors)
         target = next(f for f in spec["floors"] if f["floor"] == floor)
         x0 = min(s["x0"] for s in group["stairs"])
         x1 = max(s["x1"] for s in group["stairs"])
         z0 = min(s["z0"] for s in group["stairs"])
         z1 = max(s["z1"] for s in group["stairs"])
+        # A landing is the strip at the top of a flight, not a plate over the
+        # whole ramp. The forecourt is ground, so it keeps its full extent.
+        if not all(s.get("source") == "entrance steps" for s in group["stairs"]):
+            depth = 1.5
+            top = group["stairs"][0]
+            # y1 sits at the high end of the run, y0 at the low end.
+            at_high = not group.get("end", False)
+            if top.get("high") == "min":
+                at_high = not at_high
+            if top["axis"] == "z":
+                if at_high:
+                    z0 = max(z0, z1 - depth)
+                else:
+                    z1 = min(z1, z0 + depth)
+            else:
+                if at_high:
+                    x0 = max(x0, x1 - depth)
+                else:
+                    x1 = min(x1, x0 + depth)
         target["slabs"].append(
             {
                 "level": y,
@@ -1128,6 +1315,7 @@ def main():
                     f"{ref['bytes']/1e6:.1f} MB"
                 )
 
+    add_entrance_stairs(spec, batches)
     add_stair_landings(spec)
     spec["counts"] = {
         "triangles": int(total),
