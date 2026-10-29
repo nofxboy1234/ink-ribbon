@@ -314,3 +314,23 @@ view and writes coverage metrics and overlays.
 The model is deliberately a dollhouse: no roofs, ceilings, props or railings.
 Door and window runs become full-height gaps. The full method, current coverage
 numbers and limits are in [blockout.md](blockout.md).
+### Picking a panel in the viewer
+
+The page has a mark mode for surfaces the meshes leave out. Press `M`, click the
+four corners of the surface, move the camera to a different position, click the
+same four corners, and repeat from a third position. Each click records the
+pixel and the live camera, and the two distances are enough to fix the depth
+that a single view cannot. Press `C` to copy the JSON.
+
+Save it and run:
+
+```bash
+uv run --with numpy python tools/marks_to_panel.py marks.json
+```
+
+Each corner is the least-squares intersection of its rays, so the tool prints a
+residual per corner and how far the four corners deviate from one plane. Above
+0.25 m it warns. Panels land in `data/panels.json`, and `tools/build_real.py`
+emits them on the next build.
+
+

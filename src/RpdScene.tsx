@@ -20,7 +20,7 @@ type RpdFactory = (options: {
   locateFile: (path: string) => string;
 }) => Promise<RpdModule>;
 
-const CACHE_VERSION = "20261029a";
+const CACHE_VERSION = "20261029m";
 
 async function fetchScene(
   url: string,
@@ -59,15 +59,40 @@ type RpdSceneProps = {
   label?: string;
 };
 
+type Mark = {
+  x: number;
+  y: number;
+  eye: [number, number, number];
+  yaw: number;
+  pitch: number;
+  group: number;
+};
+
+const MARK_COLOURS = [
+  "#ffb86c",
+  "#8be9fd",
+  "#50fa7b",
+  "#ff79c6",
+  "#bd93f9",
+  "#f1fa8c",
+];
+
 export default function RpdScene({
   assetUrl = "/rpd/rpd.bin",
   label = "RPD floors one to three as a 3D model",
 }: RpdSceneProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const overlayRef = useRef<HTMLCanvasElement>(null);
+  const moduleRef = useRef<RpdModule | null>(null);
+  const marksRef = useRef<Mark[]>([]);
+  const modeRef = useRef(false);
   const [progress, setProgress] = useState(0);
   const [hidden, setHidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fps, setFps] = useState(0);
+  const [markMode, setMarkMode] = useState(false);
+  const [markCount, setMarkCount] = useState(0);
+  const [exportText, setExportText] = useState("");
 
   useEffect(() => {
     let raf = 0;
@@ -84,6 +109,171 @@ export default function RpdScene({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const overlay = overlayRef.current;
+    if (!canvas || !overlay) return;
+
+    const redraw = () => {
+      overlay.width = canvas.width;
+      overlay.height = canvas.height;
+      const ctx = overlay.getContext("2d");
+      if (!ctx) return;
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+      const groups = new Map<number, Mark[]>();
+      for (const mark of marksRef.current) {
+        const list = groups.get(mark.group) ?? [];
+        list.push(mark);
+        groups.set(mark.group, list);
+      }
+      ctx.lineWidth = 2;
+      ctx.font = "600 22px ui-monospace, monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      for (const [group, list] of [...groups.entries()].sort((a, b) => a[0] - b[0])) {
+        const colour = MARK_COLOURS[group % MARK_COLOURS.length];
+        ctx.strokeStyle = colour;
+        ctx.beginPath();
+        list.forEach((mark, index) => {
+          if (index === 0) ctx.moveTo(mark.x, mark.y);
+          else ctx.lineTo(mark.x, mark.y);
+        });
+        ctx.stroke();
+        list.forEach((mark, index) => {
+          ctx.fillStyle = "rgba(14,15,17,0.85)";
+          ctx.beginPath();
+          ctx.arc(mark.x, mark.y, 11, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = colour;
+          ctx.stroke();
+          ctx.fillStyle = colour;
+          ctx.fillText(String(index + 1), mark.x, mark.y + 1);
+        });
+      }
+    };
+
+    const readCamera = () => {
+      const module = moduleRef.current;
+      if (!module) return null;
+      const ptr = module._malloc(6 * 4);
+      module._rpd_get_camera(ptr);
+      const view = new Float32Array(module.HEAPU8.buffer, ptr, 6);
+      const values: [number, number, number, number, number] = [
+        view[0],
+        view[1],
+        view[2],
+        view[3],
+        view[4],
+      ];
+      module._free(ptr);
+      return values;
+    };
+
+    const addMark = (event: MouseEvent) => {
+      if (!modeRef.current) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = ((event.clientX - rect.left) / rect.width) * canvas.width;
+      const y = ((event.clientY - rect.top) / rect.height) * canvas.height;
+      const camera = readCamera();
+      if (!camera) return;
+      const [ex, ey, ez, yaw, pitch] = camera;
+      const previous = marksRef.current[marksRef.current.length - 1];
+      let group = previous ? previous.group : 0;
+      if (previous) {
+        const moved =
+          Math.hypot(ex - previous.eye[0], ey - previous.eye[1], ez - previous.eye[2]) >
+            0.05 ||
+          Math.abs(yaw - previous.yaw) > 0.02 ||
+          Math.abs(pitch - previous.pitch) > 0.02;
+        if (moved) group = previous.group + 1;
+      }
+      marksRef.current = [
+        ...marksRef.current,
+        { x, y, eye: [ex, ey, ez], yaw, pitch, group },
+      ];
+      setMarkCount(marksRef.current.length);
+      redraw();
+    };
+
+    const exportMarks = () => {
+      const groups = new Map<number, Mark[]>();
+      for (const mark of marksRef.current) {
+        const list = groups.get(mark.group) ?? [];
+        list.push(mark);
+        groups.set(mark.group, list);
+      }
+      const views = [...groups.values()].map((list) => ({
+        eye: list[0].eye,
+        yaw: list[0].yaw,
+        pitch: list[0].pitch,
+        points: list.map((mark) => [
+          Math.round(mark.x * 10) / 10,
+          Math.round(mark.y * 10) / 10,
+        ]),
+      }));
+      const payload = {
+        canvas: [canvas.width, canvas.height],
+        views,
+      };
+      const text = JSON.stringify(payload);
+      setExportText(text);
+      void navigator.clipboard?.writeText(text).catch(() => undefined);
+      console.log(text);
+    };
+
+    const onPointer = (event: Event) => {
+      if (!modeRef.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.type === "pointerdown" || event.type === "mousedown") {
+        addMark(event as MouseEvent);
+      }
+    };
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "m" || event.key === "M") {
+        modeRef.current = !modeRef.current;
+        setMarkMode(modeRef.current);
+        if (!modeRef.current) {
+          marksRef.current = [];
+          setMarkCount(0);
+          redraw();
+        }
+        event.preventDefault();
+        return;
+      }
+      if (!modeRef.current) return;
+      if (event.key === "Backspace") {
+        marksRef.current = marksRef.current.slice(0, -1);
+        setMarkCount(marksRef.current.length);
+        redraw();
+        event.preventDefault();
+      } else if (event.key === "c" || event.key === "C") {
+        exportMarks();
+        event.preventDefault();
+      } else if (event.key === "Escape") {
+        modeRef.current = false;
+        setMarkMode(false);
+        marksRef.current = [];
+        setMarkCount(0);
+        redraw();
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener("pointerdown", onPointer, true);
+    window.addEventListener("mousedown", onPointer, true);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("resize", redraw);
+    redraw();
+    return () => {
+      window.removeEventListener("pointerdown", onPointer, true);
+      window.removeEventListener("mousedown", onPointer, true);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", redraw);
+    };
   }, []);
 
   useEffect(() => {
@@ -115,6 +305,7 @@ export default function RpdScene({
         });
         if (cancelled) return;
 
+        moduleRef.current = module;
         if (import.meta.env.DEV) {
           (window as unknown as { __rpd?: RpdModule }).__rpd = module;
         }
@@ -194,6 +385,24 @@ export default function RpdScene({
         onContextMenu={(event) => event.preventDefault()}
         aria-label={label}
       />
+      <canvas ref={overlayRef} className="rpd-mark" aria-hidden="true" />
+      <div className="rpd-mark-hud" data-open={markMode}>
+        <span className="rpd-mark-key">M</span>
+        <span>
+          {markMode
+            ? `mark mode · ${markCount} points · click 4 corners, move, click the next 4 · C copy · Backspace undo · Esc exit`
+            : "mark mode"}
+        </span>
+      </div>
+      {exportText ? (
+        <textarea
+          className="rpd-mark-out"
+          readOnly
+          value={exportText}
+          onFocus={(event) => event.currentTarget.select()}
+          aria-label="mark export"
+        />
+      ) : null}
       <div className="rpd-fps">{fps > 0 ? `${fps} FPS` : "-- FPS"}</div>
       <div
         className="rpd-status"

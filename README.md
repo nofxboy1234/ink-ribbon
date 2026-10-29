@@ -139,6 +139,7 @@ tools/blockout_common.py   mesh loading, material names, shared types
 tools/blockout_extract.py  source-fitted blockout spec and reference PLYs
 tools/blockout_scene.py    Blender scene, OBJ/GLB export and renders
 tools/blockout_verify.py   source-versus-blockout coverage and plan images
+tools/marks_to_panel.py    triangulate picked corners into a 3D panel
 tools/blockout_compare.py  same-camera source and blockout room renders
 tools/blockout_compare_compose.py  side-by-side comparison images
 docs/blockout.md           whole-RPD blockout pipeline and results

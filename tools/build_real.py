@@ -213,6 +213,33 @@ PANEL_SPECS = (
 )
 
 
+SAVED_PANELS = ROOT / "data" / "panels.json"
+
+
+def load_saved_panels():
+    """Panels picked in the viewer with mark mode and triangulated after."""
+    if not SAVED_PANELS.exists():
+        return []
+    out = []
+    colour = MANUAL_MATERIAL
+    for panel in json.loads(SAVED_PANELS.read_text()):
+        points = panel.get("points", [])
+        if len(points) < 3:
+            continue
+        for index in range(1, len(points) - 1):
+            out.append(
+                (
+                    colour,
+                    (
+                        tuple(points[0]),
+                        tuple(points[index]),
+                        tuple(points[index + 1]),
+                    ),
+                )
+            )
+    return out
+
+
 def load_panel_triangles():
     out = []
     colour = MANUAL_MATERIAL
@@ -311,7 +338,7 @@ def build():
     fills = load_fill_triangles()
     if fills:
         floors.append(("fill", 0, list(fills)))
-    panels = load_panel_triangles()
+    panels = load_panel_triangles() + load_saved_panels()
     if panels:
         floors.append(("panel", 1, list(panels)))
     chunks: list[Chunk] = []
