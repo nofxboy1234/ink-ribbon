@@ -171,30 +171,42 @@ therefore holds 20,213 triangles, not 60,642.
 
 ## 3. Real geometry scene
 
-This pass replaces the stylized plan with the actual LOD-0 RPD meshes. The
-builder is `tools/build_real.py`. There is no simplification, no edge
-extraction and no texture data.
+The scene is built in Blender from the actual LOD-0 RPD meshes. There is no
+simplification, no edge extraction and no texture data.
 
 ### 3.1 Read all LOD-0 geometry
 
 All 49 meshes are read at LOD 0. Every triangle is kept; there is no clip-box
-filter, no degenerate filter and no ceiling/roof trim. The resulting asset
-contains walls, floors, stairs, doors, railings, furniture, ceilings, roofs,
-distant backdrop triangles and the clock tower. Only the camera framing bounds
-are restricted to the RPD area.
+filter, no degenerate filter and no ceiling/roof trim. The scene contains walls,
+floors, stairs, doors, railings, furniture, ceilings, roofs, distant backdrop
+triangles and the clock tower. Only the camera framing bounds are restricted to
+the RPD area.
 
-### 3.2 Flat grey materials
+### 3.2 The Blender scene
 
-The mesh header stores a material index per subdivision but no material names or
-textures. The builder maps the 35 indices onto twelve muted architectural
-shades (limestone, concrete, wood, metal, slate, brick, etc.) and
-writes one grey RGB value per vertex. There are no UVs and the fragment shader does
-not sample any material texture.
+`tools/rpd_scene.py --import` writes `build/rpd.blend`. The scene holds one mesh
+object per room, named by room stem, with `rpd_room` and `rpd_floor` custom
+properties. Each room has one material per source material. The material name
+carries the source name and the colour comes from twelve flat grey shades.
+`diffuse_color` is what the export reads, so a colour change in Blender changes
+the asset.
+
+The scene is Z up. Import maps source metres (Y up) with `blender = (x, -z, y)`
+and bakes that map into the vertex positions, so every object has an identity
+transform. Export maps back with `source = (X, Z, -Y)`.
+
+The scene also holds a camera and a sun. The camera uses the same overview
+angles as the viewer's reset camera. Export ignores non-mesh objects.
+
+`--import` prints one line per room and asserts that the total is 1,790,053
+triangles. It records the count in the `rpd_triangles` scene property.
+`--export` asserts that the exported count matches, so a silent truncation
+fails.
 
 ### 3.3 Chunking and quantization
 
 Source vertices are 2,059,499; many are duplicated across material slices. The
-builder hashes position (1 mm grid) plus material colour, producing 1,116,068
+exporter hashes position (1 mm grid) plus material colour, producing 1,116,068
 vertices. Triangles are packed into 19 chunks with at most 60k unique vertices
 each, so local indices fit in `u16`.
 
@@ -241,19 +253,34 @@ buffer plus one `u32` index buffer and draws the whole building in one call.
        pad to 4-byte boundary
 ```
 
-`rpd.json` records the method, per-floor bounds, chunk counts, the material
-palette and the unfiltered geometry flag.
+`rpd.json` records the method, per-floor bounds, chunk counts and the geometry
+filter.
 
 ## 5. Reproduce
 
 ```bash
-uv run --with zstandard python tools/extract_rpd.py
-uv run --with numpy python tools/build_real.py
+npm run data
 ```
 
-`npm run data` runs both in sequence. The main constants are in
-`tools/build_real.py`: `CLIP_MIN`/`CLIP_MAX`, `CEILING_CUT`, `MAX_CHUNK_VERTS`
-and the material palette.
+That runs three commands.
+
+```bash
+uv run --with zstandard python tools/extract_rpd.py
+npm run scene:import
+npm run scene:export
+```
+
+`scene:import` runs `blender -b -P tools/rpd_scene.py -- --import`. `scene:export`
+runs `blender -b build/rpd.blend -P tools/rpd_scene.py -- --export`.
+
+To edit the level, run `scene:import`, open `build/rpd.blend` in Blender, make
+your changes, then run `scene:export`. `build/` is gitignored, so the scene is
+local. The exporter rejects a triangle count that differs from the imported
+count. Update the `rpd_triangles` scene property when a geometry change is
+intentional.
+
+The constants live in `tools/rpd_scene.py`: `MAX_CHUNK_VERTS`, `QUANT`,
+`FRAME_MIN`, `FRAME_MAX` and the material palette.
 
 ## 6. Notes and limits
 
@@ -261,27 +288,11 @@ and the material palette.
   needed.
 - The model contains every LOD-0 triangle from the extracted meshes. There is no
   collision, no UV/texture pass and no alpha-cutout material support.
-- Materials are identified only by their numeric index, so the colours convey
-  surface separation rather than exact real-world material identity.
-- The 21.6 MB asset is under Cloudflare's 25 MiB per-asset limit and is served
+- Each material keeps its source name, but the flat colours convey surface
+  separation rather than exact real-world material identity.
+- The 20.8 MB asset is under Cloudflare's 25 MiB per-asset limit and is served
   as one file. Initial load and wasm upload take a few seconds on a local
   connection.
 - The mesh parser handles the RE2 RT variant only. Other RE Engine versions use
   different subdivision/header layouts.
 - `data/raw/` is not committed; `public/rpd/rpd.bin` is the derived scene.
-
-
-## 9. Whole-RPD blockout
-
-`tools/blockout_extract.py` reads all 49 meshes and writes a metre-space spec of
-floor plates, walls, pillars, stair wedges and ramp slabs. The material name
-remap at header offset `0x60` and the name table at `0x78` separate structural
-surfaces from props and exterior scenery. `tools/blockout_scene.py` assembles
-the spec in Blender, imports the original LOD-0 triangles as a wireframe
-reference, and writes `build/rpd_blockout.blend`, `blockout.obj` and
-`blockout.glb`. `tools/blockout_verify.py` rasterizes source and spec in plan
-view and writes coverage metrics and overlays.
-
-The model is deliberately a dollhouse: no roofs, ceilings, props or railings.
-Door and window runs become full-height gaps. The full method, current coverage
-numbers and limits are in [blockout.md](blockout.md).

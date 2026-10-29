@@ -9,12 +9,11 @@
     "preview": "vite preview",
     "postinstall": "void prepare",
     "typecheck": "tsc --noEmit",
-    "data": "uv run --with zstandard python tools/extract_rpd.py && uv run --with numpy python tools/build_real.py",
+    "data": "uv run --with zstandard python tools/extract_rpd.py && npm run scene:import && npm run scene:export",
+    "scene:import": "blender -b -P tools/rpd_scene.py -- --import",
+    "scene:export": "blender -b build/rpd.blend -P tools/rpd_scene.py -- --export",
     "wasm": "bash native/build.sh",
-    "deploy": "void deploy --platform cloudflare",
-    "blockout": "uv run --with numpy --with pillow --with shapely python tools/blockout_extract.py && blender -b -P tools/blockout_scene.py -- --no-render && uv run --with numpy --with pillow --with shapely python tools/blockout_verify.py",
-    "blockout-render": "blender -b -P tools/blockout_scene.py -- --workbench",
-    "blockout-compare": "blender -b build/rpd_blockout.blend -P tools/blockout_compare.py && uv run --with pillow python tools/blockout_compare_compose.py"
+    "deploy": "void deploy --platform cloudflare"
   },
   "dependencies": {
     "hono": "4.13.14",

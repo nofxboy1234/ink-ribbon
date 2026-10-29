@@ -16,16 +16,16 @@ A green FPS counter sits at the top right of the scene.
   floors, stairs, props, railings, roofs and the clock tower. There is no
   simplification pass and no texture data. All LOD-0 triangles from the 49
   meshes are kept; nothing is clipped, decimated, moved or ceiling-trimmed.
+- **Editable scene.** `build/rpd.blend` holds the same geometry as one object
+  per room, with one flat material per source material and a camera that frames
+  the building. Edit the scene in Blender, then run `npm run scene:export` to
+  rebuild `public/rpd/rpd.bin` from it. `build/` is gitignored, so the scene
+  stays local.
 - **Renderer** — a C application using the latest [sokol](https://github.com/floooh/sokol)
   (`sokol_app` + `sokol_gfx`), compiled to WebAssembly with Emscripten. It draws
   solid triangles in a simple key/fill/hemisphere light, with one flat grey per
   source material, then composites a restrained background gradient. No material
   textures are sampled.
-- **Whole-RPD blockout.** Floors 1 to 3 as one Blender scene. The source
-  meshes stay in the scene as a wireframe reference. The simplified model adds
-  floor plates, walls with door and window openings, square pillars and stair
-  wedges that span the storeys they serve. See
-  [docs/blockout.md](docs/blockout.md). Build it with `npm run blockout`.
 - **Web app** — React 19 + TypeScript on [Void](https://github.com/voidzero-dev/void)
   1.3.0 (Vite 8) targeting Cloudflare Workers. Once the scene is loaded the
   page is only the canvas; no labels or UI sit on top of it.
@@ -40,7 +40,7 @@ A green FPS counter sits at the top right of the scene.
 | Void SDK / CLI | 1.3.0 |
 | sokol | `fe6e78dee2377e84bc6ade95f0dcd82b4fcd86e9` (2026-10-26) |
 | Emscripten | 6.0.13 |
-| Data builder | numpy |
+| Data builder | Blender 5.2, numpy |
 
 ## Run it
 
@@ -65,16 +65,19 @@ Rebuild the scene data from the installed game:
 # 1. read the 49 terrain meshes from the RE2 RT PAK (68.5 MB, not committed)
 uv run --with zstandard python tools/extract_rpd.py
 
-# 2. build public/rpd/rpd.bin from data/raw/rpd
-uv run --with numpy python tools/build_real.py
+# 2. build build/rpd.blend from data/raw/rpd
+npm run scene:import
 
-# 3. build the whole-RPD blockout and its checks
-npm run blockout
-npm run blockout-render   # optional: overview, main hall and per-floor renders
-npm run blockout-compare  # optional: source-versus-blockout room comparisons
+# 3. pack the scene into public/rpd/rpd.bin
+npm run scene:export
 
 npm run wasm   # only needed after changing native/main.c
 ```
+
+`npm run data` runs all three steps. To edit the level, open `build/rpd.blend`
+after step 2, make your changes, then run step 3. The scene records the imported
+triangle count and the export fails if the count changes. Update the
+`rpd_triangles` custom property on the scene when the change is intentional.
 
 `RE2_GAME_DIR` overrides the Steam install path. The extraction tooling is
 derived from `~/repos/reze`; see [docs/extraction.md](docs/extraction.md).
@@ -119,14 +122,8 @@ the repository does not contain an account ID. A fresh clone only needs
 tools/extract_rpd.py       PAK lookup + extraction of the 49 RPD meshes
 tools/re_pak.py            minimal KPKA v4 reader (Murmur3 path hashes)
 tools/remesh.py            RE2 RT .mesh parser (LODs, groups, submeshes, buffers)
-tools/build_real.py        real LOD-0 geometry, flat grey material palette, RPDW v3 writer
-tools/blockout_common.py   mesh loading, material names, shared types
-tools/blockout_extract.py  source-fitted blockout spec and reference PLYs
-tools/blockout_scene.py    Blender scene, OBJ/GLB export and renders
-tools/blockout_verify.py   source-versus-blockout coverage and plan images
-tools/blockout_compare.py  same-camera source and blockout room renders
-tools/blockout_compare_compose.py  side-by-side comparison images
-docs/blockout.md           whole-RPD blockout pipeline and results
+tools/rpd_scene.py         Blender import of the 49 rooms and RPDW v3 export
+docs/extraction.md         PAK format, mesh format, Blender round trip and asset layout
 tools/rpd_floor_meshes.txt exact PAK paths for floors 1-3
 native/main.c              sokol app: camera, input, solid-colour geometry pass
 native/third_party/sokol   vendored sokol headers (pinned commit)
@@ -141,27 +138,35 @@ public/rpd/rpd.wasm        compiled sokol renderer
 ## Scene notes
 
 The source meshes are in world space. Each room is a set of mesh groups; face
-indices are relative to each material subdivision's vertex slice. The build:
+indices are relative to each material subdivision's vertex slice.
+`npm run scene:import`:
 
 1. reads every LOD-0 triangle from all 49 meshes;
-2. assigns one of twelve grey shades to each source material index;
-3. welds equal position+colour vertices into 19 chunks of at most 60k vertices;
+2. welds equal vertices into one mesh object per room, named by room stem;
+3. gives each room one material per source material, named after that material,
+   with one of twelve flat grey colours;
+4. saves `build/rpd.blend` with a camera and a sun that frame the building.
+
+`npm run scene:export`:
+
+1. reads every mesh object in the scene and converts positions back to source
+   metres;
+2. takes each material's `diffuse_color` as the face colour;
+3. welds equal position and colour vertices into 19 chunks of at most 60k
+   vertices;
 4. quantises positions to 16 bits per chunk and packs the result as RPDW v3.
 
+The scene is Z up, and `blender = (x, -z, y)` maps source metres (Y up) to
+Blender. The import bakes that map into the vertex positions, so imported
+objects have identity transforms. Export ignores the camera, the sun and any
+other non-mesh object.
+
 Raw source and asset are the same: 1,790,053 triangles and 1,116,068 vertices
-in 19 chunks / 20.8 MB. Nothing is appended, moved or removed. Only the camera
-framing bounds are restricted to the RPD area. The renderer
-expands the chunks into one indexed mesh and draws it in a single call. No
-textures, no simplification, no wireframe edge pass.
-
-
-`build/rpd_blockout.blend` is the whole-RPD blockout. `RPD_Blockout` holds the
-simplified model and `RPD_Reference` holds the original LOD-0 triangles as a
-wireframe. Every primitive is fitted to the source coordinates, so the model
-uses the original metres with no scale factor. The scene is Z-up with
-`blender = (x, -z, y)`. `build/blockout/spec.json` records every slab, wall,
-pillar, stair and ramp, and `build/blockout/verify/` holds the source-versus-
-blockout plan overlays.
+in 19 chunks / 20.8 MB. `rpd.json` records the method, per-floor bounds, chunk
+counts and the geometry filter. Nothing is appended, moved or removed. Only the
+camera framing bounds are restricted to the RPD area. The renderer expands the
+chunks into one indexed mesh and draws it in a single call. No textures, no
+simplification, no wireframe edge pass.
 
 ## Assets and licensing
 

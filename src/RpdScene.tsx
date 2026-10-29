@@ -20,7 +20,7 @@ type RpdFactory = (options: {
   locateFile: (path: string) => string;
 }) => Promise<RpdModule>;
 
-const CACHE_VERSION = "20261029n";
+const CACHE_VERSION = "20261029o";
 
 async function fetchScene(
   url: string,
