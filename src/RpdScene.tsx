@@ -139,7 +139,7 @@ export default function RpdScene({
           else ctx.lineTo(mark.x, mark.y);
         });
         ctx.stroke();
-        list.forEach((mark) => {
+        list.forEach((mark, index) => {
           const arm = 9;
           ctx.beginPath();
           ctx.moveTo(mark.x - arm, mark.y - arm);
@@ -152,6 +152,15 @@ export default function RpdScene({
           ctx.strokeStyle = colour;
           ctx.lineWidth = 2.5;
           ctx.stroke();
+          const label = String(index + 1);
+          ctx.font = "600 14px ui-monospace, monospace";
+          ctx.textAlign = "left";
+          ctx.textBaseline = "bottom";
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = "rgba(14,15,17,0.9)";
+          ctx.strokeText(label, mark.x + 12, mark.y - 8);
+          ctx.fillStyle = colour;
+          ctx.fillText(label, mark.x + 12, mark.y - 8);
         });
       }
     };
