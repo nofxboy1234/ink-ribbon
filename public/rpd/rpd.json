@@ -2,10 +2,10 @@
   "asset": "rpd.bin",
   "version": 3,
   "method": "real LOD-0 geometry, flat material colours",
-  "vertices": 1151128,
-  "triangles": 1874556,
+  "vertices": 1151132,
+  "triangles": 1874558,
   "chunks": 20,
-  "bytes": 21608248,
+  "bytes": 21608296,
   "bounds": {
     "min": [
       -57.13272073946111,

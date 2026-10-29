@@ -202,6 +202,31 @@ def _triangulate(ring):
     return out
 
 
+# Vertical panels the meshes leave out. axis "x" means the panel sits at a
+# constant x and runs along z; axis "z" is the mirror.
+PANEL_SPECS = (
+    # 2F wall between the east corridor and the annex. Both pink views agree
+    # on the plane x = 38.5; the meshes carry 3.9 m2 here against 127 m2 below.
+    {"axis": "x", "at": 38.5, "u": (-14.4, -2.6), "y": (5.2, 9.2)},
+)
+
+
+def load_panel_triangles():
+    out = []
+    colour = MANUAL_MATERIAL
+    for spec in PANEL_SPECS:
+        u0, u1 = spec["u"]
+        y0, y1 = spec["y"]
+        a = spec["at"]
+        if spec["axis"] == "x":
+            quad = ((a, y0, u0), (a, y0, u1), (a, y1, u1), (a, y1, u0))
+        else:
+            quad = ((u0, y0, a), (u1, y0, a), (u1, y1, a), (u0, y1, a))
+        out.append((colour, (quad[0], quad[1], quad[2])))
+        out.append((colour, (quad[0], quad[2], quad[3])))
+    return out
+
+
 def load_fill_triangles():
     """Synthetic quads that close holes the decompiled meshes leave open."""
     out = []
@@ -284,6 +309,9 @@ def build():
     fills = load_fill_triangles()
     if fills:
         floors.append(("fill", 0, list(fills)))
+    panels = load_panel_triangles()
+    if panels:
+        floors.append(("panel", 1, list(panels)))
     chunks: list[Chunk] = []
     current = None
     for _room, floor, tris in floors:
