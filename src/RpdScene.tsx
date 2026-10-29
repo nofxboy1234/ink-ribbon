@@ -236,11 +236,13 @@ export default function RpdScene({
 
     const onPointer = (event: Event) => {
       if (!modeRef.current) return;
+      const mouse = event as MouseEvent;
+      // Only the left button picks. Right and middle stay with the viewer so
+      // the camera can be moved between views.
+      if (mouse.button !== 0) return;
       event.preventDefault();
       event.stopPropagation();
-      if (event.type === "pointerdown" || event.type === "mousedown") {
-        addMark(event as MouseEvent);
-      }
+      if (event.type === "pointerdown") addMark(mouse);
     };
 
     const onKey = (event: KeyboardEvent) => {
@@ -393,6 +395,7 @@ export default function RpdScene({
         ref={canvasRef}
         id="canvas"
         className="rpd-canvas"
+        data-mark={markMode}
         onContextMenu={(event) => event.preventDefault()}
         aria-label={label}
       />
@@ -401,7 +404,7 @@ export default function RpdScene({
         <span className="rpd-mark-key">M</span>
         <span>
           {markMode
-            ? `mark mode · ${markCount} points · click 4 corners, move, click the next 4 · C copy · Backspace undo · Esc exit`
+            ? `mark mode · ${markCount} points · click 4 corners · right-drag to move · click the next 4 · C copy · Backspace undo · Esc exit`
             : "mark mode"}
         </span>
       </div>

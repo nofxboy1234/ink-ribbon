@@ -32,6 +32,11 @@ body {
   cursor: grabbing;
 }
 
+.rpd-canvas[data-mark="true"],
+.rpd-canvas[data-mark="true"]:active {
+  cursor: default;
+}
+
 .rpd-status {
   position: absolute;
   inset: 0;
