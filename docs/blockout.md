@@ -23,8 +23,6 @@ build/blockout/reference/       the decompiled meshes used as the reference
 build/blockout/renders/         overview, main hall, and one render per floor
 build/blockout/compare/         source-versus-blockout room renders
 build/blockout/verify/          source-versus-blockout plan overlays and metrics
-public/rpd/simple2.bin          blockout asset for the /simple2 page
-public/rpd/simple2.json         blockout asset metadata
 ```
 
 The current spec holds 47 floor slabs, 2,928 wall boxes, 64 pillars and 19
@@ -33,13 +31,9 @@ stairwell is two half-width flights that meet on a turn landing, so the east
 stairwell is six wedges across three floors. The forecourt staircase in front
 of the main doors is modelled too, because it is the only way in.
 
-![RPD blockout at /simple2](blockout-app.jpg)
-
-The web page at `/simple2` loads `public/rpd/simple2.bin`, converted from
-`build/blockout/blockout.obj` by `tools/obj_to_simple.py`. `npm run blockout`
-builds the asset as part of the pipeline. The asset keeps the source metres and
-uses a 6 m padding on its framing bounds so the default camera shows the whole
-blockout. The page is `pages/simple2.tsx`.
+The blockout is a Blender artifact. It is not served by the web app; open
+`build/rpd_blockout.blend` directly, or use the renders under
+`build/blockout/renders/`.
 
 The `.blend` scene has two collections:
 
@@ -270,6 +264,5 @@ railings, so its recall is not a main-shape target.
 uv run --with zstandard python tools/extract_rpd.py
 ```
 
-Then run `npm run blockout`. It writes the Blender scene, the `/simple2`
-asset and the verification report. Blender 5.2 or newer is required. Open
-`/simple2` after `npm run dev` to view the blockout in the app.
+Then run `npm run blockout`. It writes the Blender scene and the verification
+report. Blender 5.2 or newer is required.

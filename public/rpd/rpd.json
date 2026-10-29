@@ -1,11 +1,11 @@
 {
   "asset": "rpd.bin",
   "version": 3,
-  "method": "real LOD-0 geometry, flat material colours",
-  "vertices": 1151128,
-  "triangles": 1874556,
-  "chunks": 20,
-  "bytes": 21608248,
+  "method": "decompiled LOD-0 terrain, flat material colours",
+  "vertices": 1116068,
+  "triangles": 1790053,
+  "chunks": 19,
+  "bytes": 20785660,
   "bounds": {
     "min": [
       -57.13272073946111,
@@ -23,7 +23,7 @@
       "floor": 1,
       "y_min": -4.92142391204834,
       "y_max": 26.308836999750433,
-      "chunks": 14
+      "chunks": 13
     },
     {
       "floor": 2,
@@ -33,7 +33,7 @@
     },
     {
       "floor": 3,
-      "y_min": -0.12097688019275665,
+      "y_min": 5.001832008361816,
       "y_max": 15.296631056309074,
       "chunks": 2
     }
@@ -216,6 +216,6 @@
     ]
   },
   "filters": {
-    "geometry": "all LOD-0 triangles; framing bounds only"
+    "geometry": "all LOD-0 room triangles; framing bounds only"
   }
 }

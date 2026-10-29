@@ -209,7 +209,7 @@ The chunk extent is at most the RPD width, so the position step is under 2 mm.
 The renderer expands everything into one float-position/`u8`-colour vertex
 buffer plus one `u32` index buffer and draws the whole building in one call.
 
-**Result:** 1,790,053 source triangles plus 84,468 gimmick triangles → **1,874,521 triangles**, 1,151,085 vertices, 20 chunks, 21.6 MB.
+**Result:** 1,790,053 triangles, 1,116,068 vertices, 19 chunks, 20.8 MB. Only the room terrain is packed.
 
 ## 4. `rpd.bin` v3
 
@@ -271,35 +271,6 @@ and the material palette.
 - `data/raw/` is not committed; `public/rpd/rpd.bin` is the derived scene.
 
 
-## 8. Blender simple entrance
-
-`/simple` covers only the entrance hall. `tools/export_entrance_obj.py` exports
-the decompiled `st4_101_0` main-hall mesh as a Blender reference. The Blender
-script removes that reference and rebuilds the area with axis-aligned boxes,
-floor/balcony slabs, columns, railings and two stair wedges. It exports a small
-OBJ, and `tools/obj_to_simple.py` packs it as an RPDW v3 asset.
-
-The /simple asset is 196 vertices, 292 triangles and about 4 KB.
-
-
-### 3.4 Gimmick props
-
-The main-hall statue and 2F crashed helicopter are separate gimmick meshes,
-not terrain. They are extracted with `tools/extract_props.py` into
-`data/raw/props` and appended to the real scene at their scene positions:
-`sm41_024_newpolicestatue01a` in the main hall and
-`sm46_011_crashheli01a` on the 2F helipad. The helicopter position is taken from
-the `st4_502_0` gimmick scene. `FILL_SPECS` in `tools/build_real.py` adds
-floor quads where the decompiled meshes leave a gap: a plinth under the statue
-basin, and two polygons that complete the 2F east floor. The polygons were
-produced by unprojecting a marked screenshot through the reported camera, so
-they follow the missing area rather than a bounding box. The statue prop
-includes the half-basin, so its
-offset is fitted to the hall floor: the basin centre (local 0, 1.82) lands on
-the mid-point of the floor chord at (0, -11.47), and the basin rim sits at the
-hall floor level of 0.80. The resulting offset is (0.0, 1.75, -13.29).
-
-
 ## 9. Whole-RPD blockout
 
 `tools/blockout_extract.py` reads all 49 meshes and writes a metre-space spec of
@@ -314,23 +285,3 @@ view and writes coverage metrics and overlays.
 The model is deliberately a dollhouse: no roofs, ceilings, props or railings.
 Door and window runs become full-height gaps. The full method, current coverage
 numbers and limits are in [blockout.md](blockout.md).
-### Picking a panel in the viewer
-
-The page has a mark mode for surfaces the meshes leave out. Press `M`, click the
-four corners of the surface, move the camera to a different position, click the
-same four corners, and repeat from a third position. Each click records the
-pixel and the live camera, and the two distances are enough to fix the depth
-that a single view cannot. Press `C` to copy the JSON.
-
-Save it and run:
-
-```bash
-uv run --with numpy python tools/marks_to_panel.py marks.json
-```
-
-Each corner is the least-squares intersection of its rays, so the tool prints a
-residual per corner and how far the four corners deviate from one plane. Above
-0.25 m it warns. Panels land in `data/panels.json`, and `tools/build_real.py`
-emits them on the next build.
-
-

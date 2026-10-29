@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-"""Build the real LOD-0 RPD geometry with flat material colours.
+"""Import the decompiled RPD terrain and pack it for the viewer.
 
-No simplification, no texture coordinates. Each source material subdivision
-gets one simple colour. Distant backdrop, degenerates and flat top-envelope
-surfaces are trimmed; the real building shell is otherwise kept.
+Every LOD-0 triangle from ``data/raw/rpd`` is kept at its source position with
+one flat colour per material. Nothing is added, moved or simplified. The only
+trim is the framing bounds used to place the default camera.
 """
 from __future__ import annotations
 
-import argparse
 import array
-import colorsys
 import json
 import pathlib
 import struct
@@ -106,214 +104,6 @@ class Chunk:
         self.indices.extend((i0, i1, i2))
 
 
-MANUAL_MATERIAL = 10
-
-PROP_SPECS = (
-    # The statue prop includes the half-basin. Its basin centre (local
-    # 0, 1.82) is aligned to the mid-point of the hall floor chord at
-    # (0, -11.47), and its rim sits at the hall floor level of 0.80.
-    ("sm41_024_newpolicestatue01a", 0, (0.0, 1.55, -13.29)),
-    ("sm46_011_crashheli01a", 1, (26.1, 5.2, -9.95)),
-)
-
-
-# Gaps the decompiled meshes leave open. Each entry adds a floor quad, plus
-# walls on any named side. Sides: "w" low x, "e" high x, "s" low z, "n" high z.
-FILL_SPECS = (
-    # The statue prop is a half-basin, so its south side is open over the void
-    # between the two grand flights. A plinth plate at 0.79 closes the view
-    # through it and gives the basin rim a floor to sit on.
-    {"floor": 0, "x": (-3.9, 3.9), "z": (-16.0, -9.6), "y": 0.79, "walls": ()},
-    # 2F east floor the meshes leave out. Both rings come from the marked
-    # outline unprojected through the reported camera and clipped to the shell.
-    {
-        "floor": 1,
-        "y": 5.20,
-        "walls": (),
-        "ring": [
-            [32.12, -3.16], [33.46, -3.17], [33.43, -2.82], [32.88, -2.82],
-            [32.85, -3.01], [32.2, -3.01], [33.55, -0.64], [35.64, -0.54],
-            [40.15, -0.54], [40.18, -0.87], [40.72, -0.88], [40.77, -0.54],
-            [42.88, -0.54], [42.82, -0.62], [42.82, -3.12], [42.63, -3.19],
-            [41.07, -3.19], [40.89, -3.12], [40.86, -3.02], [40.77, -3.06],
-            [40.74, -2.82], [40.16, -2.84], [40.17, -3.19], [40.63, -3.2],
-            [40.61, -4.9], [40.35, -5.05], [40.27, -5.04], [40.23, -3.36],
-            [33.02, -3.36], [32.97, -3.49],
-        ],
-    },
-    # The recess the yellow notes mark, west of the two rings above.
-    {"floor": 1, "x": (30.6, 34.6), "z": (-5.0, 1.0), "y": 5.20, "walls": ()},
-    {
-        "floor": 1,
-        "y": 5.20,
-        "walls": (),
-        "ring": [
-            [43.44, -0.17], [48.11, 0.06], [48.57, 0.05], [48.36, -0.32],
-            [43.44, -3.23],
-        ],
-    },
-)
-
-
-def _triangulate(ring):
-    """Ear-clip a simple polygon given as (x, z) points."""
-    pts = list(ring)
-    if len(pts) < 3:
-        return []
-    area = 0.0
-    for i in range(len(pts)):
-        x0, z0 = pts[i]
-        x1, z1 = pts[(i + 1) % len(pts)]
-        area += x0 * z1 - x1 * z0
-    if area < 0:
-        pts.reverse()
-    out = []
-    guard = 0
-    while len(pts) > 3 and guard < 10000:
-        guard += 1
-        clipped = False
-        for i in range(len(pts)):
-            ax, az = pts[i - 1]
-            bx, bz = pts[i]
-            cx, cz = pts[(i + 1) % len(pts)]
-            cross = (bx - ax) * (cz - az) - (bz - az) * (cx - ax)
-            if cross <= 1e-9:
-                continue
-            inside = False
-            for px, pz in pts:
-                if (px, pz) in ((ax, az), (bx, bz), (cx, cz)):
-                    continue
-                d1 = (bx - ax) * (pz - az) - (bz - az) * (px - ax)
-                d2 = (cx - bx) * (pz - bz) - (cz - bz) * (px - bx)
-                d3 = (ax - cx) * (pz - cz) - (az - cz) * (px - cx)
-                if d1 >= 0 and d2 >= 0 and d3 >= 0:
-                    inside = True
-                    break
-            if inside:
-                continue
-            out.append(((ax, az), (bx, bz), (cx, cz)))
-            del pts[i]
-            clipped = True
-            break
-        if not clipped:
-            break
-    if len(pts) == 3:
-        out.append(tuple(pts))
-    return out
-
-
-# Vertical panels the meshes leave out. axis "x" means the panel sits at a
-# constant x and runs along z; axis "z" is the mirror.
-PANEL_SPECS = (
-    # 2F wall between the east corridor and the annex. Both pink views agree
-    # on the plane x = 38.5; the meshes carry 3.9 m2 here against 127 m2 below.
-    # Empty: the pink plane carries 43.6 m2 of 2F wall already, so a panel
-    # there is coplanar and invisible. Kept as the lever for the next edge.
-
-)
-
-
-SAVED_PANELS = ROOT / "data" / "panels.json"
-
-
-def load_saved_panels():
-    """Panels picked in the viewer with mark mode and triangulated after."""
-    if not SAVED_PANELS.exists():
-        return []
-    out = []
-    colour = MANUAL_MATERIAL
-    for panel in json.loads(SAVED_PANELS.read_text()):
-        points = panel.get("points", [])
-        if len(points) < 3:
-            continue
-        for index in range(1, len(points) - 1):
-            out.append(
-                (
-                    colour,
-                    (
-                        tuple(points[0]),
-                        tuple(points[index]),
-                        tuple(points[index + 1]),
-                    ),
-                )
-            )
-    return out
-
-
-def load_panel_triangles():
-    out = []
-    colour = MANUAL_MATERIAL
-    for spec in PANEL_SPECS:
-        u0, u1 = spec["u"]
-        y0, y1 = spec["y"]
-        a = spec["at"]
-        if spec["axis"] == "x":
-            quad = ((a, y0, u0), (a, y0, u1), (a, y1, u1), (a, y1, u0))
-        else:
-            quad = ((u0, y0, a), (u1, y0, a), (u1, y1, a), (u0, y1, a))
-        out.append((colour, (quad[0], quad[1], quad[2])))
-        out.append((colour, (quad[0], quad[2], quad[3])))
-    return out
-
-
-def load_fill_triangles():
-    """Synthetic quads that close holes the decompiled meshes leave open."""
-    out = []
-    for spec in FILL_SPECS:
-        y = spec["y"]
-        colour = MANUAL_MATERIAL
-        if "ring" in spec:
-            for tri in _triangulate(spec["ring"]):
-                out.append(
-                    (
-                        colour,
-                        tuple((float(px), y, float(pz)) for px, pz in tri),
-                    )
-                )
-            continue
-        x0, x1 = spec["x"]
-        z0, z1 = spec["z"]
-        out.append((colour, ((x0, y, z0), (x1, y, z0), (x1, y, z1))))
-        out.append((colour, ((x0, y, z0), (x1, y, z1), (x0, y, z1))))
-        top = spec.get("wall_top")
-        for side in spec.get("walls", ()):
-            if side == "w":
-                quad = ((x0, y, z0), (x0, y, z1), (x0, top, z1), (x0, top, z0))
-            elif side == "e":
-                quad = ((x1, y, z1), (x1, y, z0), (x1, top, z0), (x1, top, z1))
-            elif side == "s":
-                quad = ((x1, y, z0), (x0, y, z0), (x0, top, z0), (x1, top, z0))
-            else:
-                quad = ((x0, y, z1), (x1, y, z1), (x1, top, z1), (x0, top, z1))
-            out.append((colour, (quad[0], quad[1], quad[2])))
-            out.append((colour, (quad[0], quad[2], quad[3])))
-    return out
-
-
-def load_prop_triangles():
-    props_dir = ROOT / "data" / "raw" / "props"
-    loaded = []
-    for name, floor, offset in PROP_SPECS:
-        path = props_dir / f"{name}.mesh"
-        if not path.exists():
-            continue
-        mesh = remesh.parse(path.read_bytes())
-        tris = []
-        ox, oy, oz = offset
-        for group in mesh.lods[0].groups:
-            pos = np.asarray(remesh.positions(mesh, group), dtype=np.float64)
-            for sub in group.submeshes:
-                if sub.is_quad or sub.index_count == 0:
-                    continue
-                for a, b, c in submesh_triangles(mesh, group, sub):
-                    p0 = pos[a] + (ox, oy, oz)
-                    p1 = pos[b] + (ox, oy, oz)
-                    p2 = pos[c] + (ox, oy, oz)
-                    tris.append((sub.material, (p0, p1, p2)))
-        loaded.append((name, floor, tris))
-    return loaded
-
-
 def load_triangles():
     files = sorted(RAW.glob("*.mesh"), key=lambda p: (room_floor(p.stem), p.stem))
     floors = []
@@ -329,18 +119,11 @@ def load_triangles():
                 for a, b, c in submesh_triangles(mesh, group, sub):
                     tris.append((sub.material, (pos[a], pos[b], pos[c])))
         floors.append((path.stem, room_floor(path.stem), tris))
-    floors.extend(load_prop_triangles())
     return floors
 
 
 def build():
     floors = load_triangles()
-    fills = load_fill_triangles()
-    if fills:
-        floors.append(("fill", 0, list(fills)))
-    panels = load_panel_triangles() + load_saved_panels()
-    if panels:
-        floors.append(("panel", 1, list(panels)))
     chunks: list[Chunk] = []
     current = None
     for _room, floor, tris in floors:
@@ -415,7 +198,7 @@ def build():
     meta = {
         "asset": OUT_BIN.name,
         "version": VERSION,
-        "method": "real LOD-0 geometry, flat material colours",
+        "method": "decompiled LOD-0 terrain, flat material colours",
         "vertices": total_v,
         "triangles": total_t,
         "chunks": len(packed),
@@ -431,7 +214,7 @@ def build():
             for i in range(3)
         ],
         "materials": {str(m): list(material_colour(m)) for m in materials},
-        "filters": {"geometry": "all LOD-0 triangles; framing bounds only"},
+        "filters": {"geometry": "all LOD-0 room triangles; framing bounds only"},
     }
     OUT_JSON.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
     print(

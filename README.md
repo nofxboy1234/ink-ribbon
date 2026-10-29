@@ -9,31 +9,23 @@ A green FPS counter sits at the top right of the scene.
 
 ![RPD floors 1–3](docs/preview.jpg)
 
-![RPD simplified entrance](docs/simple.jpg)
-
 ## What is in here
 
 - **Level data** — all 49 RPD terrain meshes for 1F, 2F and 3F, read directly
   from the game's PAK archives at LOD 0. This is the real level geometry: walls,
   floors, stairs, props, railings, roofs and the clock tower. There is no
   simplification pass and no texture data. All LOD-0 triangles from the 49
-  meshes are kept; nothing is clipped, decimated or ceiling-trimmed. The
-  moving-statue and crashed-helicopter gimmick meshes are appended as props.
+  meshes are kept; nothing is clipped, decimated, moved or ceiling-trimmed.
 - **Renderer** — a C application using the latest [sokol](https://github.com/floooh/sokol)
   (`sokol_app` + `sokol_gfx`), compiled to WebAssembly with Emscripten. It draws
   solid triangles in a simple key/fill/hemisphere light, with one flat grey per
   source material, then composites a restrained background gradient. No material
   textures are sampled.
-- **Simple entrance** — `/simple` is a Blender-assembled blockout of the
-  entrance hall. It replaces the decorative geometry with boxes, slabs and
-  stair wedges while keeping the entrance proportions and the player-position
-  sphere.
 - **Whole-RPD blockout.** Floors 1 to 3 as one Blender scene. The source
   meshes stay in the scene as a wireframe reference. The simplified model adds
   floor plates, walls with door and window openings, square pillars and stair
   wedges that span the storeys they serve. See
-  [docs/blockout.md](docs/blockout.md). Build it with `npm run blockout` and
-  view it at `/simple2`.
+  [docs/blockout.md](docs/blockout.md). Build it with `npm run blockout`.
 - **Web app** — React 19 + TypeScript on [Void](https://github.com/voidzero-dev/void)
   1.3.0 (Vite 8) targeting Cloudflare Workers. Once the scene is loaded the
   page is only the canvas; no labels or UI sit on top of it.
@@ -76,10 +68,7 @@ uv run --with zstandard python tools/extract_rpd.py
 # 2. build public/rpd/rpd.bin from data/raw/rpd
 uv run --with numpy python tools/build_real.py
 
-# 3. build the Blender simplified entrance
-npm run simple
-
-# 4. build the whole-RPD blockout, its /simple2 asset and the checks
+# 3. build the whole-RPD blockout and its checks
 npm run blockout
 npm run blockout-render   # optional: overview, main hall and per-floor renders
 npm run blockout-compare  # optional: source-versus-blockout room comparisons
@@ -131,15 +120,10 @@ tools/extract_rpd.py       PAK lookup + extraction of the 49 RPD meshes
 tools/re_pak.py            minimal KPKA v4 reader (Murmur3 path hashes)
 tools/remesh.py            RE2 RT .mesh parser (LODs, groups, submeshes, buffers)
 tools/build_real.py        real LOD-0 geometry, flat grey material palette, RPDW v3 writer
-tools/extract_props.py     extract statue/helicopter gimmick meshes from the PAK
-tools/export_entrance_obj.py  main-hall reference OBJ for Blender
-tools/simple_blender.py    simple entrance boxes/wedges + OBJ export
-tools/obj_to_simple.py     Blender simple OBJ -> RPDW v3 asset
 tools/blockout_common.py   mesh loading, material names, shared types
 tools/blockout_extract.py  source-fitted blockout spec and reference PLYs
 tools/blockout_scene.py    Blender scene, OBJ/GLB export and renders
 tools/blockout_verify.py   source-versus-blockout coverage and plan images
-tools/marks_to_panel.py    triangulate picked corners into a 3D panel
 tools/blockout_compare.py  same-camera source and blockout room renders
 tools/blockout_compare_compose.py  side-by-side comparison images
 docs/blockout.md           whole-RPD blockout pipeline and results
@@ -150,12 +134,8 @@ native/build.sh            Emscripten build
 src/RpdScene.tsx           React canvas + WASM loader with progress
 src/wasm/rpd.js            generated Emscripten ES module (committed for deploy)
 pages/index.tsx            real-geometry page
-pages/simple.tsx           simplified entrance page (/simple)
-pages/simple2.tsx          whole-RPD blockout page (/simple2)
-public/rpd/rpd.bin         real RPD geometry + grey vertex colours (20.2 MB)
+public/rpd/rpd.bin         decompiled RPD geometry + grey vertex colours (20.8 MB)
 public/rpd/rpd.wasm        compiled sokol renderer
-public/rpd/simple.bin      simplified entrance asset
-public/rpd/simple2.bin     whole-RPD blockout asset
 ```
 
 ## Scene notes
@@ -168,18 +148,12 @@ indices are relative to each material subdivision's vertex slice. The build:
 3. welds equal position+colour vertices into 19 chunks of at most 60k vertices;
 4. quantises positions to 16 bits per chunk and packs the result as RPDW v3.
 
-Raw source: 1,790,053 triangles and 2,059,499 vertices. After adding the
-`sm41_024` statue and `sm46_011` crashed helicopter, the asset holds 1,874,521
-triangles and 1,151,085 vertices in 20 chunks / 21.6 MB. Only the camera framing
-bounds are restricted to the RPD area. The renderer
+Raw source and asset are the same: 1,790,053 triangles and 1,116,068 vertices
+in 19 chunks / 20.8 MB. Nothing is appended, moved or removed. Only the camera
+framing bounds are restricted to the RPD area. The renderer
 expands the chunks into one indexed mesh and draws it in a single call. No
 textures, no simplification, no wireframe edge pass.
 
-`/simple` imports the decompiled main-hall mesh into Blender as a reference,
-removes it, and rebuilds the entrance from axis-aligned boxes, floor slabs and
-two stair wedges. The Blender export is converted to a small RPDW v3 asset and
-rendered by the same sokol application. The blue sphere is drawn at the
-entrance by the renderer.
 
 `build/rpd_blockout.blend` is the whole-RPD blockout. `RPD_Blockout` holds the
 simplified model and `RPD_Reference` holds the original LOD-0 triangles as a
