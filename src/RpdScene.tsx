@@ -59,15 +59,6 @@ type RpdSceneProps = {
   label?: string;
 };
 
-type Mark = {
-  x: number;
-  y: number;
-  eye: [number, number, number];
-  yaw: number;
-  pitch: number;
-  group: number;
-};
-
 const MARK_COLOURS = [
   "#ffb86c",
   "#8be9fd",
@@ -84,7 +75,6 @@ export default function RpdScene({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const moduleRef = useRef<RpdModule | null>(null);
-  const marksRef = useRef<Mark[]>([]);
   const modeRef = useRef(false);
   const [progress, setProgress] = useState(0);
   const [hidden, setHidden] = useState(false);
@@ -116,117 +106,210 @@ export default function RpdScene({
     const overlay = overlayRef.current;
     if (!canvas || !overlay) return;
 
+    type Point = { x: number; y: number };
+    type Camera = { eye: [number, number, number]; yaw: number; pitch: number };
+
+    const views: { camera: Camera; points: Point[] }[] = [];
+    let draft: Point[] = [];
+    let draftCamera: Camera | null = null;
+    let dirty = false;
+    let drag: { startX: number; startY: number; origins: Point[]; index: number } | null = null;
+
+    const readCamera = (): Camera | null => {
+      const module = moduleRef.current;
+      if (!module) return null;
+      const ptr = module._malloc(6 * 4);
+      module._rpd_get_camera(ptr);
+      const view = new Float32Array(module.HEAPU8.buffer, ptr, 6);
+      const camera: Camera = {
+        eye: [view[0], view[1], view[2]],
+        yaw: view[3],
+        pitch: view[4],
+      };
+      module._free(ptr);
+      return camera;
+    };
+
+    const toBuffer = (event: MouseEvent): Point => {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: ((event.clientX - rect.left) / rect.width) * canvas.width,
+        y: ((event.clientY - rect.top) / rect.height) * canvas.height,
+      };
+    };
+
+    const moved = (a: Camera, b: Camera) =>
+      Math.hypot(a.eye[0] - b.eye[0], a.eye[1] - b.eye[1], a.eye[2] - b.eye[2]) >
+        0.05 ||
+      Math.abs(a.yaw - b.yaw) > 0.02 ||
+      Math.abs(a.pitch - b.pitch) > 0.02;
+
+    const inside = (p: Point) => {
+      let hit = false;
+      for (let i = 0, j = draft.length - 1; i < draft.length; j = i++) {
+        const a = draft[i];
+        const b = draft[j];
+        if (
+          a.y > p.y !== b.y > p.y &&
+          p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x
+        ) {
+          hit = !hit;
+        }
+      }
+      return hit;
+    };
+
+    const nearest = (p: Point) => {
+      let best = -1;
+      let bestDistance = 16;
+      draft.forEach((q, index) => {
+        const d = Math.hypot(q.x - p.x, q.y - p.y);
+        if (d <= bestDistance) {
+          best = index;
+          bestDistance = d;
+        }
+      });
+      return best;
+    };
+
     const redraw = () => {
       overlay.width = canvas.width;
       overlay.height = canvas.height;
       const ctx = overlay.getContext("2d");
       if (!ctx) return;
       ctx.clearRect(0, 0, overlay.width, overlay.height);
-      const groups = new Map<number, Mark[]>();
-      for (const mark of marksRef.current) {
-        const list = groups.get(mark.group) ?? [];
-        list.push(mark);
-        groups.set(mark.group, list);
-      }
       ctx.lineCap = "round";
-      for (const [group, list] of [...groups.entries()].sort((a, b) => a[0] - b[0])) {
-        const colour = MARK_COLOURS[group % MARK_COLOURS.length];
+
+      const draw = (points: Point[], colour: string, alpha: number, numbered: boolean) => {
+        if (points.length === 0) return;
+        ctx.globalAlpha = alpha;
         ctx.strokeStyle = colour;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        list.forEach((mark, index) => {
-          if (index === 0) ctx.moveTo(mark.x, mark.y);
-          else ctx.lineTo(mark.x, mark.y);
+        points.forEach((point, index) => {
+          if (index === 0) ctx.moveTo(point.x, point.y);
+          else ctx.lineTo(point.x, point.y);
         });
         ctx.stroke();
-        list.forEach((mark, index) => {
+        points.forEach((point, index) => {
           const arm = 9;
           ctx.beginPath();
-          ctx.moveTo(mark.x - arm, mark.y - arm);
-          ctx.lineTo(mark.x + arm, mark.y + arm);
-          ctx.moveTo(mark.x + arm, mark.y - arm);
-          ctx.lineTo(mark.x - arm, mark.y + arm);
+          ctx.moveTo(point.x - arm, point.y - arm);
+          ctx.lineTo(point.x + arm, point.y + arm);
+          ctx.moveTo(point.x + arm, point.y - arm);
+          ctx.lineTo(point.x - arm, point.y + arm);
           ctx.strokeStyle = "rgba(14,15,17,0.85)";
           ctx.lineWidth = 6;
           ctx.stroke();
           ctx.strokeStyle = colour;
           ctx.lineWidth = 2.5;
           ctx.stroke();
+          if (!numbered) return;
           const label = String(index + 1);
           ctx.font = "600 14px ui-monospace, monospace";
           ctx.textAlign = "left";
           ctx.textBaseline = "bottom";
           ctx.lineWidth = 3;
           ctx.strokeStyle = "rgba(14,15,17,0.9)";
-          ctx.strokeText(label, mark.x + 12, mark.y - 8);
+          ctx.strokeText(label, point.x + 12, point.y - 8);
           ctx.fillStyle = colour;
-          ctx.fillText(label, mark.x + 12, mark.y - 8);
+          ctx.fillText(label, point.x + 12, point.y - 8);
         });
-      }
+        ctx.globalAlpha = 1;
+      };
+
+      views.forEach((view) => draw(view.points, "#6b7280", 0.55, false));
+      draw(draft, MARK_COLOURS[views.length % MARK_COLOURS.length], 1, true);
     };
 
-    const readCamera = () => {
-      const module = moduleRef.current;
-      if (!module) return null;
-      const ptr = module._malloc(6 * 4);
-      module._rpd_get_camera(ptr);
-      const view = new Float32Array(module.HEAPU8.buffer, ptr, 6);
-      const values: [number, number, number, number, number] = [
-        view[0],
-        view[1],
-        view[2],
-        view[3],
-        view[4],
-      ];
-      module._free(ptr);
-      return values;
+    const commitIfDirty = () => {
+      if (!dirty || draft.length < 3 || !draftCamera) return;
+      views.push({ camera: draftCamera, points: draft.map((p) => ({ ...p })) });
+      dirty = false;
     };
 
-    const addMark = (event: MouseEvent) => {
+    const watchCamera = () => {
       if (!modeRef.current) return;
-      const rect = canvas.getBoundingClientRect();
-      const x = ((event.clientX - rect.left) / rect.width) * canvas.width;
-      const y = ((event.clientY - rect.top) / rect.height) * canvas.height;
       const camera = readCamera();
       if (!camera) return;
-      const [ex, ey, ez, yaw, pitch] = camera;
-      const previous = marksRef.current[marksRef.current.length - 1];
-      let group = previous ? previous.group : 0;
-      if (previous) {
-        const moved =
-          Math.hypot(ex - previous.eye[0], ey - previous.eye[1], ez - previous.eye[2]) >
-            0.05 ||
-          Math.abs(yaw - previous.yaw) > 0.02 ||
-          Math.abs(pitch - previous.pitch) > 0.02;
-        if (moved) group = previous.group + 1;
+      if (!draftCamera) {
+        draftCamera = camera;
+        return;
       }
-      marksRef.current = [
-        ...marksRef.current,
-        { x, y, eye: [ex, ey, ez], yaw, pitch, group },
-      ];
-      setMarkCount(marksRef.current.length);
+      if (dirty && draft.length >= 3 && moved(camera, draftCamera)) {
+        commitIfDirty();
+        draftCamera = camera;
+        setMarkCount(draft.length);
+        redraw();
+      }
+    };
+
+    const onDown = (event: MouseEvent) => {
+      if (!modeRef.current) return;
+      if (event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const point = toBuffer(event);
+      const index = nearest(point);
+      const grabbable = index >= 0 || (draft.length >= 3 && inside(point));
+      if (!grabbable) {
+        if (views.length > 0) return;
+        draft = [...draft, point];
+        dirty = true;
+        draftCamera = readCamera();
+        setMarkCount(draft.length);
+        redraw();
+        return;
+      }
+      drag = {
+        startX: point.x,
+        startY: point.y,
+        origins: draft.map((p) => ({ ...p })),
+        index,
+      };
+    };
+
+    const onMove = (event: MouseEvent) => {
+      if (!drag) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const point = toBuffer(event);
+      const dx = point.x - drag.startX;
+      const dy = point.y - drag.startY;
+      if (drag.index >= 0) {
+        draft[drag.index] = { x: drag.origins[drag.index].x + dx, y: drag.origins[drag.index].y + dy };
+      } else {
+        draft = drag.origins.map((origin) => ({ x: origin.x + dx, y: origin.y + dy }));
+      }
+      redraw();
+    };
+
+    const onUp = (event: MouseEvent) => {
+      if (!drag) return;
+      event.preventDefault();
+      event.stopPropagation();
+      drag = null;
+      dirty = true;
+      draftCamera = readCamera();
       redraw();
     };
 
     const exportMarks = () => {
-      const groups = new Map<number, Mark[]>();
-      for (const mark of marksRef.current) {
-        const list = groups.get(mark.group) ?? [];
-        list.push(mark);
-        groups.set(mark.group, list);
+      if (draft.length >= 3 && draftCamera && (dirty || views.length === 0)) {
+        views.push({ camera: draftCamera, points: draft.map((p) => ({ ...p })) });
+        dirty = false;
       }
-      const views = [...groups.values()].map((list) => ({
-        eye: list[0].eye,
-        yaw: list[0].yaw,
-        pitch: list[0].pitch,
-        points: list.map((mark) => [
-          Math.round(mark.x * 10) / 10,
-          Math.round(mark.y * 10) / 10,
-        ]),
-      }));
       const payload = {
         canvas: [canvas.width, canvas.height],
-        views,
+        views: views.map((view) => ({
+          eye: view.camera.eye,
+          yaw: view.camera.yaw,
+          pitch: view.camera.pitch,
+          points: view.points.map((p) => [
+            Math.round(p.x * 10) / 10,
+            Math.round(p.y * 10) / 10,
+          ]),
+        })),
       };
       const text = JSON.stringify(payload);
       setExportText(text);
@@ -234,34 +317,31 @@ export default function RpdScene({
       console.log(text);
     };
 
-    const onPointer = (event: Event) => {
-      if (!modeRef.current) return;
-      const mouse = event as MouseEvent;
-      // Only the left button picks. Right and middle stay with the viewer so
-      // the camera can be moved between views.
-      if (mouse.button !== 0) return;
-      event.preventDefault();
-      event.stopPropagation();
-      if (event.type === "pointerdown") addMark(mouse);
+    const clear = () => {
+      views.length = 0;
+      draft = [];
+      draftCamera = null;
+      dirty = false;
+      drag = null;
+      setMarkCount(0);
+      redraw();
     };
 
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "m" || event.key === "M") {
         modeRef.current = !modeRef.current;
         setMarkMode(modeRef.current);
-        if (!modeRef.current) {
-          marksRef.current = [];
-          setMarkCount(0);
-          redraw();
-        }
+        if (!modeRef.current) clear();
         event.preventDefault();
         return;
       }
       if (!modeRef.current) return;
       if (event.key === "Backspace") {
-        marksRef.current = marksRef.current.slice(0, -1);
-        setMarkCount(marksRef.current.length);
-        redraw();
+        if (views.length === 0) {
+          draft = draft.slice(0, -1);
+          setMarkCount(draft.length);
+          redraw();
+        }
         event.preventDefault();
       } else if (event.key === "c" || event.key === "C") {
         exportMarks();
@@ -269,21 +349,23 @@ export default function RpdScene({
       } else if (event.key === "Escape") {
         modeRef.current = false;
         setMarkMode(false);
-        marksRef.current = [];
-        setMarkCount(0);
-        redraw();
+        clear();
         event.preventDefault();
       }
     };
 
-    window.addEventListener("pointerdown", onPointer, true);
-    window.addEventListener("mousedown", onPointer, true);
+    window.addEventListener("mousedown", onDown, true);
+    window.addEventListener("mousemove", onMove, true);
+    window.addEventListener("mouseup", onUp, true);
     window.addEventListener("keydown", onKey);
     window.addEventListener("resize", redraw);
+    const timer = window.setInterval(watchCamera, 200);
     redraw();
     return () => {
-      window.removeEventListener("pointerdown", onPointer, true);
-      window.removeEventListener("mousedown", onPointer, true);
+      window.clearInterval(timer);
+      window.removeEventListener("mousedown", onDown, true);
+      window.removeEventListener("mousemove", onMove, true);
+      window.removeEventListener("mouseup", onUp, true);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("resize", redraw);
     };
@@ -404,7 +486,7 @@ export default function RpdScene({
         <span className="rpd-mark-key">M</span>
         <span>
           {markMode
-            ? `mark mode · ${markCount} points · click 4 corners · right-drag to move · click the next 4 · C copy · Backspace undo · Esc exit`
+            ? `mark mode · ${markCount} points · click 4 corners · right-drag to move · drag a cross or the group to fit · C copy · Backspace undo · Esc exit`
             : "mark mode"}
         </span>
       </div>
