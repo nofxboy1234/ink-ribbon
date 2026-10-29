@@ -2,10 +2,10 @@
   "asset": "rpd.bin",
   "version": 3,
   "method": "Blender scene exported to RPDW, flat material colours",
-  "vertices": 1108741,
-  "triangles": 1771963,
+  "vertices": 1108608,
+  "triangles": 1771863,
   "chunks": 19,
-  "bytes": 20611180,
+  "bytes": 20609380,
   "bounds": {
     "min": [
       -57.13349533081055,
