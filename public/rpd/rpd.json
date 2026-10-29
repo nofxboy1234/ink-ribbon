@@ -3,9 +3,9 @@
   "version": 3,
   "method": "Blender scene exported to RPDW, flat material colours",
   "vertices": 1106060,
-  "triangles": 1763544,
+  "triangles": 1763546,
   "chunks": 19,
-  "bytes": 20536532,
+  "bytes": 20536540,
   "bounds": {
     "min": [
       -57.133089283397254,
