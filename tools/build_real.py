@@ -112,7 +112,7 @@ PROP_SPECS = (
     # The statue prop includes the half-basin. Its basin centre (local
     # 0, 1.82) is aligned to the mid-point of the hall floor chord at
     # (0, -11.47), and its rim sits at the hall floor level of 0.80.
-    ("sm41_024_newpolicestatue01a", 0, (0.0, 1.75, -13.29)),
+    ("sm41_024_newpolicestatue01a", 0, (0.0, 1.55, -13.29)),
     ("sm46_011_crashheli01a", 1, (26.1, 5.2, -9.95)),
 )
 
@@ -141,6 +141,8 @@ FILL_SPECS = (
             [33.02, -3.36], [32.97, -3.49],
         ],
     },
+    # The recess the yellow notes mark, west of the two rings above.
+    {"floor": 1, "x": (30.6, 34.6), "z": (-5.0, 1.0), "y": 5.20, "walls": ()},
     {
         "floor": 1,
         "y": 5.20,
