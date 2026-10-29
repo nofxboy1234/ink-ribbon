@@ -128,28 +128,30 @@ export default function RpdScene({
         list.push(mark);
         groups.set(mark.group, list);
       }
-      ctx.lineWidth = 2;
-      ctx.font = "600 22px ui-monospace, monospace";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
+      ctx.lineCap = "round";
       for (const [group, list] of [...groups.entries()].sort((a, b) => a[0] - b[0])) {
         const colour = MARK_COLOURS[group % MARK_COLOURS.length];
         ctx.strokeStyle = colour;
+        ctx.lineWidth = 2;
         ctx.beginPath();
         list.forEach((mark, index) => {
           if (index === 0) ctx.moveTo(mark.x, mark.y);
           else ctx.lineTo(mark.x, mark.y);
         });
         ctx.stroke();
-        list.forEach((mark, index) => {
-          ctx.fillStyle = "rgba(14,15,17,0.85)";
+        list.forEach((mark) => {
+          const arm = 9;
           ctx.beginPath();
-          ctx.arc(mark.x, mark.y, 11, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.strokeStyle = colour;
+          ctx.moveTo(mark.x - arm, mark.y - arm);
+          ctx.lineTo(mark.x + arm, mark.y + arm);
+          ctx.moveTo(mark.x + arm, mark.y - arm);
+          ctx.lineTo(mark.x - arm, mark.y + arm);
+          ctx.strokeStyle = "rgba(14,15,17,0.85)";
+          ctx.lineWidth = 6;
           ctx.stroke();
-          ctx.fillStyle = colour;
-          ctx.fillText(String(index + 1), mark.x, mark.y + 1);
+          ctx.strokeStyle = colour;
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
         });
       }
     };
