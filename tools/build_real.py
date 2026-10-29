@@ -207,7 +207,9 @@ def _triangulate(ring):
 PANEL_SPECS = (
     # 2F wall between the east corridor and the annex. Both pink views agree
     # on the plane x = 38.5; the meshes carry 3.9 m2 here against 127 m2 below.
-    {"axis": "x", "at": 38.5, "u": (-14.4, -2.6), "y": (5.2, 9.2)},
+    # Empty: the pink plane carries 43.6 m2 of 2F wall already, so a panel
+    # there is coplanar and invisible. Kept as the lever for the next edge.
+
 )
 
 
