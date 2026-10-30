@@ -461,10 +461,10 @@ static void create_sphere(scene_t *s) {
     typedef struct { float x, y, z, radius; uint8_t r, g, b; } orb_t;
     static const orb_t orbs[] = {
         { 0.0f, 1.27f, 8.5f, 0.45f, 139, 233, 253 },
-        { -19.5f, 0.225f, -4.0f, 0.225f, 255, 64, 64 },
-        { 22.0f, 0.225f, 5.5f, 0.225f, 64, 230, 96 },
-        { -20.25f, 0.225f, -17.25f, 0.225f, 64, 128, 255 },
-        { -11.5f, 0.225f, -14.25f, 0.225f, 185, 100, 255 },
+        { -19.5f, 0.3375f, -4.0f, 0.3375f, 255, 64, 64 },
+        { 22.0f, 0.3375f, 5.5f, 0.3375f, 64, 230, 96 },
+        { -20.25f, 0.3375f, -17.25f, 0.3375f, 64, 128, 255 },
+        { -11.5f, 0.3375f, -14.25f, 0.3375f, 185, 100, 255 },
     };
     const int orb_count = (int)(sizeof(orbs) / sizeof(orbs[0]));
     const int seg = 32, ring = 16;
