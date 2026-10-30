@@ -37,6 +37,7 @@ EXPECTED_TRIANGLES = 1_790_053
 MAX_CHUNK_VERTS = 60000
 VERSION = 3
 QUANT = 1000.0
+EXCLUDED_MATERIALS = ("townasphalt00",)
 
 
 def material_colour(index: int):
@@ -309,6 +310,7 @@ def export_asset() -> None:
         sys.exit("scene has no rpd_triangles property; run scene:import first")
 
     objects = []
+    skipped = 0
     for obj in bpy.data.objects:
         if obj.type != "MESH":
             continue
@@ -332,6 +334,17 @@ def export_asset() -> None:
         index = index.reshape(-1, 3)
         face_material = np.empty(triangles, dtype=np.int32)
         data.loop_triangles.foreach_get("material_index", face_material)
+        excluded = [
+            i
+            for i, slot in enumerate(data.materials)
+            if slot is not None
+            and any(key in slot.name.lower() for key in EXCLUDED_MATERIALS)
+        ]
+        if excluded:
+            keep = ~np.isin(face_material, excluded)
+            skipped += int((~keep).sum())
+            index = index[keep]
+            face_material = face_material[keep]
 
         colours = []
         for slot in data.materials:
@@ -395,9 +408,10 @@ def export_asset() -> None:
         total_v += len(q)
         total_t += len(indices) // 3
 
-    if total_t != int(expected):
+    if total_t != int(expected) - skipped:
         sys.exit(
-            f"exported {total_t:,} triangles but the scene recorded {int(expected):,}. "
+            f"exported {total_t:,} triangles but the scene recorded {int(expected):,} "
+            f"minus {skipped:,} excluded. "
             "If you changed the geometry on purpose, update the rpd_triangles "
             "custom property on the scene."
         )
