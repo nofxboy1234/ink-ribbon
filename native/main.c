@@ -464,6 +464,7 @@ static void create_sphere(scene_t *s) {
         { -19.5f, 0.225f, -4.0f, 0.225f, 255, 64, 64 },
         { 22.0f, 0.225f, 5.5f, 0.225f, 64, 230, 96 },
         { -20.25f, 0.225f, -17.25f, 0.225f, 64, 128, 255 },
+        { -11.5f, 0.225f, -14.25f, 0.225f, 185, 100, 255 },
     };
     const int orb_count = (int)(sizeof(orbs) / sizeof(orbs[0]));
     const int seg = 32, ring = 16;
