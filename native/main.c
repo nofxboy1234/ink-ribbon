@@ -213,7 +213,7 @@ static const char *fs_source =
     "  if (u_fog.z > 0.5) {\n"
     "    float spec_power = 16.0;\n"
     "    float ambient_intensity = 0.25;\n"
-    "    vec3 l = normalize(vec3(50.0, 100.0, -75.0));\n"
+    "    vec3 l = vec3(0.0, 1.0, 0.0);\n"
     "    vec3 n = normalize(v_world - vec3(0.0, 1.27, 8.5));\n"
     "    float n_dot_l = dot(n, l);\n"
     "    float lum = dot(v_color, vec3(0.299, 0.587, 0.114));\n"
