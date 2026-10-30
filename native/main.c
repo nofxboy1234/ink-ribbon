@@ -56,6 +56,7 @@ typedef struct {
     sg_buffer tri_ibuf;
     sg_buffer sphere_vbuf;
     sg_buffer sphere_ibuf;
+    sg_pipeline sphere_pip;
     int sphere_index_count;
     sg_pipeline pip;
 } scene_t;
@@ -210,20 +211,23 @@ static const char *fs_source =
     "out vec4 frag_color;\n"
     "void main() {\n"
     "  if (u_fog.z > 0.5) {\n"
+    "    float spec_power = 16.0;\n"
+    "    float ambient_intensity = 0.25;\n"
+    "    vec3 l = normalize(vec3(50.0, 100.0, -75.0));\n"
     "    vec3 n = normalize(v_world - vec3(0.0, 1.27, 8.5));\n"
-    "    vec3 view = normalize(u_camera.xyz - v_world);\n"
-    "    vec3 light_dir = normalize(vec3(-0.35, 0.80, 0.45));\n"
-    "    vec3 half_dir = normalize(light_dir + view);\n"
-    "    float spec = pow(max(dot(n, half_dir), 0.0), 64.0);\n"
-    "    float sheen = pow(max(dot(n, half_dir), 0.0), 12.0);\n"
-    "    float rim = pow(1.0 - max(dot(n, view), 0.0), 2.5);\n"
+    "    float n_dot_l = dot(n, l);\n"
     "    float lum = dot(v_color, vec3(0.299, 0.587, 0.114));\n"
-    "    vec3 tint = clamp(mix(vec3(lum), v_color, 1.7), 0.0, 1.0);\n"
-    "    vec3 orb = tint;\n"
-    "    orb += vec3(1.0) * spec * 0.85;\n"
-    "    orb += vec3(0.80, 0.98, 1.0) * sheen * 0.18;\n"
-    "    orb += tint * rim * 0.22;\n"
-    "    frag_color = vec4(clamp(orb, 0.0, 1.0), 1.0);\n"
+    "    vec3 base = clamp(mix(vec3(lum), v_color, 1.7), 0.0, 1.0);\n"
+    "    vec3 orb;\n"
+    "    if (n_dot_l > 0.0) {\n"
+    "      vec3 v = normalize(u_camera.xyz - v_world);\n"
+    "      vec3 r = reflect(-l, n);\n"
+    "      float spec_intensity = pow(max(dot(r, v), 0.0), spec_power) * n_dot_l;\n"
+    "      orb = vec3(spec_intensity) + (n_dot_l + ambient_intensity) * base;\n"
+    "    } else {\n"
+    "      orb = base * ambient_intensity;\n"
+    "    }\n"
+    "    frag_color = vec4(pow(clamp(orb, 0.0, 1.0), vec3(1.0 / 2.2)), 1.0);\n"
     "    return;\n"
     "  }\n"
     "  vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));\n"
@@ -406,6 +410,24 @@ static sg_pipeline make_pipeline(sg_shader shader) {
     return sg_make_pipeline(&pd);
 }
 
+static sg_pipeline make_sphere_pipeline(sg_shader shader) {
+    sg_pipeline_desc pd;
+    memset(&pd, 0, sizeof(pd));
+    pd.shader = shader;
+    pd.layout.buffers[0].stride = 16;
+    pd.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+    pd.layout.attrs[1].format = SG_VERTEXFORMAT_UBYTE4N;
+    pd.primitive_type = SG_PRIMITIVETYPE_TRIANGLES;
+    pd.index_type = SG_INDEXTYPE_UINT32;
+    pd.cull_mode = SG_CULLMODE_NONE;
+    pd.face_winding = SG_FACEWINDING_CCW;
+    pd.sample_count = 1;
+    pd.depth.compare = SG_COMPAREFUNC_LESS_EQUAL;
+    pd.depth.write_enabled = true;
+    pd.label = "sphere-pipeline";
+    return sg_make_pipeline(&pd);
+}
+
 static void create_sphere(scene_t *s) {
     const int seg = 32, ring = 16;
     const float radius = 0.45f;
@@ -564,6 +586,7 @@ static void create_pipelines(scene_t *s) {
     sd.uniform_blocks[1].glsl_uniforms[1].glsl_name = "u_fog";
     sg_shader shd = sg_make_shader(&sd);
     s->pip = make_pipeline(shd);
+    s->sphere_pip = make_sphere_pipeline(shd);
 
 }
 
@@ -658,11 +681,13 @@ static void frame(void) {
             sg_apply_uniforms(1, &(sg_range){ &fs, sizeof(fs) });
             sg_draw(0, state.scene.triangle_count * 3, 1);
             if (state.scene.sphere_index_count > 0) {
+                sg_apply_pipeline(state.scene.sphere_pip);
                 sg_apply_bindings(&(sg_bindings){
                     .vertex_buffers[0] = state.scene.sphere_vbuf,
                     .index_buffer = state.scene.sphere_ibuf,
                 });
                 fs.fog[2] = 1.0f;
+                sg_apply_uniforms(0, &(sg_range){ &vs, sizeof(vs) });
                 sg_apply_uniforms(1, &(sg_range){ &fs, sizeof(fs) });
                 sg_draw(0, state.scene.sphere_index_count, 1);
             }
