@@ -38,6 +38,8 @@ MAX_CHUNK_VERTS = 60000
 VERSION = 3
 QUANT = 1000.0
 EXCLUDED_MATERIALS = ("townasphalt00",)
+CUT_MIN = np.array([6.0, 10.5, -27.5])
+CUT_MAX = np.array([13.5, 17.0, -20.5])
 
 
 def material_colour(index: int):
@@ -379,6 +381,13 @@ def export_asset() -> None:
             skipped += int(tower.sum())
             index = index[~tower]
             face_material = face_material[~tower]
+
+        if len(index):
+            centres = co[index].mean(axis=1)
+            cut = np.all((centres >= CUT_MIN) & (centres <= CUT_MAX), axis=1)
+            skipped += int(cut.sum())
+            index = index[~cut]
+            face_material = face_material[~cut]
 
         if len(index):
             quant = np.rint(co * 1000.0).astype(np.int64)
