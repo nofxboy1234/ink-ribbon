@@ -209,6 +209,10 @@ static const char *fs_source =
     "in vec3 v_color;\n"
     "out vec4 frag_color;\n"
     "void main() {\n"
+    "  if (u_fog.z > 0.5) {\n"
+    "    frag_color = vec4(v_color, 1.0);\n"
+    "    return;\n"
+    "  }\n"
     "  vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));\n"
     "  vec3 view = normalize(u_camera.xyz - v_world);\n"
     "  if (dot(n, view) < 0.0) n = -n;\n"
@@ -377,8 +381,8 @@ static sg_pipeline make_pipeline(sg_shader shader) {
     pd.cull_mode = SG_CULLMODE_NONE;
     pd.face_winding = SG_FACEWINDING_CCW;
     pd.sample_count = 1;
-    pd.depth.compare = SG_COMPAREFUNC_LESS_EQUAL;
-    pd.depth.write_enabled = true;
+    pd.depth.compare = SG_COMPAREFUNC_ALWAYS;
+    pd.depth.write_enabled = false;
     pd.colors[0].blend.enabled = true;
     pd.colors[0].blend.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA;
     pd.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
@@ -409,7 +413,7 @@ static void create_sphere(scene_t *s) {
             float z = cz + radius * sinf(phi) * sinf(theta);
             uint8_t *p = verts + ((size_t)r * (seg + 1) + c) * 16;
             memcpy(p, &x, 4); memcpy(p + 4, &y, 4); memcpy(p + 8, &z, 4);
-            p[12] = 58; p[13] = 155; p[14] = 255; p[15] = 255;
+            p[12] = 139; p[13] = 233; p[14] = 253; p[15] = 255;
         }
     }
     int k = 0;
@@ -645,6 +649,8 @@ static void frame(void) {
                     .vertex_buffers[0] = state.scene.sphere_vbuf,
                     .index_buffer = state.scene.sphere_ibuf,
                 });
+                fs.fog[2] = 1.0f;
+                sg_apply_uniforms(1, &(sg_range){ &fs, sizeof(fs) });
                 sg_draw(0, state.scene.sphere_index_count, 1);
             }
         }
