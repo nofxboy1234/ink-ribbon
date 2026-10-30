@@ -346,6 +346,43 @@ def export_asset() -> None:
             index = index[keep]
             face_material = face_material[keep]
 
+        if obj.name == "st4_211_0":
+            piece_slots = [
+                i
+                for i, slot in enumerate(data.materials)
+                if slot is not None and "st1_townpolice01" in slot.name.lower()
+            ]
+            if piece_slots:
+                corners = co[index.reshape(-1)]
+                inside = (
+                    (corners[:, 0] > 8.0)
+                    & (corners[:, 0] < 13.5)
+                    & (corners[:, 1] > 9.5)
+                    & (corners[:, 1] < 16.5)
+                    & (corners[:, 2] > -27.5)
+                    & (corners[:, 2] < -21.5)
+                ).reshape(-1, 3).all(axis=1)
+                piece = inside & np.isin(face_material, piece_slots)
+                skipped += int(piece.sum())
+                index = index[~piece]
+                face_material = face_material[~piece]
+
+        if len(index):
+            quant = np.rint(co * 1000.0).astype(np.int64)
+            corners = quant[index]
+            order = np.lexsort(
+                (corners[:, :, 2], corners[:, :, 1], corners[:, :, 0]), axis=1
+            )
+            rows = np.take_along_axis(corners, order[:, :, None], axis=1).reshape(
+                -1, 9
+            )
+            _, keep = np.unique(rows, axis=0, return_index=True)
+            keep = np.sort(keep)
+            if len(keep) != len(index):
+                skipped += len(index) - len(keep)
+                index = index[keep]
+                face_material = face_material[keep]
+
         colours = []
         for slot in data.materials:
             rgba = slot.diffuse_color if slot is not None else (0.55, 0.55, 0.55, 1.0)
