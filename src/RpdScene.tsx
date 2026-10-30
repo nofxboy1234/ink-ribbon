@@ -136,6 +136,24 @@ function projectPoint(
   };
 }
 
+function pointInQuad(
+  x: number,
+  y: number,
+  quad: { x: number; y: number }[],
+): boolean {
+  let sign = 0;
+  for (let i = 0; i < quad.length; i++) {
+    const a = quad[i];
+    const b = quad[(i + 1) % quad.length];
+    const cross = (b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x);
+    if (Math.abs(cross) < 1e-6) continue;
+    const next = Math.sign(cross);
+    if (sign === 0) sign = next;
+    else if (next !== sign) return false;
+  }
+  return true;
+}
+
 function catmullPath(points: Vec3[]): Vec3[] {
   return smoothPath(points);
 }
@@ -164,6 +182,8 @@ export default function RpdScene({
   const viewProjPtr = useRef(0);
   const viewProjRef = useRef<Float32Array>(new Float32Array(16));
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
+  const clickHandled = useRef(false);
+  const hoverCellRef = useRef<[number, number, number] | null>(null);
   const cancelledRef = useRef(false);
 
   const [quest, setQuest] = useState<Quest | null>(null);
@@ -188,7 +208,7 @@ export default function RpdScene({
   const [showInventory, setShowInventory] = useState(false);
   const [showLegend, setShowLegend] = useState(true);
   const [statusNote, setStatusNote] = useState(
-    "Walk near items to discover them. Click a floor cell to move.",
+    "Walk near items to discover them. Click anywhere in a blue grid cell to move.",
   );
 
   const playerRef = useRef(player);
@@ -428,6 +448,37 @@ export default function RpdScene({
       if (playerFloor !== activeFloorRef.current) {
         ctx.fillStyle = "rgba(255, 214, 102, 0.85)";
         ctx.fillText(`PLAYER ${playerFloorLabel}`, 18, rect.height - 28);
+      }
+
+      const hovered = hoverCellRef.current;
+      if (hovered) {
+        const [x, z, y] = hovered;
+        const corners: { x: number; y: number }[] = [];
+        let complete = true;
+        for (const [dx, dz] of [
+          [-0.5, -0.5],
+          [0.5, -0.5],
+          [0.5, 0.5],
+          [-0.5, 0.5],
+        ]) {
+          const point = projectPoint([x + dx, y + 0.02, z + dz], matrix, rect.width, rect.height);
+          if (!point) {
+            complete = false;
+            break;
+          }
+          corners.push({ x: point.x, y: point.y });
+        }
+        if (complete) {
+          ctx.beginPath();
+          ctx.moveTo(corners[0].x, corners[0].y);
+          for (const corner of corners.slice(1)) ctx.lineTo(corner.x, corner.y);
+          ctx.closePath();
+          ctx.fillStyle = "rgba(57, 255, 20, 0.22)";
+          ctx.fill();
+          ctx.strokeStyle = "rgba(57, 255, 20, 0.9)";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
       }
 
       // Selected route.
@@ -986,6 +1037,51 @@ export default function RpdScene({
     refreshAfterAction();
   };
 
+  const cellAt = (
+    clientX: number,
+    clientY: number,
+    floorIndex: number,
+  ): { target: Target; depth: number } | null => {
+    const q = questRef.current;
+    const canvas = overlayRef.current;
+    if (!q || !canvas) return null;
+    const floor = q.floors[floorIndex];
+    if (!floor) return null;
+    const rect = canvas.getBoundingClientRect();
+    const matrix = viewProjRef.current;
+    let best: { target: Target; depth: number } | null = null;
+    for (const [x, z, y] of floor.cells) {
+      const half = 0.58;
+      const corners: { x: number; y: number }[] = [];
+      let complete = true;
+      for (const [dx, dz] of [
+        [-half, -half],
+        [half, -half],
+        [half, half],
+        [-half, half],
+      ]) {
+        const point = projectPoint([x + dx, y + 0.02, z + dz], matrix, rect.width, rect.height);
+        if (!point) {
+          complete = false;
+          break;
+        }
+        corners.push({ x: point.x, y: point.y });
+      }
+      if (!complete) continue;
+      if (!pointInQuad(clientX, clientY, corners)) continue;
+      const centre = projectPoint([x, y + 0.02, z], matrix, rect.width, rect.height);
+      const depth = centre?.depth ?? Infinity;
+      if (!best || depth < best.depth) {
+        const room = roomForCell(q, [x, z, y]);
+        best = {
+          target: { kind: "cell", x, z, y, room: room.name },
+          depth,
+        };
+      }
+    }
+    return best;
+  };
+
   const pickAt = (clientX: number, clientY: number): Target | null => {
     const q = questRef.current;
     const canvas = overlayRef.current;
@@ -1008,19 +1104,17 @@ export default function RpdScene({
     }
     nearest.sort((a, b) => a.kind - b.kind || a.distance - b.distance);
     if (nearest.length > 0 && nearest[0].distance < 24) return nearest[0].target;
-    const floor = q.floors[activeFloorRef.current];
-    if (!floor) return null;
-    let bestCell: { target: Target; distance: number } | null = null;
-    for (const [x, z, y] of floor.cells) {
-      const point = projectPoint([x, y + 0.03, z], matrix, rect.width, rect.height);
-      if (!point) continue;
-      const distance = Math.hypot(point.x - clientX, point.y - clientY);
-      if (distance < 13 && (!bestCell || distance < bestCell.distance)) {
-        const room = roomForCell(q, [x, z, y]);
-        bestCell = { target: { kind: "cell", x, z, y, room: room.name }, distance };
+    const active = cellAt(clientX, clientY, activeFloorRef.current);
+    if (active) return active.target;
+    for (const floor of q.floors) {
+      if (floor.index === activeFloorRef.current) continue;
+      const fallback = cellAt(clientX, clientY, floor.index);
+      if (fallback) {
+        setActiveFloor(floor.index);
+        return fallback.target;
       }
     }
-    return bestCell?.target ?? null;
+    return null;
   };
 
   const hoverAt = (clientX: number, clientY: number) => {
@@ -1081,6 +1175,22 @@ export default function RpdScene({
         };
       }
     }
+    if (!best) {
+      const cellHit = cellAt(clientX, clientY, activeFloorRef.current);
+      if (cellHit && cellHit.target.kind === "cell") {
+        hoverCellRef.current = [cellHit.target.x, cellHit.target.z, cellHit.target.y];
+        const room = roomForCell(q, [cellHit.target.x, cellHit.target.z, cellHit.target.y]);
+        setHover({
+          kind: "cell",
+          label: room.name,
+          detail: "Click this floor cell to move Claire here",
+          x: clientX,
+          y: clientY,
+        });
+        return;
+      }
+    }
+    hoverCellRef.current = null;
     setHover(best?.hover ?? null);
   };
 
@@ -1147,16 +1257,30 @@ export default function RpdScene({
     pointerStart.current = { x: event.clientX, y: event.clientY };
   };
 
+  const pickFromClick = (clientX: number, clientY: number, start: { x: number; y: number } | null) => {
+    if (start && Math.hypot(clientX - start.x, clientY - start.y) > 5) return;
+    const rect = overlayRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const target = pickAt(clientX - rect.left, clientY - rect.top);
+    if (target) selectTarget(target);
+  };
+
   const handlePointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const start = pointerStart.current;
     pointerStart.current = null;
     if (!start) return;
-    const distance = Math.hypot(event.clientX - start.x, event.clientY - start.y);
-    if (distance > 5) return;
-    const rect = overlayRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const target = pickAt(event.clientX - rect.left, event.clientY - rect.top);
-    if (target) selectTarget(target);
+    clickHandled.current = true;
+    window.setTimeout(() => {
+      clickHandled.current = false;
+    }, 0);
+    pickFromClick(event.clientX, event.clientY, start);
+  };
+
+  const handleClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (clickHandled.current) return;
+    const start = pointerStart.current;
+    pointerStart.current = null;
+    pickFromClick(event.clientX, event.clientY, start);
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -1223,7 +1347,7 @@ export default function RpdScene({
     revealItems(q.spawn, true);
     refreshAfterAction();
     setToast("Run reset.");
-    setStatusNote("Walk near items to discover them. Click a floor cell to move.");
+    setStatusNote("Walk near items to discover them. Click anywhere in a blue grid cell to move.");
   };
 
   const statusText = error ? `Scene error — ${error}` : "Loading RPD floors 1–3";
@@ -1253,11 +1377,19 @@ export default function RpdScene({
           ref={canvasRef}
           id="canvas"
           className="rpd-canvas"
+          data-cell={hover?.kind === "cell" ? "true" : undefined}
           aria-label={label}
           onPointerDown={handlePointerDown}
           onPointerUp={handlePointerUp}
+          onClick={handleClick}
+          onPointerCancel={() => {
+            pointerStart.current = null;
+          }}
           onPointerMove={handlePointerMove}
-          onPointerLeave={() => setHover(null)}
+          onPointerLeave={() => {
+            hoverCellRef.current = null;
+            setHover(null);
+          }}
           onContextMenu={(event) => event.preventDefault()}
         />
         <canvas ref={overlayRef} className="rpd-overlay" aria-hidden="true" />

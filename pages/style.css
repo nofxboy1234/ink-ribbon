@@ -585,3 +585,11 @@ body {
   display: inline-flex;
   gap: 12px;
 }
+
+.rpd-canvas[data-cell="true"] {
+  cursor: pointer;
+}
+
+.rpd-canvas[data-cell="true"]:active {
+  cursor: pointer;
+}
