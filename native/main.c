@@ -37,6 +37,10 @@ typedef struct {
 } fs_params_t;
 
 typedef struct {
+    float camera[4];
+} sphere_fs_params_t;
+
+typedef struct {
     float yaw;
     float pitch;
     float distance;
@@ -210,26 +214,6 @@ static const char *fs_source =
     "in vec3 v_color;\n"
     "out vec4 frag_color;\n"
     "void main() {\n"
-    "  if (u_fog.z > 0.5) {\n"
-    "    float spec_power = 16.0;\n"
-    "    float ambient_intensity = 0.25;\n"
-    "    vec3 l = vec3(0.0, 1.0, 0.0);\n"
-    "    vec3 n = normalize(v_world - vec3(0.0, 1.27, 8.5));\n"
-    "    float n_dot_l = dot(n, l);\n"
-    "    float lum = dot(v_color, vec3(0.299, 0.587, 0.114));\n"
-    "    vec3 base = clamp(mix(vec3(lum), v_color, 1.7), 0.0, 1.0);\n"
-    "    vec3 orb;\n"
-    "    if (n_dot_l > 0.0) {\n"
-    "      vec3 v = normalize(u_camera.xyz - v_world);\n"
-    "      vec3 r = reflect(-l, n);\n"
-    "      float spec_intensity = pow(max(dot(r, v), 0.0), spec_power) * n_dot_l;\n"
-    "      orb = vec3(spec_intensity) + (n_dot_l + ambient_intensity) * base;\n"
-    "    } else {\n"
-    "      orb = base * ambient_intensity;\n"
-    "    }\n"
-    "    frag_color = vec4(pow(clamp(orb, 0.0, 1.0), vec3(1.0 / 2.2)), 1.0);\n"
-    "    return;\n"
-    "  }\n"
     "  vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));\n"
     "  vec3 view = normalize(u_camera.xyz - v_world);\n"
     "  if (dot(n, view) < 0.0) n = -n;\n"
@@ -243,6 +227,50 @@ static const char *fs_source =
     "  vec3 glass = vec3(0.95, 0.96, 0.97) * light;\n"
     "  float alpha = (0.30 + 0.35 * fres) * (0.45 + 0.55 * near);\n"
     "  frag_color = vec4(glass, alpha);\n"
+    "}\n";
+
+static const char *sphere_vs_source =
+    "#version 300 es\n"
+    "uniform mat4 u_view_proj;\n"
+    "in vec3 position;\n"
+    "in vec3 normal;\n"
+    "in vec4 color;\n"
+    "out vec3 v_world;\n"
+    "out vec3 v_normal;\n"
+    "out vec4 v_color;\n"
+    "void main() {\n"
+    "  v_world = position;\n"
+    "  v_normal = normal;\n"
+    "  v_color = color;\n"
+    "  gl_Position = u_view_proj * vec4(position, 1.0);\n"
+    "}\n";
+
+static const char *sphere_fs_source =
+    "#version 300 es\n"
+    "precision highp float;\n"
+    "uniform vec4 u_camera;\n"
+    "in vec3 v_world;\n"
+    "in vec3 v_normal;\n"
+    "in vec4 v_color;\n"
+    "out vec4 frag_color;\n"
+    "void main() {\n"
+    "  float spec_power = 16.0;\n"
+    "  float ambient_intensity = 0.25;\n"
+    "  vec3 l = vec3(0.0, 1.0, 0.0);\n"
+    "  vec3 n = normalize(v_normal);\n"
+    "  float n_dot_l = dot(n, l);\n"
+    "  float lum = dot(v_color.rgb, vec3(0.299, 0.587, 0.114));\n"
+    "  vec3 base = clamp(mix(vec3(lum), v_color.rgb, 1.7), 0.0, 1.0);\n"
+    "  vec3 orb;\n"
+    "  if (n_dot_l > 0.0) {\n"
+    "    vec3 v = normalize(u_camera.xyz - v_world);\n"
+    "    vec3 r = reflect(-l, n);\n"
+    "    float spec_intensity = pow(max(dot(r, v), 0.0), spec_power) * n_dot_l;\n"
+    "    orb = vec3(spec_intensity) + (n_dot_l + ambient_intensity) * base;\n"
+    "  } else {\n"
+    "    orb = base * ambient_intensity;\n"
+    "  }\n"
+    "  frag_color = vec4(pow(clamp(orb, 0.0, 1.0), vec3(1.0 / 2.2)), 1.0);\n"
     "}\n";
 
 static const char *composite_vs_source =
@@ -414,9 +442,10 @@ static sg_pipeline make_sphere_pipeline(sg_shader shader) {
     sg_pipeline_desc pd;
     memset(&pd, 0, sizeof(pd));
     pd.shader = shader;
-    pd.layout.buffers[0].stride = 16;
+    pd.layout.buffers[0].stride = 28;
     pd.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
-    pd.layout.attrs[1].format = SG_VERTEXFORMAT_UBYTE4N;
+    pd.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT3;
+    pd.layout.attrs[2].format = SG_VERTEXFORMAT_UBYTE4N;
     pd.primitive_type = SG_PRIMITIVETYPE_TRIANGLES;
     pd.index_type = SG_INDEXTYPE_UINT32;
     pd.cull_mode = SG_CULLMODE_NONE;
@@ -429,47 +458,64 @@ static sg_pipeline make_sphere_pipeline(sg_shader shader) {
 }
 
 static void create_sphere(scene_t *s) {
+    typedef struct { float x, y, z, radius; uint8_t r, g, b; } orb_t;
+    static const orb_t orbs[] = {
+        { 0.0f, 1.27f, 8.5f, 0.45f, 139, 233, 253 },
+        { -19.5f, 0.225f, -4.0f, 0.225f, 255, 64, 64 },
+        { 22.0f, 0.225f, 5.5f, 0.225f, 64, 230, 96 },
+        { -20.25f, 0.225f, -17.25f, 0.225f, 64, 128, 255 },
+    };
+    const int orb_count = (int)(sizeof(orbs) / sizeof(orbs[0]));
     const int seg = 32, ring = 16;
-    const float radius = 0.45f;
-    const float cx = 0.0f, cy = radius + 0.82f, cz = 8.5f;
     const int vc = (ring + 1) * (seg + 1);
     const int tc = ring * seg * 2;
-    uint8_t *verts = (uint8_t *)malloc((size_t)vc * 16);
-    uint32_t *idx = (uint32_t *)malloc((size_t)tc * 3 * sizeof(uint32_t));
+    const int total_v = orb_count * vc;
+    const int total_i = orb_count * tc * 3;
+    uint8_t *verts = (uint8_t *)malloc((size_t)total_v * 28);
+    uint32_t *idx = (uint32_t *)malloc((size_t)total_i * sizeof(uint32_t));
     if (!verts || !idx) { free(verts); free(idx); return; }
-    for (int r = 0; r <= ring; r++) {
-        float v = (float)r / (float)ring;
-        float phi = v * RPD_PI;
-        for (int c = 0; c <= seg; c++) {
-            float u = (float)c / (float)seg;
-            float theta = u * 2.0f * RPD_PI;
-            float x = cx + radius * sinf(phi) * cosf(theta);
-            float y = cy + radius * cosf(phi);
-            float z = cz + radius * sinf(phi) * sinf(theta);
-            uint8_t *p = verts + ((size_t)r * (seg + 1) + c) * 16;
-            memcpy(p, &x, 4); memcpy(p + 4, &y, 4); memcpy(p + 8, &z, 4);
-            p[12] = 139; p[13] = 233; p[14] = 253; p[15] = 255;
+    for (int o = 0; o < orb_count; o++) {
+        const orb_t *b = &orbs[o];
+        for (int r = 0; r <= ring; r++) {
+            float v = (float)r / (float)ring;
+            float phi = v * RPD_PI;
+            float sp = sinf(phi), cp = cosf(phi);
+            for (int c = 0; c <= seg; c++) {
+                float u = (float)c / (float)seg;
+                float theta = u * 2.0f * RPD_PI;
+                float nx = sp * cosf(theta);
+                float ny = cp;
+                float nz = sp * sinf(theta);
+                uint8_t *p = verts + ((size_t)o * vc + (size_t)r * (seg + 1) + c) * 28;
+                float px = b->x + b->radius * nx;
+                float py = b->y + b->radius * ny;
+                float pz = b->z + b->radius * nz;
+                memcpy(p, &px, 4); memcpy(p + 4, &py, 4); memcpy(p + 8, &pz, 4);
+                memcpy(p + 12, &nx, 4); memcpy(p + 16, &ny, 4); memcpy(p + 20, &nz, 4);
+                p[24] = b->r; p[25] = b->g; p[26] = b->b; p[27] = 255;
+            }
         }
-    }
-    int k = 0;
-    for (int r = 0; r < ring; r++) {
-        for (int c = 0; c < seg; c++) {
-            uint32_t a = (uint32_t)(r * (seg + 1) + c);
-            uint32_t b = a + 1;
-            uint32_t d = a + (uint32_t)(seg + 1);
-            uint32_t e = d + 1;
-            idx[k++] = a; idx[k++] = d; idx[k++] = b;
-            idx[k++] = b; idx[k++] = d; idx[k++] = e;
+        uint32_t base = (uint32_t)(o * vc);
+        int k = o * tc * 3;
+        for (int r = 0; r < ring; r++) {
+            for (int c = 0; c < seg; c++) {
+                uint32_t a = base + (uint32_t)(r * (seg + 1) + c);
+                uint32_t bb = a + 1;
+                uint32_t d = a + (uint32_t)(seg + 1);
+                uint32_t e = d + 1;
+                idx[k++] = a; idx[k++] = d; idx[k++] = bb;
+                idx[k++] = bb; idx[k++] = d; idx[k++] = e;
+            }
         }
     }
     s->sphere_vbuf = sg_make_buffer(&(sg_buffer_desc){
-        .size = (size_t)vc * 16, .data = { .ptr = verts, .size = (size_t)vc * 16 }, .label = "spawn-sphere",
+        .size = (size_t)total_v * 28, .data = { .ptr = verts, .size = (size_t)total_v * 28 }, .label = "spawn-sphere",
     });
     s->sphere_ibuf = sg_make_buffer(&(sg_buffer_desc){
-        .usage = { .index_buffer = true }, .size = (size_t)tc * 3 * sizeof(uint32_t),
-        .data = { .ptr = idx, .size = (size_t)tc * 3 * sizeof(uint32_t) }, .label = "spawn-sphere-indices",
+        .usage = { .index_buffer = true }, .size = (size_t)total_i * sizeof(uint32_t),
+        .data = { .ptr = idx, .size = (size_t)total_i * sizeof(uint32_t) }, .label = "spawn-sphere-indices",
     });
-    s->sphere_index_count = tc * 3;
+    s->sphere_index_count = total_i;
     free(verts);
     free(idx);
 }
@@ -586,8 +632,30 @@ static void create_pipelines(scene_t *s) {
     sd.uniform_blocks[1].glsl_uniforms[1].glsl_name = "u_fog";
     sg_shader shd = sg_make_shader(&sd);
     s->pip = make_pipeline(shd);
-    s->sphere_pip = make_sphere_pipeline(shd);
 
+    memset(&sd, 0, sizeof(sd));
+    sd.vertex_func.source = sphere_vs_source;
+    sd.vertex_func.entry = "main";
+    sd.fragment_func.source = sphere_fs_source;
+    sd.fragment_func.entry = "main";
+    sd.attrs[0].base_type = SG_SHADERATTRBASETYPE_FLOAT;
+    sd.attrs[0].glsl_name = "position";
+    sd.attrs[1].base_type = SG_SHADERATTRBASETYPE_FLOAT;
+    sd.attrs[1].glsl_name = "normal";
+    sd.attrs[2].base_type = SG_SHADERATTRBASETYPE_FLOAT;
+    sd.attrs[2].glsl_name = "color";
+    sd.uniform_blocks[0].stage = SG_SHADERSTAGE_VERTEX;
+    sd.uniform_blocks[0].size = sizeof(vs_params_t);
+    sd.uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140;
+    sd.uniform_blocks[0].glsl_uniforms[0].type = SG_UNIFORMTYPE_MAT4;
+    sd.uniform_blocks[0].glsl_uniforms[0].glsl_name = "u_view_proj";
+    sd.uniform_blocks[1].stage = SG_SHADERSTAGE_FRAGMENT;
+    sd.uniform_blocks[1].size = sizeof(sphere_fs_params_t);
+    sd.uniform_blocks[1].layout = SG_UNIFORMLAYOUT_STD140;
+    sd.uniform_blocks[1].glsl_uniforms[0].type = SG_UNIFORMTYPE_FLOAT4;
+    sd.uniform_blocks[1].glsl_uniforms[0].glsl_name = "u_camera";
+    sg_shader sphere_shd = sg_make_shader(&sd);
+    s->sphere_pip = make_sphere_pipeline(sphere_shd);
 }
 
 static void reset_camera(void) {
@@ -681,14 +749,15 @@ static void frame(void) {
             sg_apply_uniforms(1, &(sg_range){ &fs, sizeof(fs) });
             sg_draw(0, state.scene.triangle_count * 3, 1);
             if (state.scene.sphere_index_count > 0) {
+                sphere_fs_params_t sf = { 0 };
+                sf.camera[0] = eye[0]; sf.camera[1] = eye[1]; sf.camera[2] = eye[2];
                 sg_apply_pipeline(state.scene.sphere_pip);
                 sg_apply_bindings(&(sg_bindings){
                     .vertex_buffers[0] = state.scene.sphere_vbuf,
                     .index_buffer = state.scene.sphere_ibuf,
                 });
-                fs.fog[2] = 1.0f;
                 sg_apply_uniforms(0, &(sg_range){ &vs, sizeof(vs) });
-                sg_apply_uniforms(1, &(sg_range){ &fs, sizeof(fs) });
+                sg_apply_uniforms(1, &(sg_range){ &sf, sizeof(sf) });
                 sg_draw(0, state.scene.sphere_index_count, 1);
             }
         }
