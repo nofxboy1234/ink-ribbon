@@ -369,14 +369,14 @@ def export_asset() -> None:
                 index = index[~piece]
                 face_material = face_material[~piece]
 
-        if obj.name == "st4_602_0" and len(index):
+        if len(index):
             centres = co[index].mean(axis=1)
             tower = (
                 (centres[:, 0] > -27.0)
                 & (centres[:, 0] < -17.5)
                 & (centres[:, 2] > 2.5)
                 & (centres[:, 2] < 12.0)
-                & (centres[:, 1] > 35.0)
+                & (centres[:, 1] > 20.0)
             )
             skipped += int(tower.sum())
             index = index[~tower]
