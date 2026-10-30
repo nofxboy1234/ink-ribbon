@@ -62,6 +62,9 @@ typedef struct {
     sg_buffer sphere_ibuf;
     sg_pipeline sphere_pip;
     int sphere_index_count;
+    sg_buffer cube_vbuf;
+    sg_buffer cube_ibuf;
+    int cube_index_count;
     sg_pipeline pip;
 } scene_t;
 
@@ -521,6 +524,71 @@ static void create_sphere(scene_t *s) {
     free(idx);
 }
 
+static void create_cube(scene_t *s) {
+    typedef struct { float x, y, z, half; uint8_t r, g, b; } cube_t;
+    /* Red Operations, green East Save, blue Observation, purple 2F Library. */
+    static const cube_t cubes[] = {
+        { -30.42f, 0.3375f, -17.76f, 0.3375f, 255, 64, 64 },
+        { 36.31f, 0.3375f, -11.17f, 0.3375f, 64, 230, 96 },
+        { 9.42f, 0.3375f, -19.80f, 0.3375f, 64, 128, 255 },
+        { -17.82f, 5.5375f, -6.30f, 0.3375f, 185, 100, 255 },
+    };
+    static const float face_normal[6][3] = {
+        { 1.0f, 0.0f, 0.0f }, { -1.0f, 0.0f, 0.0f },
+        { 0.0f, 1.0f, 0.0f }, { 0.0f, -1.0f, 0.0f },
+        { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f },
+    };
+    static const float face_u[6][3] = {
+        { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f, 1.0f },
+        { 1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f },
+        { 1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f },
+    };
+    static const float face_v[6][3] = {
+        { 0.0f, 1.0f, 0.0f }, { 0.0f, 1.0f, 0.0f },
+        { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f, 1.0f },
+        { 0.0f, 1.0f, 0.0f }, { 0.0f, -1.0f, 0.0f },
+    };
+    const int cube_count = (int)(sizeof(cubes) / sizeof(cubes[0]));
+    const int vc = 24, ic = 36;
+    const int total_v = cube_count * vc;
+    const int total_i = cube_count * ic;
+    uint8_t *verts = (uint8_t *)malloc((size_t)total_v * 28);
+    uint32_t *idx = (uint32_t *)malloc((size_t)total_i * sizeof(uint32_t));
+    if (!verts || !idx) { free(verts); free(idx); return; }
+    for (int c = 0; c < cube_count; c++) {
+        const cube_t *b = &cubes[c];
+        for (int f = 0; f < 6; f++) {
+            for (int k = 0; k < 4; k++) {
+                float su = (k == 0 || k == 3) ? -1.0f : 1.0f;
+                float sv = (k < 2) ? -1.0f : 1.0f;
+                float px = b->x + b->half * (face_normal[f][0] + su * face_u[f][0] + sv * face_v[f][0]);
+                float py = b->y + b->half * (face_normal[f][1] + su * face_u[f][1] + sv * face_v[f][1]);
+                float pz = b->z + b->half * (face_normal[f][2] + su * face_u[f][2] + sv * face_v[f][2]);
+                uint8_t *p = verts + ((size_t)c * vc + (size_t)f * 4 + k) * 28;
+                memcpy(p, &px, 4); memcpy(p + 4, &py, 4); memcpy(p + 8, &pz, 4);
+                memcpy(p + 12, &face_normal[f][0], 4);
+                memcpy(p + 16, &face_normal[f][1], 4);
+                memcpy(p + 20, &face_normal[f][2], 4);
+                p[24] = b->r; p[25] = b->g; p[26] = b->b; p[27] = 255;
+            }
+            uint32_t base = (uint32_t)(c * vc + f * 4);
+            int k = c * ic + f * 6;
+            idx[k++] = base; idx[k++] = base + 1; idx[k++] = base + 2;
+            idx[k++] = base; idx[k++] = base + 2; idx[k++] = base + 3;
+        }
+    }
+    s->cube_vbuf = sg_make_buffer(&(sg_buffer_desc){
+        .size = (size_t)total_v * 28, .data = { .ptr = verts, .size = (size_t)total_v * 28 }, .label = "marker-cubes",
+    });
+    s->cube_ibuf = sg_make_buffer(&(sg_buffer_desc){
+        .usage = { .index_buffer = true }, .size = (size_t)total_i * sizeof(uint32_t),
+        .data = { .ptr = idx, .size = (size_t)total_i * sizeof(uint32_t) }, .label = "marker-cube-indices",
+    });
+    s->cube_index_count = total_i;
+    free(verts);
+    free(idx);
+}
+
 static bool upload_scene(scene_t *s) {
     if (!s->data || s->size < RPD_HEADER_SIZE) return false;
     const uint8_t *p = s->data;
@@ -599,6 +667,7 @@ static bool upload_scene(scene_t *s) {
     if (sg_query_buffer_state(s->vbuf) != SG_RESOURCESTATE_VALID ||
         sg_query_buffer_state(s->tri_ibuf) != SG_RESOURCESTATE_VALID) return false;
     create_sphere(s);
+    create_cube(s);
     s->gpu_ready = true;
     s->loaded = true;
     return true;
@@ -749,17 +818,26 @@ static void frame(void) {
             sg_apply_uniforms(0, &(sg_range){ &vs, sizeof(vs) });
             sg_apply_uniforms(1, &(sg_range){ &fs, sizeof(fs) });
             sg_draw(0, state.scene.triangle_count * 3, 1);
-            if (state.scene.sphere_index_count > 0) {
+            if (state.scene.sphere_index_count > 0 || state.scene.cube_index_count > 0) {
                 sphere_fs_params_t sf = { 0 };
                 sf.camera[0] = eye[0]; sf.camera[1] = eye[1]; sf.camera[2] = eye[2];
                 sg_apply_pipeline(state.scene.sphere_pip);
-                sg_apply_bindings(&(sg_bindings){
-                    .vertex_buffers[0] = state.scene.sphere_vbuf,
-                    .index_buffer = state.scene.sphere_ibuf,
-                });
                 sg_apply_uniforms(0, &(sg_range){ &vs, sizeof(vs) });
                 sg_apply_uniforms(1, &(sg_range){ &sf, sizeof(sf) });
-                sg_draw(0, state.scene.sphere_index_count, 1);
+                if (state.scene.sphere_index_count > 0) {
+                    sg_apply_bindings(&(sg_bindings){
+                        .vertex_buffers[0] = state.scene.sphere_vbuf,
+                        .index_buffer = state.scene.sphere_ibuf,
+                    });
+                    sg_draw(0, state.scene.sphere_index_count, 1);
+                }
+                if (state.scene.cube_index_count > 0) {
+                    sg_apply_bindings(&(sg_bindings){
+                        .vertex_buffers[0] = state.scene.cube_vbuf,
+                        .index_buffer = state.scene.cube_ibuf,
+                    });
+                    sg_draw(0, state.scene.cube_index_count, 1);
+                }
             }
         }
     }
