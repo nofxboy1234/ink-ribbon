@@ -1,0 +1,2126 @@
+{
+ "regions": [
+  {
+   "name": "Main Hall",
+   "zone_id": 1
+  },
+  {
+   "name": "East Hallway 1F",
+   "zone_id": 1
+  },
+  {
+   "name": "East Hallway 1F Closet",
+   "zone_id": 1
+  },
+  {
+   "name": "Press Room",
+   "zone_id": 1
+  },
+  {
+   "name": "Bathroom",
+   "zone_id": 1
+  },
+  {
+   "name": "Reception - RPD",
+   "zone_id": 1
+  },
+  {
+   "name": "Southwest Hallway",
+   "zone_id": 1
+  },
+  {
+   "name": "Records Room",
+   "zone_id": 1
+  },
+  {
+   "name": "Operations Room",
+   "zone_id": 1
+  },
+  {
+   "name": "Operations Room 2",
+   "zone_id": 1
+  },
+  {
+   "name": "West Hallway 1F",
+   "zone_id": 1
+  },
+  {
+   "name": "Safety Deposit Room",
+   "zone_id": 1
+  },
+  {
+   "name": "West Office",
+   "zone_id": 1
+  },
+  {
+   "name": "Darkroom",
+   "zone_id": 1
+  },
+  {
+   "name": "East Office",
+   "zone_id": 1
+  },
+  {
+   "name": "Library",
+   "zone_id": 1
+  },
+  {
+   "name": "Lounge - RPD",
+   "zone_id": 1
+  },
+  {
+   "name": "Waiting Room",
+   "zone_id": 1
+  },
+  {
+   "name": "East Hallway 2F",
+   "zone_id": 1
+  },
+  {
+   "name": "Art Room",
+   "zone_id": 1
+  },
+  {
+   "name": "Fire Escape",
+   "zone_id": 1
+  },
+  {
+   "name": "Shower Room",
+   "zone_id": 1
+  },
+  {
+   "name": "STARS Office Hallway",
+   "zone_id": 1
+  },
+  {
+   "name": "West Hallway 2F",
+   "zone_id": 1
+  },
+  {
+   "name": "STARS Office",
+   "zone_id": 1
+  },
+  {
+   "name": "Armory",
+   "zone_id": 1
+  },
+  {
+   "name": "Linen Room",
+   "zone_id": 1
+  },
+  {
+   "name": "Side Stairs",
+   "zone_id": 1
+  },
+  {
+   "name": "Roof",
+   "zone_id": 1
+  },
+  {
+   "name": "West Hallway 3F",
+   "zone_id": 1
+  },
+  {
+   "name": "West Storage Room",
+   "zone_id": 1
+  },
+  {
+   "name": "East Storage Room",
+   "zone_id": 1
+  },
+  {
+   "name": "Small Storage Room",
+   "zone_id": 1
+  },
+  {
+   "name": "Observation Room Hallway",
+   "zone_id": 1
+  },
+  {
+   "name": "Observation Room",
+   "zone_id": 1
+  },
+  {
+   "name": "Interrogation Room",
+   "zone_id": 1
+  },
+  {
+   "name": "Balcony",
+   "zone_id": 1
+  },
+  {
+   "name": "Clock Tower",
+   "zone_id": 1
+  },
+  {
+   "name": "Chief's Office",
+   "zone_id": 1
+  },
+  {
+   "name": "Private Collection Room",
+   "zone_id": 1
+  },
+  {
+   "name": "Main Hall 3F",
+   "zone_id": 1
+  }
+ ],
+ "locations": [
+  {
+   "name": "Beside Main Desk",
+   "region": "Main Hall",
+   "original_item": "First Aid Spray",
+   "condition": {},
+   "item_object": "sm70_000",
+   "parent_object": "sm70_000_Spray",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Hall",
+   "forbid_item": [
+    "Fuse - Main Hall",
+    "Fuse - Break Room Hallway",
+    "Bolt Cutters",
+    "Combat Knife"
+   ]
+  },
+  {
+   "name": "Main Desk",
+   "region": "Main Hall",
+   "original_item": "Handgun Ammo",
+   "condition": {},
+   "item_object": "sm70_100",
+   "parent_object": "sm70_100_handgunB",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Hall",
+   "forbid_item": [
+    "Fuse - Main Hall",
+    "Fuse - Break Room Hallway",
+    "Bolt Cutters",
+    "Combat Knife"
+   ]
+  },
+  {
+   "name": "Marvin's Knife",
+   "region": "Main Hall",
+   "original_item": "Combat Knife",
+   "condition": {},
+   "item_object": "CFPlayExtra_GoHall",
+   "parent_object": "",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Scenario/S02_0000/1FE/1FE_GoHall",
+   "randomized": 0
+  },
+  {
+   "name": "Lion Statue",
+   "region": "Main Hall",
+   "original_item": "Lion Medallion",
+   "condition": {},
+   "item_object": "sm42_176_HieroglyphicDialLock01A_ForLion_control",
+   "parent_object": "",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/LocationFsm_RPD/S02_0000/Hall/LionStatue",
+   "forbid_item": [
+    "Fuse - Main Hall",
+    "Fuse - Break Room Hallway",
+    "Bolt Cutters",
+    "Combat Knife"
+   ]
+  },
+  {
+   "name": "2F Couch",
+   "region": "Main Hall",
+   "original_item": "Handgun Ammo",
+   "condition": {},
+   "item_object": "sm70_100",
+   "parent_object": "sm70_100_HandgunB",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Hall",
+   "forbid_item": [
+    "Fuse - Main Hall",
+    "Fuse - Break Room Hallway",
+    "Bolt Cutters",
+    "Combat Knife"
+   ]
+  },
+  {
+   "name": "Shelves",
+   "region": "East Hallway 1F Closet",
+   "original_item": "Handgun Ammo",
+   "condition": {},
+   "item_object": "sm70_100",
+   "parent_object": "sm70_100_HandgunB",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FE/SmallDepot",
+   "forbid_item": [
+    "Fuse - Main Hall",
+    "Fuse - Break Room Hallway",
+    "Bolt Cutters"
+   ]
+  },
+  {
+   "name": "Boxes",
+   "region": "East Hallway 1F Closet",
+   "original_item": "Wooden Boards",
+   "condition": {},
+   "item_object": "sm70_202",
+   "parent_object": "sm70_202_mokuzai",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FE/SmallDepot",
+   "forbid_item": [
+    "Fuse - Main Hall",
+    "Fuse - Break Room Hallway",
+    "Bolt Cutters"
+   ]
+  },
+  {
+   "name": "Downed Zombie",
+   "region": "Press Room",
+   "original_item": "Handgun Ammo",
+   "condition": {},
+   "item_object": "sm70_100",
+   "parent_object": "sm70_100_HandgunB",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FE/PressRoom",
+   "forbid_item": [
+    "Fuse - Main Hall",
+    "Fuse - Break Room Hallway",
+    "Bolt Cutters"
+   ]
+  },
+  {
+   "name": "Hiding Place Drawer",
+   "region": "Press Room",
+   "original_item": "Needle Cartridges",
+   "condition": {
+    "items": [
+     "Film - Hiding Place"
+    ]
+   },
+   "item_object": "sm70_109",
+   "parent_object": "ItemPos_TreasureA_Claire",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Claire_common/1F/1FE/PressRoom/DrawerDesk_1FEPressRoom_TreasurePhotoItem"
+  },
+  {
+   "name": "Second Stall",
+   "region": "Bathroom",
+   "original_item": "First Aid Spray",
+   "condition": {},
+   "item_object": "sm70_000",
+   "parent_object": "ItemPositions_Toilet_1FE2",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/LocationFsm_RPD/common/GeneralPurposeGimmicks/ToiletDoor",
+   "forbid_item": [
+    "Fuse - Main Hall",
+    "Fuse - Break Room Hallway",
+    "Bolt Cutters"
+   ]
+  },
+  {
+   "name": "Boxes",
+   "region": "Reception - RPD",
+   "original_item": "Green Herb",
+   "condition": {},
+   "item_object": "sm70_001",
+   "parent_object": "sm70_001_greenherb",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FW/Reception"
+  },
+  {
+   "name": "Couch",
+   "region": "Reception - RPD",
+   "original_item": "Handgun Ammo",
+   "condition": {},
+   "item_object": "sm70_100",
+   "parent_object": "sm70_100_handgunB",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FW/Reception"
+  },
+  {
+   "name": "Side Table",
+   "region": "Operations Room",
+   "original_item": "Handgun Ammo",
+   "condition": {},
+   "item_object": "sm70_100",
+   "parent_object": "sm70_100_handgunB",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FW/MissionRoom"
+  },
+  {
+   "name": "Back of Hallway",
+   "region": "West Hallway 1F",
+   "original_item": "Handgun Ammo",
+   "condition": {},
+   "item_object": "sm70_100",
+   "parent_object": "sm70_100_handgunB",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FW/Corrider"
+  },
+  {
+   "name": "Locker 102",
+   "region": "Safety Deposit Room",
+   "original_item": "Gunpowder",
+   "condition": {
+    "items": [
+     "Spare Key",
+     "Spare Key"
+    ]
+   },
+   "item_object": "sm70_205",
+   "parent_object": "sm70_205_gunpowder_Locker102",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/LocationFsm_RPD/S02_0100/Claire_S02_0100/1FW/hokanko/HokankoLocker/HokankoItems",
+   "forbid_item": [
+    "Spare Key"
+   ]
+  },
+  {
+   "name": "Locker 103",
+   "region": "Safety Deposit Room",
+   "original_item": "Combat Knife",
+   "condition": {
+    "items": [
+     "Spare Key",
+     "Spare Key"
+    ]
+   },
+   "item_object": "WP4500",
+   "parent_object": "WP4500_Knife_Locker103",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/LocationFsm_RPD/S02_0100/Claire_S02_0100/1FW/hokanko/HokankoLocker/HokankoItems",
+   "forbid_item": [
+    "Spare Key"
+   ]
+  },
+  {
+   "name": "Locker 203",
+   "region": "Safety Deposit Room",
+   "original_item": "Hip Pouch",
+   "condition": {
+    "items": [
+     "Spare Key",
+     "Spare Key"
+    ]
+   },
+   "item_object": "sm74_200",
+   "parent_object": "sm74_200_sidepack_Locker203",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/LocationFsm_RPD/S02_0100/Claire_S02_0100/1FW/hokanko/HokankoLocker/HokankoItems",
+   "forbid_item": [
+    "Spare Key"
+   ]
+  },
+  {
+   "name": "Locker 106",
+   "region": "Safety Deposit Room",
+   "original_item": "Film - Commemorative",
+   "condition": {},
+   "item_object": "sm72_202",
+   "parent_object": "sm72_202_FilmC_Locker106",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/LocationFsm_RPD/S02_0100/Claire_S02_0100/1FW/hokanko/HokankoLocker/HokankoItems",
+   "forbid_item": [
+    "Spare Key"
+   ]
+  },
+  {
+   "name": "Locker 208",
+   "region": "Safety Deposit Room",
+   "original_item": "Flame Rounds",
+   "condition": {
+    "items": [
+     "Spare Key",
+     "Spare Key"
+    ]
+   },
+   "item_object": "sm70_108",
+   "parent_object": "sm70_108_FireB_Locker208",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/LocationFsm_RPD/S02_0100/Claire_S02_0100/1FW/hokanko/HokankoLocker/HokankoItems",
+   "forbid_item": [
+    "Spare Key"
+   ]
+  },
+  {
+   "name": "Locker 109",
+   "region": "Safety Deposit Room",
+   "original_item": "Handgun Ammo",
+   "condition": {},
+   "item_object": "sm70_100",
+   "parent_object": "sm70_100_handgunBullet_Locker109",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/LocationFsm_RPD/S02_0100/Claire_S02_0100/1FW/hokanko/HokankoLocker/HokankoItems",
+   "forbid_item": [
+    "Spare Key"
+   ]
+  },
+  {
+   "name": "Weapons Locker Weapon",
+   "region": "Safety Deposit Room",
+   "original_item": "GM 79",
+   "condition": {
+    "items": [
+     "Weapons Locker Key Card"
+    ]
+   },
+   "item_object": "WP4100",
+   "parent_object": "ItemPositionsCollider_2",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/LocationFsm_RPD/S02_0100/Claire_S02_0100/1FW/hokanko/sm44_020_WeaponLocker"
+  },
+  {
+   "name": "Weapons Locker Ammo",
+   "region": "Safety Deposit Room",
+   "original_item": "Flame Rounds",
+   "condition": {
+    "items": [
+     "Weapons Locker Key Card"
+    ]
+   },
+   "item_object": "sm70_108",
+   "parent_object": "ItemPositionsCollider_3",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/LocationFsm_RPD/S02_0100/Claire_S02_0100/1FW/hokanko/sm44_020_WeaponLocker"
+  },
+  {
+   "name": "Desk by Lockers",
+   "region": "West Office",
+   "original_item": "Gunpowder",
+   "condition": {},
+   "item_object": "sm70_205",
+   "parent_object": "sm70_205_gunpowder",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FW/officeW"
+  },
+  {
+   "name": "Locker",
+   "region": "West Office",
+   "original_item": "Handgun Ammo",
+   "condition": {},
+   "item_object": "sm70_100",
+   "parent_object": "ItemPositions_NormalLocker_OfficeW",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FW/officeW/Locker_sm70_100_handgunB"
+  },
+  {
+   "name": "Safe",
+   "region": "West Office",
+   "original_item": "Hip Pouch",
+   "condition": {},
+   "item_object": "sm42_019_SafeBoxDial01A_OfficeW_control",
+   "parent_object": "",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/LocationFsm_RPD/S02_0100/1FW/WestOffice/IronSafe_1FWOffice"
+  },
+  {
+   "name": "Rookie Desk",
+   "region": "West Office",
+   "original_item": "Speed Loader - SLS 60",
+   "condition": {},
+   "item_object": "sm71_904",
+   "parent_object": "ItemPositionsCollider",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/LocationFsm_RPD/S02_0100/Claire_S02_0100/1FW/WestOffice/LeonDesk"
+  },
+  {
+   "name": "Outside Darkroom 1",
+   "region": "West Hallway 1F",
+   "original_item": "Green Herb",
+   "condition": {},
+   "item_object": "sm70_001",
+   "parent_object": "sm70_001_greenHerb",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FW/Corrider"
+  },
+  {
+   "name": "Outside Darkroom 2",
+   "region": "West Hallway 1F",
+   "original_item": "Wooden Boards",
+   "condition": {},
+   "item_object": "sm70_202",
+   "parent_object": "sm70_202_mokuzai",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FW/Corrider"
+  },
+  {
+   "name": "Left Locker",
+   "region": "Darkroom",
+   "original_item": "Gunpowder",
+   "condition": {},
+   "item_object": "sm70_205",
+   "parent_object": "ItemPositions_OldLocker_1FW1",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FW/DarkRoom/Locker_sm70_205_gunpowder"
+  },
+  {
+   "name": "Right Locker",
+   "region": "Darkroom",
+   "original_item": "Handgun Ammo",
+   "condition": {},
+   "item_object": "sm70_100",
+   "parent_object": "ItemPositions_OldLocker_1FW3",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FW/DarkRoom/Locker_sm70_100_HandgunB_HardInkribbon"
+  },
+  {
+   "name": "Photo Area",
+   "region": "Darkroom",
+   "original_item": "Red Herb",
+   "condition": {},
+   "item_object": "sm70_002",
+   "parent_object": "sm70_002_redherb",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FW/DarkRoom"
+  },
+  {
+   "name": "Downed Zombie",
+   "region": "West Hallway 2F",
+   "original_item": "Handgun Ammo",
+   "condition": {},
+   "item_object": "sm70_100",
+   "parent_object": "sm70_100_HandgunB",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/2F/2FW/Corrider"
+  },
+  {
+   "name": "By Coffee Vending Machine",
+   "region": "West Hallway 2F",
+   "original_item": "Red Herb",
+   "condition": {},
+   "item_object": "sm70_002",
+   "parent_object": "sm70_002_Redherb",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/2F/2FW/Corrider"
+  },
+  {
+   "name": "Towel Rack",
+   "region": "Shower Room",
+   "original_item": "Spare Key",
+   "condition": {},
+   "item_object": "sm77_002",
+   "parent_object": "sm77_002_portablesafe_blankkey_1stPlay",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/2F/2FW/ShowerRoom"
+  },
+  {
+   "name": "Far Locker by Towel Rack",
+   "region": "Shower Room",
+   "original_item": "Flame Rounds",
+   "condition": {},
+   "item_object": "sm70_108",
+   "parent_object": "ItemPositions_NormalLocker_2FW5",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Claire_common/2F/2FW/ShowerRoom/Locker_sm70_108_FireB"
+  },
+  {
+   "name": "Locked Locker (CAP)",
+   "region": "Shower Room",
+   "original_item": "Flame Rounds",
+   "condition": {},
+   "item_object": "sm70_108",
+   "parent_object": "ItemPositions_NormalLocker_2FW2",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Claire_common/2F/2FW/ShowerRoom/Locker_CAP_sm70_108_FireB"
+  },
+  {
+   "name": "Locker past Steam",
+   "region": "Shower Room",
+   "original_item": "Gunpowder",
+   "condition": {},
+   "item_object": "sm70_205",
+   "parent_object": "ItemPositions_NormalLocker_2FW9",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/2F/2FW/ShowerRoom/Locker_sm70_205_gunpowder"
+  },
+  {
+   "name": "Couch",
+   "region": "STARS Office Hallway",
+   "original_item": "Flame Rounds",
+   "condition": {},
+   "item_object": "sm70_108",
+   "parent_object": "CLAIRE_sm70_108_FireB",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Claire_common/2F/2FW/Corrider"
+  },
+  {
+   "name": "Hiding Place Drawer",
+   "region": "STARS Office",
+   "original_item": "High Capacity Mag - MQ 11",
+   "condition": {
+    "items": [
+     "Film - Hiding Place"
+    ]
+   },
+   "item_object": "sm77_006",
+   "parent_object": "ItemPos_TreasureB_Claire",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/LocationFsm_RPD/S02_0200/Claire_S02_0200/2FW/StarsOffice/WeskerDesk_Claire"
+  },
+  {
+   "name": "Hiding Place Secret Film",
+   "region": "STARS Office",
+   "original_item": "Film - Rising Rookie",
+   "condition": {
+    "items": [
+     "Film - Hiding Place"
+    ]
+   },
+   "item_object": "sm72_201",
+   "parent_object": "itempos_sm72_201_FilmB_PosweskerDesk",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/LocationFsm_RPD/S02_0200/Claire_S02_0200/2FW/StarsOffice/WeskerDesk_Claire"
+  },
+  {
+   "name": "Boxes by Door",
+   "region": "STARS Office",
+   "original_item": "Red Herb",
+   "condition": {},
+   "item_object": "sm70_002",
+   "parent_object": "sm70_002_redherb",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/2F/2FW/StarsOffice"
+  },
+  {
+   "name": "Small Office Desk",
+   "region": "STARS Office",
+   "original_item": "Battery",
+   "condition": {},
+   "item_object": "sm70_204",
+   "parent_object": "sm70_204_denchi",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/2F/2FW/StarsOffice"
+  },
+  {
+   "name": "Desk near Armory",
+   "region": "STARS Office",
+   "original_item": "Flame Rounds",
+   "condition": {},
+   "item_object": "sm70_108",
+   "parent_object": "CLAIRE_sm70_108_Fire",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Claire_common/2F/2FW/StarsOffice"
+  },
+  {
+   "name": "Box between Desks",
+   "region": "STARS Office",
+   "original_item": "Flash Grenade",
+   "condition": {},
+   "item_object": "WP6300",
+   "parent_object": "WP6300_FlashBan",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/2F/2FW/StarsOffice"
+  },
+  {
+   "name": "First Aid on Wall",
+   "region": "STARS Office",
+   "original_item": "First Aid Spray",
+   "condition": {},
+   "item_object": "sm70_000",
+   "parent_object": "sm70_000_spray",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/2F/2FW/StarsOffice"
+  },
+  {
+   "name": "Desk near First Aid Kit",
+   "region": "STARS Office",
+   "original_item": "High-Grade Gunpowder - White",
+   "condition": {},
+   "item_object": "sm70_208",
+   "parent_object": "CLAIRE_sm70_208_Claireyakueki",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Claire_common/2F/2FW/StarsOffice"
+  },
+  {
+   "name": "Weapon Cage",
+   "region": "Armory",
+   "original_item": "MQ 11",
+   "condition": {},
+   "item_object": "WP2000",
+   "parent_object": "CLAIRE_wp2000_MachineGun",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Claire_common/2F/2FW/StarsOffice"
+  },
+  {
+   "name": "Towel Rack",
+   "region": "Linen Room",
+   "original_item": "Gunpowder",
+   "condition": {},
+   "item_object": "sm70_205",
+   "parent_object": "sm70_205_Gunpowder",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/2F/2FW/LinenRoom"
+  },
+  {
+   "name": "Washing Machine",
+   "region": "Linen Room",
+   "original_item": "Spare Key",
+   "condition": {},
+   "item_object": "sm77_002",
+   "parent_object": "sm77_002_portablesafe_sm73_133_blankkey",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/2F/2FW/LinenRoom"
+  },
+  {
+   "name": "Side Table",
+   "region": "Lounge - RPD",
+   "original_item": "Gunpowder",
+   "condition": {},
+   "item_object": "sm70_205",
+   "parent_object": "sm70_205_Gunpowder_1st",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/2F/2FW/reception2F"
+  },
+  {
+   "name": "Unicorn Statue",
+   "region": "Lounge - RPD",
+   "original_item": "Unicorn Medallion",
+   "condition": {},
+   "item_object": "sm42_176_HieroglyphicDialLock01A_ForUnicorn_control",
+   "parent_object": "",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/LocationFsm_RPD/S02_0100/2FW/Reception2F/UnicornStatue"
+  },
+  {
+   "name": "Downed Zombie",
+   "region": "Library",
+   "original_item": "Combat Knife",
+   "condition": {},
+   "item_object": "WP4500",
+   "parent_object": "WP4500_Knife",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/2F/2FW/Library"
+  },
+  {
+   "name": "Table by Front Door",
+   "region": "Library",
+   "original_item": "Red Book",
+   "condition": {},
+   "item_object": "sm73_135",
+   "parent_object": "sm73_135_chie no syo",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/2F/2FW/Library"
+  },
+  {
+   "name": "Behind Moveable Shelves",
+   "region": "Library",
+   "original_item": "Handgun Ammo",
+   "condition": {},
+   "item_object": "sm70_100",
+   "parent_object": "sm70_100_handgunB",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/2F/2FW/Library"
+  },
+  {
+   "name": "Table",
+   "region": "Waiting Room",
+   "original_item": "Green Herb",
+   "condition": {},
+   "item_object": "sm70_001",
+   "parent_object": "sm70_001_Harb",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/2F/2FE/WaitingRoom",
+   "forbid_item": [
+    "Fuse - Main Hall",
+    "Fuse - Break Room Hallway",
+    "Bolt Cutters"
+   ]
+  },
+  {
+   "name": "Safe behind Desk",
+   "region": "Waiting Room",
+   "original_item": "High-Capacity Mag - JMB Hp3",
+   "condition": {},
+   "item_object": "sm42_019_SafeBoxDial01A_OfficeE_control",
+   "parent_object": "",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/LocationFsm_RPD/S02_0000/Claire_S02_0000/2FE/2FWaitingRoom/IronSafe_2FE",
+   "forbid_item": [
+    "Fuse - Main Hall",
+    "Fuse - Break Room Hallway",
+    "Bolt Cutters"
+   ]
+  },
+  {
+   "name": "Table near Door",
+   "region": "Art Room",
+   "original_item": "Weapons Locker Key Card",
+   "condition": {},
+   "item_object": "sm73_105",
+   "parent_object": "sm73_105_WeaponCardKey",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/2F/2FE/ArtRoom"
+  },
+  {
+   "name": "Table by Statue",
+   "region": "Art Room",
+   "original_item": "Statue Left Arm",
+   "condition": {},
+   "item_object": "sm73_136",
+   "parent_object": "sm73_136_SekizouArm",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/2F/2FE/ArtRoom"
+  },
+  {
+   "name": "Left of Art Room",
+   "region": "East Hallway 2F",
+   "original_item": "Wooden Boards",
+   "condition": {},
+   "item_object": "sm70_202",
+   "parent_object": "sm70_202_mokuzai",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/2F/2FE/Corrider"
+  },
+  {
+   "name": "Before Fire Escape",
+   "region": "East Hallway 2F",
+   "original_item": "Green Herb",
+   "condition": {},
+   "item_object": "sm70_001",
+   "parent_object": "Pos_2FECorridor_sm70_001_Herb",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/2F/2FE/Corrider"
+  },
+  {
+   "name": "Bottom of Stairs",
+   "region": "Fire Escape",
+   "original_item": "Wooden Boards",
+   "condition": {},
+   "item_object": "sm70_202",
+   "parent_object": "Pos_sm70_202_mokuzai",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/OutdoorS"
+  },
+  {
+   "name": "Barrel",
+   "region": "Fire Escape",
+   "original_item": "Handgun Ammo",
+   "condition": {},
+   "item_object": "sm70_100",
+   "parent_object": "sm70_100_handgunB",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/OutdoorS"
+  },
+  {
+   "name": "Garbage beside Door",
+   "region": "Fire Escape",
+   "original_item": "Bolt Cutters",
+   "force_item": "Maiden Medallion",
+   "condition": {},
+   "item_object": "sm73_726",
+   "parent_object": "sm73_726_ChainCutter",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/OutdoorS"
+  },
+  {
+   "name": "Table by Door",
+   "region": "East Office",
+   "original_item": "Green Herb",
+   "condition": {},
+   "item_object": "sm70_001",
+   "parent_object": "sm70_001_herb_noHard",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FE/OfficeE"
+  },
+  {
+   "name": "Desk by Downed Zombie",
+   "region": "East Office",
+   "original_item": "Flash Grenade",
+   "condition": {},
+   "item_object": "WP6300",
+   "parent_object": "wp6300_FlashBan",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FE/OfficeE"
+  },
+  {
+   "name": "Downed Zombie",
+   "region": "East Office",
+   "original_item": "Handgun Ammo",
+   "condition": {},
+   "item_object": "sm70_100",
+   "parent_object": "sm70_100_handgunB",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FE/OfficeE"
+  },
+  {
+   "name": "Middle of Long Desk",
+   "region": "East Office",
+   "original_item": "Gunpowder",
+   "condition": {},
+   "item_object": "sm70_205",
+   "parent_object": "sm70_205_Gunpowder",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FE/OfficeE"
+  },
+  {
+   "name": "End of Long Desk",
+   "region": "East Office",
+   "original_item": "Gunpowder",
+   "condition": {},
+   "item_object": "sm73_722",
+   "parent_object": "sm73_722_fuse_1st",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FE/OfficeE"
+  },
+  {
+   "name": "Small Office Desk",
+   "region": "East Office",
+   "original_item": "Valve Handle",
+   "condition": {},
+   "item_object": "sm73_107",
+   "parent_object": "sm73_107_BarubuHandoru",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FE/OfficeE"
+  },
+  {
+   "name": "Small Office Furniture",
+   "region": "East Office",
+   "original_item": "High-Grade Gunpowder - White",
+   "condition": {},
+   "item_object": "sm70_208",
+   "parent_object": "CLAIRE_sm70_208_Claireyakueki",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Claire_common/1F/1FE/OfficeE"
+  },
+  {
+   "name": "Desk",
+   "region": "Operations Room 2",
+   "original_item": "Electronic Gadget",
+   "condition": {},
+   "item_object": "sm70_203",
+   "parent_object": "sm70_203_NoDenchiShinkan",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FW/MissionPreparationRoom"
+  },
+  {
+   "name": "Cabinets",
+   "region": "Operations Room 2",
+   "original_item": "Green Herb",
+   "condition": {},
+   "item_object": "sm70_001",
+   "parent_object": "sm70_001_GreenHerb",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FW/MissionPreparationRoom"
+  },
+  {
+   "name": "Table",
+   "region": "Operations Room 2",
+   "original_item": "Flash Grenade",
+   "condition": {},
+   "item_object": "WP6300",
+   "parent_object": "WP6300_Fashban",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FW/MissionPreparationRoom"
+  },
+  {
+   "name": "By Heart Door",
+   "region": "Operations Room 2",
+   "original_item": "Wooden Boards",
+   "condition": {},
+   "item_object": "sm70_202",
+   "parent_object": "sm70_202_mokuzai",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FW/MissionPreparationRoom"
+  },
+  {
+   "name": "Pallets",
+   "region": "West Hallway 3F",
+   "original_item": "Handgun Ammo",
+   "condition": {},
+   "item_object": "sm70_100",
+   "parent_object": "sm70_100_HandgunB",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/3FHigher/3FW/Corridor"
+  },
+  {
+   "name": "Locker (DCM)",
+   "region": "West Hallway 3F",
+   "original_item": "Submachine Gun Ammo",
+   "condition": {},
+   "item_object": "sm70_102",
+   "parent_object": "ItemPositions_NormalLocker_3FWCorridor",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Claire_common/3FW/Corridor/Locker_MachinegunB"
+  },
+  {
+   "name": "Desk",
+   "region": "West Hallway 3F",
+   "original_item": "Spade Key",
+   "condition": {},
+   "item_object": "sm73_103",
+   "parent_object": "sm73_103_SpadeKey",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/3FHigher/3FW/3FWSmallRoom",
+   "randomized": 0
+  },
+  {
+   "name": "Furniture by Door",
+   "region": "West Storage Room",
+   "original_item": "Gunpowder",
+   "condition": {},
+   "item_object": "sm70_205",
+   "parent_object": "sm70_205_gunpowder",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/3FHigher/3FW/LickerRoom"
+  },
+  {
+   "name": "Floor by Furniture",
+   "region": "West Storage Room",
+   "original_item": "Wooden Boards",
+   "condition": {},
+   "item_object": "sm70_202",
+   "parent_object": "sm70_202_mokuzai",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/3FHigher/3FW/LickerRoom"
+  },
+  {
+   "name": "Bookshelf",
+   "region": "West Storage Room",
+   "original_item": "Handgun Ammo",
+   "condition": {},
+   "item_object": "sm70_100",
+   "parent_object": "sm70_100_HandgunB",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/3FHigher/3FW/LickerRoom"
+  },
+  {
+   "name": "Side Table",
+   "region": "West Storage Room",
+   "original_item": "Hip Pouch",
+   "condition": {},
+   "item_object": "sm74_200",
+   "parent_object": "sm74_200_SidePack_1st",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/3FHigher/3FW/LickerRoom"
+  },
+  {
+   "name": "Maiden Statue",
+   "region": "West Storage Room",
+   "original_item": "Maiden Medallion",
+   "condition": {
+    "items": [
+     "Electronic Gadget",
+     "Battery"
+    ]
+   },
+   "item_object": "sm42_177_HieroglyphicDialLock01B_ForVirgin_control",
+   "parent_object": "",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/LocationFsm_RPD/S02_0100/3FW/LickerRoom"
+  },
+  {
+   "name": "Near Door on Ground",
+   "region": "Chief's Office",
+   "original_item": "Green Herb",
+   "condition": {},
+   "item_object": "sm70_001",
+   "parent_object": "sm70_001_GreenHerb",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Claire_common/2F/2FE/ChiefHiddenCorridor"
+  },
+  {
+   "name": "Table",
+   "region": "Chief's Office",
+   "original_item": "Submachine Gun Ammo",
+   "condition": {},
+   "item_object": "sm70_102",
+   "parent_object": "sm70_102_machinegunB",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Claire_common/2F/2FE/ChiefRoom"
+  },
+  {
+   "name": "Breakfront",
+   "region": "Private Collection Room",
+   "original_item": "High-Grade Gunpowder - White",
+   "condition": {},
+   "item_object": "sm70_208",
+   "parent_object": "sm70_208_ClaireYakueki",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Claire_common/2F/2FE/ChiefStore"
+  },
+  {
+   "name": "Stabbed into Manikin Head",
+   "region": "Small Storage Room",
+   "original_item": "Combat Knife",
+   "condition": {},
+   "item_object": "WP4500",
+   "parent_object": "WP4500_Knife",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Claire_common/3FE/3FClaireRoom"
+  },
+  {
+   "name": "Table",
+   "region": "Small Storage Room",
+   "original_item": "Boxed Electronic Part 2",
+   "condition": {},
+   "item_object": "sm73_158",
+   "parent_object": "sm73_158_SwitchBBox",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Claire_common/3FE/3FClaireRoom"
+  },
+  {
+   "name": "Locker near Observation Room",
+   "region": "Side Stairs",
+   "original_item": "High-Grade Gunpowder - White",
+   "condition": {},
+   "item_object": "sm70_208",
+   "parent_object": "ItemPositions_NormalLocker_1FE1",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Claire_common/1F/1FE/CorriderB/Locker_sm70_208_Claireyakueki"
+  },
+  {
+   "name": "Downed Zombie",
+   "region": "Observation Room",
+   "original_item": "Gunpowder",
+   "condition": {},
+   "item_object": "sm70_205",
+   "parent_object": "sm70_205_gunpowder",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FE/InterrogationRoom"
+  },
+  {
+   "name": "Shelves",
+   "region": "Interrogation Room",
+   "original_item": "Bejeweled Box",
+   "condition": {},
+   "item_object": "sm73_112",
+   "parent_object": "sm73_112_BlueJuelBox_StarsBadgeInside_1stPlay",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Claire_common/1F/1FE/InterrogationRoom"
+  },
+  {
+   "name": "Table",
+   "region": "Interrogation Room",
+   "original_item": "Handgun Ammo",
+   "condition": {},
+   "item_object": "sm70_100",
+   "parent_object": "sm70_100_handgunB",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FE/InterrogationRoom"
+  },
+  {
+   "name": "By 3F Stairs",
+   "region": "Side Stairs",
+   "original_item": "Wooden Boards",
+   "condition": {},
+   "item_object": "sm70_202",
+   "parent_object": "sm70_202_mokuzai",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/3FHigher/3FE/Corridor"
+  },
+  {
+   "name": "South Locker",
+   "region": "Side Stairs",
+   "original_item": "Flash Grenade",
+   "condition": {},
+   "item_object": "WP6300",
+   "parent_object": "ItemPositions_NormalLocker_3FE1",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/3FHigher/3FE/Corridor/Locker_WP6300_FlashBan"
+  },
+  {
+   "name": "West Locker",
+   "region": "Side Stairs",
+   "original_item": "Handgun Ammo",
+   "condition": {},
+   "item_object": "sm70_100",
+   "parent_object": "ItemPositions_NormalLocker_3FE2",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/3FHigher/3FE/Corridor/Locker_sm70_100_HandgunB"
+  },
+  {
+   "name": "Shelves near Large Gear",
+   "region": "East Storage Room",
+   "original_item": "Blue Herb",
+   "condition": {},
+   "item_object": "sm70_003",
+   "parent_object": "sm70_003_BlueHerb",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/3FHigher/3FE/3FDepot"
+  },
+  {
+   "name": "Pallet",
+   "region": "East Storage Room",
+   "original_item": "Large Gear",
+   "condition": {},
+   "item_object": "sm73_152",
+   "parent_object": "sm73_152_HagurumaBig",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/3FHigher/3FE/3FDepot"
+  },
+  {
+   "name": "Shelves near Heart Door",
+   "region": "East Storage Room",
+   "original_item": "Flame Rounds",
+   "condition": {},
+   "item_object": "sm70_108",
+   "parent_object": "CLAIRE_sm70_108_Fire",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Claire_common/3FE/ArtRoom"
+  },
+  {
+   "name": "Table",
+   "region": "Balcony",
+   "original_item": "Blue Herb",
+   "condition": {},
+   "item_object": "sm70_003",
+   "parent_object": "sm70_003_BlueHerb",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/OutdoorN"
+  },
+  {
+   "name": "Bench by Flaming Helicopter",
+   "region": "Roof",
+   "original_item": "Handgun Ammo",
+   "condition": {},
+   "item_object": "sm70_100",
+   "parent_object": "sm70_100_handgunB",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/OutdoorN"
+  },
+  {
+   "name": "Outside by Stairs 1",
+   "region": "Roof",
+   "original_item": "Green Herb",
+   "condition": {},
+   "item_object": "sm70_001",
+   "parent_object": "sm70_001_GreenHerb",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/OutdoorN"
+  },
+  {
+   "name": "Outside by Stairs 2",
+   "region": "Roof",
+   "original_item": "Green Herb",
+   "condition": {},
+   "item_object": "sm70_001",
+   "parent_object": "sm70_001_GreenHerb",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/OutdoorN"
+  },
+  {
+   "name": "Table",
+   "region": "Private Collection Room",
+   "original_item": "Heart Key",
+   "condition": {},
+   "item_object": "sm73_150",
+   "parent_object": "sm73_150_Koibito",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/Claire_common/2F/2FE/ChiefStore"
+  },
+  {
+   "name": "Room with Helicopter Crash",
+   "region": "Roof",
+   "original_item": "Red Herb",
+   "force_item": "Boxed Electronic Part 2",
+   "condition": {
+    "items": [
+     [
+      "Lion Medallion",
+      "Unicorn Medallion",
+      "Maiden Medallion",
+      "Heart Key",
+      "Diamond Key"
+     ],
+     [
+      "Lion Medallion",
+      "Unicorn Medallion",
+      "Maiden Medallion",
+      "Mechanic Jack Handle"
+     ]
+    ]
+   },
+   "item_object": "sm70_002",
+   "parent_object": "sm70_002_RedHerb",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/2F/2FE/Corrider"
+  },
+  {
+   "name": "Printer",
+   "region": "Records Room",
+   "original_item": "Gunpowder",
+   "condition": {},
+   "item_object": "sm70_205",
+   "parent_object": "sm70_205_gunpowder_noHard",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FW/ReferenceRoom"
+  },
+  {
+   "name": "Table 1",
+   "region": "Records Room",
+   "original_item": "Mechanic Jack Handle",
+   "condition": {},
+   "item_object": "sm73_100",
+   "parent_object": "sm73_100_TosyokanItem",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FW/ReferenceRoom"
+  },
+  {
+   "name": "Table 2",
+   "region": "Records Room",
+   "original_item": "Hand Grenade",
+   "condition": {},
+   "item_object": "WP6200",
+   "parent_object": "WP6200_Grenade",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FW/ReferenceRoom"
+  },
+  {
+   "name": "Outside Clock Tower Door",
+   "region": "Main Hall 3F",
+   "original_item": "Green Herb",
+   "condition": {},
+   "item_object": "sm70_001",
+   "parent_object": "sm70_001_GreenHerb",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/3FHigher/Hall"
+  },
+  {
+   "name": "Use the Gears",
+   "region": "Clock Tower",
+   "original_item": "Boxed Electronic Part 1",
+   "condition": {},
+   "item_object": "sm73_157",
+   "parent_object": "ItemPositions",
+   "folder_path": "RopewayContents/World/Location_RPD/Environments/st4_602_0/gimmick/CutScene",
+   "randomized": 0
+  },
+  {
+   "name": "Back Hallway",
+   "region": "Clock Tower",
+   "original_item": "Gunpowder - Large",
+   "condition": {},
+   "item_object": "sm70_206",
+   "parent_object": "sm70_206_GunpowderBig",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/3FHigher/3FW/Corridor"
+  },
+  {
+   "name": "Upstairs Machine",
+   "region": "Clock Tower",
+   "original_item": "Small Gear",
+   "condition": {},
+   "item_object": "sm73_151",
+   "parent_object": "ItemPositions_Top_Small",
+   "folder_path": "RopewayContents/World/Location_RPD/Environments/st4_602_0/gimmick/CutScene"
+  },
+  {
+   "name": "Secured Area",
+   "region": "Private Collection Room",
+   "original_item": "Parking Garage Key Card",
+   "condition": {
+    "items": [
+     "Mechanic Jack Handle",
+     "Boxed Electronic Part 1",
+     "Boxed Electronic Part 2"
+    ]
+   },
+   "item_object": "FlagCheckItemGet_Cardkey",
+   "parent_object": "",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Scenario/S02_0500/Claire_S02_0500/2FE/ChiefRoom/FromSherryPart",
+   "randomized": 0
+  }
+ ],
+ "hardcore": [
+  {
+   "name": "Main Desk",
+   "region": "Main Hall",
+   "original_item": "Ink Ribbon",
+   "condition": {},
+   "item_object": "sm70_201",
+   "parent_object": "InkRibbon_Hall",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/InkRibbon"
+  },
+  {
+   "name": "Right Locker",
+   "region": "Darkroom",
+   "original_item": "Ink Ribbon",
+   "condition": {},
+   "item_object": "sm70_201",
+   "parent_object": "ItemPositions_OldLocker_1FW3",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/1F/1FW/DarkRoom/Locker_sm70_100_HandgunB_HardInkribbon"
+  },
+  {
+   "name": "Table by Door",
+   "region": "East Office",
+   "original_item": "Ink Ribbon",
+   "condition": {},
+   "item_object": "sm70_201",
+   "parent_object": "sm70_201_InkRibbon_EastOffice",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/InkRibbon"
+  },
+  {
+   "name": "Breakfront",
+   "region": "Private Collection Room",
+   "original_item": "Ink Ribbon",
+   "condition": {},
+   "item_object": "sm70_201",
+   "parent_object": "sm70_201_InkRibbon_ChiefRoom",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/InkRibbon"
+  },
+  {
+   "name": "Chair across Room",
+   "region": "Interrogation Room",
+   "original_item": "Ink Ribbon",
+   "condition": {},
+   "item_object": "sm70_201",
+   "parent_object": "InkRibbon_TorishirabeShitu",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/InkRibbon"
+  },
+  {
+   "name": "Printer",
+   "region": "Records Room",
+   "original_item": "Ink Ribbon",
+   "condition": {},
+   "item_object": "sm70_201",
+   "parent_object": "sm70_201_InkRibbon_ReferenceRoom",
+   "folder_path": "RopewayContents/World/Location_RPD/LocationLevel_RPD/Item/common/InkRibbon"
+  },
+  {
+   "name": "Side Table",
+   "region": "West Storage Room",
+   "remove": true
+  }
+ ],
+ "connections": [
+  {
+   "from": "Main Hall",
+   "to": "East Hallway 1F",
+   "condition": {}
+  },
+  {
+   "from": "East Hallway 1F",
+   "to": "East Hallway 1F Closet",
+   "condition": {}
+  },
+  {
+   "from": "East Hallway 1F",
+   "to": "Press Room",
+   "condition": {}
+  },
+  {
+   "from": "East Hallway 1F",
+   "to": "Bathroom",
+   "condition": {}
+  },
+  {
+   "from": "East Hallway 1F",
+   "to": "East Office",
+   "condition": {
+    "items": [
+     "Bolt Cutters"
+    ]
+   }
+  },
+  {
+   "from": "Main Hall",
+   "to": "Reception - RPD",
+   "condition": {}
+  },
+  {
+   "from": "Reception - RPD",
+   "to": "Southwest Hallway"
+  },
+  {
+   "from": "Operations Room 2",
+   "to": "Records Room",
+   "condition": {
+    "items": [
+     "Heart Key"
+    ]
+   }
+  },
+  {
+   "from": "Southwest Hallway",
+   "to": "Operations Room",
+   "condition": {}
+  },
+  {
+   "from": "Operations Room",
+   "to": "Operations Room 2",
+   "condition": {
+    "items": [
+     "Bolt Cutters"
+    ]
+   }
+  },
+  {
+   "from": "Operations Room",
+   "to": "West Hallway 1F",
+   "condition": {}
+  },
+  {
+   "from": "Operations Room 2",
+   "to": "West Hallway 1F",
+   "limitation": "ONE_SIDED_DOOR"
+  },
+  {
+   "from": "West Hallway 1F",
+   "to": "Safety Deposit Room",
+   "condition": {}
+  },
+  {
+   "from": "West Hallway 1F",
+   "to": "West Office",
+   "condition": {}
+  },
+  {
+   "from": "Main Hall",
+   "to": "West Office",
+   "condition": {
+    "items": [
+     "Spade Key"
+    ]
+   }
+  },
+  {
+   "from": "West Hallway 1F",
+   "to": "Darkroom",
+   "condition": {}
+  },
+  {
+   "from": "West Hallway 1F",
+   "to": "West Hallway 2F",
+   "condition": {}
+  },
+  {
+   "from": "West Hallway 2F",
+   "to": "Shower Room",
+   "condition": {
+    "items": [
+     "Valve Handle"
+    ]
+   }
+  },
+  {
+   "from": "Shower Room",
+   "to": "STARS Office Hallway",
+   "condition": {}
+  },
+  {
+   "from": "STARS Office Hallway",
+   "to": "STARS Office",
+   "condition": {}
+  },
+  {
+   "from": "STARS Office",
+   "to": "Armory",
+   "condition": {
+    "items": [
+     "Statue Left Arm",
+     "Red Book",
+     "Bejeweled Box"
+    ]
+   }
+  },
+  {
+   "from": "STARS Office Hallway",
+   "to": "Linen Room",
+   "condition": {
+    "items": [
+     "Diamond Key"
+    ]
+   }
+  },
+  {
+   "from": "STARS Office Hallway",
+   "to": "Lounge - RPD",
+   "condition": {},
+   "limitation": "ONE_SIDED_DOOR"
+  },
+  {
+   "from": "Library",
+   "to": "Lounge - RPD",
+   "condition": {}
+  },
+  {
+   "from": "Main Hall",
+   "to": "Library",
+   "condition": {
+    "items": [
+     "Spade Key"
+    ]
+   }
+  },
+  {
+   "from": "Main Hall",
+   "to": "Waiting Room",
+   "condition": {}
+  },
+  {
+   "from": "Waiting Room",
+   "to": "East Hallway 2F",
+   "condition": {
+    "items": [
+     "Spade Key"
+    ]
+   }
+  },
+  {
+   "from": "East Hallway 2F",
+   "to": "Art Room",
+   "condition": {}
+  },
+  {
+   "from": "East Hallway 2F",
+   "to": "Fire Escape",
+   "condition": {}
+  },
+  {
+   "from": "Fire Escape",
+   "to": "East Hallway 1F",
+   "condition": {
+    "items": [
+     "Bolt Cutters"
+    ]
+   },
+   "limitation": "ONE_SIDED_DOOR"
+  },
+  {
+   "from": "West Hallway 1F",
+   "to": "West Hallway 3F",
+   "condition": {}
+  },
+  {
+   "from": "West Hallway 3F",
+   "to": "West Storage Room",
+   "condition": {}
+  },
+  {
+   "from": "West Storage Room",
+   "to": "Library",
+   "condition": {}
+  },
+  {
+   "from": "Library",
+   "to": "Main Hall 3F",
+   "condition": {
+    "items": [
+     "Mechanic Jack Handle"
+    ]
+   }
+  },
+  {
+   "from": "Main Hall 3F",
+   "to": "Clock Tower",
+   "condition": {
+    "items": [
+     "Small Gear",
+     "Large Gear",
+     "Lion Medallion",
+     "Unicorn Medallion",
+     "Maiden Medallion"
+    ]
+   }
+  },
+  {
+   "from": "Main Hall 3F",
+   "to": "East Storage Room",
+   "condition": {
+    "items": [
+     "Mechanic Jack Handle"
+    ]
+   }
+  },
+  {
+   "from": "East Storage Room",
+   "to": "Side Stairs"
+  },
+  {
+   "from": "East Storage Room",
+   "to": "Small Storage Room",
+   "condition": {
+    "items": [
+     "Heart Key"
+    ]
+   }
+  },
+  {
+   "from": "Side Stairs",
+   "to": "Chief's Office",
+   "condition": {
+    "items": [
+     "Heart Key"
+    ]
+   }
+  },
+  {
+   "from": "Side Stairs",
+   "to": "Chief's Office",
+   "condition": {
+    "items": [
+     "Heart Key"
+    ]
+   }
+  },
+  {
+   "from": "Chief's Office",
+   "to": "Private Collection Room",
+   "condition": {}
+  },
+  {
+   "from": "Side Stairs",
+   "to": "Observation Room Hallway",
+   "condition": {}
+  },
+  {
+   "from": "Observation Room Hallway",
+   "to": "Observation Room",
+   "condition": {
+    "items": [
+     [
+      "Spade Key",
+      "Heart Key",
+      "Diamond Key",
+      "Lion Medallion",
+      "Unicorn Medallion",
+      "Maiden Medallion"
+     ],
+     [
+      "Spade Key",
+      "Heart Key",
+      "Mechanic Jack Handle",
+      "Lion Medallion",
+      "Unicorn Medallion",
+      "Maiden Medallion"
+     ]
+    ]
+   }
+  },
+  {
+   "from": "Observation Room Hallway",
+   "to": "Interrogation Room",
+   "condition": {
+    "items": [
+     "Heart Key"
+    ]
+   }
+  },
+  {
+   "from": "Side Stairs",
+   "to": "Balcony",
+   "condition": {}
+  },
+  {
+   "from": "Balcony",
+   "to": "Roof",
+   "condition": {
+    "items": [
+     [
+      "Spade Key",
+      "Heart Key",
+      "Diamond Key",
+      "Lion Medallion",
+      "Unicorn Medallion",
+      "Maiden Medallion"
+     ],
+     [
+      "Spade Key",
+      "Mechanic Jack Handle",
+      "Lion Medallion",
+      "Unicorn Medallion",
+      "Maiden Medallion"
+     ]
+    ]
+   }
+  },
+  {
+   "from": "Roof",
+   "to": "East Hallway 2F",
+   "condition": {},
+   "limitation": "ONE_SIDED_DOOR"
+  }
+ ],
+ "item_types": {
+  "Spade Key": {
+   "type": "Key"
+  },
+  "Heart Key": {
+   "type": "Key"
+  },
+  "Diamond Key": {
+   "type": "Key"
+  },
+  "Courtyard Key": {
+   "type": "Key"
+  },
+  "Fuse - Main Hall": {
+   "type": "Key",
+   "groups": [
+    "fuse"
+   ]
+  },
+  "Fuse - Break Room Hallway": {
+   "type": "Key",
+   "groups": [
+    "fuse"
+   ]
+  },
+  "Bolt Cutters": {
+   "type": "Key"
+  },
+  "Valve Handle": {
+   "type": "Key"
+  },
+  "Lion Medallion": {
+   "type": "Key",
+   "groups": [
+    "medallion",
+    "medal"
+   ]
+  },
+  "Unicorn Medallion": {
+   "type": "Key",
+   "groups": [
+    "medallion",
+    "medal"
+   ]
+  },
+  "Maiden Medallion": {
+   "type": "Key",
+   "groups": [
+    "medallion",
+    "medal"
+   ]
+  },
+  "STARS Badge": {
+   "type": "Key"
+  },
+  "Square Crank": {
+   "type": "Key"
+  },
+  "Mechanic Jack Handle": {
+   "type": "Key"
+  },
+  "Parking Garage Key Card": {
+   "type": "Key"
+  },
+  "T-Bar Handle": {
+   "type": "Key"
+  },
+  "Sewers Key": {
+   "type": "Key"
+  },
+  "Pawn Plug": {
+   "type": "Key",
+   "groups": [
+    "chess piece",
+    "chess plug",
+    "chess",
+    "plug"
+   ]
+  },
+  "Knight Plug": {
+   "type": "Key",
+   "groups": [
+    "chess piece",
+    "chess plug",
+    "chess",
+    "plug"
+   ]
+  },
+  "Bishop Plug": {
+   "type": "Key",
+   "groups": [
+    "chess piece",
+    "chess plug",
+    "chess",
+    "plug"
+   ]
+  },
+  "Rook Plug": {
+   "type": "Key",
+   "groups": [
+    "chess piece",
+    "chess plug",
+    "chess",
+    "plug"
+   ]
+  },
+  "Queen Plug": {
+   "type": "Key",
+   "groups": [
+    "chess piece",
+    "chess plug",
+    "chess",
+    "plug"
+   ]
+  },
+  "King Plug": {
+   "type": "Key",
+   "groups": [
+    "chess piece",
+    "chess plug",
+    "chess",
+    "plug"
+   ]
+  },
+  "ID Wristband - Visitor": {
+   "type": "Key",
+   "groups": [
+    "wristband",
+    "bracelet",
+    "id"
+   ]
+  },
+  "ID Wristband - General Staff": {
+   "type": "Key",
+   "groups": [
+    "wristband",
+    "bracelet",
+    "id"
+   ]
+  },
+  "ID Wristband - Senior Staff": {
+   "type": "Key",
+   "groups": [
+    "wristband",
+    "bracelet",
+    "id"
+   ]
+  },
+  "Upgrade Chip - Admin": {
+   "type": "Key",
+   "groups": [
+    "wristband",
+    "bracelet",
+    "id"
+   ]
+  },
+  "Trophy A": {
+   "type": "Key"
+  },
+  "Trophy B": {
+   "type": "Key"
+  },
+  "Signal Modulator": {
+   "type": "Key"
+  },
+  "Joint Plug": {
+   "type": "Key"
+  },
+  "Electronic Gadget": {
+   "type": "Gating"
+  },
+  "Battery": {
+   "type": "Gating"
+  },
+  "Spare Key": {
+   "type": "Gating",
+   "groups": [
+    "button"
+   ]
+  },
+  "Red Book": {
+   "type": "Gating"
+  },
+  "Statue Left Arm": {
+   "type": "Gating"
+  },
+  "Scepter": {
+   "type": "Gating"
+  },
+  "Bejeweled Box": {
+   "type": "Gating"
+  },
+  "Weapons Locker Key Card": {
+   "type": "Gating"
+  },
+  "Boxed Electronic Part 1": {
+   "type": "Gating",
+   "groups": [
+    "boxed part",
+    "box"
+   ]
+  },
+  "Boxed Electronic Part 2": {
+   "type": "Gating",
+   "groups": [
+    "boxed part",
+    "box"
+   ]
+  },
+  "Car Key": {
+   "type": "Gating"
+  },
+  "Large Gear": {
+   "type": "Gating",
+   "groups": [
+    "gear"
+   ]
+  },
+  "Small Gear": {
+   "type": "Gating",
+   "groups": [
+    "gear"
+   ]
+  },
+  "Dispersal Cartridge - Empty": {
+   "type": "Gating"
+  },
+  "Film - Commemorative": {
+   "type": "Gating"
+  },
+  "Film - Lion Statue": {
+   "type": "Gating"
+  },
+  "Film - 3F Locker": {
+   "type": "Gating"
+  },
+  "Film - Hiding Place": {
+   "type": "Gating"
+  },
+  "Film - Rising Rookie": {
+   "type": "Gating"
+  },
+  "Wooden Boards": {
+   "type": "Consumable"
+  },
+  "Gunpowder": {
+   "type": "Gunpowder"
+  },
+  "Gunpowder - Large": {
+   "type": "Gunpowder"
+  },
+  "High-Grade Gunpowder - White": {
+   "type": "Gunpowder"
+  },
+  "Hip Pouch": {
+   "type": "Consumable"
+  },
+  "Ink Ribbon": {
+   "type": "Consumable"
+  },
+  "First Aid Spray": {
+   "type": "Recovery"
+  },
+  "Green Herb": {
+   "type": "Recovery"
+  },
+  "Red Herb": {
+   "type": "Recovery"
+  },
+  "Blue Herb": {
+   "type": "Recovery"
+  },
+  "SLS 60": {
+   "type": "Weapon",
+   "groups": [
+    "pistol",
+    "light_gun"
+   ]
+  },
+  "Quickdraw Army": {
+   "type": "Weapon",
+   "groups": [
+    "pistol",
+    "light_gun"
+   ]
+  },
+  "GM 79": {
+   "type": "Weapon",
+   "groups": [
+    "grenade",
+    "grenade launcher",
+    "medium_gun"
+   ]
+  },
+  "JMB Hp3": {
+   "type": "Weapon",
+   "groups": [
+    "pistol",
+    "medium_gun"
+   ]
+  },
+  "MQ 11": {
+   "type": "Weapon",
+   "groups": [
+    "medium_gun"
+   ]
+  },
+  "Spark Shot": {
+   "type": "Weapon",
+   "groups": [
+    "heavy_gun"
+   ]
+  },
+  "Minigun": {
+   "type": "Weapon"
+  },
+  "Mini-Minigun": {
+   "type": "Weapon"
+  },
+  "Combat Knife": {
+   "type": "Subweapon"
+  },
+  "Hand Grenade": {
+   "type": "Subweapon"
+  },
+  "Flash Grenade": {
+   "type": "Subweapon"
+  },
+  "Handgun Ammo": {
+   "type": "Ammo"
+  },
+  "High-Powered Rounds": {
+   "type": "Ammo"
+  },
+  "Needle Cartridges": {
+   "type": "Ammo"
+  },
+  "Large-Caliber Handgun Ammo": {
+   "type": "Ammo"
+  },
+  "Submachine Gun Ammo": {
+   "type": "Ammo"
+  },
+  "Flame Rounds": {
+   "type": "Ammo"
+  },
+  "Acid Rounds": {
+   "type": "Ammo"
+  },
+  "Speed Loader - SLS 60": {
+   "type": "Upgrade",
+   "upgrades": "SLS 60"
+  },
+  "High-Capacity Mag - JMB Hp3": {
+   "type": "Upgrade",
+   "upgrades": "JMB Hp3"
+  },
+  "Suppressor - MQ 11": {
+   "type": "Upgrade",
+   "upgrades": "MQ 11"
+  },
+  "High Capacity Mag - MQ 11": {
+   "type": "Upgrade",
+   "upgrades": "MQ 11"
+  },
+  "Shoulder Stock - GM 79": {
+   "type": "Upgrade",
+   "upgrades": "GM 79"
+  },
+  "Reinforced Frame - SLS 60": {
+   "type": "Upgrade",
+   "upgrades": "SLS 60"
+  },
+  "High Voltage Condenser - Spark Shot": {
+   "type": "Upgrade",
+   "upgrades": "Spark Shot"
+  },
+  "Gas Station Key": {
+   "type": "Filler"
+  },
+  "Picture Block": {
+   "type": "Filler"
+  },
+  "Pink Scissors": {
+   "type": "Filler"
+  },
+  "Stuffed Doll": {
+   "type": "Filler"
+  },
+  "Damage Trap": {
+   "type": "Trap"
+  },
+  "Poison Trap": {
+   "type": "Trap"
+  },
+  "USS Digital Video Cassette": {
+   "type": "Lore"
+  },
+  "Lab Digital Video Cassette": {
+   "type": "Lore"
+  }
+ }
+}

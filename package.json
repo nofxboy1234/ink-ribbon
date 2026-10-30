@@ -12,6 +12,9 @@
     "data": "uv run --with zstandard python tools/extract_rpd.py && npm run scene:import && npm run scene:export",
     "scene:import": "blender -b -P tools/rpd_scene.py -- --import",
     "scene:export": "blender -b build/rpd.blend -P tools/rpd_scene.py -- --export",
+    "quest:grid": "blender -b -P tools/rpd_grid.py",
+    "quest:data": "python3 tools/rpd_quest.py",
+    "quest": "npm run quest:grid && npm run quest:data",
     "wasm": "bash native/build.sh",
     "deploy": "void deploy --platform cloudflare"
   },

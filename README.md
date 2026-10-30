@@ -5,7 +5,9 @@ floors 1–3, rendered in the browser with sokol compiled to WebAssembly. The
 surfaces are not textured; each source material uses a distinct flat grey.
 Orbit the model, pan it, or hold right-click and fly through it.
 
-A green FPS counter sits at the top right of the scene.
+A green FPS counter sits at the top right of the scene. The same view is now a
+playable Claire A quest map: walk the RPD, discover items, plot bright-green
+routes, and use keys on locked doors.
 
 ![RPD floors 1–3](docs/preview.jpg)
 
@@ -26,9 +28,15 @@ A green FPS counter sits at the top right of the scene.
   solid triangles in a simple key/fill/hemisphere light, with one flat grey per
   source material, then composites a restrained background gradient. No material
   textures are sampled.
+- **Quest layer.** Claire A, Hardcore, RPD 1F–3F. `public/rpd/quest.json` holds
+  every RPD item location from the Archipelago Claire A data, the key-to-door
+  links taken from its region connections, 25 RPD doorways, and the room graph.
+  `public/rpd/grid.json` holds the walkable 1 m cells sampled from the real
+  floors. The web app draws the grid, hides items until Claire walks near them,
+  draws a smooth green route, and executes a confirmable move and action queue.
 - **Web app** — React 19 + TypeScript on [Void](https://github.com/voidzero-dev/void)
-  1.3.0 (Vite 8) targeting Cloudflare Workers. Once the scene is loaded the
-  page is only the canvas; no labels or UI sit on top of it.
+  1.3.0 (Vite 8) targeting Cloudflare Workers. The canvas holds the 3D scene and
+  a 2D grid and route overlay; the right panel is the quest planner.
 
 ## Stack
 
@@ -72,15 +80,50 @@ npm run scene:import
 npm run scene:export
 
 npm run wasm   # only needed after changing native/main.c
+
+# rebuild the walkable grid and the quest data (Blender + Python)
+npm run quest
 ```
 
-`npm run data` runs all three steps. To edit the level, open `build/rpd.blend`
+`npm run data` runs all three steps. `npm run quest` runs
+`tools/rpd_grid.py` to sample the walkable grid from `build/rpd.blend`, then
+`tools/rpd_quest.py` turns
+`tools/rpd_ap_source.json` and the grid into `public/rpd/quest.json`. To edit
+the level, open `build/rpd.blend`
 after step 2, make your changes, then run step 3. The scene records the imported
 triangle count and the export fails if the count changes. Update the
 `rpd_triangles` custom property on the scene when the change is intentional.
 
 `RE2_GAME_DIR` overrides the Steam install path. The extraction tooling is
 derived from `~/repos/reze`; see [docs/extraction.md](docs/extraction.md).
+
+## Quest map
+
+The planner starts in the Main Hall on 1F. Items are invisible until Claire is
+within 3 m, matching the "walk near to discover" rule. Click a floor cell to
+move. Click a discovered item to draw a route and choose the actions that
+happen on arrival. Click a door to route to it and, when a key is in the
+inventory, add "Use <key> on <door>" to the queue. Press **Confirm** to move the
+cyan player sphere and run the queued actions in order.
+
+- **Item shapes and colours.** Keys are purple pyramids, key items magenta
+  pyramids, healing green spheres, ammo yellow cubes, gunpowder orange cubes,
+  weapons orange cylinders, upgrades teal cylinders, and ink ribbons white
+  cylinders. The legend in the panel lists the current palette.
+- **Doors.** Locked doors are red, unlocked doors blue, unknown doors grey.
+  Locked doors list the item names that open them. A door with an item link
+  shows the linked doors when its item is selected.
+- **Floors.** The floor buttons switch the active grid between 1F, 2F and 3F.
+  The player can still move to a cell on another floor; the room graph handles
+  stairs and passages.
+- **Coverage.** The scene contains RPD floors 1–3, so the quest layer covers
+  the Claire A Hardcore locations in those floors. RPD B1 is not part of this
+  scene and is excluded.
+
+The location names, item ids and key requirements come from the
+[RE2R Archipelago world](https://github.com/FuzzyGamesOn/RE2R_AP_World). The
+door positions and walkable cells were checked against the room meshes in the
+game PAK and the decompile at `~/repos/reze`.
 
 ## Controls
 
@@ -96,6 +139,9 @@ derived from `~/repos/reze`; see [docs/extraction.md](docs/extraction.md).
 | `E` (while flying) | Fly up |
 | Scroll wheel (while flying) | Increase / decrease fly speed |
 | `R` | Reset camera |
+| Click floor cell | Route the player to that cell |
+| Click discovered item | Route to the item and show its actions |
+| Click door | Route to the door and show its lock state |
 | One-finger drag | Orbit |
 | Two-finger drag | Pan and pinch-zoom |
 
@@ -123,16 +169,22 @@ tools/extract_rpd.py       PAK lookup + extraction of the 49 RPD meshes
 tools/re_pak.py            minimal KPKA v4 reader (Murmur3 path hashes)
 tools/remesh.py            RE2 RT .mesh parser (LODs, groups, submeshes, buffers)
 tools/rpd_scene.py         Blender import of the 49 rooms and RPDW v3 export
+tools/rpd_grid.py          walkable 1 m floor cells sampled from the Blender scene
+tools/rpd_quest.py         builds public/rpd/quest.json from the AP data and grid
+tools/rpd_ap_source.json   Claire A RPD regions, locations and door conditions
 docs/extraction.md         PAK format, mesh format, Blender round trip and asset layout
 tools/rpd_floor_meshes.txt exact PAK paths for floors 1-3
 native/main.c              sokol app: camera, input, solid-colour geometry pass
 native/third_party/sokol   vendored sokol headers (pinned commit)
 native/build.sh            Emscripten build
-src/RpdScene.tsx           React canvas + WASM loader with progress
+src/RpdScene.tsx           React canvas, WASM loader, planner, grid and route overlay
+src/quest.ts               quest types, room graph pathfinding and route smoothing
 src/wasm/rpd.js            generated Emscripten ES module (committed for deploy)
 pages/index.tsx            real-geometry page
 public/rpd/rpd.bin         decompiled RPD geometry + grey vertex colours (20.8 MB)
 public/rpd/rpd.wasm        compiled sokol renderer
+public/rpd/grid.json       walkable 1 m cells for 1F, 2F and 3F
+public/rpd/quest.json      Claire A RPD items, doors, links and room graph
 ```
 
 ## Scene notes
