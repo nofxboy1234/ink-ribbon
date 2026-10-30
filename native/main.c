@@ -216,11 +216,12 @@ static const char *fs_source =
     "  float fill = max(dot(n, normalize(vec3(-0.55, 0.35, -0.65))), 0.0);\n"
     "  float hemi = 0.5 + 0.5 * n.y;\n"
     "  float d = length(v_world - u_camera.xyz);\n"
-    "  float fade = 1.0 - smoothstep(u_camera.w, u_fog.x, d);\n"
-    "  fade = 0.10 + 0.90 * fade;\n"
-    "  vec3 base = v_color;\n"
-    "  vec3 col = base * (0.34 + 0.50 * key + 0.16 * fill + 0.12 * hemi) * fade;\n"
-    "  frag_color = vec4(col, 1.0);\n"
+    "  float near = 1.0 - smoothstep(u_camera.w, u_fog.x, d);\n"
+    "  float fres = pow(1.0 - max(dot(n, view), 0.0), 2.0);\n"
+    "  float light = 0.55 + 0.35 * key + 0.10 * hemi;\n"
+    "  vec3 glass = vec3(0.95, 0.96, 0.97) * light;\n"
+    "  float alpha = (0.30 + 0.35 * fres) * (0.45 + 0.55 * near);\n"
+    "  frag_color = vec4(glass, alpha);\n"
     "}\n";
 
 static const char *composite_vs_source =
@@ -378,6 +379,13 @@ static sg_pipeline make_pipeline(sg_shader shader) {
     pd.sample_count = 1;
     pd.depth.compare = SG_COMPAREFUNC_LESS_EQUAL;
     pd.depth.write_enabled = true;
+    pd.colors[0].blend.enabled = true;
+    pd.colors[0].blend.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA;
+    pd.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+    pd.colors[0].blend.op_rgb = SG_BLENDOP_ADD;
+    pd.colors[0].blend.src_factor_alpha = SG_BLENDFACTOR_ONE;
+    pd.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+    pd.colors[0].blend.op_alpha = SG_BLENDOP_ADD;
     return sg_make_pipeline(&pd);
 }
 
