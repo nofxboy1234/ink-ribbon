@@ -25,11 +25,7 @@ body {
   height: 100%;
   outline: none;
   touch-action: none;
-  cursor: grab;
-}
-
-.rpd-canvas:active {
-  cursor: grabbing;
+  cursor: default;
 }
 
 .rpd-canvas[data-mark="true"],
@@ -113,6 +109,20 @@ body {
   height: 100%;
   pointer-events: none;
   z-index: 1;
+}
+
+.rpd-dim {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: rgb(2 5 9 / 62%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.rpd-dim[data-visible="true"] {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .rpd-brand {

@@ -3,9 +3,9 @@
 The real Raccoon Police Department geometry from *Resident Evil 2* (RT build),
 floors 1–3, rendered in the browser with sokol compiled to WebAssembly. The
 surfaces are not textured; each source material uses a distinct flat grey.
-The default camera follows Claire from over her right shoulder. Orbit around
-her with the left mouse button, or switch to the building camera to pan, zoom
-and fly through the model.
+The default camera follows Claire from over her right shoulder. Moving the
+pointer orbits around her, and the building camera orbits, pans and flies
+through the model.
 
 A green FPS counter sits at the top right of the scene. The same view is now a
 playable Claire A quest map: walk the RPD, discover items, plot bright-green
@@ -135,26 +135,27 @@ game PAK and the decompile at `~/repos/reze`.
 
 | Input | Action |
 |---|---|
-| Left drag | Orbit around Claire in follow; orbit the building in orbit |
+| Pointer move | Orbit around Claire in follow; orbit the building in orbit |
 | Middle drag | Pan (orbit camera only) |
-| Wheel / pinch | Follow distance in follow; zoom in orbit |
-| Hold right click + mouse | Free-look |
 | `W` / `S` (while flying) | Forward / back along the view |
 | `A` / `D` (while flying) | Strafe left / right |
 | `Q` (while flying) | Fly down |
 | `E` (while flying) | Fly up |
 | Scroll wheel (while flying) | Increase / decrease fly speed |
 | `C` | Toggle follow and orbit cameras |
+| `P` | Toggle the right-side UI panel |
 | `R` | Reset camera |
 | Click floor cell | Route the player to that cell |
 | Click discovered item | Route to the item and show its actions |
 | Click door | Route to the door and show its lock state |
 | One-finger drag | Orbit |
-| Two-finger drag | Pan and pinch-zoom |
+| Two-finger drag | Pan (orbit camera only) |
 
-Right click seeds the fly camera from the current view. Releasing the button
-returns to orbit mode around a point ahead, so the transition is seamless. The
-FOLLOW/ORBIT button in the floor bar switches cameras as well.
+The camera orbits whenever the pointer moves over the scene; no button is
+needed. The FOLLOW/ORBIT button in the floor bar switches cameras as well. The
+route panel's focus button frames a plan in the free camera, where the fly keys
+move the view. Opening the right panel dims the scene and blocks camera,
+movement and selection input until the panel closes.
 
 ## Deploy to Cloudflare
 

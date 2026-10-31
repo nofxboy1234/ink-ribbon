@@ -124,15 +124,16 @@ static struct {
     float player_pos[3];
     int camera_mode;
     float scene_radius;
-    bool dragging;
     bool panning;
+    bool input_enabled;
     bool user_moved;
     bool fly_mode;
     float fly_pos[3];
     float fly_yaw;
     float fly_pitch;
     bool key_w, key_a, key_s, key_d, key_q, key_e;
-    float last_x, last_y, touch_pinch;
+    float last_x, last_y;
+    bool pointer_valid;
     float fly_speed;
 } state;
 
@@ -271,23 +272,6 @@ static mat4 current_view_proj(void) {
     mat4 proj = mat4_perspective(0.62f, (float)sapp_width() / (float)sapp_height(), 0.2f, 1600.0f);
     mat4 view = mat4_look_at(eye, aim, (float[3]){ 0.0f, 1.0f, 0.0f });
     return mat4_mul(proj, view);
-}
-
-static void fly_begin(void) {
-    if (state.fly_mode || !state.scene.loaded) return;
-    float eye[3], aim[3];
-    current_eye_aim(eye, aim);
-    memcpy(state.fly_pos, eye, sizeof(eye));
-    if (state.camera_mode == 0) {
-        state.fly_yaw = state.follow.yaw + RPD_PI;
-        state.fly_pitch = -state.follow.pitch;
-    } else {
-        state.fly_yaw = state.camera.yaw + RPD_PI;
-        state.fly_pitch = -state.camera.pitch;
-    }
-    state.fly_mode = true;
-    state.dragging = false;
-    state.panning = false;
 }
 
 static void fly_end(void) {
@@ -981,7 +965,7 @@ static void frame(void) {
             }
         }
         current_eye_aim(eye, aim);
-        /* Fog must not depend on fly mode, otherwise pressing right-click
+        /* Fog must not depend on fly mode, otherwise entering free view
            visibly darkens the existing view. */
         float camera_distance = active_camera_distance();
         fog_start = camera_distance - state.scene_radius * 0.55f;
@@ -1065,6 +1049,7 @@ static void init(void) {
     state.follow.shoulder = 0.9f;
     state.follow.focus_valid = false;
     state.fly_speed = 22.0f;
+    state.input_enabled = true;
 }
 
 static void cleanup(void) {
@@ -1072,28 +1057,37 @@ static void cleanup(void) {
     if (state.scene.data) free(state.scene.data);
 }
 
-/* input handling is the same orbit/fly model as before */
+/* input handling: pointer movement orbits, middle drag pans */
 static void event(const sapp_event *e) {
+    if (!state.input_enabled) return;
     switch (e->type) {
     case SAPP_EVENTTYPE_MOUSE_DOWN:
         state.user_moved = true;
-        if (e->mouse_button == SAPP_MOUSEBUTTON_LEFT) state.dragging = true;
-        if (e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) fly_begin();
         if (e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE && state.camera_mode == 1) state.panning = true;
         state.last_x = e->mouse_x;
         state.last_y = e->mouse_y;
+        state.pointer_valid = true;
         break;
     case SAPP_EVENTTYPE_MOUSE_UP:
-        if (e->mouse_button == SAPP_MOUSEBUTTON_LEFT) state.dragging = false;
-        if (e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) fly_end();
         if (e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) state.panning = false;
         break;
+    case SAPP_EVENTTYPE_MOUSE_ENTER:
+        state.last_x = e->mouse_x;
+        state.last_y = e->mouse_y;
+        state.pointer_valid = true;
+        break;
     case SAPP_EVENTTYPE_MOUSE_LEAVE:
-        state.dragging = false;
         state.panning = false;
+        state.pointer_valid = false;
         fly_end();
         break;
     case SAPP_EVENTTYPE_MOUSE_MOVE: {
+        if (!state.pointer_valid) {
+            state.last_x = e->mouse_x;
+            state.last_y = e->mouse_y;
+            state.pointer_valid = true;
+            break;
+        }
         float dx = e->mouse_x - state.last_x;
         float dy = e->mouse_y - state.last_y;
         state.last_x = e->mouse_x;
@@ -1103,14 +1097,6 @@ static void event(const sapp_event *e) {
             while (state.fly_yaw > RPD_PI) state.fly_yaw -= 2.0f * RPD_PI;
             while (state.fly_yaw < -RPD_PI) state.fly_yaw += 2.0f * RPD_PI;
             state.fly_pitch = fminf(1.45f, fmaxf(-1.45f, state.fly_pitch - dy * 0.005f));
-        } else if (state.dragging) {
-            if (state.camera_mode == 0) {
-                state.follow.yaw -= dx * 0.006f;
-                state.follow.pitch = fminf(1.2f, fmaxf(-0.35f, state.follow.pitch + dy * 0.006f));
-            } else {
-                state.camera.yaw -= dx * 0.006f;
-                state.camera.pitch = fminf(1.45f, fmaxf(0.08f, state.camera.pitch + dy * 0.006f));
-            }
         } else if (state.panning) {
             float eye[3];
             camera_eye(&state.camera, eye);
@@ -1126,17 +1112,19 @@ static void event(const sapp_event *e) {
                 state.camera.target[i] -= right[i] * dx * scale;
                 state.camera.target[i] += upv[i] * dy * scale;
             }
+        } else if (state.camera_mode == 0) {
+            state.follow.yaw -= dx * 0.006f;
+            state.follow.pitch = fminf(1.2f, fmaxf(-0.35f, state.follow.pitch + dy * 0.006f));
+        } else {
+            state.camera.yaw -= dx * 0.006f;
+            state.camera.pitch = fminf(1.45f, fmaxf(0.08f, state.camera.pitch + dy * 0.006f));
         }
         break;
     }
     case SAPP_EVENTTYPE_MOUSE_SCROLL:
-        state.user_moved = true;
         if (state.fly_mode) {
+            state.user_moved = true;
             state.fly_speed = fminf(140.0f, fmaxf(2.0f, state.fly_speed * powf(1.22f, e->scroll_y)));
-        } else if (state.camera_mode == 0) {
-            state.follow.distance = fminf(10.0f, fmaxf(3.0f, state.follow.distance * (1.0f - e->scroll_y * 0.08f)));
-        } else {
-            state.camera.distance = fminf(700.0f, fmaxf(8.0f, state.camera.distance * (1.0f - e->scroll_y * 0.08f)));
         }
         break;
     case SAPP_EVENTTYPE_TOUCHES_BEGAN:
@@ -1147,7 +1135,6 @@ static void event(const sapp_event *e) {
         if (e->num_touches > 0) { cx /= (float)e->num_touches; cy /= (float)e->num_touches; }
         if (e->type == SAPP_EVENTTYPE_TOUCHES_BEGAN) {
             state.last_x = cx; state.last_y = cy;
-            state.touch_pinch = e->num_touches >= 2 ? hypotf(e->touches[0].pos_x - e->touches[1].pos_x, e->touches[0].pos_y - e->touches[1].pos_y) : 0.0f;
             break;
         }
         if (e->num_touches == 1 && e->type != SAPP_EVENTTYPE_TOUCHES_ENDED) {
@@ -1160,34 +1147,22 @@ static void event(const sapp_event *e) {
                 state.camera.yaw -= dx * 0.006f;
                 state.camera.pitch = fminf(1.45f, fmaxf(0.08f, state.camera.pitch + dy * 0.006f));
             }
-        } else if (e->num_touches >= 2) {
-            float dist = hypotf(e->touches[0].pos_x - e->touches[1].pos_x, e->touches[0].pos_y - e->touches[1].pos_y);
-            if (state.touch_pinch > 0.0f && dist > 1.0f) {
-                if (state.camera_mode == 0) {
-                    state.follow.distance = fminf(8.0f, fmaxf(2.4f, state.follow.distance * (state.touch_pinch / dist)));
-                } else {
-                    state.camera.distance = fminf(700.0f, fmaxf(8.0f, state.camera.distance * (state.touch_pinch / dist)));
-                }
-            }
-            state.touch_pinch = dist;
-            if (state.camera_mode == 1) {
-                float dx = cx - state.last_x, dy = cy - state.last_y;
-                float eye[3]; camera_eye(&state.camera, eye);
-                float f[3] = { state.camera.target[0] - eye[0], state.camera.target[1] - eye[1], state.camera.target[2] - eye[2] };
-                float fl = sqrtf(f[0] * f[0] + f[1] * f[1] + f[2] * f[2]);
-                f[0] /= fl; f[1] /= fl; f[2] /= fl;
-                float right[3] = { -f[2], 0.0f, f[0] };
-                float rl = sqrtf(right[0] * right[0] + right[2] * right[2]);
-                right[0] /= rl; right[2] /= rl;
-                float upv[3] = { right[1] * f[2] - right[2] * f[1], right[2] * f[0] - right[0] * f[2], right[0] * f[1] - right[1] * f[0] };
-                float scale = 2.0f * state.camera.distance * tanf(0.31f) / (float)sapp_height();
-                for (int i = 0; i < 3; i++) {
-                    state.camera.target[i] -= right[i] * dx * scale;
-                    state.camera.target[i] += upv[i] * dy * scale;
-                }
+        } else if (e->num_touches >= 2 && state.camera_mode == 1) {
+            float dx = cx - state.last_x, dy = cy - state.last_y;
+            float eye[3]; camera_eye(&state.camera, eye);
+            float f[3] = { state.camera.target[0] - eye[0], state.camera.target[1] - eye[1], state.camera.target[2] - eye[2] };
+            float fl = sqrtf(f[0] * f[0] + f[1] * f[1] + f[2] * f[2]);
+            f[0] /= fl; f[1] /= fl; f[2] /= fl;
+            float right[3] = { -f[2], 0.0f, f[0] };
+            float rl = sqrtf(right[0] * right[0] + right[2] * right[2]);
+            right[0] /= rl; right[2] /= rl;
+            float upv[3] = { right[1] * f[2] - right[2] * f[1], right[2] * f[0] - right[0] * f[2], right[0] * f[1] - right[1] * f[0] };
+            float scale = 2.0f * state.camera.distance * tanf(0.31f) / (float)sapp_height();
+            for (int i = 0; i < 3; i++) {
+                state.camera.target[i] -= right[i] * dx * scale;
+                state.camera.target[i] += upv[i] * dy * scale;
             }
         }
-        if (e->num_touches < 2) state.touch_pinch = 0.0f;
         state.last_x = e->num_touches > 0 ? cx : state.last_x;
         state.last_y = e->num_touches > 0 ? cy : state.last_y;
         break;
@@ -1201,7 +1176,7 @@ static void event(const sapp_event *e) {
         case SAPP_KEYCODE_Q: state.key_q = true; break;
         case SAPP_KEYCODE_E: state.key_e = true; break;
         case SAPP_KEYCODE_R:
-            fly_end(); state.dragging = false; state.panning = false; state.user_moved = false; reset_camera();
+            fly_end(); state.panning = false; state.user_moved = false; reset_camera();
             break;
         default: break;
         }
@@ -1220,7 +1195,6 @@ static void event(const sapp_event *e) {
     case SAPP_EVENTTYPE_UNFOCUSED:
         state.key_w = state.key_a = state.key_s = state.key_d = false;
         state.key_q = state.key_e = false;
-        state.dragging = false;
         state.panning = false;
         fly_end();
         break;
@@ -1268,7 +1242,6 @@ EMSCRIPTEN_KEEPALIVE int rpd_set_camera_mode(int mode) {
     if (mode < 0 || mode > 1) return -1;
     state.fly_mode = false;
     state.camera_mode = mode;
-    state.dragging = false;
     state.panning = false;
     state.user_moved = false;
     reset_camera();
@@ -1277,6 +1250,16 @@ EMSCRIPTEN_KEEPALIVE int rpd_set_camera_mode(int mode) {
 
 EMSCRIPTEN_KEEPALIVE int rpd_get_camera_mode(void) {
     return state.fly_mode ? 2 : state.camera_mode;
+}
+
+EMSCRIPTEN_KEEPALIVE void rpd_set_input_enabled(int enabled) {
+    state.input_enabled = enabled != 0;
+    state.pointer_valid = false;
+    if (!state.input_enabled) {
+        state.key_w = state.key_a = state.key_s = state.key_d = false;
+        state.key_q = state.key_e = false;
+        state.panning = false;
+    }
 }
 
 EMSCRIPTEN_KEEPALIVE void rpd_set_player_position(float x, float y, float z) {

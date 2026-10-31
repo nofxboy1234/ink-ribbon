@@ -36,6 +36,7 @@ export type RpdModule = {
   _rpd_set_camera_mode: (mode: number) => number;
   _rpd_get_camera_mode: () => number;
   _rpd_set_player_position: (x: number, y: number, z: number) => void;
+  _rpd_set_input_enabled: (enabled: number) => void;
 };
 
 declare const createRpdModule: (options: {

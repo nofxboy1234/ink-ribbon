@@ -56,6 +56,7 @@ type RpdModule = {
   _rpd_set_camera_mode: (mode: number) => number;
   _rpd_get_camera_mode: () => number;
   _rpd_set_player_position: (x: number, y: number, z: number) => void;
+  _rpd_set_input_enabled: (enabled: number) => void;
 };
 
 type RpdFactory = (options: {
@@ -82,7 +83,7 @@ type Hover = {
   y: number;
 };
 
-const CACHE_VERSION = "20261031a";
+const CACHE_VERSION = "20261031c";
 const DISCOVER_RADIUS = 3.0;
 const SPAWN_DISCOVER_RADIUS = 3.5;
 const MOVE_SPEED = 7.0;
@@ -182,6 +183,7 @@ export default function RpdScene({
   const moduleRef = useRef<RpdModule | null>(null);
   const questRef = useRef<Quest | null>(null);
   const navRef = useRef<NavGraph | null>(null);
+  const showPanelRef = useRef(false);
   const itemMarkers = useRef(new Map<string, number>());
   const doorMarkers = useRef(new Map<string, number>());
   const playerMarker = useRef(-1);
@@ -213,6 +215,7 @@ export default function RpdScene({
   const [hover, setHover] = useState<Hover | null>(null);
   const [activeFloor, setActiveFloor] = useState(0);
   const [cameraMode, setCameraMode] = useState(0);
+  const [showPanel, setShowPanel] = useState(false);
   const [showInventory, setShowInventory] = useState(false);
   const [showLegend, setShowLegend] = useState(true);
   const [statusNote, setStatusNote] = useState(
@@ -716,6 +719,7 @@ export default function RpdScene({
         );
         module._rpd_set_player_position(spawn[0], spawn[1], spawn[2]);
         module._rpd_set_camera_mode(0);
+        module._rpd_set_input_enabled(showPanelRef.current ? 0 : 1);
         setCameraMode(0);
         for (const item of questData.items) {
           const shape = SHAPES[item.shape] ?? SHAPES.cube;
@@ -1453,6 +1457,7 @@ export default function RpdScene({
       if (event.code !== "KeyC" || event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+      if (showPanel) return;
       const module = moduleRef.current;
       if (!module) return;
       event.preventDefault();
@@ -1463,7 +1468,28 @@ export default function RpdScene({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [cameraMode]);
+  }, [cameraMode, showPanel]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.code !== "KeyP" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+      event.preventDefault();
+      setShowPanel((value) => !value);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    showPanelRef.current = showPanel;
+    moduleRef.current?._rpd_set_input_enabled(showPanel ? 0 : 1);
+    if (showPanel) {
+      hoverCellRef.current = null;
+      setHover(null);
+    }
+  }, [showPanel]);
 
   const reset = () => {
     const q = questRef.current;
@@ -1546,6 +1572,7 @@ export default function RpdScene({
           onContextMenu={(event) => event.preventDefault()}
         />
         <canvas ref={overlayRef} className="rpd-overlay" aria-hidden="true" />
+        <div className="rpd-dim" data-visible={showPanel} aria-hidden="true" />
         {hover && (
           <div className="rpd-tooltip" style={{ left: hover.x + 14, top: hover.y + 14 }}>
             <strong>{hover.label}</strong>
@@ -1594,7 +1621,7 @@ export default function RpdScene({
         </button>
       </section>
 
-      <aside className="rpd-panel" aria-label="Quest planner">
+      <aside className="rpd-panel" aria-label="Quest planner" hidden={!showPanel}>
         <div className="rpd-panel-head">
           <div>
             <p className="rpd-kicker">Next actions</p>
@@ -1717,7 +1744,12 @@ export default function RpdScene({
 
         <div className="rpd-section-title">
           <span>Inventory</span>
-          <button className="rpd-text-button" onClick={() => setShowInventory((value) => !value)}>
+          <button
+            className="rpd-text-button"
+            title="Toggle inventory"
+            aria-expanded={showInventory}
+            onClick={() => setShowInventory((value) => !value)}
+          >
             {showInventory ? "hide" : "show"}
           </button>
         </div>
