@@ -14,9 +14,10 @@
     "scene:export": "blender -b build/rpd.blend -P tools/rpd_scene.py -- --export",
     "quest:grid": "blender -b -P tools/rpd_grid.py",
     "quest:data": "python3 tools/rpd_quest.py",
-    "quest": "npm run quest:grid && npm run quest:data",
+    "quest": "npm run quest:grid && npm run quest:data && npm run nav:build",
     "wasm": "bash native/build.sh",
-    "deploy": "void deploy --platform cloudflare"
+    "deploy": "void deploy --platform cloudflare",
+    "nav:build": "blender -b -P tools/rpd_nav.py"
   },
   "dependencies": {
     "hono": "4.13.14",

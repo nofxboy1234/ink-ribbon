@@ -4,24 +4,30 @@ import {
   DOOR_COLOURS,
   DOOR_SHAPE,
   SHAPES,
-  doorSatisfied,
-  findRoomPath,
   itemRadius,
   itemSatisfied,
   keyForDoor,
   nearbyRoom,
   pathLength,
-  planPath,
   pointAt,
-  roomForCell,
-  smoothPath,
   type Door,
   type DoorState,
   type Item,
-  type PathResult,
   type Quest,
   type Vec3,
 } from "./quest";
+import {
+  blockedDoorEdges,
+  buildNavGraph,
+  findBlocker,
+  findNavPath,
+  nearestNode,
+  nearestNodeOnFloor,
+  nodePoint,
+  routeFromPath,
+  type NavFile,
+  type NavGraph,
+} from "./nav";
 
 type RpdModule = {
   HEAPU8: Uint8Array;
@@ -47,6 +53,9 @@ type RpdModule = {
   _rpd_marker_set_color: (index: number, r: number, g: number, b: number) => void;
   _rpd_marker_set_rotation: (index: number, radians: number) => void;
   _rpd_marker_count: () => number;
+  _rpd_set_camera_mode: (mode: number) => number;
+  _rpd_get_camera_mode: () => number;
+  _rpd_set_player_position: (x: number, y: number, z: number) => void;
 };
 
 type RpdFactory = (options: {
@@ -57,7 +66,7 @@ type RpdFactory = (options: {
 type Target =
   | { kind: "item"; id: string }
   | { kind: "door"; id: string }
-  | { kind: "cell"; x: number; z: number; y: number; room: string };
+  | { kind: "cell"; node: number };
 
 type Action =
   | { type: "move"; label: string; points: Vec3[] }
@@ -73,7 +82,7 @@ type Hover = {
   y: number;
 };
 
-const CACHE_VERSION = "20261030a";
+const CACHE_VERSION = "20261031a";
 const DISCOVER_RADIUS = 3.0;
 const SPAWN_DISCOVER_RADIUS = 3.5;
 const MOVE_SPEED = 7.0;
@@ -154,10 +163,6 @@ function pointInQuad(
   return true;
 }
 
-function catmullPath(points: Vec3[]): Vec3[] {
-  return smoothPath(points);
-}
-
 function actionLabel(action: Action): string {
   return action.label;
 }
@@ -176,6 +181,7 @@ export default function RpdScene({
   const wrapRef = useRef<HTMLDivElement>(null);
   const moduleRef = useRef<RpdModule | null>(null);
   const questRef = useRef<Quest | null>(null);
+  const navRef = useRef<NavGraph | null>(null);
   const itemMarkers = useRef(new Map<string, number>());
   const doorMarkers = useRef(new Map<string, number>());
   const playerMarker = useRef(-1);
@@ -183,10 +189,11 @@ export default function RpdScene({
   const viewProjRef = useRef<Float32Array>(new Float32Array(16));
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const clickHandled = useRef(false);
-  const hoverCellRef = useRef<[number, number, number] | null>(null);
+  const hoverCellRef = useRef<number | null>(null);
   const cancelledRef = useRef(false);
 
   const [quest, setQuest] = useState<Quest | null>(null);
+  const [nav, setNav] = useState<NavGraph | null>(null);
   const [progress, setProgress] = useState(0);
   const [hidden, setHidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -205,6 +212,7 @@ export default function RpdScene({
   const [toast, setToast] = useState<string>("");
   const [hover, setHover] = useState<Hover | null>(null);
   const [activeFloor, setActiveFloor] = useState(0);
+  const [cameraMode, setCameraMode] = useState(0);
   const [showInventory, setShowInventory] = useState(false);
   const [showLegend, setShowLegend] = useState(true);
   const [statusNote, setStatusNote] = useState(
@@ -273,13 +281,17 @@ export default function RpdScene({
   const doors = quest?.doors ?? [];
 
   const currentFloor = useMemo(() => {
+    if (nav) {
+      const node = nearestNode(nav, playerRef.current, 3.0);
+      if (node >= 0) return nav.floor[node];
+    }
     if (!quest) return 0;
     return nearbyRoom(quest, playerRef.current).floor;
-  }, [quest, player]);
+  }, [quest, nav, player]);
 
   useEffect(() => {
-    if (quest) setActiveFloor(currentFloor);
-  }, [quest, currentFloor]);
+    if (quest && nav) setActiveFloor(currentFloor);
+  }, [quest, nav, currentFloor]);
 
   const itemLookup = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const doorLookup = useMemo(() => new Map(doors.map((door) => [door.id, door])), [doors]);
@@ -287,20 +299,51 @@ export default function RpdScene({
 
   const gridLines = useMemo(() => {
     const result = new Map<number, [Vec3, Vec3][]>();
-    if (!quest) return result;
-    for (const floor of quest.floors) {
-      const set = new Set(floor.cells.map(([x, z, y]) => `${x},${z},${y}`));
-      const lines: [Vec3, Vec3][] = [];
-      for (const [x, z, y] of floor.cells) {
-        const eastKey = `${x + 1},${z},${y}`;
-        if (set.has(eastKey)) lines.push([[x, y + 0.02, z], [x + 1, y + 0.02, z]]);
-        const southKey = `${x},${z + 1},${y}`;
-        if (set.has(southKey)) lines.push([[x, y + 0.02, z], [x, y + 0.02, z + 1]]);
+    if (!nav) return result;
+    const h = nav.half;
+    const seen = new Map<number, Set<string>>();
+    for (let i = 0; i < nav.count; i++) {
+      const floor = nav.floor[i];
+      let lines = result.get(floor);
+      if (!lines) {
+        lines = [];
+        result.set(floor, lines);
       }
-      result.set(floor.index, lines);
+      let keys = seen.get(floor);
+      if (!keys) {
+        keys = new Set();
+        seen.set(floor, keys);
+      }
+      const x = nav.x[i];
+      const y = nav.y[i] + 0.02;
+      const z = nav.z[i];
+      const sides: [Vec3, Vec3][] = [
+        [[x - h, y, z - h], [x + h, y, z - h]],
+        [[x + h, y, z - h], [x + h, y, z + h]],
+        [[x + h, y, z + h], [x - h, y, z + h]],
+        [[x - h, y, z + h], [x - h, y, z - h]],
+      ];
+      for (const [a, b] of sides) {
+        const ka = `${a[0].toFixed(2)},${a[1].toFixed(2)},${a[2].toFixed(2)}`;
+        const kb = `${b[0].toFixed(2)},${b[1].toFixed(2)},${b[2].toFixed(2)}`;
+        const key = ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`;
+        if (keys.has(key)) continue;
+        keys.add(key);
+        lines.push([a, b]);
+      }
     }
     return result;
-  }, [quest]);
+  }, [nav]);
+
+  const navNodesByFloor = useMemo(() => {
+    const result: number[][] = [[], [], []];
+    if (!nav) return result;
+    for (let i = 0; i < nav.count; i++) {
+      const floor = Math.min(2, Math.max(0, nav.floor[i]));
+      result[floor].push(i);
+    }
+    return result;
+  }, [nav]);
 
   const keyItems = useMemo(() => {
     const counts = new Map<string, number>();
@@ -364,7 +407,7 @@ export default function RpdScene({
   }, [currentActions, actionsAt]);
 
   useEffect(() => {
-    if (!quest) return;
+    if (!quest || !nav) return;
     const frame = (now: number) => {
       const module = moduleRef.current;
       if (!module || !canvasRef.current) return;
@@ -389,79 +432,68 @@ export default function RpdScene({
       ctx.clearRect(0, 0, rect.width, rect.height);
       const matrix = viewProjRef.current;
 
-      // Grid: draw every cell on the active floor and a faint hint of the others.
-      const floor = quest.floors[activeFloorRef.current];
-      if (floor) {
-        const lines = gridLines.get(floor.index) ?? [];
-        ctx.save();
-        ctx.strokeStyle = "rgba(70, 170, 255, 0.36)";
-        ctx.lineWidth = 0.9;
-        ctx.beginPath();
-        for (const [a, b] of lines) {
-          const pa = projectPoint(a, matrix, rect.width, rect.height);
-          const pb = projectPoint(b, matrix, rect.width, rect.height);
-          if (!pa || !pb) continue;
-          if (pa.x < -20 || pa.x > rect.width + 20 || pa.y < -20 || pa.y > rect.height + 20) continue;
-          ctx.moveTo(pa.x, pa.y);
-          ctx.lineTo(pb.x, pb.y);
-        }
-        ctx.stroke();
-        ctx.restore();
-        ctx.fillStyle = "rgba(151, 205, 255, 0.5)";
-        for (const [x, z, y] of floor.cells) {
-          const point = projectPoint([x, y + 0.03, z], matrix, rect.width, rect.height);
-          if (!point) continue;
-          if (point.x < -10 || point.x > rect.width + 10 || point.y < -10 || point.y > rect.height + 10) continue;
-          ctx.fillRect(point.x - 0.8, point.y - 0.8, 1.6, 1.6);
-        }
+      // Grid: cell sides on the active floor, faint centres on the others.
+      const activeNodes = navNodesByFloor[activeFloorRef.current] ?? [];
+      const lines = gridLines.get(activeFloorRef.current) ?? [];
+      ctx.save();
+      ctx.strokeStyle = "rgba(70, 170, 255, 0.22)";
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      for (const [a, b] of lines) {
+        const pa = projectPoint(a, matrix, rect.width, rect.height);
+        const pb = projectPoint(b, matrix, rect.width, rect.height);
+        if (!pa || !pb) continue;
+        if (pa.x < -20 || pa.x > rect.width + 20 || pa.y < -20 || pa.y > rect.height + 20) continue;
+        ctx.moveTo(pa.x, pa.y);
+        ctx.lineTo(pb.x, pb.y);
       }
-      for (const other of quest.floors) {
-        if (other.index === activeFloorRef.current) continue;
-        for (let i = 0; i < other.cells.length; i += 3) {
-          const [x, z, y] = other.cells[i];
-          const point = projectPoint([x, y + 0.03, z], matrix, rect.width, rect.height);
+      ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = "rgba(151, 205, 255, 0.42)";
+      for (const node of activeNodes) {
+        const point = projectPoint([nav.x[node], nav.y[node] + 0.03, nav.z[node]], matrix, rect.width, rect.height);
+        if (!point) continue;
+        if (point.x < -10 || point.x > rect.width + 10 || point.y < -10 || point.y > rect.height + 10) continue;
+        ctx.fillRect(point.x - 0.6, point.y - 0.6, 1.2, 1.2);
+      }
+      for (let floorIndex = 0; floorIndex < navNodesByFloor.length; floorIndex++) {
+        if (floorIndex === activeFloorRef.current) continue;
+        for (const node of navNodesByFloor[floorIndex]) {
+          const point = projectPoint([nav.x[node], nav.y[node] + 0.03, nav.z[node]], matrix, rect.width, rect.height);
           if (!point) continue;
           if (point.x < 0 || point.x > rect.width || point.y < 0 || point.y > rect.height) continue;
-          ctx.fillStyle = "rgba(151, 205, 255, 0.12)";
-          ctx.fillRect(point.x - 0.8, point.y - 0.8, 1.6, 1.6);
+          ctx.fillStyle = "rgba(151, 205, 255, 0.08)";
+          ctx.fillRect(point.x - 0.6, point.y - 0.6, 1.2, 1.2);
         }
       }
 
-      const playerFloor = nearbyRoom(quest, playerRef.current).floor;
-      const activeLabel = quest.floors[activeFloorRef.current]?.label ?? "";
-      const playerFloorLabel = quest.floors[playerFloor]?.label ?? "";
+      const playerNode = nearestNode(nav, playerRef.current, 3.0);
+      const playerFloor = playerNode >= 0 ? nav.floor[playerNode] : nearbyRoom(quest, playerRef.current).floor;
+      const activeLabel = nav.floors[activeFloorRef.current]?.label ?? "";
+      const playerFloorLabel = nav.floors[playerFloor]?.label ?? "";
       ctx.font = "600 11px ui-monospace, SFMono-Regular, Menlo, monospace";
-      ctx.fillStyle = "rgba(151, 205, 255, 0.75)";
-      const floorPoint = projectPoint(
-        [
-          Math.min(...quest.floors[activeFloorRef.current].cells.map((cell) => cell[0])) + 2,
-          quest.floors[activeFloorRef.current].level + 0.4,
-          Math.min(...quest.floors[activeFloorRef.current].cells.map((cell) => cell[1])) + 2,
-        ],
-        matrix,
-        rect.width,
-        rect.height,
-      );
-      if (floorPoint) {
-        ctx.fillText(`GRID ${activeLabel}`, floorPoint.x, floorPoint.y);
-      }
+      ctx.fillStyle = "rgba(151, 205, 255, 0.7)";
+      ctx.fillText(`GRID ${activeLabel}`, 18, rect.height - 48);
       if (playerFloor !== activeFloorRef.current) {
         ctx.fillStyle = "rgba(255, 214, 102, 0.85)";
         ctx.fillText(`PLAYER ${playerFloorLabel}`, 18, rect.height - 28);
       }
 
       const hovered = hoverCellRef.current;
-      if (hovered) {
-        const [x, z, y] = hovered;
+      if (hovered !== null) {
+        const x = nav.x[hovered];
+        const y = nav.y[hovered] + 0.02;
+        const z = nav.z[hovered];
+        const half = nav.half;
         const corners: { x: number; y: number }[] = [];
         let complete = true;
         for (const [dx, dz] of [
-          [-0.5, -0.5],
-          [0.5, -0.5],
-          [0.5, 0.5],
-          [-0.5, 0.5],
+          [-half, -half],
+          [half, -half],
+          [half, half],
+          [-half, half],
         ]) {
-          const point = projectPoint([x + dx, y + 0.02, z + dz], matrix, rect.width, rect.height);
+          const point = projectPoint([x + dx, y, z + dz], matrix, rect.width, rect.height);
           if (!point) {
             complete = false;
             break;
@@ -555,7 +587,7 @@ export default function RpdScene({
     };
     let raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [quest, activeFloor, itemLookup, doorLookup, doors, gridLines]);
+  }, [quest, nav, activeFloor, itemLookup, doorLookup, doors, gridLines, navNodesByFloor]);
 
   useEffect(() => {
     let raf = 0;
@@ -611,7 +643,7 @@ export default function RpdScene({
         if (!probe.getContext("webgl2")) {
           throw new Error("this browser does not provide WebGL2");
         }
-        const [asset, questResponse, factory] = await Promise.all([
+        const [asset, questResponse, navResponse, factory] = await Promise.all([
           fetchScene(`${assetUrl}?v=${CACHE_VERSION}`, controller.signal, (fraction) => {
             if (!cancelledRef.current) setProgress(fraction);
           }),
@@ -619,6 +651,12 @@ export default function RpdScene({
             (response) => {
               if (!response.ok) throw new Error("could not load the quest data");
               return response.json() as Promise<Quest>;
+            },
+          ),
+          fetch(`/rpd/nav.json?v=${CACHE_VERSION}`, { signal: controller.signal }).then(
+            (response) => {
+              if (!response.ok) throw new Error("could not load the navigation graph");
+              return response.json() as Promise<NavFile>;
             },
           ),
           import("./wasm/rpd.js").then(
@@ -645,8 +683,27 @@ export default function RpdScene({
         await nextFrame();
         await nextFrame();
 
+        const graph = buildNavGraph(navResponse);
+        navRef.current = graph;
+        setNav(graph);
+        const snappedItems = questResponse.items.map((item) => {
+          const node = nearestNode(graph, [item.x, item.y - 0.36, item.z], 3.2);
+          if (node < 0) return item;
+          return {
+            ...item,
+            x: graph.x[node],
+            y: graph.y[node] + 0.36,
+            z: graph.z[node],
+          };
+        });
+        const spawnNode = nearestNode(graph, questResponse.spawn, 4.0);
+        const spawn: Vec3 =
+          spawnNode >= 0
+            ? [graph.x[spawnNode], graph.y[spawnNode] + 0.45, graph.z[spawnNode]]
+            : questResponse.spawn;
+        const questData: Quest = { ...questResponse, items: snappedItems, spawn };
+
         module._rpd_marker_clear();
-        const spawn = questResponse.spawn;
         playerMarker.current = module._rpd_marker_add(
           SHAPES.sphere,
           spawn[0],
@@ -657,7 +714,10 @@ export default function RpdScene({
           233,
           253,
         );
-        for (const item of questResponse.items) {
+        module._rpd_set_player_position(spawn[0], spawn[1], spawn[2]);
+        module._rpd_set_camera_mode(0);
+        setCameraMode(0);
+        for (const item of questData.items) {
           const shape = SHAPES[item.shape] ?? SHAPES.cube;
           const marker = module._rpd_marker_add(
             shape,
@@ -687,16 +747,16 @@ export default function RpdScene({
           module._rpd_marker_set_rotation(marker, door.yaw ?? 0);
           doorMarkers.current.set(door.id, marker);
         }
-        questRef.current = questResponse;
-        setQuest(questResponse);
+        questRef.current = questData;
+        setQuest(questData);
         setPlayer(spawn);
         playerRef.current = spawn;
-        const spawnRoom = nearbyRoom(questResponse, spawn);
+        const spawnRoom = nearbyRoom(questData, spawn);
         setPlayerRoom(spawnRoom.name);
         roomRef.current = spawnRoom.name;
-        setActiveFloor(spawnRoom.floor);
+        setActiveFloor(spawnNode >= 0 ? graph.floor[spawnNode] : spawnRoom.floor);
         const initialStates = new Map<string, DoorState>();
-        for (const door of questResponse.doors) initialStates.set(door.id, door.state);
+        for (const door of questData.doors) initialStates.set(door.id, door.state);
         doorStatesRef.current = initialStates;
         setDoorStates(initialStates);
         setHidden(true);
@@ -733,28 +793,38 @@ export default function RpdScene({
     };
   }, [assetUrl]);
 
-  const targetPoint = (target: Target): { point: Vec3; room: string; label: string } | null => {
+  const targetPoint = (
+    target: Target,
+  ): { point: Vec3; node: number; room: string; label: string } | null => {
     const q = questRef.current;
-    if (!q) return null;
+    const graph = navRef.current;
+    if (!q || !graph) return null;
     if (target.kind === "item") {
       const item = itemLookup.get(target.id);
       if (!item) return null;
-      return { point: itemPoint(item), room: item.region, label: item.name };
+      const node = nearestNode(graph, [item.x, item.y - 0.36, item.z], 3.2);
+      if (node < 0) return null;
+      return { point: itemPoint(item), node, room: item.region, label: item.name };
     }
     if (target.kind === "door") {
       const door = doorLookup.get(target.id);
       if (!door) return null;
+      const node = nearestNode(graph, [door.x, door.y, door.z], 3.0);
+      if (node < 0) return null;
       return {
         point: [door.x, door.y + 0.5, door.z],
+        node,
         room: door.from,
         label: door.label,
       };
     }
-    const room = roomForCell(q, [target.x, target.z, target.y]);
+    const point = nodePoint(graph, target.node, 0.45);
+    const room = nearbyRoom(q, point).name;
     return {
-      point: [target.x, target.y + 0.45, target.z],
-      room: room.name,
-      label: `${room.name} cell`,
+      point,
+      node: target.node,
+      room,
+      label: `${room} cell`,
     };
   };
 
@@ -813,64 +883,97 @@ export default function RpdScene({
     return [];
   };
 
-  const buildQueue = (result: PathResult, target: Target): Action[] => {
+  const buildQueue = (nodes: number[], target: Target): Action[] => {
     const q = questRef.current;
-    if (!q) return [];
-    const steps: Action[] = [];
-    let cursor: Vec3 = playerRef.current;
-    const ordered = result.doors;
-    for (const door of ordered) {
+    const graph = navRef.current;
+    if (!q || !graph || nodes.length === 0) return [];
+    const targetInfo = targetPoint(target);
+    const stops: { index: number; door: Door; key: string }[] = [];
+    for (const door of q.doors) {
       const state = doorStatesRef.current.get(door.id) ?? door.state;
-      const key = state === "locked" ? keyForDoor({ ...door, state }, inventoryRef.current) : null;
-      if (state === "locked" && key) {
-        const stop: Vec3 = [door.x, door.y + 0.5, door.z];
-        steps.push({
-          type: "move",
-          label: `Move to ${door.label}`,
-          points: catmullPath([cursor, stop]),
-        });
-        steps.push({
-          type: "use-key",
-          label: `Use ${key} on ${door.label}`,
-          doorId: door.id,
-          itemName: key,
-        });
-        cursor = stop;
+      if (state !== "locked") continue;
+      const key = keyForDoor({ ...door, state }, inventoryRef.current);
+      if (!key) continue;
+      let bestIndex = -1;
+      let bestDistance = 1.5;
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i];
+        if (Math.abs(graph.y[node] - door.y) > 2.0) continue;
+        const distance = Math.hypot(graph.x[node] - door.x, graph.z[node] - door.z);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestIndex = i;
+        }
+      }
+      if (bestIndex >= 0 && !stops.some((stop) => stop.door.id === door.id)) {
+        stops.push({ index: bestIndex, door, key });
       }
     }
-    const destination = result.points[result.points.length - 1];
-    steps.push({
-      type: "move",
-      label: `Move to ${targetPoint(target)?.label ?? "destination"}`,
-      points: catmullPath([cursor, destination]),
-    });
-    steps.push(...buildActionsFor(target).filter((action) => action.type !== "info"));
+    stops.sort((a, b) => a.index - b.index);
+
+    const steps: Action[] = [];
+    let cursor: Vec3 = playerRef.current;
+    let cursorIndex = 0;
+    for (const stop of stops) {
+      const segment = routeFromPath(graph, nodes.slice(cursorIndex, stop.index + 1), 0.45);
+      const points = [cursor, ...segment];
+      steps.push({ type: "move", label: `Move to ${stop.door.label}`, points });
+      steps.push({
+        type: "use-key",
+        label: `Use ${stop.key} on ${stop.door.label}`,
+        doorId: stop.door.id,
+        itemName: stop.key,
+      });
+      cursor = nodePoint(graph, nodes[stop.index], 0.45);
+      cursorIndex = stop.index;
+    }
+    const segment = routeFromPath(graph, nodes.slice(cursorIndex), 0.45);
+    const finalPoints = [cursor, ...segment];
+    if (pathLength(finalPoints) > 0.2) {
+      steps.push({
+        type: "move",
+        label: `Move to ${targetInfo?.label ?? "destination"}`,
+        points: finalPoints,
+      });
+    }
+    const doorHandled =
+      target.kind === "door" && stops.some((stop) => stop.door.id === target.id);
+    if (!doorHandled) {
+      steps.push(...buildActionsFor(target).filter((action) => action.type !== "info"));
+    }
     return steps;
   };
 
   const selectTarget = (target: Target) => {
     const q = questRef.current;
-    if (!q) return;
+    const graph = navRef.current;
+    if (!q || !graph) return;
     const info = targetPoint(target);
     if (!info) return;
-    const result = planPath(
-      q,
-      playerRef.current,
-      roomRef.current,
-      info.point,
-      info.room,
-      inventoryRef.current,
+    const from = nearestNode(graph, playerRef.current, 3.5);
+    if (from < 0) {
+      setStatusNote("Claire is not standing on a navigation cell.");
+      return;
+    }
+    const blocked = blockedDoorEdges(
+      graph,
+      q.doors,
       doorStatesRef.current,
+      inventoryRef.current,
     );
-    if (!result) {
-      const ignoreLocks = findRoomPath(q, roomRef.current, info.room, () => true);
-      const blocker = ignoreLocks?.doors.find((door) => {
-        const state = doorStatesRef.current.get(door.id) ?? door.state;
-        return state === "locked" && keyForDoor({ ...door, state }, inventoryRef.current) === null;
-      });
+    const nodes = findNavPath(graph, from, info.node, blocked);
+    if (!nodes) {
+      const blocker = findBlocker(
+        graph,
+        from,
+        info.node,
+        q.doors,
+        doorStatesRef.current,
+        inventoryRef.current,
+      );
       const reason = blocker
         ? `No route to ${info.label}. ${blocker.label} is locked and needs ${blocker.requires.join(" / ")}.`
-        : `No route to ${info.label}. A locked door is in the way.`;
+        : `No route to ${info.label}.`;
       setStatusNote(reason);
       setToast(reason);
       setSelected(target);
@@ -880,20 +983,18 @@ export default function RpdScene({
       setActionsAt([]);
       return;
     }
-    const points = catmullPath(result.points);
+    const points = [playerRef.current, ...routeFromPath(graph, nodes, 0.45)];
     pathRef.current = points;
     setPath(points);
     setSelected(target);
     selectedRef.current = target;
-    const nextQueue = buildQueue(result, target);
+    const nextQueue = buildQueue(nodes, target);
     queueRef.current = nextQueue;
     setQueue(nextQueue);
     const availableHere = buildActionsFor(target);
     actionsRef.current = availableHere;
     setActionsAt(availableHere);
-    setStatusNote(
-      `Route ready: ${result.rooms.join(" → ")}. Confirm the move to start.`,
-    );
+    setStatusNote(`Route ready to ${info.label}. Confirm the move to start.`);
   };
 
   const refreshAfterAction = () => {
@@ -903,6 +1004,11 @@ export default function RpdScene({
     const nextRoom = nearbyRoom(q, at);
     roomRef.current = nextRoom.name;
     setPlayerRoom(nextRoom.name);
+    const graph = navRef.current;
+    if (graph) {
+      const node = nearestNode(graph, at, 3.0);
+      if (node >= 0) setActiveFloor(graph.floor[node]);
+    }
     setSelected(null);
     selectedRef.current = null;
     pathRef.current = [];
@@ -983,13 +1089,16 @@ export default function RpdScene({
         const t = Math.min(1, (now - start) / duration);
         const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
         const position = pointAt(points, total * ease);
+        const graph = navRef.current;
+        if (graph) {
+          const node = nearestNode(graph, [position[0], position[1] - 0.45, position[2]], 2.0);
+          if (node >= 0) {
+            const surface = graph.y[node] + 0.45;
+            if (Math.abs(surface - position[1]) < 0.7) position[1] = surface;
+          }
+        }
         playerRef.current = position;
-        module._rpd_marker_set_position(
-          playerMarker.current,
-          position[0],
-          position[1],
-          position[2],
-        );
+        module._rpd_set_player_position(position[0], position[1], position[2]);
         revealItems(position);
         if (now - lastUi > 110) {
           lastUi = now;
@@ -1042,16 +1151,17 @@ export default function RpdScene({
     clientY: number,
     floorIndex: number,
   ): { target: Target; depth: number } | null => {
-    const q = questRef.current;
+    const graph = navRef.current;
     const canvas = overlayRef.current;
-    if (!q || !canvas) return null;
-    const floor = q.floors[floorIndex];
-    if (!floor) return null;
+    if (!graph || !canvas) return null;
     const rect = canvas.getBoundingClientRect();
     const matrix = viewProjRef.current;
+    const half = graph.half;
     let best: { target: Target; depth: number } | null = null;
-    for (const [x, z, y] of floor.cells) {
-      const half = 0.58;
+    for (const node of navNodesByFloor[floorIndex] ?? []) {
+      const x = graph.x[node];
+      const y = graph.y[node];
+      const z = graph.z[node];
       const corners: { x: number; y: number }[] = [];
       let complete = true;
       for (const [dx, dz] of [
@@ -1072,11 +1182,7 @@ export default function RpdScene({
       const centre = projectPoint([x, y + 0.02, z], matrix, rect.width, rect.height);
       const depth = centre?.depth ?? Infinity;
       if (!best || depth < best.depth) {
-        const room = roomForCell(q, [x, z, y]);
-        best = {
-          target: { kind: "cell", x, z, y, room: room.name },
-          depth,
-        };
+        best = { target: { kind: "cell", node }, depth };
       }
     }
     return best;
@@ -1178,15 +1284,19 @@ export default function RpdScene({
     if (!best) {
       const cellHit = cellAt(clientX, clientY, activeFloorRef.current);
       if (cellHit && cellHit.target.kind === "cell") {
-        hoverCellRef.current = [cellHit.target.x, cellHit.target.z, cellHit.target.y];
-        const room = roomForCell(q, [cellHit.target.x, cellHit.target.z, cellHit.target.y]);
-        setHover({
-          kind: "cell",
-          label: room.name,
-          detail: "Click this floor cell to move Claire here",
-          x: clientX,
-          y: clientY,
-        });
+        hoverCellRef.current = cellHit.target.node;
+        const graph = navRef.current;
+        if (graph) {
+          const point = nodePoint(graph, cellHit.target.node);
+          const room = nearbyRoom(q, point);
+          setHover({
+            kind: "cell",
+            label: room.name,
+            detail: "Click this floor cell to move Claire here",
+            x: clientX,
+            y: clientY,
+          });
+        }
         return;
       }
     }
@@ -1207,26 +1317,22 @@ export default function RpdScene({
         selected: selectedRef.current,
         queue: queueRef.current.map(actionLabel),
         moving: movingRef.current,
+        cameraMode,
         actions: allActions.map(actionLabel),
       }),
       selectItem: (id: string) => selectTarget({ kind: "item", id }),
       selectDoor: (id: string) => selectTarget({ kind: "door", id }),
       selectCell: (x: number, z: number) => {
-        const q = questRef.current;
-        if (!q) return;
-        const floor = q.floors[activeFloorRef.current];
-        let best = floor.cells[0];
-        let distance = Infinity;
-        for (const cell of floor.cells) {
-          const d = (cell[0] - x) ** 2 + (cell[1] - z) ** 2;
-          if (d < distance) {
-            distance = d;
-            best = cell;
-          }
-        }
-        selectTarget({ kind: "cell", x: best[0], z: best[1], y: best[2], room: roomForCell(q, best).name });
+        const graph = navRef.current;
+        if (!graph) return;
+        const floor = graph.floors[activeFloorRef.current];
+        const node = nearestNodeOnFloor(graph, [x, floor?.level ?? 0, z], activeFloorRef.current, 8);
+        if (node >= 0) selectTarget({ kind: "cell", node });
       },
-      setFloor: (floor: number) => setActiveFloor(floor),
+      setFloor: (floor: number) => {
+        activeFloorRef.current = floor;
+        setActiveFloor(floor);
+      },
       giveItem: (name: string) => {
         const next = new Set(inventoryRef.current);
         next.add(name);
@@ -1234,6 +1340,25 @@ export default function RpdScene({
         setInventory(next);
       },
       confirm: () => confirm(),
+      checkPath: () => {
+        const graph = navRef.current;
+        const points = pathRef.current;
+        if (!graph) return null;
+        let bad = 0;
+        let worst = 0;
+        for (const p of points) {
+          const node = nearestNode(graph, [p[0], p[1] - 0.45, p[2]], 2.0);
+          if (node < 0) {
+            bad += 1;
+            worst = 99;
+            continue;
+          }
+          const distance = Math.hypot(graph.x[node] - p[0], graph.z[node] - p[2], graph.y[node] + 0.45 - p[1]);
+          worst = Math.max(worst, distance);
+          if (distance > 0.85) bad += 1;
+        }
+        return { points: points.length, bad, worst, nodes: graph.count, edges: graph.edgeCount };
+      },
       click: (x: number, y: number) => {
         const target = pickAt(x, y);
         if (target) selectTarget(target);
@@ -1308,9 +1433,37 @@ export default function RpdScene({
     const fy = target[1] - eye[1];
     const fz = target[2] - eye[2];
     const length = Math.hypot(fx, fy, fz);
+    module._rpd_set_camera_mode(1);
     module._rpd_set_camera(eye[0], eye[1], eye[2], Math.atan2(fx, fz), Math.asin(fy / length));
+    setCameraMode(2);
     setToast("Framed the planned route.");
   };
+
+  const toggleCamera = () => {
+    const module = moduleRef.current;
+    if (!module) return;
+    const next = cameraMode === 0 ? 1 : 0;
+    module._rpd_set_camera_mode(next);
+    setCameraMode(next);
+    setToast(next === 0 ? "Follow camera." : "Orbit camera.");
+  };
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.code !== "KeyC" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+      const module = moduleRef.current;
+      if (!module) return;
+      event.preventDefault();
+      const next = cameraMode === 0 ? 1 : 0;
+      module._rpd_set_camera_mode(next);
+      setCameraMode(next);
+      setToast(next === 0 ? "Follow camera." : "Orbit camera.");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [cameraMode]);
 
   const reset = () => {
     const q = questRef.current;
@@ -1343,7 +1496,7 @@ export default function RpdScene({
     roomRef.current = room.name;
     setPlayerRoom(room.name);
     setActiveFloor(room.floor);
-    module._rpd_marker_set_position(playerMarker.current, q.spawn[0], q.spawn[1], q.spawn[2]);
+    module._rpd_set_player_position(q.spawn[0], q.spawn[1], q.spawn[2]);
     revealItems(q.spawn, true);
     refreshAfterAction();
     setToast("Run reset.");
@@ -1357,7 +1510,7 @@ export default function RpdScene({
       : selected?.kind === "door"
         ? doorLookup.get(selected.id)?.label
         : selected?.kind === "cell"
-          ? `${selected.room} cell`
+          ? `${quest && nav ? nearbyRoom(quest, nodePoint(nav, selected.node)).name : "Floor"} cell`
           : null;
 
   const floorCounts = quest
@@ -1423,6 +1576,14 @@ export default function RpdScene({
             </small>
           </button>
         ))}
+        <button
+          className="rpd-camera-button"
+          title="Toggle follow and orbit camera"
+          onClick={toggleCamera}
+        >
+          <span className="rpd-camera-dot" data-mode={cameraMode} />
+          {cameraMode === 0 ? "FOLLOW" : cameraMode === 1 ? "ORBIT" : "FREE"}
+        </button>
         <button
           className="rpd-icon-button"
           title="Reset run"

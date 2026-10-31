@@ -33,6 +33,9 @@ export type RpdModule = {
   _rpd_marker_set_color: (index: number, r: number, g: number, b: number) => void;
   _rpd_marker_set_rotation: (index: number, radians: number) => void;
   _rpd_marker_count: () => number;
+  _rpd_set_camera_mode: (mode: number) => number;
+  _rpd_get_camera_mode: () => number;
+  _rpd_set_player_position: (x: number, y: number, z: number) => void;
 };
 
 declare const createRpdModule: (options: {

@@ -73,6 +73,15 @@ typedef struct {
 } camera_t;
 
 typedef struct {
+    float yaw;
+    float pitch;
+    float distance;
+    float shoulder;
+    float focus[3];
+    bool focus_valid;
+} follow_camera_t;
+
+typedef struct {
     bool loaded;
     bool pending;
     bool gpu_ready;
@@ -111,6 +120,9 @@ static struct {
     float time;
     scene_t scene;
     camera_t camera;
+    follow_camera_t follow;
+    float player_pos[3];
+    int camera_mode;
     float scene_radius;
     bool dragging;
     bool panning;
@@ -191,19 +203,71 @@ static void camera_forward(float yaw, float pitch, float out[3]) {
     out[2] = cp * cosf(yaw);
 }
 
-static mat4 current_view_proj(void) {
-    float eye[3], aim[3];
+static void update_follow_focus(float dt) {
+    float target[3] = { state.player_pos[0], state.player_pos[1] + 0.55f, state.player_pos[2] };
+    if (!state.follow.focus_valid) {
+        memcpy(state.follow.focus, target, sizeof(target));
+        state.follow.focus_valid = true;
+        return;
+    }
+    float blend = 1.0f - expf(-12.0f * dt);
+    for (int i = 0; i < 3; i++) {
+        state.follow.focus[i] += (target[i] - state.follow.focus[i]) * blend;
+    }
+}
+
+static void follow_eye_aim(float eye[3], float aim[3]) {
+    if (!state.follow.focus_valid) {
+        state.follow.focus[0] = state.player_pos[0];
+        state.follow.focus[1] = state.player_pos[1] + 0.55f;
+        state.follow.focus[2] = state.player_pos[2];
+        state.follow.focus_valid = true;
+    }
+    const float yaw = state.follow.yaw;
+    const float pitch = state.follow.pitch;
+    const float cp = cosf(pitch);
+    const float dir[3] = { cp * sinf(yaw), sinf(pitch), cp * cosf(yaw) };
+    const float right[3] = { cosf(yaw), 0.0f, -sinf(yaw) };
+    const float focus[3] = {
+        state.follow.focus[0],
+        state.follow.focus[1],
+        state.follow.focus[2],
+    };
+    eye[0] = focus[0] + dir[0] * state.follow.distance + right[0] * state.follow.shoulder;
+    eye[1] = focus[1] + dir[1] * state.follow.distance;
+    eye[2] = focus[2] + dir[2] * state.follow.distance + right[2] * state.follow.shoulder;
+    float horizontal = sqrtf(dir[0] * dir[0] + dir[2] * dir[2]);
+    float fx = horizontal > 1e-5f ? -dir[0] / horizontal : 0.0f;
+    float fz = horizontal > 1e-5f ? -dir[2] / horizontal : -1.0f;
+    aim[0] = focus[0] + fx * 2.0f + right[0] * state.follow.shoulder * 0.8f;
+    aim[1] = focus[1] + 0.20f;
+    aim[2] = focus[2] + fz * 2.0f + right[2] * state.follow.shoulder * 0.8f;
+}
+
+static void current_eye_aim(float eye[3], float aim[3]) {
     if (state.fly_mode) {
         float forward[3];
         camera_forward(state.fly_yaw, state.fly_pitch, forward);
-        memcpy(eye, state.fly_pos, sizeof(eye));
+        memcpy(eye, state.fly_pos, sizeof(state.fly_pos));
         aim[0] = eye[0] + forward[0];
         aim[1] = eye[1] + forward[1];
         aim[2] = eye[2] + forward[2];
+    } else if (state.camera_mode == 0) {
+        follow_eye_aim(eye, aim);
     } else {
         camera_eye(&state.camera, eye);
-        memcpy(aim, state.camera.target, sizeof(aim));
+        memcpy(aim, state.camera.target, sizeof(state.camera.target));
     }
+}
+
+static float active_camera_distance(void) {
+    if (!state.fly_mode && state.camera_mode == 0) return state.follow.distance;
+    return state.camera.distance;
+}
+
+static mat4 current_view_proj(void) {
+    float eye[3], aim[3];
+    current_eye_aim(eye, aim);
     mat4 proj = mat4_perspective(0.62f, (float)sapp_width() / (float)sapp_height(), 0.2f, 1600.0f);
     mat4 view = mat4_look_at(eye, aim, (float[3]){ 0.0f, 1.0f, 0.0f });
     return mat4_mul(proj, view);
@@ -211,11 +275,16 @@ static mat4 current_view_proj(void) {
 
 static void fly_begin(void) {
     if (state.fly_mode || !state.scene.loaded) return;
-    float eye[3];
-    camera_eye(&state.camera, eye);
+    float eye[3], aim[3];
+    current_eye_aim(eye, aim);
     memcpy(state.fly_pos, eye, sizeof(eye));
-    state.fly_yaw = state.camera.yaw + RPD_PI;
-    state.fly_pitch = -state.camera.pitch;
+    if (state.camera_mode == 0) {
+        state.fly_yaw = state.follow.yaw + RPD_PI;
+        state.fly_pitch = -state.follow.pitch;
+    } else {
+        state.fly_yaw = state.camera.yaw + RPD_PI;
+        state.fly_pitch = -state.camera.pitch;
+    }
     state.fly_mode = true;
     state.dragging = false;
     state.panning = false;
@@ -830,14 +899,12 @@ static void create_pipelines(scene_t *s) {
     s->marker_pip = make_marker_pipeline(marker_shd);
 }
 
-static void reset_camera(void) {
-    state.fly_mode = false;
+static void reset_orbit_camera(void) {
     const bounds_t *b = &state.scene.bounds;
     for (int i = 0; i < 3; i++) state.camera.target[i] = 0.5f * (b->min[i] + b->max[i]);
     float dx = b->max[0] - b->min[0];
     float dy = b->max[1] - b->min[1];
     float dz = b->max[2] - b->min[2];
-    state.scene_radius = 0.5f * sqrtf(dx * dx + dy * dy + dz * dz);
     int w = sapp_width() > 0 ? sapp_width() : 1600;
     if (state.scene_radius < 30.0f) {
         state.camera.target[0] = 0.0f;
@@ -852,6 +919,25 @@ static void reset_camera(void) {
         state.camera.target[1] = b->min[1] + 0.40f * dy;
         state.camera.distance = 2.2f * state.scene_radius * fmaxf(1.0f, 900.0f / (float)w);
     }
+}
+
+static void reset_follow_camera(void) {
+    state.follow.yaw = 0.0f;
+    state.follow.pitch = 0.22f;
+    state.follow.distance = 6.5f;
+    state.follow.shoulder = 0.9f;
+    state.follow.focus_valid = false;
+}
+
+static void reset_camera(void) {
+    state.fly_mode = false;
+    const bounds_t *b = &state.scene.bounds;
+    float dx = b->max[0] - b->min[0];
+    float dy = b->max[1] - b->min[1];
+    float dz = b->max[2] - b->min[2];
+    state.scene_radius = 0.5f * sqrtf(dx * dx + dy * dy + dz * dz);
+    if (state.camera_mode == 0) reset_follow_camera();
+    else reset_orbit_camera();
 }
 
 static void frame(void) {
@@ -872,6 +958,7 @@ static void frame(void) {
 
     if (state.scene.loaded && state.scene.gpu_ready) {
         float eye[3], aim[3], fog_start, fog_end;
+        update_follow_focus(dt);
         if (state.fly_mode) {
             float forward[3];
             camera_forward(state.fly_yaw, state.fly_pitch, forward);
@@ -892,18 +979,13 @@ static void frame(void) {
                 state.fly_pos[1] += my * step;
                 state.fly_pos[2] += mz * step;
             }
-            memcpy(eye, state.fly_pos, sizeof(eye));
-            aim[0] = eye[0] + forward[0];
-            aim[1] = eye[1] + forward[1];
-            aim[2] = eye[2] + forward[2];
-        } else {
-            camera_eye(&state.camera, eye);
-            memcpy(aim, state.camera.target, sizeof(aim));
         }
+        current_eye_aim(eye, aim);
         /* Fog must not depend on fly mode, otherwise pressing right-click
            visibly darkens the existing view. */
-        fog_start = state.camera.distance - state.scene_radius * 0.55f;
-        fog_end = state.camera.distance + state.scene_radius * 1.15f;
+        float camera_distance = active_camera_distance();
+        fog_start = camera_distance - state.scene_radius * 0.55f;
+        fog_end = camera_distance + state.scene_radius * 1.15f;
         float up[3] = { 0.0f, 1.0f, 0.0f };
         mat4 proj = mat4_perspective(0.62f, (float)sapp_width() / (float)sapp_height(), 0.2f, 1600.0f);
         mat4 view = mat4_look_at(eye, aim, up);
@@ -969,10 +1051,19 @@ static void init(void) {
     create_pipelines(&state.scene);
     create_composite_resources();
     state.target.dirty = true;
+    state.camera_mode = 0;
+    state.player_pos[0] = 0.0f;
+    state.player_pos[1] = 1.25f;
+    state.player_pos[2] = 8.0f;
     state.camera.yaw = -0.55f;
     state.camera.pitch = 0.62f;
     state.camera.distance = 150.0f;
     state.camera.target[1] = 10.0f;
+    state.follow.yaw = 0.0f;
+    state.follow.pitch = 0.22f;
+    state.follow.distance = 6.5f;
+    state.follow.shoulder = 0.9f;
+    state.follow.focus_valid = false;
     state.fly_speed = 22.0f;
 }
 
@@ -988,7 +1079,7 @@ static void event(const sapp_event *e) {
         state.user_moved = true;
         if (e->mouse_button == SAPP_MOUSEBUTTON_LEFT) state.dragging = true;
         if (e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) fly_begin();
-        if (e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) state.panning = true;
+        if (e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE && state.camera_mode == 1) state.panning = true;
         state.last_x = e->mouse_x;
         state.last_y = e->mouse_y;
         break;
@@ -1013,8 +1104,13 @@ static void event(const sapp_event *e) {
             while (state.fly_yaw < -RPD_PI) state.fly_yaw += 2.0f * RPD_PI;
             state.fly_pitch = fminf(1.45f, fmaxf(-1.45f, state.fly_pitch - dy * 0.005f));
         } else if (state.dragging) {
-            state.camera.yaw -= dx * 0.006f;
-            state.camera.pitch = fminf(1.45f, fmaxf(0.08f, state.camera.pitch + dy * 0.006f));
+            if (state.camera_mode == 0) {
+                state.follow.yaw -= dx * 0.006f;
+                state.follow.pitch = fminf(1.2f, fmaxf(-0.35f, state.follow.pitch + dy * 0.006f));
+            } else {
+                state.camera.yaw -= dx * 0.006f;
+                state.camera.pitch = fminf(1.45f, fmaxf(0.08f, state.camera.pitch + dy * 0.006f));
+            }
         } else if (state.panning) {
             float eye[3];
             camera_eye(&state.camera, eye);
@@ -1037,6 +1133,8 @@ static void event(const sapp_event *e) {
         state.user_moved = true;
         if (state.fly_mode) {
             state.fly_speed = fminf(140.0f, fmaxf(2.0f, state.fly_speed * powf(1.22f, e->scroll_y)));
+        } else if (state.camera_mode == 0) {
+            state.follow.distance = fminf(10.0f, fmaxf(3.0f, state.follow.distance * (1.0f - e->scroll_y * 0.08f)));
         } else {
             state.camera.distance = fminf(700.0f, fmaxf(8.0f, state.camera.distance * (1.0f - e->scroll_y * 0.08f)));
         }
@@ -1055,26 +1153,38 @@ static void event(const sapp_event *e) {
         if (e->num_touches == 1 && e->type != SAPP_EVENTTYPE_TOUCHES_ENDED) {
             float dx = e->touches[0].pos_x - state.last_x;
             float dy = e->touches[0].pos_y - state.last_y;
-            state.camera.yaw -= dx * 0.006f;
-            state.camera.pitch = fminf(1.45f, fmaxf(0.08f, state.camera.pitch + dy * 0.006f));
+            if (state.camera_mode == 0) {
+                state.follow.yaw -= dx * 0.006f;
+                state.follow.pitch = fminf(1.2f, fmaxf(-0.35f, state.follow.pitch + dy * 0.006f));
+            } else {
+                state.camera.yaw -= dx * 0.006f;
+                state.camera.pitch = fminf(1.45f, fmaxf(0.08f, state.camera.pitch + dy * 0.006f));
+            }
         } else if (e->num_touches >= 2) {
             float dist = hypotf(e->touches[0].pos_x - e->touches[1].pos_x, e->touches[0].pos_y - e->touches[1].pos_y);
-            if (state.touch_pinch > 0.0f && dist > 1.0f)
-                state.camera.distance = fminf(700.0f, fmaxf(8.0f, state.camera.distance * (state.touch_pinch / dist)));
+            if (state.touch_pinch > 0.0f && dist > 1.0f) {
+                if (state.camera_mode == 0) {
+                    state.follow.distance = fminf(8.0f, fmaxf(2.4f, state.follow.distance * (state.touch_pinch / dist)));
+                } else {
+                    state.camera.distance = fminf(700.0f, fmaxf(8.0f, state.camera.distance * (state.touch_pinch / dist)));
+                }
+            }
             state.touch_pinch = dist;
-            float dx = cx - state.last_x, dy = cy - state.last_y;
-            float eye[3]; camera_eye(&state.camera, eye);
-            float f[3] = { state.camera.target[0] - eye[0], state.camera.target[1] - eye[1], state.camera.target[2] - eye[2] };
-            float fl = sqrtf(f[0] * f[0] + f[1] * f[1] + f[2] * f[2]);
-            f[0] /= fl; f[1] /= fl; f[2] /= fl;
-            float right[3] = { -f[2], 0.0f, f[0] };
-            float rl = sqrtf(right[0] * right[0] + right[2] * right[2]);
-            right[0] /= rl; right[2] /= rl;
-            float upv[3] = { right[1] * f[2] - right[2] * f[1], right[2] * f[0] - right[0] * f[2], right[0] * f[1] - right[1] * f[0] };
-            float scale = 2.0f * state.camera.distance * tanf(0.31f) / (float)sapp_height();
-            for (int i = 0; i < 3; i++) {
-                state.camera.target[i] -= right[i] * dx * scale;
-                state.camera.target[i] += upv[i] * dy * scale;
+            if (state.camera_mode == 1) {
+                float dx = cx - state.last_x, dy = cy - state.last_y;
+                float eye[3]; camera_eye(&state.camera, eye);
+                float f[3] = { state.camera.target[0] - eye[0], state.camera.target[1] - eye[1], state.camera.target[2] - eye[2] };
+                float fl = sqrtf(f[0] * f[0] + f[1] * f[1] + f[2] * f[2]);
+                f[0] /= fl; f[1] /= fl; f[2] /= fl;
+                float right[3] = { -f[2], 0.0f, f[0] };
+                float rl = sqrtf(right[0] * right[0] + right[2] * right[2]);
+                right[0] /= rl; right[2] /= rl;
+                float upv[3] = { right[1] * f[2] - right[2] * f[1], right[2] * f[0] - right[0] * f[2], right[0] * f[1] - right[1] * f[0] };
+                float scale = 2.0f * state.camera.distance * tanf(0.31f) / (float)sapp_height();
+                for (int i = 0; i < 3; i++) {
+                    state.camera.target[i] -= right[i] * dx * scale;
+                    state.camera.target[i] += upv[i] * dy * scale;
+                }
             }
         }
         if (e->num_touches < 2) state.touch_pinch = 0.0f;
@@ -1131,26 +1241,63 @@ static void event(const sapp_event *e) {
    mode, so the reported and restored yaw/pitch mean the same thing. */
 EMSCRIPTEN_KEEPALIVE int rpd_get_camera(float *out) {
     if (!out) return -1;
-    float eye[3];
-    if (state.fly_mode) {
-        eye[0] = state.fly_pos[0];
-        eye[1] = state.fly_pos[1];
-        eye[2] = state.fly_pos[2];
-        out[3] = state.fly_yaw;
-        out[4] = state.fly_pitch;
-    } else {
-        camera_eye(&state.camera, eye);
-        out[3] = state.camera.yaw + RPD_PI;
-        out[4] = -state.camera.pitch;
-    }
+    float eye[3], aim[3];
+    current_eye_aim(eye, aim);
     out[0] = eye[0];
     out[1] = eye[1];
     out[2] = eye[2];
-    out[5] = state.fly_mode ? 1.0f : 0.0f;
+    if (state.fly_mode) {
+        out[3] = state.fly_yaw;
+        out[4] = state.fly_pitch;
+    } else if (state.camera_mode == 0) {
+        float fx = aim[0] - eye[0];
+        float fy = aim[1] - eye[1];
+        float fz = aim[2] - eye[2];
+        float length = sqrtf(fx * fx + fy * fy + fz * fz);
+        out[3] = atan2f(fx / length, fz / length);
+        out[4] = asinf(fy / length);
+    } else {
+        out[3] = state.camera.yaw + RPD_PI;
+        out[4] = -state.camera.pitch;
+    }
+    out[5] = state.fly_mode ? 2.0f : (float)state.camera_mode;
     return 0;
 }
 
+EMSCRIPTEN_KEEPALIVE int rpd_set_camera_mode(int mode) {
+    if (mode < 0 || mode > 1) return -1;
+    state.fly_mode = false;
+    state.camera_mode = mode;
+    state.dragging = false;
+    state.panning = false;
+    state.user_moved = false;
+    reset_camera();
+    return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_get_camera_mode(void) {
+    return state.fly_mode ? 2 : state.camera_mode;
+}
+
+EMSCRIPTEN_KEEPALIVE void rpd_set_player_position(float x, float y, float z) {
+    state.player_pos[0] = x;
+    state.player_pos[1] = y;
+    state.player_pos[2] = z;
+    if (marker_count > 0) {
+        markers[0].x = x;
+        markers[0].y = y;
+        markers[0].z = z;
+    }
+    float dx = state.follow.focus[0] - x;
+    float dy = state.follow.focus[1] - (y + 0.55f);
+    float dz = state.follow.focus[2] - z;
+    if (!state.follow.focus_valid || dx * dx + dy * dy + dz * dz > 36.0f) {
+        state.follow.focus_valid = false;
+    }
+}
+
 EMSCRIPTEN_KEEPALIVE int rpd_set_camera(float x, float y, float z, float yaw, float pitch) {
+    state.camera_mode = 1;
     state.fly_mode = true;
     state.fly_pos[0] = x;
     state.fly_pos[1] = y;

@@ -304,8 +304,8 @@ It is generated after the Blender import and does not change `rpd.bin`.
 
 1. `tools/rpd_grid.py` opens `build/rpd.blend`, casts rays down each 1 m cell
    at the 1F split levels (0.0 and 0.8 m), 2F (5.2 m) and 3F (10.4 m), and
-   keeps cells with a flat floor, 1.7 m of headroom and 0.46 m of shoulder
-   clearance. The result is `public/rpd/grid.json`.
+   keeps flat cells with 1.7 m of headroom and 0.46 m of shoulder clearance.
+   The result is `public/rpd/grid.json`, used only to place items.
 2. `tools/rpd_quest.py` reads `tools/rpd_ap_source.json`, which holds the
    Claire A RPD regions, vanilla item locations, Hardcore ink-ribbon overrides
    and region connections from the
@@ -313,9 +313,15 @@ It is generated after the Blender import and does not change `rpd.bin`.
    It assigns every item to a walkable cell near its room, turns the region
    connections into a room graph, places the 25 modelled doors at their RPD
    openings, and writes `public/rpd/quest.json`.
-3. The web app loads `quest.json` and `grid.json`, sends the item and door
+3. `tools/rpd_nav.py` opens the same blend and sweeps every 1 m column for
+   floor, stair and ramp surfaces at their real heights. It keeps nodes with
+   1.75 m headroom and 0.30 m shoulder clearance, links nearby nodes within
+   1.45 m using a line-of-sight test, and bridges door and stair gaps. The result is
+   `public/rpd/nav.json`.
+4. The web app loads `quest.json` and `nav.json`, sends the item and door
    markers to the sokol renderer, and keeps the discovery, inventory, lock and
-   route state in React.
+   route state in React. Paths are A* over the nav graph; locked doors block
+   their edges instead of relying on a room-level cost graph.
 
 The RPD scene covers floors 1-3 only. B1 items such as the morgue, firing range
 and parking garage are outside the modelled scene and are excluded. Key-to-door

@@ -70,7 +70,7 @@ DOOR_POSITIONS = {
     "East Hallway 1F|Press Room": (21.0, -9.0),
     "Bathroom|East Hallway 1F": (30.0, -2.0),
     "East Hallway 1F|East Office": (17.0, 2.0),
-    "Main Hall|Reception - RPD": (-8.0, 10.0),
+    "Main Hall|Reception - RPD": (-10.0, 13.0),
     "Operations Room 2|Records Room": (-28.0, -4.0),
     "Operations Room|Southwest Hallway": (-33.0, -22.0),
     "Operations Room 2|Operations Room": (-28.0, -13.0),
@@ -393,7 +393,10 @@ def main() -> None:
     spawn_cell = snap(cells_by_floor[0], 0.0, 8.0, 0.8)
     payload = {
         "spawn": [spawn_cell[0], round(spawn_cell[2] + 0.45, 3), spawn_cell[1]],
-        "floors": floor_meta,
+        "floors": [
+            {"index": floor["index"], "level": floor["level"], "label": floor["label"]}
+            for floor in floor_meta
+        ],
         "rooms": list(rooms.values()),
         "items": items,
         "doors": doors,

@@ -3,7 +3,9 @@
 The real Raccoon Police Department geometry from *Resident Evil 2* (RT build),
 floors 1–3, rendered in the browser with sokol compiled to WebAssembly. The
 surfaces are not textured; each source material uses a distinct flat grey.
-Orbit the model, pan it, or hold right-click and fly through it.
+The default camera follows Claire from over her right shoulder. Orbit around
+her with the left mouse button, or switch to the building camera to pan, zoom
+and fly through the model.
 
 A green FPS counter sits at the top right of the scene. The same view is now a
 playable Claire A quest map: walk the RPD, discover items, plot bright-green
@@ -31,9 +33,11 @@ routes, and use keys on locked doors.
 - **Quest layer.** Claire A, Hardcore, RPD 1F–3F. `public/rpd/quest.json` holds
   every RPD item location from the Archipelago Claire A data, the key-to-door
   links taken from its region connections, 25 RPD doorways, and the room graph.
-  `public/rpd/grid.json` holds the walkable 1 m cells sampled from the real
-  floors. The web app draws the grid, hides items until Claire walks near them,
-  draws a smooth green route, and executes a confirmable move and action queue.
+  `public/rpd/nav.json` holds a walkable surface graph sampled from the real
+  floors, stairs and ramps. `public/rpd/grid.json` remains the flat
+  cell source used to place items. The web app draws the graph, hides items
+  until Claire walks near them, routes with A* over the graph, draws the route,
+  and executes a confirmable move and action queue.
 - **Web app** — React 19 + TypeScript on [Void](https://github.com/voidzero-dev/void)
   1.3.0 (Vite 8) targeting Cloudflare Workers. The canvas holds the 3D scene and
   a 2D grid and route overlay; the right panel is the quest planner.
@@ -81,15 +85,17 @@ npm run scene:export
 
 npm run wasm   # only needed after changing native/main.c
 
-# rebuild the walkable grid and the quest data (Blender + Python)
+# rebuild the walkable cells, the quest data and the nav graph (Blender + Python)
 npm run quest
 ```
 
 `npm run data` runs all three steps. `npm run quest` runs
-`tools/rpd_grid.py` to sample the walkable grid from `build/rpd.blend`, then
-`tools/rpd_quest.py` turns
-`tools/rpd_ap_source.json` and the grid into `public/rpd/quest.json`. To edit
-the level, open `build/rpd.blend`
+`tools/rpd_grid.py` to sample the flat item-placement grid from
+`build/rpd.blend`, then `tools/rpd_quest.py` turns
+`tools/rpd_ap_source.json` and that grid into `public/rpd/quest.json`, then
+`tools/rpd_nav.py` samples every walkable surface into `public/rpd/nav.json`.
+The nav step must run after the quest step because it binds AP doors to the
+graph. To edit the level, open `build/rpd.blend`
 after step 2, make your changes, then run step 3. The scene records the imported
 triangle count and the export fails if the count changes. Update the
 `rpd_triangles` custom property on the scene when the change is intentional.
@@ -114,8 +120,8 @@ cyan player sphere and run the queued actions in order.
   Locked doors list the item names that open them. A door with an item link
   shows the linked doors when its item is selected.
 - **Floors.** The floor buttons switch the active grid between 1F, 2F and 3F.
-  The player can still move to a cell on another floor; the room graph handles
-  stairs and passages.
+  The player can still move to a cell on another floor. A* crosses real stair
+  and ramp edges; it does not teleport between floors.
 - **Coverage.** The scene contains RPD floors 1–3, so the quest layer covers
   the Claire A Hardcore locations in those floors. RPD B1 is not part of this
   scene and is excluded.
@@ -129,15 +135,16 @@ game PAK and the decompile at `~/repos/reze`.
 
 | Input | Action |
 |---|---|
-| Left drag | Orbit |
-| Middle drag | Pan |
-| Wheel / pinch | Zoom |
+| Left drag | Orbit around Claire in follow; orbit the building in orbit |
+| Middle drag | Pan (orbit camera only) |
+| Wheel / pinch | Follow distance in follow; zoom in orbit |
 | Hold right click + mouse | Free-look |
 | `W` / `S` (while flying) | Forward / back along the view |
 | `A` / `D` (while flying) | Strafe left / right |
 | `Q` (while flying) | Fly down |
 | `E` (while flying) | Fly up |
 | Scroll wheel (while flying) | Increase / decrease fly speed |
+| `C` | Toggle follow and orbit cameras |
 | `R` | Reset camera |
 | Click floor cell | Route the player to that cell |
 | Click discovered item | Route to the item and show its actions |
@@ -145,8 +152,9 @@ game PAK and the decompile at `~/repos/reze`.
 | One-finger drag | Orbit |
 | Two-finger drag | Pan and pinch-zoom |
 
-Right click seeds the fly camera from the current orbit view. Releasing the
-button returns to orbit mode around a point ahead, so the transition is seamless.
+Right click seeds the fly camera from the current view. Releasing the button
+returns to orbit mode around a point ahead, so the transition is seamless. The
+FOLLOW/ORBIT button in the floor bar switches cameras as well.
 
 ## Deploy to Cloudflare
 
@@ -169,7 +177,8 @@ tools/extract_rpd.py       PAK lookup + extraction of the 49 RPD meshes
 tools/re_pak.py            minimal KPKA v4 reader (Murmur3 path hashes)
 tools/remesh.py            RE2 RT .mesh parser (LODs, groups, submeshes, buffers)
 tools/rpd_scene.py         Blender import of the 49 rooms and RPDW v3 export
-tools/rpd_grid.py          walkable 1 m floor cells sampled from the Blender scene
+tools/rpd_grid.py          flat 1 m item-placement cells sampled from the scene
+tools/rpd_nav.py           walkable surface graph, stairs and ramps -> nav.json
 tools/rpd_quest.py         builds public/rpd/quest.json from the AP data and grid
 tools/rpd_ap_source.json   Claire A RPD regions, locations and door conditions
 docs/extraction.md         PAK format, mesh format, Blender round trip and asset layout
@@ -178,12 +187,14 @@ native/main.c              sokol app: camera, input, solid-colour geometry pass
 native/third_party/sokol   vendored sokol headers (pinned commit)
 native/build.sh            Emscripten build
 src/RpdScene.tsx           React canvas, WASM loader, planner, grid and route overlay
-src/quest.ts               quest types, room graph pathfinding and route smoothing
+src/nav.ts                  nav graph, A* search, door edge blocking, route points
+src/quest.ts               quest types, room lookup, keys and route helpers
 src/wasm/rpd.js            generated Emscripten ES module (committed for deploy)
 pages/index.tsx            real-geometry page
 public/rpd/rpd.bin         decompiled RPD geometry + grey vertex colours (20.8 MB)
 public/rpd/rpd.wasm        compiled sokol renderer
-public/rpd/grid.json       walkable 1 m cells for 1F, 2F and 3F
+public/rpd/grid.json       flat 1 m item-placement cells for 1F, 2F and 3F
+public/rpd/nav.json        walkable surface graph for A* movement
 public/rpd/quest.json      Claire A RPD items, doors, links and room graph
 ```
 
