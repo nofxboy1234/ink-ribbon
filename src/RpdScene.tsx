@@ -83,7 +83,7 @@ type Hover = {
   y: number;
 };
 
-const CACHE_VERSION = "20261031c";
+const CACHE_VERSION = "20261031f";
 const DISCOVER_RADIUS = 3.0;
 const SPAWN_DISCOVER_RADIUS = 3.5;
 const MOVE_SPEED = 7.0;
@@ -1449,7 +1449,7 @@ export default function RpdScene({
     const next = cameraMode === 0 ? 1 : 0;
     module._rpd_set_camera_mode(next);
     setCameraMode(next);
-    setToast(next === 0 ? "Follow camera." : "Orbit camera.");
+    setToast(next === 0 ? "Follow camera · grey." : "Orbit camera · glass.");
   };
 
   useEffect(() => {
@@ -1464,7 +1464,7 @@ export default function RpdScene({
       const next = cameraMode === 0 ? 1 : 0;
       module._rpd_set_camera_mode(next);
       setCameraMode(next);
-      setToast(next === 0 ? "Follow camera." : "Orbit camera.");
+      setToast(next === 0 ? "Follow camera · grey." : "Orbit camera · glass.");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -1605,11 +1605,11 @@ export default function RpdScene({
         ))}
         <button
           className="rpd-camera-button"
-          title="Toggle follow and orbit camera"
+          title="Toggle follow (grey) and orbit (glass) cameras"
           onClick={toggleCamera}
         >
           <span className="rpd-camera-dot" data-mode={cameraMode} />
-          {cameraMode === 0 ? "FOLLOW" : cameraMode === 1 ? "ORBIT" : "FREE"}
+          {cameraMode === 0 ? "FOLLOW · GREY" : cameraMode === 1 ? "ORBIT · GLASS" : "FREE · GLASS"}
         </button>
         <button
           className="rpd-icon-button"

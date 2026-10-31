@@ -5,7 +5,8 @@ floors 1–3, rendered in the browser with sokol compiled to WebAssembly. The
 surfaces are not textured; each source material uses a distinct flat grey.
 The default camera follows Claire from over her right shoulder. Moving the
 pointer orbits around her, and the building camera orbits, pans and flies
-through the model.
+through the model. The follow (inside) view uses the solid grey material shades;
+the orbit and free (outside) views use translucent glass.
 
 A green FPS counter sits at the top right of the scene. The same view is now a
 playable Claire A quest map: walk the RPD, discover items, plot bright-green
@@ -154,8 +155,10 @@ game PAK and the decompile at `~/repos/reze`.
 The camera orbits whenever the pointer moves over the scene; no button is
 needed. The FOLLOW/ORBIT button in the floor bar switches cameras as well. The
 route panel's focus button frames a plan in the free camera, where the fly keys
-move the view. Opening the right panel dims the scene and blocks camera,
-movement and selection input until the panel closes.
+move the view. The follow (inside) camera renders the building with solid grey
+material shades; the orbit and free (outside) views use translucent glass.
+Opening the right panel dims the scene and blocks camera, movement and selection
+input until the panel closes.
 
 ## Deploy to Cloudflare
 

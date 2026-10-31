@@ -97,6 +97,7 @@ typedef struct {
     int marker_index_count[MARKER_SHAPE_COUNT];
     sg_pipeline marker_pip;
     sg_pipeline pip;
+    sg_pipeline grey_pip;
 } scene_t;
 
 typedef struct {
@@ -328,6 +329,29 @@ static const char *fs_source =
     "  frag_color = vec4(glass, alpha);\n"
     "}\n";
 
+static const char *fs_grey_source =
+    "#version 300 es\n"
+    "precision highp float;\n"
+    "uniform vec4 u_camera;\n"
+    "uniform vec4 u_fog;\n"
+    "in vec3 v_world;\n"
+    "in vec3 v_color;\n"
+    "out vec4 frag_color;\n"
+    "void main() {\n"
+    "  vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));\n"
+    "  vec3 view = normalize(u_camera.xyz - v_world);\n"
+    "  if (dot(n, view) < 0.0) n = -n;\n"
+    "  float key = max(dot(n, normalize(vec3(0.42, 0.82, 0.38))), 0.0);\n"
+    "  float fill = max(dot(n, normalize(vec3(-0.55, 0.35, -0.65))), 0.0);\n"
+    "  float hemi = 0.5 + 0.5 * n.y;\n"
+    "  float d = length(v_world - u_camera.xyz);\n"
+    "  float fade = 1.0 - smoothstep(u_camera.w, u_fog.x, d);\n"
+    "  fade = 0.10 + 0.90 * fade;\n"
+    "  vec3 base = v_color;\n"
+    "  vec3 col = base * (0.34 + 0.50 * key + 0.16 * fill + 0.12 * hemi) * fade;\n"
+    "  frag_color = vec4(col, 1.0);\n"
+    "}\n";
+
 static const char *marker_vs_source =
     "#version 300 es\n"
     "uniform mat4 u_view_proj;\n"
@@ -512,7 +536,7 @@ static void create_composite_resources(void) {
 /* scene                                                                     */
 /* ------------------------------------------------------------------------- */
 
-static sg_pipeline make_pipeline(sg_shader shader) {
+static sg_pipeline make_pipeline(sg_shader shader, bool glass) {
     sg_pipeline_desc pd;
     memset(&pd, 0, sizeof(pd));
     pd.shader = shader;
@@ -524,15 +548,20 @@ static sg_pipeline make_pipeline(sg_shader shader) {
     pd.cull_mode = SG_CULLMODE_NONE;
     pd.face_winding = SG_FACEWINDING_CCW;
     pd.sample_count = 1;
-    pd.depth.compare = SG_COMPAREFUNC_ALWAYS;
-    pd.depth.write_enabled = false;
-    pd.colors[0].blend.enabled = true;
-    pd.colors[0].blend.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA;
-    pd.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-    pd.colors[0].blend.op_rgb = SG_BLENDOP_ADD;
-    pd.colors[0].blend.src_factor_alpha = SG_BLENDFACTOR_ONE;
-    pd.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-    pd.colors[0].blend.op_alpha = SG_BLENDOP_ADD;
+    if (glass) {
+        pd.depth.compare = SG_COMPAREFUNC_ALWAYS;
+        pd.depth.write_enabled = false;
+        pd.colors[0].blend.enabled = true;
+        pd.colors[0].blend.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA;
+        pd.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+        pd.colors[0].blend.op_rgb = SG_BLENDOP_ADD;
+        pd.colors[0].blend.src_factor_alpha = SG_BLENDFACTOR_ONE;
+        pd.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+        pd.colors[0].blend.op_alpha = SG_BLENDOP_ADD;
+    } else {
+        pd.depth.compare = SG_COMPAREFUNC_LESS_EQUAL;
+        pd.depth.write_enabled = true;
+    }
     return sg_make_pipeline(&pd);
 }
 
@@ -853,8 +882,11 @@ static void create_pipelines(scene_t *s) {
     sd.uniform_blocks[1].glsl_uniforms[0].glsl_name = "u_camera";
     sd.uniform_blocks[1].glsl_uniforms[1].type = SG_UNIFORMTYPE_FLOAT4;
     sd.uniform_blocks[1].glsl_uniforms[1].glsl_name = "u_fog";
-    sg_shader shd = sg_make_shader(&sd);
-    s->pip = make_pipeline(shd);
+    sg_shader glass_shd = sg_make_shader(&sd);
+    s->pip = make_pipeline(glass_shd, true);
+    sd.fragment_func.source = fs_grey_source;
+    sg_shader grey_shd = sg_make_shader(&sd);
+    s->grey_pip = make_pipeline(grey_shd, false);
 
     memset(&sd, 0, sizeof(sd));
     sd.vertex_func.source = marker_vs_source;
@@ -978,7 +1010,8 @@ static void frame(void) {
             fs_params_t fs = { 0 };
             fs.camera[0] = eye[0]; fs.camera[1] = eye[1]; fs.camera[2] = eye[2]; fs.camera[3] = fog_start;
             fs.fog[0] = fog_end;
-            sg_apply_pipeline(state.scene.pip);
+            bool follow_view = !state.fly_mode && state.camera_mode == 0;
+            sg_apply_pipeline(follow_view ? state.scene.grey_pip : state.scene.pip);
             sg_apply_bindings(&(sg_bindings){
                 .vertex_buffers[0] = state.scene.vbuf,
                 .index_buffer = state.scene.tri_ibuf,
