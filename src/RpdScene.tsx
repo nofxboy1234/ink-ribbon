@@ -713,9 +713,9 @@ export default function RpdScene({
           spawn[1],
           spawn[2],
           0.9,
-          139,
-          233,
-          253,
+          189,
+          147,
+          249,
         );
         module._rpd_set_player_position(spawn[0], spawn[1], spawn[2]);
         module._rpd_set_camera_mode(0);

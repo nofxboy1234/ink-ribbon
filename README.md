@@ -111,7 +111,7 @@ within 3 m, matching the "walk near to discover" rule. Click a floor cell to
 move. Click a discovered item to draw a route and choose the actions that
 happen on arrival. Click a door to route to it and, when a key is in the
 inventory, add "Use <key> on <door>" to the queue. Press **Confirm** to move the
-cyan player sphere and run the queued actions in order.
+purple player sphere and run the queued actions in order.
 
 - **Item shapes and colours.** Keys are purple pyramids, key items magenta
   pyramids, healing green spheres, ammo yellow cubes, gunpowder orange cubes,
