@@ -312,43 +312,10 @@ body {
   color: #9ed8ff;
 }
 
-.rpd-queue ol {
-  list-style: none;
-  margin: 0 0 10px;
-  padding: 0;
-  display: grid;
-  gap: 6px;
-}
-
-.rpd-queue li {
-  display: grid;
-  grid-template-columns: 28px 1fr 20px;
-  gap: 7px;
-  align-items: center;
-  padding: 8px 9px;
-  border: 1px solid rgb(67 255 116 / 18%);
-  background: rgb(67 255 116 / 5%);
-  color: #d9f7df;
-  font: 11px/1.35 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-}
-
 .rpd-step-number {
   color: rgb(67 255 116 / 70%);
   font-size: 9px;
   letter-spacing: 0.08em;
-}
-
-.rpd-remove {
-  border: 0;
-  background: transparent;
-  color: rgb(255 255 255 / 35%);
-  cursor: pointer;
-  font-size: 15px;
-  line-height: 1;
-}
-
-.rpd-remove:hover {
-  color: #ff8b8b;
 }
 
 .rpd-confirm {
@@ -373,35 +340,68 @@ body {
   cursor: default;
 }
 
-.rpd-actions {
-  display: grid;
-  gap: 6px;
+.rpd-route-dock {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  z-index: 5;
+  width: min(360px, calc(100vw - 36px));
+  max-height: min(46vh, 520px);
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid rgb(67 255 116 / 28%);
+  background: linear-gradient(180deg, rgb(8 12 18 / 92%), rgb(5 8 12 / 88%));
+  backdrop-filter: blur(14px);
+  box-shadow: 0 24px 70px rgb(0 0 0 / 45%);
+  scrollbar-width: thin;
+  scrollbar-color: rgb(151 205 255 / 25%) transparent;
 }
 
-.rpd-action {
+.rpd-route-dock-head {
   display: flex;
-  gap: 9px;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid rgb(67 255 116 / 14%);
+  color: #e7f2ff;
+  font: 600 10px/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.rpd-route-steps {
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  margin: 10px 0 12px;
+  padding: 0;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.rpd-route-steps li {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 7px;
+  align-items: baseline;
+  padding: 6px 8px;
+  border: 1px solid rgb(67 255 116 / 14%);
+  background: rgb(67 255 116 / 4%);
+  color: #d9f7df;
+  font: 10px/1.35 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+.rpd-dock-actions {
+  display: flex;
   align-items: center;
-  width: 100%;
-  padding: 10px 11px;
-  border: 1px solid rgb(176 208 232 / 16%);
-  background: rgb(176 208 232 / 4%);
-  color: rgb(225 238 250 / 88%);
-  font: 11px/1.4 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  text-align: left;
-  cursor: pointer;
+  gap: 14px;
+  margin-bottom: 10px;
 }
 
-.rpd-action:hover {
-  border-color: rgb(67 255 116 / 55%);
-  background: rgb(67 255 116 / 8%);
-  color: #eaffee;
-}
-
-.rpd-action-icon {
-  color: #43ff74;
-  width: 14px;
-  text-align: center;
+.rpd-dock-actions .rpd-text-button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .rpd-empty {
@@ -501,10 +501,51 @@ body {
   font: 10px/1.4 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 
+.rpd-popup-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 6;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.rpd-popup-choice {
+  position: absolute;
+  top: 0;
+  left: 0;
+  min-width: 150px;
+  max-width: 260px;
+  padding: 9px 12px;
+  border: 1px solid rgb(255 157 60 / 65%);
+  background: rgb(14 10 6 / 92%);
+  color: #ffe4c7;
+  font: 600 10px/1.35 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 10px 26px rgb(0 0 0 / 55%), 0 0 18px rgb(255 157 60 / 10%);
+  transform: translate(-50%, -50%);
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.rpd-popup-choice:hover:not(:disabled) {
+  border-color: #ff9d3c;
+  background: rgb(255 157 60 / 18%);
+}
+
+.rpd-popup-choice[data-kind="info"] {
+  border-color: rgb(214 40 40 / 35%);
+  background: rgb(40 8 8 / 82%);
+  color: rgb(255 170 170 / 80%);
+  cursor: default;
+}
+
 .rpd-toast {
   position: absolute;
   left: 50%;
-  bottom: 28px;
+  bottom: calc(28px + var(--dock-height, 0px));
   transform: translateX(-50%);
   z-index: 6;
   max-width: min(640px, calc(100vw - 40px));
@@ -557,20 +598,18 @@ body {
     max-height: 52vh;
   }
 
+  .rpd-route-dock {
+    top: 112px;
+    left: 10px;
+    right: auto;
+    bottom: auto;
+    width: min(340px, calc(100vw - 20px));
+    max-height: min(38vh, max(96px, calc(48vh - 130px)));
+  }
+
   .rpd-toast {
     bottom: calc(52vh + 22px);
   }
-}
-
-.rpd-action[data-info="true"] {
-  border-color: rgb(214 40 40 / 32%);
-  background: rgb(214 40 40 / 6%);
-  color: rgb(255 170 170 / 80%);
-  cursor: default;
-}
-
-.rpd-action[data-info="true"] .rpd-action-icon {
-  color: #ff8b8b;
 }
 
 .rpd-links {
@@ -592,11 +631,6 @@ body {
   margin: 4px 0 0;
   color: rgb(225 210 255 / 75%);
   font: 10px/1.45 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-}
-
-.rpd-route-tools {
-  display: inline-flex;
-  gap: 12px;
 }
 
 .rpd-canvas[data-cell="true"] {

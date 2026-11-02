@@ -6,28 +6,33 @@ import {
   SHAPES,
   itemRadius,
   itemSatisfied,
-  keyForDoor,
   nearbyRoom,
   pathLength,
   pointAt,
-  type Door,
   type DoorState,
   type Item,
   type Quest,
   type Vec3,
 } from "./quest";
 import {
-  blockedDoorEdges,
   buildNavGraph,
-  findBlocker,
-  findNavPath,
   nearestNode,
   nearestNodeOnFloor,
   nodePoint,
-  routeFromPath,
   type NavFile,
   type NavGraph,
 } from "./nav";
+import {
+  appendChoiceSteps,
+  buildPreview,
+  planPath as buildPlanPath,
+  planStateFor,
+  type PlanChoice,
+  type PlanState,
+  type PlanStep,
+  type Preview,
+  type Target,
+} from "./planner";
 
 type RpdModule = {
   HEAPU8: Uint8Array;
@@ -67,17 +72,6 @@ type RpdFactory = (options: {
   canvas: HTMLCanvasElement;
   locateFile: (path: string) => string;
 }) => Promise<RpdModule>;
-
-type Target =
-  | { kind: "item"; id: string }
-  | { kind: "door"; id: string }
-  | { kind: "cell"; node: number };
-
-type Action =
-  | { type: "move"; label: string; points: Vec3[] }
-  | { type: "pickup"; label: string; itemId: string }
-  | { type: "use-key"; label: string; doorId: string; itemName: string }
-  | { type: "info"; label: string };
 
 type Hover = {
   kind: "item" | "door" | "cell";
@@ -168,8 +162,41 @@ function pointInQuad(
   return true;
 }
 
-function actionLabel(action: Action): string {
-  return action.label;
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function fanOffset(index: number, count: number): { x: number; y: number } {
+  if (count <= 1) return { x: 0, y: -72 };
+  if (count === 2) {
+    return index === 0 ? { x: -86, y: -66 } : { x: 86, y: -66 };
+  }
+  if (count === 3) {
+    if (index === 0) return { x: -104, y: 0 };
+    if (index === 1) return { x: 0, y: -80 };
+    return { x: 104, y: 0 };
+  }
+  const spread = Math.PI * 0.95;
+  const angle = -Math.PI / 2 - spread / 2 + (index / (count - 1)) * spread;
+  const radius = 98;
+  return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius - 8 };
+}
+
+function popupGeometry(
+  anchor: { x: number; y: number },
+  count: number,
+  width: number,
+  height: number,
+): { x: number; y: number; offsets: { x: number; y: number }[] } {
+  const minX = Math.min(170, width / 2);
+  const maxX = Math.max(minX, width - 170);
+  const minY = Math.min(220, Math.max(90, height - 90));
+  const maxY = Math.max(minY, height - 60);
+  return {
+    x: clamp(anchor.x, minX, maxX),
+    y: clamp(anchor.y, minY, maxY),
+    offsets: Array.from({ length: count }, (_, index) => fanOffset(index, count)),
+  };
 }
 
 type RpdSceneProps = {
@@ -197,6 +224,8 @@ export default function RpdScene({
   const hoverCellRef = useRef<number | null>(null);
   const cancelledRef = useRef(false);
   const pausedRef = useRef(false);
+  const popupLayerRef = useRef<HTMLDivElement>(null);
+  const dockRef = useRef<HTMLElement>(null);
 
   const [quest, setQuest] = useState<Quest | null>(null);
   const [nav, setNav] = useState<NavGraph | null>(null);
@@ -210,10 +239,8 @@ export default function RpdScene({
   const [discovered, setDiscovered] = useState<Set<string>>(new Set());
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [doorStates, setDoorStates] = useState<Map<string, DoorState>>(new Map());
-  const [selected, setSelected] = useState<Target | null>(null);
-  const [path, setPath] = useState<Vec3[]>([]);
-  const [queue, setQueue] = useState<Action[]>([]);
-  const [actionsAt, setActionsAt] = useState<Action[]>([]);
+  const [plan, setPlan] = useState<PlanStep[]>([]);
+  const [preview, setPreview] = useState<Preview | null>(null);
   const [moving, setMoving] = useState(false);
   const [paused, setPaused] = useState(false);
   const [toast, setToast] = useState<string>("");
@@ -222,7 +249,7 @@ export default function RpdScene({
   const [showInventory, setShowInventory] = useState(false);
   const [showLegend, setShowLegend] = useState(true);
   const [statusNote, setStatusNote] = useState(
-    "Walk near items to discover them. Click anywhere in a blue grid cell to move.",
+    "Walk near items to discover them. Click a discovered item or a floor cell to preview a route.",
   );
 
   const playerRef = useRef(player);
@@ -231,12 +258,12 @@ export default function RpdScene({
   const discoveredRef = useRef(discovered);
   const pickedRef = useRef(picked);
   const doorStatesRef = useRef(doorStates);
-  const pathRef = useRef(path);
-  const queueRef = useRef(queue);
+  const planRef = useRef(plan);
+  const previewRef = useRef(preview);
+  const planStateRef = useRef<PlanState | null>(null);
+  const planPathRef = useRef<Vec3[]>([]);
   const movingRef = useRef(moving);
-  const selectedRef = useRef(selected);
   const activeFloorRef = useRef(activeFloor);
-  const actionsRef = useRef(actionsAt);
 
   useEffect(() => {
     playerRef.current = player;
@@ -257,11 +284,11 @@ export default function RpdScene({
     doorStatesRef.current = doorStates;
   }, [doorStates]);
   useEffect(() => {
-    pathRef.current = path;
-  }, [path]);
+    planRef.current = plan;
+  }, [plan]);
   useEffect(() => {
-    queueRef.current = queue;
-  }, [queue]);
+    previewRef.current = preview;
+  }, [preview]);
   useEffect(() => {
     movingRef.current = moving;
   }, [moving]);
@@ -269,14 +296,8 @@ export default function RpdScene({
     pausedRef.current = paused;
   }, [paused]);
   useEffect(() => {
-    selectedRef.current = selected;
-  }, [selected]);
-  useEffect(() => {
     activeFloorRef.current = activeFloor;
   }, [activeFloor]);
-  useEffect(() => {
-    actionsRef.current = actionsAt;
-  }, [actionsAt]);
 
   useEffect(() => {
     if (!toast) return;
@@ -360,60 +381,62 @@ export default function RpdScene({
     return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [inventory]);
 
-  const discoveredItems = useMemo(
-    () => items.filter((item) => discovered.has(item.id)),
-    [items, discovered],
+  const itemNodes = useMemo(() => {
+    const nodes = new Map<number, Item[]>();
+    if (!nav) return nodes;
+    for (const item of items) {
+      const node = nearestNode(nav, [item.x, item.y - 0.36, item.z], 1.0);
+      if (node < 0) continue;
+      const list = nodes.get(node);
+      if (list) list.push(item);
+      else nodes.set(node, [item]);
+    }
+    return nodes;
+  }, [items, nav]);
+
+  const planState = useMemo(
+    () =>
+      nav && quest
+        ? planStateFor({
+            plan,
+            inventory,
+            picked,
+            doorStates,
+            player,
+            nav,
+            itemLookup,
+          })
+        : null,
+    [quest, nav, plan, inventory, picked, doorStates, player, itemLookup],
   );
 
-  const currentActions = useMemo(() => {
-    if (!quest) return [];
-    const at = playerRef.current;
-    const list: Action[] = [];
-    for (const item of discoveredItems) {
-      if (picked.has(item.id)) continue;
-      if (distance3(at, itemPoint(item)) < 3.2) {
-        if (itemSatisfied(item, inventory)) {
-          list.push({ type: "pickup", label: `Pick up ${item.name}`, itemId: item.id });
-        } else {
-          list.push({
-            type: "info",
-            label: `Needs ${item.requires.join(" / ")} · ${item.name}`,
-          });
-        }
-      }
-    }
-    for (const door of doors) {
-      const state = doorStates.get(door.id) ?? door.state;
-      const dx = door.x - at[0];
-      const dz = door.z - at[2];
-      if (dx * dx + dz * dz > 3.6 * 3.6) continue;
-      if (Math.abs(door.y - at[1]) > 2.5) continue;
-      if (state === "locked") {
-        const key = keyForDoor({ ...door, state }, inventory);
-        if (key) {
-          list.push({
-            type: "use-key",
-            label: `Use ${key} on ${door.label}`,
-            doorId: door.id,
-            itemName: key,
-          });
-        }
-      } else if (door.puzzle) {
-        list.push({ type: "info", label: `Puzzle · requires ${door.requires.join(" / ")}` });
-      } else if (state === "unknown") {
-        list.push({ type: "info", label: "Door state unknown" });
-      }
-    }
-    return list;
-  }, [quest, discoveredItems, picked, doors, doorStates, inventory, player]);
+  useEffect(() => {
+    planStateRef.current = planState;
+  }, [planState]);
 
-  const allActions = useMemo(() => {
-    const list = [...currentActions];
-    for (const action of actionsAt) {
-      if (!list.some((item) => item.label === action.label)) list.push(action);
+  const planPath = useMemo(() => buildPlanPath(plan), [plan]);
+
+  useEffect(() => {
+    planPathRef.current = planPath;
+  }, [planPath]);
+
+  useEffect(() => {
+    const dock = dockRef.current;
+    const root = wrapRef.current;
+    if (!dock || !root) {
+      root?.style.removeProperty("--dock-height");
+      return;
     }
-    return list;
-  }, [currentActions, actionsAt]);
+    const update = () =>
+      root.style.setProperty("--dock-height", `${dock.offsetHeight}px`);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(dock);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty("--dock-height");
+    };
+  }, [plan.length]);
 
   useEffect(() => {
     if (!quest || !nav) return;
@@ -522,8 +545,7 @@ export default function RpdScene({
         }
       }
 
-      // Selected route.
-      const route = pathRef.current;
+      const route = planPathRef.current;
       if (route.length > 1) {
         ctx.save();
         ctx.lineJoin = "round";
@@ -546,40 +568,11 @@ export default function RpdScene({
         }
         ctx.stroke();
         ctx.restore();
-
-        const selectedTarget = selectedRef.current;
-        if (selectedTarget) {
-          const end = route[route.length - 1];
-          const point = projectPoint(end, matrix, rect.width, rect.height);
-          if (point) {
-            ctx.beginPath();
-            ctx.fillStyle = "#39ff14";
-            ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.strokeStyle = "rgba(255,255,255,0.9)";
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            ctx.font = "600 11px ui-monospace, SFMono-Regular, Menlo, monospace";
-            ctx.fillStyle = "#d6ffd0";
-            const labelText =
-              selectedTarget.kind === "item"
-                ? itemLookup.get(selectedTarget.id)?.name ?? "Item"
-                : selectedTarget.kind === "door"
-                  ? doorLookup.get(selectedTarget.id)?.label ?? "Door"
-                  : "Floor cell";
-            const width = ctx.measureText(labelText).width + 14;
-            ctx.fillStyle = "rgba(0, 0, 0, 0.72)";
-            ctx.fillRect(point.x + 9, point.y - 22, width, 18);
-            ctx.fillStyle = "#d6ffd0";
-            ctx.fillText(labelText, point.x + 16, point.y - 9);
-          }
-        }
       }
 
-      // Highlight doorway points along the selected route.
-      if (pathRef.current.length > 1 && selectedRef.current) {
+      if (route.length > 1) {
         for (const d of doors) {
-          if (!pathRef.current.some((p) => Math.hypot(p[0] - d.x, p[2] - d.z) < 0.05)) continue;
+          if (!route.some((p) => Math.hypot(p[0] - d.x, p[2] - d.z) < 0.05)) continue;
           const point = projectPoint([d.x, d.y + 1.0, d.z], matrix, rect.width, rect.height);
           if (!point) continue;
           ctx.beginPath();
@@ -592,11 +585,96 @@ export default function RpdScene({
         }
       }
 
+      const previewNow = previewRef.current;
+      if (previewNow && previewNow.points.length > 1) {
+        ctx.save();
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.setLineDash([6, 5]);
+        ctx.strokeStyle = "#7dffb0";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        let started = false;
+        for (const p of previewNow.points) {
+          const point = projectPoint(p, matrix, rect.width, rect.height);
+          if (!point) continue;
+          if (!started) {
+            ctx.moveTo(point.x, point.y);
+            started = true;
+          } else {
+            ctx.lineTo(point.x, point.y);
+          }
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      const planEndpoint =
+        route.length > 0
+          ? route[route.length - 1]
+          : planRef.current.length > 0
+            ? (planStateRef.current?.cursor ?? null)
+            : null;
+      if (planEndpoint) {
+        const point = projectPoint(planEndpoint, matrix, rect.width, rect.height);
+        if (point) {
+          ctx.beginPath();
+          ctx.strokeStyle = "#39ff14";
+          ctx.lineWidth = 1.6;
+          ctx.arc(point.x, point.y, 4.5, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+      if (previewNow) {
+        const goal = previewNow.points[previewNow.points.length - 1];
+        const point = projectPoint(goal, matrix, rect.width, rect.height);
+        if (point) {
+          ctx.beginPath();
+          ctx.strokeStyle = "#ff9d3c";
+          ctx.lineWidth = 1.6;
+          ctx.arc(point.x, point.y, 4.5, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+
+      const layer = popupLayerRef.current;
+      if (layer) {
+        const anchor = previewNow
+          ? projectPoint(previewNow.anchor, matrix, rect.width, rect.height)
+          : null;
+        if (!previewNow || !anchor) {
+          layer.style.visibility = "hidden";
+        } else {
+          const geometry = popupGeometry(
+            anchor,
+            previewNow.choices.length,
+            rect.width,
+            rect.height,
+          );
+          layer.style.transform = `translate3d(${geometry.x}px, ${geometry.y}px, 0)`;
+          layer.style.visibility = "visible";
+          ctx.save();
+          ctx.strokeStyle = "#ff9d3c";
+          ctx.lineWidth = 1.2;
+          ctx.lineCap = "round";
+          ctx.shadowColor = "rgba(255, 157, 60, 0.7)";
+          ctx.shadowBlur = 8;
+          ctx.setLineDash([]);
+          ctx.beginPath();
+          for (const offset of geometry.offsets) {
+            ctx.moveTo(anchor.x, anchor.y);
+            ctx.lineTo(geometry.x + offset.x, geometry.y + offset.y);
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
       requestAnimationFrame(frame);
     };
     let raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [quest, nav, activeFloor, itemLookup, doorLookup, doors, gridLines, navNodesByFloor]);
+  }, [quest, nav, activeFloor, doors, gridLines, navNodesByFloor]);
 
   useEffect(() => {
     let raf = 0;
@@ -800,208 +878,146 @@ export default function RpdScene({
     };
   }, [assetUrl]);
 
-  const targetPoint = (
-    target: Target,
-  ): { point: Vec3; node: number; room: string; label: string } | null => {
-    const q = questRef.current;
+  const cellLabelFor = (node: number): string => {
     const graph = navRef.current;
-    if (!q || !graph) return null;
-    if (target.kind === "item") {
-      const item = itemLookup.get(target.id);
-      if (!item) return null;
-      const node = nearestNode(graph, [item.x, item.y - 0.36, item.z], 3.2);
-      if (node < 0) return null;
-      return { point: itemPoint(item), node, room: item.region, label: item.name };
-    }
-    if (target.kind === "door") {
-      const door = doorLookup.get(target.id);
-      if (!door) return null;
-      const node = nearestNode(graph, [door.x, door.y, door.z], 3.0);
-      if (node < 0) return null;
-      return {
-        point: [door.x, door.y + 0.5, door.z],
-        node,
-        room: door.from,
-        label: door.label,
-      };
-    }
-    const point = nodePoint(graph, target.node, 0.45);
-    const room = nearbyRoom(q, point).name;
-    return {
-      point,
-      node: target.node,
-      room,
-      label: `${room} cell`,
-    };
+    const q = questRef.current;
+    if (!graph || !q) return "Floor";
+    return nearbyRoom(q, nodePoint(graph, node)).name;
   };
 
-  const buildActionsFor = (target: Target): Action[] => {
+  const stateForPlan = (steps: readonly PlanStep[]): PlanState | null => {
+    const graph = navRef.current;
     const q = questRef.current;
-    if (!q) return [];
-    if (target.kind === "item") {
-      const item = itemLookup.get(target.id);
-      if (!item || pickedRef.current.has(item.id)) return [];
-      if (!itemSatisfied(item, inventoryRef.current)) {
-        return [
-          {
-            type: "info",
-            label: `Locked · requires ${item.requires.join(" / ")}`,
-          },
-        ];
-      }
-      return [{ type: "pickup", label: `Pick up ${item.name}`, itemId: item.id }];
-    }
-    if (target.kind === "door") {
-      const door = doorLookup.get(target.id);
-      if (!door) return [];
-      const state = doorStatesRef.current.get(door.id) ?? door.state;
-      if (state !== "locked") {
-        if (door.puzzle) {
-          return [
-            {
-              type: "info",
-              label: `Puzzle · requires ${door.requires.join(" / ")}`,
-            },
-          ];
-        }
-        if (state === "unknown") {
-          return [{ type: "info", label: "Door state unknown" }];
-        }
-        return [];
-      }
-      const key = keyForDoor({ ...door, state }, inventoryRef.current);
-      if (key) {
-        return [
-          {
-            type: "use-key",
-            label: `Use ${key} on ${door.label}`,
-            doorId: door.id,
-            itemName: key,
-          },
-        ];
-      }
-      return [
-        {
-          type: "info",
-          label: `Locked · requires ${door.requires.join(" / ") || "a key"}`,
-        },
-      ];
-    }
-    return [];
+    if (!graph || !q) return null;
+    return planStateFor({
+      plan: steps,
+      inventory: inventoryRef.current,
+      picked: pickedRef.current,
+      doorStates: doorStatesRef.current,
+      player: playerRef.current,
+      nav: graph,
+      itemLookup,
+    });
   };
 
-  const buildQueue = (nodes: number[], target: Target): Action[] => {
-    const q = questRef.current;
-    const graph = navRef.current;
-    if (!q || !graph || nodes.length === 0) return [];
-    const targetInfo = targetPoint(target);
-    const stops: { index: number; door: Door; key: string }[] = [];
-    for (const door of q.doors) {
-      const state = doorStatesRef.current.get(door.id) ?? door.state;
-      if (state !== "locked") continue;
-      const key = keyForDoor({ ...door, state }, inventoryRef.current);
-      if (!key) continue;
-      let bestIndex = -1;
-      let bestDistance = 1.5;
-      for (let i = 0; i < nodes.length; i++) {
-        const node = nodes[i];
-        if (Math.abs(graph.y[node] - door.y) > 2.0) continue;
-        const distance = Math.hypot(graph.x[node] - door.x, graph.z[node] - door.z);
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          bestIndex = i;
-        }
-      }
-      if (bestIndex >= 0 && !stops.some((stop) => stop.door.id === door.id)) {
-        stops.push({ index: bestIndex, door, key });
-      }
-    }
-    stops.sort((a, b) => a.index - b.index);
-
-    const steps: Action[] = [];
-    let cursor: Vec3 = playerRef.current;
-    let cursorIndex = 0;
-    for (const stop of stops) {
-      const segment = routeFromPath(graph, nodes.slice(cursorIndex, stop.index + 1), 0.45);
-      const points = [cursor, ...segment];
-      steps.push({ type: "move", label: `Move to ${stop.door.label}`, points });
-      steps.push({
-        type: "use-key",
-        label: `Use ${stop.key} on ${stop.door.label}`,
-        doorId: stop.door.id,
-        itemName: stop.key,
-      });
-      cursor = nodePoint(graph, nodes[stop.index], 0.45);
-      cursorIndex = stop.index;
-    }
-    const segment = routeFromPath(graph, nodes.slice(cursorIndex), 0.45);
-    const finalPoints = [cursor, ...segment];
-    if (pathLength(finalPoints) > 0.2) {
-      steps.push({
-        type: "move",
-        label: `Move to ${targetInfo?.label ?? "destination"}`,
-        points: finalPoints,
-      });
-    }
-    const doorHandled =
-      target.kind === "door" && stops.some((stop) => stop.door.id === target.id);
-    if (!doorHandled) {
-      steps.push(...buildActionsFor(target).filter((action) => action.type !== "info"));
-    }
-    return steps;
+  const currentPlanState = (): PlanState | null => {
+    const state = stateForPlan(planRef.current);
+    if (state) planStateRef.current = state;
+    return state;
   };
 
-  const selectTarget = (target: Target) => {
-    const q = questRef.current;
-    const graph = navRef.current;
-    if (!q || !graph) return;
-    const info = targetPoint(target);
-    if (!info) return;
-    const from = nearestNode(graph, playerRef.current, 3.5);
-    if (from < 0) {
-      setStatusNote("Claire is not standing on a navigation cell.");
-      return;
-    }
-    const blocked = blockedDoorEdges(
-      graph,
-      q.doors,
-      doorStatesRef.current,
-      inventoryRef.current,
+  const closePreview = () => {
+    previewRef.current = null;
+    setPreview(null);
+    setHover(null);
+    const layer = popupLayerRef.current;
+    if (layer) layer.style.visibility = "hidden";
+  };
+
+  const dismissPreview = () => {
+    closePreview();
+    const count = planRef.current.length;
+    setStatusNote(
+      count > 0
+        ? `Plan has ${count} step${count === 1 ? "" : "s"}.`
+        : "Preview closed.",
     );
-    const nodes = findNavPath(graph, from, info.node, blocked);
-    if (!nodes) {
-      const blocker = findBlocker(
-        graph,
-        from,
-        info.node,
-        q.doors,
-        doorStatesRef.current,
-        inventoryRef.current,
-      );
-      const reason = blocker
-        ? `No route to ${info.label}. ${blocker.label} is locked and needs ${blocker.requires.join(" / ")}.`
-        : `No route to ${info.label}.`;
-      setStatusNote(reason);
+  };
+
+  const previewTarget = (target: Target) => {
+    if (movingRef.current) return;
+    const graph = navRef.current;
+    const q = questRef.current;
+    if (!graph || !q) return;
+    let resolved = target;
+    if (resolved.kind === "cell") {
+      const itemHere = itemNodes
+        .get(resolved.node)
+        ?.find(
+          (item) =>
+            discoveredRef.current.has(item.id) && !pickedRef.current.has(item.id),
+        );
+      if (itemHere) resolved = { kind: "item", id: itemHere.id };
+    }
+    const state = currentPlanState();
+    if (!state) return;
+    let problem = "";
+    const next = buildPreview({
+      target: resolved,
+      state,
+      nav: graph,
+      doors: q.doors,
+      itemLookup,
+      itemNodes,
+      cellLabel: cellLabelFor,
+      report: (reason) => {
+        problem = reason;
+      },
+    });
+    if (!next) {
+      const reason = problem || "No route.";
+      closePreview();
       setToast(reason);
-      setSelected(target);
-      selectedRef.current = target;
-      setPath([]);
-      setQueue([]);
-      setActionsAt([]);
+      setStatusNote(reason);
       return;
     }
-    const points = [playerRef.current, ...routeFromPath(graph, nodes, 0.45)];
-    pathRef.current = points;
-    setPath(points);
-    setSelected(target);
-    selectedRef.current = target;
-    const nextQueue = buildQueue(nodes, target);
-    queueRef.current = nextQueue;
-    setQueue(nextQueue);
-    const availableHere = buildActionsFor(target);
-    actionsRef.current = availableHere;
-    setActionsAt(availableHere);
-    setStatusNote(`Route ready to ${info.label}. Confirm the move to start.`);
+    const layer = popupLayerRef.current;
+    if (layer) layer.style.visibility = "hidden";
+    previewRef.current = next;
+    setPreview(next);
+    setHover(null);
+    setStatusNote(`Preview to ${next.label}. Choose an action.`);
+  };
+
+  const appendPlan = (steps: PlanStep[]): PlanStep[] => {
+    const next = [...planRef.current, ...steps];
+    planRef.current = next;
+    const state = stateForPlan(next);
+    if (state) planStateRef.current = state;
+    setPlan(next);
+    return next;
+  };
+
+  const commitChoice = (choice: PlanChoice) => {
+    if (choice.kind === "info") return;
+    const current = previewRef.current;
+    if (!current) return;
+    const steps = appendChoiceSteps(current, choice);
+    if (steps.length === 0) {
+      setToast(`Already at ${current.label}.`);
+      closePreview();
+      return;
+    }
+    const next = appendPlan(steps);
+    closePreview();
+    setStatusNote(
+      `Plan has ${next.length} step${next.length === 1 ? "" : "s"}. Click another target or run the route.`,
+    );
+  };
+
+  const undoPlan = () => {
+    if (movingRef.current) return;
+    const next = planRef.current.slice(0, -1);
+    planRef.current = next;
+    const state = stateForPlan(next);
+    if (state) planStateRef.current = state;
+    setPlan(next);
+    closePreview();
+    setStatusNote(
+      next.length === 0
+        ? "Route cleared."
+        : `Plan has ${next.length} step${next.length === 1 ? "" : "s"}.`,
+    );
+  };
+
+  const clearPlan = () => {
+    if (movingRef.current) return;
+    planRef.current = [];
+    const state = stateForPlan([]);
+    if (state) planStateRef.current = state;
+    setPlan([]);
+    closePreview();
+    setStatusNote("Route cleared.");
   };
 
   const refreshAfterAction = () => {
@@ -1016,14 +1032,11 @@ export default function RpdScene({
       const node = nearestNode(graph, at, 3.0);
       if (node >= 0) setActiveFloor(graph.floor[node]);
     }
-    setSelected(null);
-    selectedRef.current = null;
-    pathRef.current = [];
-    setPath([]);
-    queueRef.current = [];
-    setQueue([]);
-    actionsRef.current = [];
-    setActionsAt([]);
+    planRef.current = [];
+    setPlan([]);
+    closePreview();
+    const state = stateForPlan([]);
+    if (state) planStateRef.current = state;
   };
 
   const performPickup = (itemId: string) => {
@@ -1138,29 +1151,30 @@ export default function RpdScene({
       requestAnimationFrame(step);
     });
 
-  const confirm = async () => {
+  const runPlan = async () => {
     if (pausedRef.current) return;
     if (movingRef.current) return;
-    const q = questRef.current;
-    if (!q || queueRef.current.length === 0) return;
+    const steps = [...planRef.current];
+    if (steps.length === 0) return;
+    closePreview();
     movingRef.current = true;
     setMoving(true);
-    const actions = [...queueRef.current];
-    for (const action of actions) {
+    for (const step of steps) {
       while (pausedRef.current && !cancelledRef.current) await nextFrame();
       if (cancelledRef.current) break;
-      if (action.type === "move") {
-        await moveAlong(action.points, action.label);
-      } else if (action.type === "pickup") {
-        performPickup(action.itemId);
-      } else if (action.type === "use-key") {
-        useKey(action.doorId, action.itemName);
+      if (step.type === "move") {
+        await moveAlong(step.points, step.label);
+      } else if (step.type === "pickup") {
+        performPickup(step.itemId);
+      } else {
+        useKey(step.doorId, step.itemName);
       }
       await nextFrame();
     }
     movingRef.current = false;
     setMoving(false);
     refreshAfterAction();
+    setStatusNote("Route complete.");
   };
 
   const cellAt = (
@@ -1324,6 +1338,18 @@ export default function RpdScene({
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     const api = {
+      plan: plan.map((step) => step.label),
+      preview: preview && {
+        label: preview.label,
+        goalNode: preview.goalNode,
+        choices: preview.choices,
+        points: preview.points,
+      },
+      planState: planState && {
+        inventory: [...planState.inventory],
+        picked: [...planState.picked],
+        cursorNode: planState.cursorNode,
+      },
       debug: () => ({
         player: playerRef.current,
         room: roomRef.current,
@@ -1331,21 +1357,26 @@ export default function RpdScene({
         discovered: [...discoveredRef.current],
         picked: [...pickedRef.current],
         doors: Object.fromEntries(doorStatesRef.current),
-        selected: selectedRef.current,
-        queue: queueRef.current.map(actionLabel),
+        plan: planRef.current.map((step) => step.label),
         moving: movingRef.current,
         paused: pausedRef.current,
-        actions: allActions.map(actionLabel),
       }),
-      selectItem: (id: string) => selectTarget({ kind: "item", id }),
-      selectDoor: (id: string) => selectTarget({ kind: "door", id }),
-      selectCell: (x: number, z: number) => {
+      previewItem: (id: string) => previewTarget({ kind: "item", id }),
+      previewCell: (x: number, z: number) => {
         const graph = navRef.current;
         if (!graph) return;
         const floor = graph.floors[activeFloorRef.current];
         const node = nearestNodeOnFloor(graph, [x, floor?.level ?? 0, z], activeFloorRef.current, 8);
-        if (node >= 0) selectTarget({ kind: "cell", node });
+        if (node >= 0) previewTarget({ kind: "cell", node });
       },
+      choose: (index: number) => {
+        const current = previewRef.current;
+        const choice = current?.choices[index];
+        if (choice) commitChoice(choice);
+      },
+      run: () => runPlan(),
+      undo: () => undoPlan(),
+      clear: () => clearPlan(),
       setFloor: (floor: number) => {
         activeFloorRef.current = floor;
         setActiveFloor(floor);
@@ -1356,10 +1387,9 @@ export default function RpdScene({
         inventoryRef.current = next;
         setInventory(next);
       },
-      confirm: () => confirm(),
       checkPath: () => {
         const graph = navRef.current;
-        const points = pathRef.current;
+        const points = buildPlanPath(planRef.current);
         if (!graph) return null;
         let bad = 0;
         let worst = 0;
@@ -1378,7 +1408,8 @@ export default function RpdScene({
       },
       click: (x: number, y: number) => {
         const target = pickAt(x, y);
-        if (target) selectTarget(target);
+        if (target) previewTarget(target);
+        else dismissPreview();
       },
       matrix: () => Array.from(viewProjRef.current),
       project: (x: number, y: number, z: number) => {
@@ -1392,7 +1423,7 @@ export default function RpdScene({
     return () => {
       delete (window as unknown as { __quest?: typeof api }).__quest;
     };
-  }, [quest, allActions, confirm]);
+  }, [quest, plan, preview, planState, moving, paused]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (event.button !== 0) return;
@@ -1404,7 +1435,8 @@ export default function RpdScene({
     const rect = overlayRef.current?.getBoundingClientRect();
     if (!rect) return;
     const target = pickAt(clientX - rect.left, clientY - rect.top);
-    if (target) selectTarget(target);
+    if (target) previewTarget(target);
+    else dismissPreview();
   };
 
   const handlePointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -1433,7 +1465,10 @@ export default function RpdScene({
 
   const focusRoute = () => {
     const module = moduleRef.current;
-    const route = pathRef.current;
+    const route =
+      planPathRef.current.length > 0
+        ? planPathRef.current
+        : previewRef.current?.points ?? [];
     if (!module || route.length < 2) return;
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity, maxY = -Infinity;
     for (const [x, y, z] of route) {
@@ -1457,15 +1492,23 @@ export default function RpdScene({
       pitch,
       distance,
     );
-    setToast("Framed the planned route.");
+    setToast("Framed the route.");
   };
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.code !== "KeyP" || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (event.repeat) return;
       const target = event.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+      if (event.code === "Escape") {
+        if (previewRef.current) {
+          event.preventDefault();
+          dismissPreview();
+        }
+        return;
+      }
+      if (event.code !== "KeyP") return;
       event.preventDefault();
       const next = !pausedRef.current;
       pausedRef.current = next;
@@ -1511,18 +1554,14 @@ export default function RpdScene({
     revealItems(q.spawn, true);
     refreshAfterAction();
     setToast("Run reset.");
-    setStatusNote("Walk near items to discover them. Click anywhere in a blue grid cell to move.");
+    setStatusNote("Walk near items to discover them. Click a discovered item or a floor cell to preview a route.");
   };
 
   const statusText = error ? `Scene error — ${error}` : "Loading RPD floors 1–3";
-  const selectedLabel =
-    selected?.kind === "item"
-      ? itemLookup.get(selected.id)?.name
-      : selected?.kind === "door"
-        ? doorLookup.get(selected.id)?.label
-        : selected?.kind === "cell"
-          ? `${quest && nav ? nearbyRoom(quest, nodePoint(nav, selected.node)).name : "Floor"} cell`
-          : null;
+  const linkedItem =
+    preview?.target.kind === "item"
+      ? itemLookup.get(preview.target.id)
+      : undefined;
 
   const floorCounts = quest
     ? quest.floors.map((floor) => ({
@@ -1557,7 +1596,30 @@ export default function RpdScene({
           onContextMenu={(event) => event.preventDefault()}
         />
         <canvas ref={overlayRef} className="rpd-overlay" aria-hidden="true" />
-        {hover && (
+        <div
+          className="rpd-popup-layer"
+          ref={popupLayerRef}
+          data-visible={preview ? "true" : "false"}
+        >
+          {preview?.choices.map((choice, index) => {
+            const offset = fanOffset(index, preview.choices.length);
+            return (
+              <button
+                key={`${choice.kind}-${choice.label}-${index}`}
+                className="rpd-popup-choice"
+                data-kind={choice.kind}
+                disabled={choice.kind === "info"}
+                style={{
+                  transform: `translate(-50%, -50%) translate(${offset.x}px, ${offset.y}px)`,
+                }}
+                onClick={() => commitChoice(choice)}
+              >
+                {choice.label}
+              </button>
+            );
+          })}
+        </div>
+        {hover && !preview && (
           <div className="rpd-tooltip" style={{ left: hover.x + 14, top: hover.y + 14 }}>
             <strong>{hover.label}</strong>
             <span>{hover.detail}</span>
@@ -1600,8 +1662,8 @@ export default function RpdScene({
       <aside className="rpd-panel" aria-label="Quest planner">
         <div className="rpd-panel-head">
           <div>
-            <p className="rpd-kicker">Next actions</p>
-            <h2>{selectedLabel ?? playerRoom}</h2>
+            <p className="rpd-kicker">Quest planner</p>
+            <h2>{preview?.label ?? playerRoom}</h2>
           </div>
           <div className="rpd-panel-status">
             {paused && <span className="rpd-paused">Paused</span>}
@@ -1613,115 +1675,19 @@ export default function RpdScene({
 
         <p className="rpd-note">{statusNote}</p>
 
-        {selected?.kind === "item" &&
-          ((itemLookup.get(selected.id)?.links.length ?? 0) +
-            (itemLookup.get(selected.id)?.itemLinks.length ?? 0)) >
-            0 && (
+        {linkedItem && linkedItem.links.length + linkedItem.itemLinks.length > 0 && (
           <div className="rpd-links">
             <span>Links</span>
             <p>
               {[
-                ...(itemLookup.get(selected.id)?.links ?? [])
+                ...linkedItem.links
                   .map((id) => doorLookup.get(id)?.label)
                   .filter(Boolean),
-                ...(itemLookup.get(selected.id)?.itemLinks ?? [])
+                ...linkedItem.itemLinks
                   .map((id) => itemLookup.get(id)?.name)
                   .filter(Boolean),
               ].join(" · ")}
             </p>
-          </div>
-        )}
-
-        {queue.length > 0 && (
-          <div className="rpd-queue">
-            <div className="rpd-section-title">
-              <span>Planned route</span>
-              <span className="rpd-route-tools">
-                <button className="rpd-text-button" onClick={focusRoute}>
-                  focus
-                </button>
-                <button
-                  className="rpd-text-button"
-                  onClick={() => {
-                    setQueue([]);
-                    queueRef.current = [];
-                    setPath([]);
-                    pathRef.current = [];
-                    setSelected(null);
-                    selectedRef.current = null;
-                  }}
-                >
-                  clear
-                </button>
-              </span>
-            </div>
-            <ol>
-              {queue.map((action, index) => (
-                <li key={`${action.label}-${index}`}>
-                  <span className="rpd-step-number">{String(index + 1).padStart(2, "0")}</span>
-                  <span>{action.label}</span>
-                  <button
-                    className="rpd-remove"
-                    onClick={() =>
-                      setQueue((current) => {
-                        const next = current.filter((_, i) => i !== index);
-                        queueRef.current = next;
-                        return next;
-                      })
-                    }
-                    aria-label={`Remove ${action.label}`}
-                  >
-                    ×
-                  </button>
-                </li>
-              ))}
-            </ol>
-            <button
-              className="rpd-confirm"
-              onClick={confirm}
-              disabled={paused || moving || queue.length === 0}
-            >
-              {paused
-                ? "Paused · P to resume"
-                : moving
-                  ? "Moving…"
-                  : `Confirm ${queue.length} action${queue.length === 1 ? "" : "s"}`}
-            </button>
-          </div>
-        )}
-
-        <div className="rpd-section-title">
-          <span>At this position</span>
-          <span className="rpd-muted">{allActions.length} available</span>
-        </div>
-        {allActions.length === 0 ? (
-          <p className="rpd-empty">
-            Move closer to a discovered item or a locked door to unlock new actions.
-          </p>
-        ) : (
-          <div className="rpd-actions">
-            {allActions.map((action, index) => (
-              <button
-                key={`${action.label}-${index}`}
-                className="rpd-action"
-                data-info={action.type === "info"}
-                disabled={action.type === "info"}
-                onClick={() => {
-                  if (action.type === "info") return;
-                  setQueue((current) => {
-                    if (current.some((entry) => entry.label === action.label)) return current;
-                    const next = [...current, action];
-                    queueRef.current = next;
-                    return next;
-                  });
-                }}
-              >
-                <span className="rpd-action-icon">
-                  {action.type === "pickup" ? "◆" : action.type === "use-key" ? "⌁" : action.type === "info" ? "!" : "→"}
-                </span>
-                <span>{action.label}</span>
-              </button>
-            ))}
           </div>
         )}
 
@@ -1789,11 +1755,58 @@ export default function RpdScene({
             </div>
             <p className="rpd-legend-note">
               Items stay hidden until Claire walks near them. Click a discovered
-              item to plot a route. Locked doors need the listed key.
+              item or a floor cell to preview a route. Routes stop beside items.
             </p>
           </div>
         )}
       </aside>
+
+      {plan.length > 0 && (
+        <section className="rpd-route-dock" ref={dockRef} aria-label="Route">
+          <div className="rpd-route-dock-head">
+            <span>Route</span>
+            <span className="rpd-muted">
+              {plan.length} step{plan.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          <ol className="rpd-route-steps">
+            {plan.map((step, index) => (
+              <li key={`${index}-${step.label}`}>
+                <span className="rpd-step-number">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span>{step.label}</span>
+              </li>
+            ))}
+          </ol>
+          <div className="rpd-dock-actions">
+            <button className="rpd-text-button" onClick={focusRoute}>
+              focus
+            </button>
+            <button
+              className="rpd-text-button"
+              onClick={undoPlan}
+              disabled={moving}
+            >
+              undo
+            </button>
+            <button
+              className="rpd-text-button"
+              onClick={clearPlan}
+              disabled={moving}
+            >
+              clear
+            </button>
+          </div>
+          <button
+            className="rpd-confirm"
+            onClick={runPlan}
+            disabled={paused || moving}
+          >
+            {paused ? "Paused · P to resume" : moving ? "Moving…" : "Run route"}
+          </button>
+        </section>
+      )}
 
       <div className="rpd-fps">{fps > 0 ? `${fps} FPS` : "-- FPS"}</div>
       {toast && <div className="rpd-toast">{toast}</div>}

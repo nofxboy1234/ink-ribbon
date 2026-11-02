@@ -7,9 +7,12 @@ translucent glass style. Right-drag orbits the camera, the middle button pans,
 and the wheel zooms.
 
 A green FPS counter sits at the top right of the scene. The same view is now a
-playable Claire A quest map: walk the RPD, discover items, plot bright-green
-routes, and use keys on locked doors. The quest panel on the right stays visible
-over the glass view.
+playable Claire A quest map. Walk the RPD and discover items. Click an item or a
+floor cell to preview a dashed route. The route stops on a walkable cell beside
+the item, never on the item's own cell. Orange action popups fan from the clicked
+object. Click a popup to append the move or pickup to the plan, then click
+**Run route** in the bottom-left route dock. The quest panel on the right stays
+visible over the glass view.
 
 ![RPD floors 1–3](docs/preview.jpg)
 
@@ -36,11 +39,12 @@ over the glass view.
   `public/rpd/nav.json` holds a walkable surface graph sampled from the real
   floors, stairs and ramps. `public/rpd/grid.json` remains the flat
   cell source used to place items. The web app draws the graph, hides items
-  until Claire walks near them, routes with A* over the graph, draws the route,
-  and executes a confirmable move and action queue.
+  until Claire walks near them, routes with A* over the graph, draws the plan,
+  and runs the plan from the route dock.
 - **Web app** — React 19 + TypeScript on [Void](https://github.com/voidzero-dev/void)
   1.3.0 (Vite 8) targeting Cloudflare Workers. The canvas holds the 3D scene and
-  a 2D grid and route overlay; the right panel is the quest planner.
+  a 2D grid and route overlay. The right panel shows the selection and
+  inventory, and the route dock runs the plan.
 
 ## Stack
 
@@ -105,12 +109,19 @@ derived from `~/repos/reze`; see [docs/extraction.md](docs/extraction.md).
 
 ## Quest map
 
-The planner starts in the Main Hall on 1F. Items are invisible until Claire is
-within 3 m, matching the "walk near to discover" rule. Click a floor cell to
-move. Click a discovered item to draw a route and choose the actions that
-happen on arrival. Click a door to route to it and, when a key is in the
-inventory, add "Use <key> on <door>" to the queue. Press **Confirm** to move the
-purple player sphere and run the queued actions in order.
+Claire starts in the Main Hall on 1F. Items are invisible until she is within
+3 m, matching the "walk near to discover" rule. Click a floor cell to
+preview a route to that cell. Click a discovered item to preview a route to the
+nearest walkable cell beside it and open its action popups. Click a door to
+preview a route to it. A locked door whose key is in the inventory offers a
+"Use <key> on <door>" popup.
+
+Clicking a popup appends its move, pickup, or key use to the plan. The next
+preview starts from the plan endpoint, not from Claire's current cell. The route
+dock at the bottom left lists the plan. Undo removes the last step, Clear empties
+the plan, Focus frames the route, and **Run route** moves the purple player
+sphere and runs the steps in order. Item stops are adjacent to the item, never on
+the item's cell.
 
 - **Item shapes and colours.** Keys are purple pyramids, key items magenta
   pyramids, healing green spheres, ammo yellow cubes, gunpowder orange cubes,
@@ -140,9 +151,12 @@ game PAK and the decompile at `~/repos/reze`.
 | Scroll wheel | Zoom |
 | `R` | Reset camera |
 | `P` | Pause or resume player movement |
-| Click floor cell | Route the player to that cell |
-| Click discovered item | Route to the item and show its actions |
-| Click door | Route to the door and show its lock state |
+| Click floor cell | Preview a route to that cell |
+| Click discovered item | Preview a route beside the item and open its action popups |
+| Click door | Preview a route to the door and show its lock state |
+| Click action popup | Append that move or pickup to the plan |
+| Click Run route | Execute the plan |
+| `Escape` | Close the action popups without clearing the plan |
 | One-finger drag | Orbit |
 | Two-finger drag | Pan |
 
@@ -176,8 +190,9 @@ tools/rpd_floor_meshes.txt exact PAK paths for floors 1-3
 native/main.c              sokol app: camera, input, solid-colour geometry pass
 native/third_party/sokol   vendored sokol headers (pinned commit)
 native/build.sh            Emscripten build
-src/RpdScene.tsx           React canvas, WASM loader, planner, grid and route overlay
-src/nav.ts                  nav graph, A* search, door edge blocking, route points
+src/RpdScene.tsx           React canvas, WASM loader, plan UI, grid and route overlay
+src/planner.ts             pure plan simulation, route previews, choices and plan path
+src/nav.ts                 nav graph, A* search, door edge blocking, route points
 src/quest.ts               quest types, room lookup, keys and route helpers
 src/wasm/rpd.js            generated Emscripten ES module (committed for deploy)
 pages/index.tsx            real-geometry page
