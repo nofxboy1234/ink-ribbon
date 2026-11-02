@@ -1059,6 +1059,15 @@ EMSCRIPTEN_KEEPALIVE int rpd_set_orbit(float tx, float ty, float tz, float yaw, 
     return 0;
 }
 
+EMSCRIPTEN_KEEPALIVE void rpd_set_orbit_target(float tx, float ty, float tz) {
+    state.camera.target[0] = tx;
+    state.camera.target[1] = ty;
+    state.camera.target[2] = tz;
+    state.rotating = false;
+    state.panning = false;
+    state.user_moved = true;
+}
+
 EMSCRIPTEN_KEEPALIVE void rpd_set_player_position(float x, float y, float z) {
     if (marker_count > 0) {
         markers[0].x = x;

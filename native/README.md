@@ -75,5 +75,8 @@ window clears both drag flags.
 - `rpd_set_orbit` sets the target, yaw, pitch and distance; the client uses it
   to frame a planned route. `rpd_get_camera` publishes the live eye pose to the
   URL hash.
+- `rpd_set_orbit_target` moves the target only and keeps the current yaw, pitch
+  and distance; the client uses it to centre the camera on the hovered floor
+  cell.
 
 The asset is in metres, Y-up, with the RPD main hall near the origin.

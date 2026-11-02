@@ -48,6 +48,7 @@ type RpdModule = {
     pitch: number,
     distance: number,
   ) => number;
+  _rpd_set_orbit_target: (tx: number, ty: number, tz: number) => void;
   _rpd_get_view_proj: (ptr: number) => number;
   _rpd_marker_clear: () => void;
   _rpd_marker_add: (
@@ -81,7 +82,7 @@ type Hover = {
   y: number;
 };
 
-const CACHE_VERSION = "20261102a";
+const CACHE_VERSION = "20261102b";
 const DISCOVER_RADIUS = 3.0;
 const SPAWN_DISCOVER_RADIUS = 3.5;
 const MOVE_SPEED = 7.0;
@@ -223,6 +224,7 @@ export default function RpdScene({
   const clickHandled = useRef(false);
   const hoverCellRef = useRef<number | null>(null);
   const cancelledRef = useRef(false);
+  const cancelRunRef = useRef(false);
   const pausedRef = useRef(false);
   const popupLayerRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLElement>(null);
@@ -1020,6 +1022,21 @@ export default function RpdScene({
     setStatusNote("Route cleared.");
   };
 
+  const pauseAndClearRoute = () => {
+    planRef.current = [];
+    setPlan([]);
+    closePreview();
+    const state = stateForPlan([]);
+    if (state) planStateRef.current = state;
+    const next = !pausedRef.current;
+    pausedRef.current = next;
+    setPaused(next);
+    setToast(next ? "Paused. Route cleared." : "Resumed. Route cleared.");
+    setStatusNote(
+      next ? "Paused. Set a new route when ready." : "Resumed. Set a new route.",
+    );
+  };
+
   const refreshAfterAction = () => {
     const q = questRef.current;
     if (!q) return;
@@ -1103,7 +1120,7 @@ export default function RpdScene({
       let last = performance.now();
       let lastUi = 0;
       const step = (now: number) => {
-        if (cancelledRef.current) {
+        if (cancelledRef.current || cancelRunRef.current) {
           resolve();
           return;
         }
@@ -1156,12 +1173,15 @@ export default function RpdScene({
     if (movingRef.current) return;
     const steps = [...planRef.current];
     if (steps.length === 0) return;
+    cancelRunRef.current = false;
     closePreview();
     movingRef.current = true;
     setMoving(true);
     for (const step of steps) {
-      while (pausedRef.current && !cancelledRef.current) await nextFrame();
-      if (cancelledRef.current) break;
+      while (pausedRef.current && !cancelledRef.current && !cancelRunRef.current) {
+        await nextFrame();
+      }
+      if (cancelledRef.current || cancelRunRef.current) break;
       if (step.type === "move") {
         await moveAlong(step.points, step.label);
       } else if (step.type === "pickup") {
@@ -1171,10 +1191,11 @@ export default function RpdScene({
       }
       await nextFrame();
     }
+    const cancelled = cancelledRef.current || cancelRunRef.current;
     movingRef.current = false;
     setMoving(false);
     refreshAfterAction();
-    setStatusNote("Route complete.");
+    if (!cancelled) setStatusNote("Route complete.");
   };
 
   const cellAt = (
@@ -1502,18 +1523,23 @@ export default function RpdScene({
       const target = event.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
       if (event.code === "Escape") {
-        if (previewRef.current) {
-          event.preventDefault();
-          dismissPreview();
-        }
+        event.preventDefault();
+        cancelRunRef.current = true;
+        pauseAndClearRoute();
         return;
       }
-      if (event.code !== "KeyP") return;
+      if (event.code !== "Space") return;
+      if (target?.closest('button, select, a, [contenteditable="true"]')) return;
+      const node = hoverCellRef.current;
+      if (node === null) return;
+      const graph = navRef.current;
+      const module = moduleRef.current;
+      if (!graph || !module) return;
+      const point = nodePoint(graph, node, 0.45);
+      module._rpd_set_orbit_target(point[0], point[1], point[2]);
       event.preventDefault();
-      const next = !pausedRef.current;
-      pausedRef.current = next;
-      setPaused(next);
-      setToast(next ? "Paused." : "Resumed.");
+      const q = questRef.current;
+      if (q) setToast(`Camera centered on ${nearbyRoom(q, point).name}.`);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -1803,7 +1829,7 @@ export default function RpdScene({
             onClick={runPlan}
             disabled={paused || moving}
           >
-            {paused ? "Paused · P to resume" : moving ? "Moving…" : "Run route"}
+            {paused ? "Paused · Esc to resume" : moving ? "Moving…" : "Run route"}
           </button>
         </section>
       )}
