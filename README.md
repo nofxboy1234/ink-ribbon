@@ -122,8 +122,11 @@ dock at the bottom left lists the plan. Undo removes the last step, Clear emptie
 the plan, Focus frames the route, and **Run route** moves the purple player
 sphere and runs the steps in order. Item stops are adjacent to the item, never on
 the item's cell. Press Escape to pause or resume and clear the route, which also
-cancels a run in progress so the old plan cannot resume. Press Space to center
-the camera on the hovered floor cell without moving Claire.
+cancels a run in progress so the old plan cannot resume. Press Space to move the
+camera target smoothly to the hovered floor cell, without moving Claire. The
+orientation and distance stay the same. Press F to move the camera target
+smoothly onto Claire, keeping the same orientation and distance. Pan, rotate,
+and zoom still work after either animation.
 
 - **Item shapes and colours.** Keys are purple pyramids, key items magenta
   pyramids, healing green spheres, ammo yellow cubes, gunpowder orange cubes,
@@ -153,7 +156,8 @@ game PAK and the decompile at `~/repos/reze`.
 | Scroll wheel | Zoom |
 | `R` | Reset camera |
 | `Escape` | Pause or resume and clear the route |
-| `Space` | Center the camera on the hovered floor cell |
+| `Space` | Move the camera target smoothly to the hovered floor cell, keeping orientation and distance |
+| `F` | Center the camera smoothly on Claire, keeping orientation and distance |
 | Click floor cell | Preview a route to that cell |
 | Click discovered item | Preview a route beside the item and open its action popups |
 | Click door | Preview a route to the door and show its lock state |

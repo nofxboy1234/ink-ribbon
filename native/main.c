@@ -73,6 +73,13 @@ typedef struct {
 } camera_t;
 
 typedef struct {
+    bool active;
+    float from_target[3];
+    float to_target[3];
+    float elapsed, duration;
+} orbit_anim_t;
+
+typedef struct {
     bool loaded;
     bool pending;
     bool gpu_ready;
@@ -110,6 +117,7 @@ static struct {
     target_t target;
     scene_t scene;
     camera_t camera;
+    orbit_anim_t orbit;
     float scene_radius;
     bool rotating;
     bool panning;
@@ -809,7 +817,23 @@ static void reset_orbit_camera(void) {
     }
 }
 
+static void cancel_orbit_animation(void) {
+    state.orbit.active = false;
+}
+
+static void update_orbit_animation(float dt) {
+    orbit_anim_t *a = &state.orbit;
+    if (!a->active) return;
+    a->elapsed += dt;
+    float t = fminf(1.0f, a->elapsed / a->duration);
+    float s = t * t * (3.0f - 2.0f * t);
+    for (int i = 0; i < 3; i++)
+        state.camera.target[i] = a->from_target[i] + (a->to_target[i] - a->from_target[i]) * s;
+    if (t >= 1.0f) a->active = false;
+}
+
 static void reset_camera(void) {
+    cancel_orbit_animation();
     state.rotating = false;
     state.panning = false;
     const bounds_t *b = &state.scene.bounds;
@@ -821,6 +845,10 @@ static void reset_camera(void) {
 }
 
 static void frame(void) {
+    float dt = (float)sapp_frame_duration();
+    if (dt < 0.0f) dt = 0.0f;
+    if (dt > 0.1f) dt = 0.1f;
+    update_orbit_animation(dt);
     if (state.scene.pending) {
         state.scene.pending = false;
         state.scene.loaded = upload_scene(&state.scene);
@@ -917,6 +945,7 @@ static void cleanup(void) {
 static void event(const sapp_event *e) {
     switch (e->type) {
     case SAPP_EVENTTYPE_MOUSE_DOWN:
+        cancel_orbit_animation();
         state.user_moved = true;
         if (e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) state.rotating = true;
         if (e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) state.panning = true;
@@ -971,6 +1000,7 @@ static void event(const sapp_event *e) {
         break;
     }
     case SAPP_EVENTTYPE_MOUSE_SCROLL:
+        cancel_orbit_animation();
         state.user_moved = true;
         state.camera.distance = fminf(700.0f, fmaxf(8.0f, state.camera.distance * powf(0.9f, e->scroll_y)));
         break;
@@ -981,6 +1011,7 @@ static void event(const sapp_event *e) {
         for (int i = 0; i < e->num_touches; i++) { cx += e->touches[i].pos_x; cy += e->touches[i].pos_y; }
         if (e->num_touches > 0) { cx /= (float)e->num_touches; cy /= (float)e->num_touches; }
         if (e->type == SAPP_EVENTTYPE_TOUCHES_BEGAN) {
+            cancel_orbit_animation();
             state.last_x = cx; state.last_y = cy;
             break;
         }
@@ -1053,19 +1084,27 @@ EMSCRIPTEN_KEEPALIVE int rpd_set_orbit(float tx, float ty, float tz, float yaw, 
     state.camera.yaw = yaw;
     state.camera.pitch = fminf(1.45f, fmaxf(0.08f, pitch));
     state.camera.distance = fminf(700.0f, fmaxf(8.0f, distance));
+    cancel_orbit_animation();
     state.rotating = false;
     state.panning = false;
     state.user_moved = true;
     return 0;
 }
 
-EMSCRIPTEN_KEEPALIVE void rpd_set_orbit_target(float tx, float ty, float tz) {
-    state.camera.target[0] = tx;
-    state.camera.target[1] = ty;
-    state.camera.target[2] = tz;
+EMSCRIPTEN_KEEPALIVE int rpd_animate_orbit(float tx, float ty, float tz, float duration) {
+    if (!isfinite(tx) || !isfinite(ty) || !isfinite(tz) || !isfinite(duration)) return -1;
+    orbit_anim_t *a = &state.orbit;
+    memcpy(a->from_target, state.camera.target, sizeof(a->from_target));
+    a->to_target[0] = tx;
+    a->to_target[1] = ty;
+    a->to_target[2] = tz;
+    a->elapsed = 0.0f;
+    a->duration = fminf(2.0f, fmaxf(0.05f, duration));
+    a->active = true;
     state.rotating = false;
     state.panning = false;
     state.user_moved = true;
+    return 0;
 }
 
 EMSCRIPTEN_KEEPALIVE void rpd_set_player_position(float x, float y, float z) {
