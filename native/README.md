@@ -40,42 +40,40 @@ through `locateFile`.
 
 ## Frame
 
-1. **Offscreen pass** — one RGBA8 color image and one depth image at canvas
+1. **Offscreen pass.** One RGBA8 color image and one depth image at canvas
    resolution, sample count 1.
-2. **Solid geometry** — all chunks are expanded into one interleaved
+2. **Glass geometry.** All chunks are expanded into one interleaved
    position+colour vertex buffer and one `u32` index buffer, then drawn in a
    single call. The fragment shader derives face normals from screen-space
    derivatives, flips them toward the camera, and applies a key/fill/hemisphere
-   light. There are no textures, no wireframe edges and no bloom.
-3. **Composite to the swapchain** — a fullscreen triangle samples the offscreen
+   light with fresnel alpha and distance fog. The single glass pipeline blends
+   with depth compare `ALWAYS` and depth writes off, so every surface contributes
+   to the final image. There are no textures, no wireframe edges and no bloom.
+3. **Composite to the swapchain.** A fullscreen triangle samples the offscreen
    colour, adds a restrained radial background gradient, vignette and a little
    grain.
 
 ## Input
 
-`sapp_event` handles mouse orbit/pan/zoom, one- and two-finger touch, and `R` to
-reset the camera. Drag scale is derived from the camera distance and the
-vertical FOV so a pixel of drag maps to a constant world distance.
+Right-drag orbits the camera. Middle-drag pans. The wheel zooms between 8 and
+700 units. `R` resets the camera. A drag with no button held does nothing.
 
-Holding the right mouse button enters a free-fly camera seeded from the current
-orbit eye and orientation:
-
-- mouse movement looks around;
-- `W`/`S` move along the view direction, `A`/`D` strafe horizontally;
-- `E` moves up and `Q` moves down;
-- the scroll wheel adjusts fly speed (22 m/s default, 2–140 m/s range).
-
-Releasing the right button converts the current eye/orientation back into the
-orbit camera (target placed one orbit distance ahead), so the view does not
-jump. `fly_begin`/`fly_end` live next to `camera_eye` in `main.c`.
+Drag scale comes from the camera distance and the vertical FOV, so a pixel of
+drag maps to a constant world distance. Touch uses the same camera. A one-finger
+drag orbits and a two-finger drag pans. Leaving the canvas or unfocusing the
+window clears both drag flags.
 
 ## Camera
 
+- One orbit camera with yaw, pitch, distance and target.
 - Perspective, 0.62 rad vertical FOV.
 - Default yaw −0.55 rad, pitch 0.62 rad.
 - Distance is 150 units on a 1600 px canvas, scaled up on narrower viewports;
   it is recomputed on resize until the user moves the camera.
 - Target is the X/Z centre of the scene bounds with Y at 40% of the height
   range.
+- `rpd_set_orbit` sets the target, yaw, pitch and distance; the client uses it
+  to frame a planned route. `rpd_get_camera` publishes the live eye pose to the
+  URL hash.
 
 The asset is in metres, Y-up, with the RPD main hall near the origin.

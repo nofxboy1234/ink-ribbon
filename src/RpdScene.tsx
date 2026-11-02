@@ -35,7 +35,14 @@ type RpdModule = {
   _free: (ptr: number) => void;
   _rpd_load_scene: (ptr: number, size: number) => number;
   _rpd_get_camera: (ptr: number) => number;
-  _rpd_set_camera: (x: number, y: number, z: number, yaw: number, pitch: number) => number;
+  _rpd_set_orbit: (
+    tx: number,
+    ty: number,
+    tz: number,
+    yaw: number,
+    pitch: number,
+    distance: number,
+  ) => number;
   _rpd_get_view_proj: (ptr: number) => number;
   _rpd_marker_clear: () => void;
   _rpd_marker_add: (
@@ -53,10 +60,7 @@ type RpdModule = {
   _rpd_marker_set_color: (index: number, r: number, g: number, b: number) => void;
   _rpd_marker_set_rotation: (index: number, radians: number) => void;
   _rpd_marker_count: () => number;
-  _rpd_set_camera_mode: (mode: number) => number;
-  _rpd_get_camera_mode: () => number;
   _rpd_set_player_position: (x: number, y: number, z: number) => void;
-  _rpd_set_input_enabled: (enabled: number) => void;
 };
 
 type RpdFactory = (options: {
@@ -83,7 +87,7 @@ type Hover = {
   y: number;
 };
 
-const CACHE_VERSION = "20261031f";
+const CACHE_VERSION = "20261102a";
 const DISCOVER_RADIUS = 3.0;
 const SPAWN_DISCOVER_RADIUS = 3.5;
 const MOVE_SPEED = 7.0;
@@ -183,7 +187,6 @@ export default function RpdScene({
   const moduleRef = useRef<RpdModule | null>(null);
   const questRef = useRef<Quest | null>(null);
   const navRef = useRef<NavGraph | null>(null);
-  const showPanelRef = useRef(false);
   const itemMarkers = useRef(new Map<string, number>());
   const doorMarkers = useRef(new Map<string, number>());
   const playerMarker = useRef(-1);
@@ -193,6 +196,7 @@ export default function RpdScene({
   const clickHandled = useRef(false);
   const hoverCellRef = useRef<number | null>(null);
   const cancelledRef = useRef(false);
+  const pausedRef = useRef(false);
 
   const [quest, setQuest] = useState<Quest | null>(null);
   const [nav, setNav] = useState<NavGraph | null>(null);
@@ -211,11 +215,10 @@ export default function RpdScene({
   const [queue, setQueue] = useState<Action[]>([]);
   const [actionsAt, setActionsAt] = useState<Action[]>([]);
   const [moving, setMoving] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [toast, setToast] = useState<string>("");
   const [hover, setHover] = useState<Hover | null>(null);
   const [activeFloor, setActiveFloor] = useState(0);
-  const [cameraMode, setCameraMode] = useState(0);
-  const [showPanel, setShowPanel] = useState(false);
   const [showInventory, setShowInventory] = useState(false);
   const [showLegend, setShowLegend] = useState(true);
   const [statusNote, setStatusNote] = useState(
@@ -262,6 +265,9 @@ export default function RpdScene({
   useEffect(() => {
     movingRef.current = moving;
   }, [moving]);
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
   useEffect(() => {
     selectedRef.current = selected;
   }, [selected]);
@@ -718,9 +724,6 @@ export default function RpdScene({
           249,
         );
         module._rpd_set_player_position(spawn[0], spawn[1], spawn[2]);
-        module._rpd_set_camera_mode(0);
-        module._rpd_set_input_enabled(showPanelRef.current ? 0 : 1);
-        setCameraMode(0);
         for (const item of questData.items) {
           const shape = SHAPES[item.shape] ?? SHAPES.cube;
           const marker = module._rpd_marker_add(
@@ -1083,14 +1086,22 @@ export default function RpdScene({
         return;
       }
       const duration = Math.max(260, (total / MOVE_SPEED) * 1000);
-      const start = performance.now();
+      let elapsed = 0;
+      let last = performance.now();
       let lastUi = 0;
       const step = (now: number) => {
         if (cancelledRef.current) {
           resolve();
           return;
         }
-        const t = Math.min(1, (now - start) / duration);
+        if (pausedRef.current) {
+          last = now;
+          requestAnimationFrame(step);
+          return;
+        }
+        elapsed += now - last;
+        last = now;
+        const t = Math.min(1, elapsed / duration);
         const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
         const position = pointAt(points, total * ease);
         const graph = navRef.current;
@@ -1128,6 +1139,7 @@ export default function RpdScene({
     });
 
   const confirm = async () => {
+    if (pausedRef.current) return;
     if (movingRef.current) return;
     const q = questRef.current;
     if (!q || queueRef.current.length === 0) return;
@@ -1135,6 +1147,7 @@ export default function RpdScene({
     setMoving(true);
     const actions = [...queueRef.current];
     for (const action of actions) {
+      while (pausedRef.current && !cancelledRef.current) await nextFrame();
       if (cancelledRef.current) break;
       if (action.type === "move") {
         await moveAlong(action.points, action.label);
@@ -1321,7 +1334,7 @@ export default function RpdScene({
         selected: selectedRef.current,
         queue: queueRef.current.map(actionLabel),
         moving: movingRef.current,
-        cameraMode,
+        paused: pausedRef.current,
         actions: allActions.map(actionLabel),
       }),
       selectItem: (id: string) => selectTarget({ kind: "item", id }),
@@ -1433,63 +1446,35 @@ export default function RpdScene({
     const span = Math.max(maxX - minX, maxZ - minZ, 6);
     const eye: Vec3 = [cx, maxY + Math.max(10, span * 0.9), cz + Math.max(8, span * 0.7)];
     const target: Vec3 = [cx, maxY - 0.4, cz];
-    const fx = target[0] - eye[0];
-    const fy = target[1] - eye[1];
-    const fz = target[2] - eye[2];
-    const length = Math.hypot(fx, fy, fz);
-    module._rpd_set_camera_mode(1);
-    module._rpd_set_camera(eye[0], eye[1], eye[2], Math.atan2(fx, fz), Math.asin(fy / length));
-    setCameraMode(2);
+    const distance = distance3(eye, target);
+    const yaw = Math.atan2(eye[0] - target[0], eye[2] - target[2]);
+    const pitch = Math.asin((eye[1] - target[1]) / distance);
+    module._rpd_set_orbit(
+      target[0],
+      target[1],
+      target[2],
+      yaw,
+      pitch,
+      distance,
+    );
     setToast("Framed the planned route.");
   };
-
-  const toggleCamera = () => {
-    const module = moduleRef.current;
-    if (!module) return;
-    const next = cameraMode === 0 ? 1 : 0;
-    module._rpd_set_camera_mode(next);
-    setCameraMode(next);
-    setToast(next === 0 ? "Follow camera · grey." : "Orbit camera · glass.");
-  };
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.code !== "KeyC" || event.metaKey || event.ctrlKey || event.altKey) return;
-      const target = event.target as HTMLElement | null;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
-      if (showPanel) return;
-      const module = moduleRef.current;
-      if (!module) return;
-      event.preventDefault();
-      const next = cameraMode === 0 ? 1 : 0;
-      module._rpd_set_camera_mode(next);
-      setCameraMode(next);
-      setToast(next === 0 ? "Follow camera · grey." : "Orbit camera · glass.");
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [cameraMode, showPanel]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.code !== "KeyP" || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.repeat) return;
       const target = event.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
       event.preventDefault();
-      setShowPanel((value) => !value);
+      const next = !pausedRef.current;
+      pausedRef.current = next;
+      setPaused(next);
+      setToast(next ? "Paused." : "Resumed.");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-
-  useEffect(() => {
-    showPanelRef.current = showPanel;
-    moduleRef.current?._rpd_set_input_enabled(showPanel ? 0 : 1);
-    if (showPanel) {
-      hoverCellRef.current = null;
-      setHover(null);
-    }
-  }, [showPanel]);
 
   const reset = () => {
     const q = questRef.current;
@@ -1550,7 +1535,7 @@ export default function RpdScene({
     : [];
 
   return (
-    <main className="rpd-root" ref={wrapRef}>
+    <main className="rpd-root" ref={wrapRef} data-paused={paused}>
       <div className="rpd-stage">
         <canvas
           ref={canvasRef}
@@ -1572,7 +1557,6 @@ export default function RpdScene({
           onContextMenu={(event) => event.preventDefault()}
         />
         <canvas ref={overlayRef} className="rpd-overlay" aria-hidden="true" />
-        <div className="rpd-dim" data-visible={showPanel} aria-hidden="true" />
         {hover && (
           <div className="rpd-tooltip" style={{ left: hover.x + 14, top: hover.y + 14 }}>
             <strong>{hover.label}</strong>
@@ -1604,14 +1588,6 @@ export default function RpdScene({
           </button>
         ))}
         <button
-          className="rpd-camera-button"
-          title="Toggle follow (grey) and orbit (glass) cameras"
-          onClick={toggleCamera}
-        >
-          <span className="rpd-camera-dot" data-mode={cameraMode} />
-          {cameraMode === 0 ? "FOLLOW · GREY" : cameraMode === 1 ? "ORBIT · GLASS" : "FREE · GLASS"}
-        </button>
-        <button
           className="rpd-icon-button"
           title="Reset run"
           onClick={reset}
@@ -1621,15 +1597,18 @@ export default function RpdScene({
         </button>
       </section>
 
-      <aside className="rpd-panel" aria-label="Quest planner" hidden={!showPanel}>
+      <aside className="rpd-panel" aria-label="Quest planner">
         <div className="rpd-panel-head">
           <div>
             <p className="rpd-kicker">Next actions</p>
             <h2>{selectedLabel ?? playerRoom}</h2>
           </div>
-          <span className="rpd-badge">
-            {discovered.size}/{items.length}
-          </span>
+          <div className="rpd-panel-status">
+            {paused && <span className="rpd-paused">Paused</span>}
+            <span className="rpd-badge">
+              {discovered.size}/{items.length}
+            </span>
+          </div>
         </div>
 
         <p className="rpd-note">{statusNote}</p>
@@ -1700,9 +1679,13 @@ export default function RpdScene({
             <button
               className="rpd-confirm"
               onClick={confirm}
-              disabled={moving || queue.length === 0}
+              disabled={paused || moving || queue.length === 0}
             >
-              {moving ? "Moving…" : `Confirm ${queue.length} action${queue.length === 1 ? "" : "s"}`}
+              {paused
+                ? "Paused · P to resume"
+                : moving
+                  ? "Moving…"
+                  : `Confirm ${queue.length} action${queue.length === 1 ? "" : "s"}`}
             </button>
           </div>
         )}

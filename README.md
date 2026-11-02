@@ -2,15 +2,14 @@
 
 The real Raccoon Police Department geometry from *Resident Evil 2* (RT build),
 floors 1–3, rendered in the browser with sokol compiled to WebAssembly. The
-surfaces are not textured; each source material uses a distinct flat grey.
-The default camera follows Claire from over her right shoulder. Moving the
-pointer orbits around her, and the building camera orbits, pans and flies
-through the model. The follow (inside) view uses the solid grey material shades;
-the orbit and free (outside) views use translucent glass.
+surfaces are not textured and the whole building renders in a single
+translucent glass style. Right-drag orbits the camera, the middle button pans,
+and the wheel zooms.
 
 A green FPS counter sits at the top right of the scene. The same view is now a
 playable Claire A quest map: walk the RPD, discover items, plot bright-green
-routes, and use keys on locked doors.
+routes, and use keys on locked doors. The quest panel on the right stays visible
+over the glass view.
 
 ![RPD floors 1–3](docs/preview.jpg)
 
@@ -28,9 +27,9 @@ routes, and use keys on locked doors.
   stays local.
 - **Renderer** — a C application using the latest [sokol](https://github.com/floooh/sokol)
   (`sokol_app` + `sokol_gfx`), compiled to WebAssembly with Emscripten. It draws
-  solid triangles in a simple key/fill/hemisphere light, with one flat grey per
-  source material, then composites a restrained background gradient. No material
-  textures are sampled.
+  translucent glass triangles in a simple key/fill/hemisphere light with fresnel
+  alpha, then composites a restrained background gradient. No material textures
+  are sampled.
 - **Quest layer.** Claire A, Hardcore, RPD 1F–3F. `public/rpd/quest.json` holds
   every RPD item location from the Archipelago Claire A data, the key-to-door
   links taken from its region connections, 25 RPD doorways, and the room graph.
@@ -136,29 +135,16 @@ game PAK and the decompile at `~/repos/reze`.
 
 | Input | Action |
 |---|---|
-| Pointer move | Orbit around Claire in follow; orbit the building in orbit |
-| Middle drag | Pan (orbit camera only) |
-| `W` / `S` (while flying) | Forward / back along the view |
-| `A` / `D` (while flying) | Strafe left / right |
-| `Q` (while flying) | Fly down |
-| `E` (while flying) | Fly up |
-| Scroll wheel (while flying) | Increase / decrease fly speed |
-| `C` | Toggle follow and orbit cameras |
-| `P` | Toggle the right-side UI panel |
+| Right drag | Orbit the camera |
+| Middle drag | Pan the camera |
+| Scroll wheel | Zoom |
 | `R` | Reset camera |
+| `P` | Pause or resume player movement |
 | Click floor cell | Route the player to that cell |
 | Click discovered item | Route to the item and show its actions |
 | Click door | Route to the door and show its lock state |
 | One-finger drag | Orbit |
-| Two-finger drag | Pan (orbit camera only) |
-
-The camera orbits whenever the pointer moves over the scene; no button is
-needed. The FOLLOW/ORBIT button in the floor bar switches cameras as well. The
-route panel's focus button frames a plan in the free camera, where the fly keys
-move the view. The follow (inside) camera renders the building with solid grey
-material shades; the orbit and free (outside) views use translucent glass.
-Opening the right panel dims the scene and blocks camera, movement and selection
-input until the panel closes.
+| Two-finger drag | Pan |
 
 ## Deploy to Cloudflare
 

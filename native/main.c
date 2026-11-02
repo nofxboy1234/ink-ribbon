@@ -73,15 +73,6 @@ typedef struct {
 } camera_t;
 
 typedef struct {
-    float yaw;
-    float pitch;
-    float distance;
-    float shoulder;
-    float focus[3];
-    bool focus_valid;
-} follow_camera_t;
-
-typedef struct {
     bool loaded;
     bool pending;
     bool gpu_ready;
@@ -97,7 +88,6 @@ typedef struct {
     int marker_index_count[MARKER_SHAPE_COUNT];
     sg_pipeline marker_pip;
     sg_pipeline pip;
-    sg_pipeline grey_pip;
 } scene_t;
 
 typedef struct {
@@ -118,24 +108,14 @@ typedef struct {
 static struct {
     sg_pass_action pass_action;
     target_t target;
-    float time;
     scene_t scene;
     camera_t camera;
-    follow_camera_t follow;
-    float player_pos[3];
-    int camera_mode;
     float scene_radius;
+    bool rotating;
     bool panning;
-    bool input_enabled;
     bool user_moved;
-    bool fly_mode;
-    float fly_pos[3];
-    float fly_yaw;
-    float fly_pitch;
-    bool key_w, key_a, key_s, key_d, key_q, key_e;
     float last_x, last_y;
     bool pointer_valid;
-    float fly_speed;
 } state;
 
 static marker_t markers[MAX_MARKERS];
@@ -198,73 +178,9 @@ static void camera_eye(const camera_t *cam, float eye[3]) {
     eye[2] = cam->target[2] + cam->distance * cp * cosf(cam->yaw);
 }
 
-static void camera_forward(float yaw, float pitch, float out[3]) {
-    float cp = cosf(pitch);
-    out[0] = cp * sinf(yaw);
-    out[1] = sinf(pitch);
-    out[2] = cp * cosf(yaw);
-}
-
-static void update_follow_focus(float dt) {
-    float target[3] = { state.player_pos[0], state.player_pos[1] + 0.55f, state.player_pos[2] };
-    if (!state.follow.focus_valid) {
-        memcpy(state.follow.focus, target, sizeof(target));
-        state.follow.focus_valid = true;
-        return;
-    }
-    float blend = 1.0f - expf(-12.0f * dt);
-    for (int i = 0; i < 3; i++) {
-        state.follow.focus[i] += (target[i] - state.follow.focus[i]) * blend;
-    }
-}
-
-static void follow_eye_aim(float eye[3], float aim[3]) {
-    if (!state.follow.focus_valid) {
-        state.follow.focus[0] = state.player_pos[0];
-        state.follow.focus[1] = state.player_pos[1] + 0.55f;
-        state.follow.focus[2] = state.player_pos[2];
-        state.follow.focus_valid = true;
-    }
-    const float yaw = state.follow.yaw;
-    const float pitch = state.follow.pitch;
-    const float cp = cosf(pitch);
-    const float dir[3] = { cp * sinf(yaw), sinf(pitch), cp * cosf(yaw) };
-    const float right[3] = { cosf(yaw), 0.0f, -sinf(yaw) };
-    const float focus[3] = {
-        state.follow.focus[0],
-        state.follow.focus[1],
-        state.follow.focus[2],
-    };
-    eye[0] = focus[0] + dir[0] * state.follow.distance + right[0] * state.follow.shoulder;
-    eye[1] = focus[1] + dir[1] * state.follow.distance;
-    eye[2] = focus[2] + dir[2] * state.follow.distance + right[2] * state.follow.shoulder;
-    float horizontal = sqrtf(dir[0] * dir[0] + dir[2] * dir[2]);
-    float fx = horizontal > 1e-5f ? -dir[0] / horizontal : 0.0f;
-    float fz = horizontal > 1e-5f ? -dir[2] / horizontal : -1.0f;
-    aim[0] = focus[0] + fx * 2.0f + right[0] * state.follow.shoulder * 0.8f;
-    aim[1] = focus[1] + 0.20f;
-    aim[2] = focus[2] + fz * 2.0f + right[2] * state.follow.shoulder * 0.8f;
-}
-
 static void current_eye_aim(float eye[3], float aim[3]) {
-    if (state.fly_mode) {
-        float forward[3];
-        camera_forward(state.fly_yaw, state.fly_pitch, forward);
-        memcpy(eye, state.fly_pos, sizeof(state.fly_pos));
-        aim[0] = eye[0] + forward[0];
-        aim[1] = eye[1] + forward[1];
-        aim[2] = eye[2] + forward[2];
-    } else if (state.camera_mode == 0) {
-        follow_eye_aim(eye, aim);
-    } else {
-        camera_eye(&state.camera, eye);
-        memcpy(aim, state.camera.target, sizeof(state.camera.target));
-    }
-}
-
-static float active_camera_distance(void) {
-    if (!state.fly_mode && state.camera_mode == 0) return state.follow.distance;
-    return state.camera.distance;
+    camera_eye(&state.camera, eye);
+    memcpy(aim, state.camera.target, sizeof(state.camera.target));
 }
 
 static mat4 current_view_proj(void) {
@@ -273,19 +189,6 @@ static mat4 current_view_proj(void) {
     mat4 proj = mat4_perspective(0.62f, (float)sapp_width() / (float)sapp_height(), 0.2f, 1600.0f);
     mat4 view = mat4_look_at(eye, aim, (float[3]){ 0.0f, 1.0f, 0.0f });
     return mat4_mul(proj, view);
-}
-
-static void fly_end(void) {
-    if (!state.fly_mode) return;
-    float forward[3];
-    camera_forward(state.fly_yaw, state.fly_pitch, forward);
-    state.camera.yaw = state.fly_yaw - RPD_PI;
-    while (state.camera.yaw > RPD_PI) state.camera.yaw -= 2.0f * RPD_PI;
-    while (state.camera.yaw < -RPD_PI) state.camera.yaw += 2.0f * RPD_PI;
-    state.camera.pitch = -state.fly_pitch;
-    for (int i = 0; i < 3; i++)
-        state.camera.target[i] = state.fly_pos[i] + forward[i] * state.camera.distance;
-    state.fly_mode = false;
 }
 
 /* ------------------------------------------------------------------------- */
@@ -327,29 +230,6 @@ static const char *fs_source =
     "  vec3 glass = vec3(0.95, 0.96, 0.97) * light;\n"
     "  float alpha = (0.30 + 0.35 * fres) * (0.45 + 0.55 * near);\n"
     "  frag_color = vec4(glass, alpha);\n"
-    "}\n";
-
-static const char *fs_grey_source =
-    "#version 300 es\n"
-    "precision highp float;\n"
-    "uniform vec4 u_camera;\n"
-    "uniform vec4 u_fog;\n"
-    "in vec3 v_world;\n"
-    "in vec3 v_color;\n"
-    "out vec4 frag_color;\n"
-    "void main() {\n"
-    "  vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));\n"
-    "  vec3 view = normalize(u_camera.xyz - v_world);\n"
-    "  if (dot(n, view) < 0.0) n = -n;\n"
-    "  float key = max(dot(n, normalize(vec3(0.42, 0.82, 0.38))), 0.0);\n"
-    "  float fill = max(dot(n, normalize(vec3(-0.55, 0.35, -0.65))), 0.0);\n"
-    "  float hemi = 0.5 + 0.5 * n.y;\n"
-    "  float d = length(v_world - u_camera.xyz);\n"
-    "  float fade = 1.0 - smoothstep(u_camera.w, u_fog.x, d);\n"
-    "  fade = 0.10 + 0.90 * fade;\n"
-    "  vec3 base = v_color;\n"
-    "  vec3 col = base * (0.34 + 0.50 * key + 0.16 * fill + 0.12 * hemi) * fade;\n"
-    "  frag_color = vec4(col, 1.0);\n"
     "}\n";
 
 static const char *marker_vs_source =
@@ -536,7 +416,7 @@ static void create_composite_resources(void) {
 /* scene                                                                     */
 /* ------------------------------------------------------------------------- */
 
-static sg_pipeline make_pipeline(sg_shader shader, bool glass) {
+static sg_pipeline make_pipeline(sg_shader shader) {
     sg_pipeline_desc pd;
     memset(&pd, 0, sizeof(pd));
     pd.shader = shader;
@@ -548,20 +428,15 @@ static sg_pipeline make_pipeline(sg_shader shader, bool glass) {
     pd.cull_mode = SG_CULLMODE_NONE;
     pd.face_winding = SG_FACEWINDING_CCW;
     pd.sample_count = 1;
-    if (glass) {
-        pd.depth.compare = SG_COMPAREFUNC_ALWAYS;
-        pd.depth.write_enabled = false;
-        pd.colors[0].blend.enabled = true;
-        pd.colors[0].blend.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA;
-        pd.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-        pd.colors[0].blend.op_rgb = SG_BLENDOP_ADD;
-        pd.colors[0].blend.src_factor_alpha = SG_BLENDFACTOR_ONE;
-        pd.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-        pd.colors[0].blend.op_alpha = SG_BLENDOP_ADD;
-    } else {
-        pd.depth.compare = SG_COMPAREFUNC_LESS_EQUAL;
-        pd.depth.write_enabled = true;
-    }
+    pd.depth.compare = SG_COMPAREFUNC_ALWAYS;
+    pd.depth.write_enabled = false;
+    pd.colors[0].blend.enabled = true;
+    pd.colors[0].blend.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA;
+    pd.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+    pd.colors[0].blend.op_rgb = SG_BLENDOP_ADD;
+    pd.colors[0].blend.src_factor_alpha = SG_BLENDFACTOR_ONE;
+    pd.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+    pd.colors[0].blend.op_alpha = SG_BLENDOP_ADD;
     return sg_make_pipeline(&pd);
 }
 
@@ -883,10 +758,7 @@ static void create_pipelines(scene_t *s) {
     sd.uniform_blocks[1].glsl_uniforms[1].type = SG_UNIFORMTYPE_FLOAT4;
     sd.uniform_blocks[1].glsl_uniforms[1].glsl_name = "u_fog";
     sg_shader glass_shd = sg_make_shader(&sd);
-    s->pip = make_pipeline(glass_shd, true);
-    sd.fragment_func.source = fs_grey_source;
-    sg_shader grey_shd = sg_make_shader(&sd);
-    s->grey_pip = make_pipeline(grey_shd, false);
+    s->pip = make_pipeline(glass_shd);
 
     memset(&sd, 0, sizeof(sd));
     sd.vertex_func.source = marker_vs_source;
@@ -937,30 +809,18 @@ static void reset_orbit_camera(void) {
     }
 }
 
-static void reset_follow_camera(void) {
-    state.follow.yaw = 0.0f;
-    state.follow.pitch = 0.22f;
-    state.follow.distance = 6.5f;
-    state.follow.shoulder = 0.9f;
-    state.follow.focus_valid = false;
-}
-
 static void reset_camera(void) {
-    state.fly_mode = false;
+    state.rotating = false;
+    state.panning = false;
     const bounds_t *b = &state.scene.bounds;
     float dx = b->max[0] - b->min[0];
     float dy = b->max[1] - b->min[1];
     float dz = b->max[2] - b->min[2];
     state.scene_radius = 0.5f * sqrtf(dx * dx + dy * dy + dz * dz);
-    if (state.camera_mode == 0) reset_follow_camera();
-    else reset_orbit_camera();
+    reset_orbit_camera();
 }
 
 static void frame(void) {
-    float dt = (float)sapp_frame_duration();
-    if (dt < 0.0f) dt = 0.0f;
-    if (dt > 0.1f) dt = 0.1f;
-    state.time += dt;
     if (state.scene.pending) {
         state.scene.pending = false;
         state.scene.loaded = upload_scene(&state.scene);
@@ -974,32 +834,8 @@ static void frame(void) {
 
     if (state.scene.loaded && state.scene.gpu_ready) {
         float eye[3], aim[3], fog_start, fog_end;
-        update_follow_focus(dt);
-        if (state.fly_mode) {
-            float forward[3];
-            camera_forward(state.fly_yaw, state.fly_pitch, forward);
-            float right[3] = { -forward[2], 0.0f, forward[0] };
-            float rl = sqrtf(right[0] * right[0] + right[2] * right[2]);
-            if (rl > 1e-5f) { right[0] /= rl; right[2] /= rl; }
-            float mx = 0.0f, my = 0.0f, mz = 0.0f;
-            if (state.key_w) { mx += forward[0]; my += forward[1]; mz += forward[2]; }
-            if (state.key_s) { mx -= forward[0]; my -= forward[1]; mz -= forward[2]; }
-            if (state.key_d) { mx += right[0]; mz += right[2]; }
-            if (state.key_a) { mx -= right[0]; mz -= right[2]; }
-            if (state.key_q) my -= 1.0f;
-            if (state.key_e) my += 1.0f;
-            float len = sqrtf(mx * mx + my * my + mz * mz);
-            if (len > 1e-5f) {
-                float step = state.fly_speed * dt / len;
-                state.fly_pos[0] += mx * step;
-                state.fly_pos[1] += my * step;
-                state.fly_pos[2] += mz * step;
-            }
-        }
         current_eye_aim(eye, aim);
-        /* Fog must not depend on fly mode, otherwise entering free view
-           visibly darkens the existing view. */
-        float camera_distance = active_camera_distance();
+        float camera_distance = state.camera.distance;
         fog_start = camera_distance - state.scene_radius * 0.55f;
         fog_end = camera_distance + state.scene_radius * 1.15f;
         float up[3] = { 0.0f, 1.0f, 0.0f };
@@ -1010,8 +846,7 @@ static void frame(void) {
             fs_params_t fs = { 0 };
             fs.camera[0] = eye[0]; fs.camera[1] = eye[1]; fs.camera[2] = eye[2]; fs.camera[3] = fog_start;
             fs.fog[0] = fog_end;
-            bool follow_view = !state.fly_mode && state.camera_mode == 0;
-            sg_apply_pipeline(follow_view ? state.scene.grey_pip : state.scene.pip);
+            sg_apply_pipeline(state.scene.pip);
             sg_apply_bindings(&(sg_bindings){
                 .vertex_buffers[0] = state.scene.vbuf,
                 .index_buffer = state.scene.tri_ibuf,
@@ -1068,21 +903,10 @@ static void init(void) {
     create_pipelines(&state.scene);
     create_composite_resources();
     state.target.dirty = true;
-    state.camera_mode = 0;
-    state.player_pos[0] = 0.0f;
-    state.player_pos[1] = 1.25f;
-    state.player_pos[2] = 8.0f;
     state.camera.yaw = -0.55f;
     state.camera.pitch = 0.62f;
     state.camera.distance = 150.0f;
     state.camera.target[1] = 10.0f;
-    state.follow.yaw = 0.0f;
-    state.follow.pitch = 0.22f;
-    state.follow.distance = 6.5f;
-    state.follow.shoulder = 0.9f;
-    state.follow.focus_valid = false;
-    state.fly_speed = 22.0f;
-    state.input_enabled = true;
 }
 
 static void cleanup(void) {
@@ -1090,18 +914,18 @@ static void cleanup(void) {
     if (state.scene.data) free(state.scene.data);
 }
 
-/* input handling: pointer movement orbits, middle drag pans */
 static void event(const sapp_event *e) {
-    if (!state.input_enabled) return;
     switch (e->type) {
     case SAPP_EVENTTYPE_MOUSE_DOWN:
         state.user_moved = true;
-        if (e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE && state.camera_mode == 1) state.panning = true;
+        if (e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) state.rotating = true;
+        if (e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) state.panning = true;
         state.last_x = e->mouse_x;
         state.last_y = e->mouse_y;
         state.pointer_valid = true;
         break;
     case SAPP_EVENTTYPE_MOUSE_UP:
+        if (e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) state.rotating = false;
         if (e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) state.panning = false;
         break;
     case SAPP_EVENTTYPE_MOUSE_ENTER:
@@ -1110,9 +934,9 @@ static void event(const sapp_event *e) {
         state.pointer_valid = true;
         break;
     case SAPP_EVENTTYPE_MOUSE_LEAVE:
+        state.rotating = false;
         state.panning = false;
         state.pointer_valid = false;
-        fly_end();
         break;
     case SAPP_EVENTTYPE_MOUSE_MOVE: {
         if (!state.pointer_valid) {
@@ -1125,11 +949,9 @@ static void event(const sapp_event *e) {
         float dy = e->mouse_y - state.last_y;
         state.last_x = e->mouse_x;
         state.last_y = e->mouse_y;
-        if (state.fly_mode) {
-            state.fly_yaw -= dx * 0.005f;
-            while (state.fly_yaw > RPD_PI) state.fly_yaw -= 2.0f * RPD_PI;
-            while (state.fly_yaw < -RPD_PI) state.fly_yaw += 2.0f * RPD_PI;
-            state.fly_pitch = fminf(1.45f, fmaxf(-1.45f, state.fly_pitch - dy * 0.005f));
+        if (state.rotating) {
+            state.camera.yaw -= dx * 0.006f;
+            state.camera.pitch = fminf(1.45f, fmaxf(0.08f, state.camera.pitch + dy * 0.006f));
         } else if (state.panning) {
             float eye[3];
             camera_eye(&state.camera, eye);
@@ -1145,20 +967,12 @@ static void event(const sapp_event *e) {
                 state.camera.target[i] -= right[i] * dx * scale;
                 state.camera.target[i] += upv[i] * dy * scale;
             }
-        } else if (state.camera_mode == 0) {
-            state.follow.yaw -= dx * 0.006f;
-            state.follow.pitch = fminf(1.2f, fmaxf(-0.35f, state.follow.pitch + dy * 0.006f));
-        } else {
-            state.camera.yaw -= dx * 0.006f;
-            state.camera.pitch = fminf(1.45f, fmaxf(0.08f, state.camera.pitch + dy * 0.006f));
         }
         break;
     }
     case SAPP_EVENTTYPE_MOUSE_SCROLL:
-        if (state.fly_mode) {
-            state.user_moved = true;
-            state.fly_speed = fminf(140.0f, fmaxf(2.0f, state.fly_speed * powf(1.22f, e->scroll_y)));
-        }
+        state.user_moved = true;
+        state.camera.distance = fminf(700.0f, fmaxf(8.0f, state.camera.distance * powf(0.9f, e->scroll_y)));
         break;
     case SAPP_EVENTTYPE_TOUCHES_BEGAN:
     case SAPP_EVENTTYPE_TOUCHES_MOVED:
@@ -1173,14 +987,9 @@ static void event(const sapp_event *e) {
         if (e->num_touches == 1 && e->type != SAPP_EVENTTYPE_TOUCHES_ENDED) {
             float dx = e->touches[0].pos_x - state.last_x;
             float dy = e->touches[0].pos_y - state.last_y;
-            if (state.camera_mode == 0) {
-                state.follow.yaw -= dx * 0.006f;
-                state.follow.pitch = fminf(1.2f, fmaxf(-0.35f, state.follow.pitch + dy * 0.006f));
-            } else {
-                state.camera.yaw -= dx * 0.006f;
-                state.camera.pitch = fminf(1.45f, fmaxf(0.08f, state.camera.pitch + dy * 0.006f));
-            }
-        } else if (e->num_touches >= 2 && state.camera_mode == 1) {
+            state.camera.yaw -= dx * 0.006f;
+            state.camera.pitch = fminf(1.45f, fmaxf(0.08f, state.camera.pitch + dy * 0.006f));
+        } else if (e->num_touches >= 2) {
             float dx = cx - state.last_x, dy = cy - state.last_y;
             float eye[3]; camera_eye(&state.camera, eye);
             float f[3] = { state.camera.target[0] - eye[0], state.camera.target[1] - eye[1], state.camera.target[2] - eye[2] };
@@ -1201,35 +1010,14 @@ static void event(const sapp_event *e) {
         break;
     }
     case SAPP_EVENTTYPE_KEY_DOWN:
-        switch (e->key_code) {
-        case SAPP_KEYCODE_W: state.key_w = true; break;
-        case SAPP_KEYCODE_A: state.key_a = true; break;
-        case SAPP_KEYCODE_S: state.key_s = true; break;
-        case SAPP_KEYCODE_D: state.key_d = true; break;
-        case SAPP_KEYCODE_Q: state.key_q = true; break;
-        case SAPP_KEYCODE_E: state.key_e = true; break;
-        case SAPP_KEYCODE_R:
-            fly_end(); state.panning = false; state.user_moved = false; reset_camera();
-            break;
-        default: break;
-        }
-        break;
-    case SAPP_EVENTTYPE_KEY_UP:
-        switch (e->key_code) {
-        case SAPP_KEYCODE_W: state.key_w = false; break;
-        case SAPP_KEYCODE_A: state.key_a = false; break;
-        case SAPP_KEYCODE_S: state.key_s = false; break;
-        case SAPP_KEYCODE_D: state.key_d = false; break;
-        case SAPP_KEYCODE_Q: state.key_q = false; break;
-        case SAPP_KEYCODE_E: state.key_e = false; break;
-        default: break;
+        if (e->key_code == SAPP_KEYCODE_R) {
+            state.user_moved = false;
+            reset_camera();
         }
         break;
     case SAPP_EVENTTYPE_UNFOCUSED:
-        state.key_w = state.key_a = state.key_s = state.key_d = false;
-        state.key_q = state.key_e = false;
+        state.rotating = false;
         state.panning = false;
-        fly_end();
         break;
     case SAPP_EVENTTYPE_RESIZED:
         state.target.dirty = true;
@@ -1243,89 +1031,40 @@ static void event(const sapp_event *e) {
 
 
 
-/* Camera access for the viewer. The web client mirrors the pose into the URL
-   hash so any view can be reopened or reported exactly. Both calls use fly
-   mode, so the reported and restored yaw/pitch mean the same thing. */
 EMSCRIPTEN_KEEPALIVE int rpd_get_camera(float *out) {
     if (!out) return -1;
-    float eye[3], aim[3];
-    current_eye_aim(eye, aim);
+    float eye[3];
+    camera_eye(&state.camera, eye);
     out[0] = eye[0];
     out[1] = eye[1];
     out[2] = eye[2];
-    if (state.fly_mode) {
-        out[3] = state.fly_yaw;
-        out[4] = state.fly_pitch;
-    } else if (state.camera_mode == 0) {
-        float fx = aim[0] - eye[0];
-        float fy = aim[1] - eye[1];
-        float fz = aim[2] - eye[2];
-        float length = sqrtf(fx * fx + fy * fy + fz * fz);
-        out[3] = atan2f(fx / length, fz / length);
-        out[4] = asinf(fy / length);
-    } else {
-        out[3] = state.camera.yaw + RPD_PI;
-        out[4] = -state.camera.pitch;
-    }
-    out[5] = state.fly_mode ? 2.0f : (float)state.camera_mode;
+    out[3] = state.camera.yaw + RPD_PI;
+    out[4] = -state.camera.pitch;
+    out[5] = 1.0f;
     return 0;
 }
 
-EMSCRIPTEN_KEEPALIVE int rpd_set_camera_mode(int mode) {
-    if (mode < 0 || mode > 1) return -1;
-    state.fly_mode = false;
-    state.camera_mode = mode;
+EMSCRIPTEN_KEEPALIVE int rpd_set_orbit(float tx, float ty, float tz, float yaw, float pitch, float distance) {
+    if (!isfinite(tx) || !isfinite(ty) || !isfinite(tz) ||
+        !isfinite(yaw) || !isfinite(pitch) || !isfinite(distance)) return -1;
+    state.camera.target[0] = tx;
+    state.camera.target[1] = ty;
+    state.camera.target[2] = tz;
+    state.camera.yaw = yaw;
+    state.camera.pitch = fminf(1.45f, fmaxf(0.08f, pitch));
+    state.camera.distance = fminf(700.0f, fmaxf(8.0f, distance));
+    state.rotating = false;
     state.panning = false;
-    state.user_moved = false;
-    reset_camera();
+    state.user_moved = true;
     return 0;
-}
-
-EMSCRIPTEN_KEEPALIVE int rpd_get_camera_mode(void) {
-    return state.fly_mode ? 2 : state.camera_mode;
-}
-
-EMSCRIPTEN_KEEPALIVE void rpd_set_input_enabled(int enabled) {
-    state.input_enabled = enabled != 0;
-    state.pointer_valid = false;
-    if (!state.input_enabled) {
-        state.key_w = state.key_a = state.key_s = state.key_d = false;
-        state.key_q = state.key_e = false;
-        state.panning = false;
-    }
 }
 
 EMSCRIPTEN_KEEPALIVE void rpd_set_player_position(float x, float y, float z) {
-    state.player_pos[0] = x;
-    state.player_pos[1] = y;
-    state.player_pos[2] = z;
     if (marker_count > 0) {
         markers[0].x = x;
         markers[0].y = y;
         markers[0].z = z;
     }
-    float dx = state.follow.focus[0] - x;
-    float dy = state.follow.focus[1] - (y + 0.55f);
-    float dz = state.follow.focus[2] - z;
-    if (!state.follow.focus_valid || dx * dx + dy * dy + dz * dz > 36.0f) {
-        state.follow.focus_valid = false;
-    }
-}
-
-EMSCRIPTEN_KEEPALIVE int rpd_set_camera(float x, float y, float z, float yaw, float pitch) {
-    state.camera_mode = 1;
-    state.fly_mode = true;
-    state.fly_pos[0] = x;
-    state.fly_pos[1] = y;
-    state.fly_pos[2] = z;
-    state.fly_yaw = yaw;
-    state.fly_pitch = pitch;
-    state.camera.yaw = yaw - RPD_PI;
-    while (state.camera.yaw > RPD_PI) state.camera.yaw -= 2.0f * RPD_PI;
-    while (state.camera.yaw < -RPD_PI) state.camera.yaw += 2.0f * RPD_PI;
-    state.camera.pitch = -pitch;
-    state.user_moved = true;
-    return 0;
 }
 
 
