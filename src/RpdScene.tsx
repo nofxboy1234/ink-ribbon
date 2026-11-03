@@ -1717,7 +1717,10 @@ export default function RpdScene({
             key={floor.index}
             className="rpd-floor"
             data-active={activeFloor === floor.index}
-            onClick={() => setActiveFloor(floor.index)}
+            onClick={(event) => {
+              if (event.detail > 0) event.currentTarget.blur();
+              setActiveFloor(floor.index);
+            }}
           >
             <span>{floor.label}</span>
             <small>
