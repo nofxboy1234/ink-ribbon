@@ -101,7 +101,6 @@ typedef struct {
     int marker_index_count[MARKER_SHAPE_COUNT];
     sg_pipeline marker_pip;
     sg_pipeline pip;
-    sg_pipeline glow_pip;
 } scene_t;
 
 typedef struct {
@@ -257,7 +256,8 @@ static const char *fs_source =
     "  float glow = max(glow_at(u_glow0, v_world), glow_at(u_glow1, v_world));\n"
     "  vec3 lit_glass = mix(glass * GLOW_DARK, glass, glow);\n"
     "  if (u_pass.x > 0.5) {\n"
-    "    frag_color = vec4(glass * glow * 0.55, 1.0);\n"
+    "    float cover = smoothstep(0.0, 1.0, glow);\n"
+    "    frag_color = vec4(lit_glass, cover);\n"
     "  } else {\n"
     "    frag_color = vec4(lit_glass, alpha);\n"
     "  }\n"
@@ -468,31 +468,6 @@ static sg_pipeline make_pipeline(sg_shader shader) {
     pd.colors[0].blend.src_factor_alpha = SG_BLENDFACTOR_ONE;
     pd.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
     pd.colors[0].blend.op_alpha = SG_BLENDOP_ADD;
-    return sg_make_pipeline(&pd);
-}
-
-static sg_pipeline make_glow_pipeline(sg_shader shader) {
-    sg_pipeline_desc pd;
-    memset(&pd, 0, sizeof(pd));
-    pd.shader = shader;
-    pd.layout.buffers[0].stride = 16;
-    pd.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
-    pd.layout.attrs[1].format = SG_VERTEXFORMAT_UBYTE4N;
-    pd.primitive_type = SG_PRIMITIVETYPE_TRIANGLES;
-    pd.index_type = SG_INDEXTYPE_UINT32;
-    pd.cull_mode = SG_CULLMODE_NONE;
-    pd.face_winding = SG_FACEWINDING_CCW;
-    pd.sample_count = 1;
-    pd.depth.compare = SG_COMPAREFUNC_ALWAYS;
-    pd.depth.write_enabled = false;
-    pd.colors[0].blend.enabled = true;
-    pd.colors[0].blend.src_factor_rgb = SG_BLENDFACTOR_ONE;
-    pd.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE;
-    pd.colors[0].blend.op_rgb = SG_BLENDOP_ADD;
-    pd.colors[0].blend.src_factor_alpha = SG_BLENDFACTOR_ONE;
-    pd.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE;
-    pd.colors[0].blend.op_alpha = SG_BLENDOP_ADD;
-    pd.label = "glow-pipeline";
     return sg_make_pipeline(&pd);
 }
 
@@ -821,7 +796,6 @@ static void create_pipelines(scene_t *s) {
     sd.uniform_blocks[1].glsl_uniforms[4].glsl_name = "u_pass";
     sg_shader glass_shd = sg_make_shader(&sd);
     s->pip = make_pipeline(glass_shd);
-    s->glow_pip = make_glow_pipeline(glass_shd);
 
     memset(&sd, 0, sizeof(sd));
     sd.vertex_func.source = marker_vs_source;
@@ -947,7 +921,7 @@ static void frame(void) {
                            eye[2] < b->min[2] - 0.5f || eye[2] > b->max[2] + 0.5f;
             if (outside) {
                 fs.pass[0] = 1.0f;
-                sg_apply_pipeline(state.scene.glow_pip);
+                sg_apply_pipeline(state.scene.pip);
                 sg_apply_bindings(&(sg_bindings){
                     .vertex_buffers[0] = state.scene.vbuf,
                     .index_buffer = state.scene.tri_ibuf,
