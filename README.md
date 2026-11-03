@@ -131,10 +131,11 @@ orientation. Pan, rotate, and zoom still work after either animation.
 Confirmed plan waypoint cells stay cyan on the overlay. The glass is bright in a
 soft sphere around Claire and a second soft sphere around the hovered floor cell,
 and it darkens with distance from them. Press L to turn the cursor sphere off or
-on. The sphere at Claire stays on. When the camera is outside the RPD bounds,
-the lit glass is redrawn with a smoothed alpha cover that hides intervening
-geometry. Inside the building the normal glass blend is unchanged. Item markers
-keep their normal shading in the darker glass.
+on. The sphere at Claire stays on. The lit glass is drawn to a smoothed alpha
+mask that clears the scene beneath it, then redrawn with its normal glass alpha.
+That keeps the same lit glass visible through intermediate geometry from any
+camera angle. There is no distance threshold. Item markers keep their normal
+shading in the darker glass.
 
 - **Item shapes and colours.** Keys are purple pyramids, key items magenta
   pyramids, healing green spheres, ammo yellow cubes, gunpowder orange cubes,

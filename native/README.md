@@ -52,10 +52,11 @@ through `locateFile`.
    Two `vec4` glow uniforms carry a sphere centre and radius, and a radius of
    zero turns that sphere off. The glass is bright inside a soft sphere around
    Claire and a second soft sphere around the hovered floor cell, then darkens
-   with distance. When the camera is outside the scene bounds, the lit glass is
-   redrawn with a smoothed alpha cover from the sphere, replacing the intervening
-   geometry instead of adding light to it. Item markers keep their normal shading
-   because they use a separate pipeline drawn after the glass.
+   with distance. The lit glass is drawn to a smoothed alpha mask that clears the
+   scene beneath it, then redrawn with its normal glass alpha. That keeps the same
+   lit glass visible through intermediate geometry from any camera angle. Item
+   markers keep their normal shading because they use a separate pipeline drawn
+   after the glass.
 3. **Composite to the swapchain.** A fullscreen triangle samples the offscreen
    colour, adds a restrained radial background gradient, vignette and a little
    grain.
