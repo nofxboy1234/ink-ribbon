@@ -94,7 +94,7 @@ type Hover = {
   y: number;
 };
 
-const CACHE_VERSION = "20261102g";
+const CACHE_VERSION = "20261102h";
 const DISCOVER_RADIUS = 3.0;
 const SPAWN_DISCOVER_RADIUS = 3.5;
 const MOVE_SPEED = 7.0;

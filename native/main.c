@@ -23,7 +23,7 @@
 #define RPD_VERSION 3u
 #define RPD_HEADER_SIZE 100
 #define RPD_PI 3.14159265358979323846f
-#define GLOW_RADIUS 12.0f
+#define GLOW_RADIUS 6.0f
 
 typedef struct { float m[16]; } mat4;
 typedef struct { float min[3]; float max[3]; } bounds_t;
