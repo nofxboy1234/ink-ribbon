@@ -73,7 +73,7 @@ type RpdModule = {
   _rpd_marker_set_rotation: (index: number, radians: number) => void;
   _rpd_marker_count: () => number;
   _rpd_set_player_position: (x: number, y: number, z: number) => void;
-  _rpd_set_hover_light: (
+  _rpd_set_hover_glow: (
     active: number,
     x: number,
     y: number,
@@ -94,7 +94,7 @@ type Hover = {
   y: number;
 };
 
-const CACHE_VERSION = "20261102f";
+const CACHE_VERSION = "20261102g";
 const DISCOVER_RADIUS = 3.0;
 const SPAWN_DISCOVER_RADIUS = 3.5;
 const MOVE_SPEED = 7.0;
@@ -481,10 +481,10 @@ export default function RpdScene({
 
       const hovered = hoverCellRef.current;
       if (cursorLightOnRef.current && hovered !== null) {
-        const point = nodePoint(nav, hovered, 1.5);
-        module._rpd_set_hover_light(1, point[0], point[1], point[2]);
+        const point = nodePoint(nav, hovered, 0);
+        module._rpd_set_hover_glow(1, point[0], point[1], point[2]);
       } else {
-        module._rpd_set_hover_light(0, 0, 0, 0);
+        module._rpd_set_hover_glow(0, 0, 0, 0);
       }
 
       const cellQuad = (node: number): { x: number; y: number }[] | null => {

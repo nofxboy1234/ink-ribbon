@@ -23,10 +23,7 @@
 #define RPD_VERSION 3u
 #define RPD_HEADER_SIZE 100
 #define RPD_PI 3.14159265358979323846f
-#define OCC_CELL 0.5f
-#define OCC_MAX_DIM 256
-#define OCC_MIN_AREA 4.0f
-#define OCC_EPS 0.002f
+#define GLOW_RADIUS 12.0f
 
 typedef struct { float m[16]; } mat4;
 typedef struct { float min[3]; float max[3]; } bounds_t;
@@ -38,10 +35,8 @@ typedef struct {
 typedef struct {
     float camera[4];
     float fog[4];
-    float light0[4];
-    float light1[4];
-    float grid[4];
-    float dims[4];
+    float glow0[4];
+    float glow1[4];
 } fs_params_t;
 
 typedef struct {
@@ -100,12 +95,6 @@ typedef struct {
     bounds_t bounds;
     sg_buffer vbuf;
     sg_buffer tri_ibuf;
-    sg_image occ_image;
-    sg_view occ_view;
-    sg_sampler occ_sampler;
-    float occ_min[3];
-    float occ_cell;
-    int occ_dims[3];
     sg_buffer marker_vbuf[MARKER_SHAPE_COUNT];
     sg_buffer marker_ibuf[MARKER_SHAPE_COUNT];
     int marker_index_count[MARKER_SHAPE_COUNT];
@@ -135,8 +124,8 @@ static struct {
     camera_t camera;
     orbit_anim_t orbit;
     float scene_radius;
-    float light0[4];
-    float light1[4];
+    float glow0[4];
+    float glow1[4];
     bool rotating;
     bool panning;
     bool user_moved;
@@ -237,67 +226,17 @@ static const char *vs_source =
 static const char *fs_source =
     "#version 300 es\n"
     "precision highp float;\n"
+    "#define GLOW_DARK 0.18\n"
     "uniform vec4 u_camera;\n"
     "uniform vec4 u_fog;\n"
-    "uniform vec4 u_light0;\n"
-    "uniform vec4 u_light1;\n"
-    "uniform vec4 u_grid;\n"
-    "uniform vec4 u_dims;\n"
-    "uniform highp sampler3D u_occ;\n"
+    "uniform vec4 u_glow0;\n"
+    "uniform vec4 u_glow1;\n"
     "in vec3 v_world;\n"
     "in vec3 v_color;\n"
     "out vec4 frag_color;\n"
-    "bool occupied(ivec3 voxel) {\n"
-    "  return texture(u_occ, (vec3(voxel) + 0.5) / u_dims.xyz).r > 0.5;\n"
-    "}\n"
-    "bool occluded(vec3 light, vec3 p) {\n"
-    "  vec3 a = (light - u_grid.xyz) / u_grid.w;\n"
-    "  vec3 b = (p - u_grid.xyz) / u_grid.w;\n"
-    "  vec3 delta = b - a;\n"
-    "  float span = length(delta);\n"
-    "  if (span <= 1.2) return false;\n"
-    "  float stop = span - 1.2;\n"
-    "  ivec3 dims = ivec3(u_dims.xyz);\n"
-    "  ivec3 voxel = ivec3(floor(a));\n"
-    "  vec3 absd = abs(delta);\n"
-    "  vec3 t_delta = vec3(absd.x > 1e-6 ? 1.0 / absd.x : 1e20,\n"
-    "                     absd.y > 1e-6 ? 1.0 / absd.y : 1e20,\n"
-    "                     absd.z > 1e-6 ? 1.0 / absd.z : 1e20);\n"
-    "  vec3 t_max = vec3(\n"
-    "      absd.x > 1e-6 ? (delta.x > 0.0 ? float(voxel.x + 1) - a.x : a.x - float(voxel.x)) * t_delta.x : 1e20,\n"
-    "      absd.y > 1e-6 ? (delta.y > 0.0 ? float(voxel.y + 1) - a.y : a.y - float(voxel.y)) * t_delta.y : 1e20,\n"
-    "      absd.z > 1e-6 ? (delta.z > 0.0 ? float(voxel.z + 1) - a.z : a.z - float(voxel.z)) * t_delta.z : 1e20);\n"
-    "  ivec3 istep = ivec3(delta.x > 0.0 ? 1 : -1, delta.y > 0.0 ? 1 : -1, delta.z > 0.0 ? 1 : -1);\n"
-    "  for (int i = 0; i < 96; i++) {\n"
-    "    if (t_max.x < t_max.y) {\n"
-    "      if (t_max.x < t_max.z) {\n"
-    "        if (t_max.x > stop) break;\n"
-    "        voxel.x += istep.x; t_max.x += t_delta.x;\n"
-    "      } else {\n"
-    "        if (t_max.z > stop) break;\n"
-    "        voxel.z += istep.z; t_max.z += t_delta.z;\n"
-    "      }\n"
-    "    } else {\n"
-    "      if (t_max.y < t_max.z) {\n"
-    "        if (t_max.y > stop) break;\n"
-    "        voxel.y += istep.y; t_max.y += t_delta.y;\n"
-    "      } else {\n"
-    "        if (t_max.z > stop) break;\n"
-    "        voxel.z += istep.z; t_max.z += t_delta.z;\n"
-    "      }\n"
-    "    }\n"
-    "    if (voxel.x < 0 || voxel.y < 0 || voxel.z < 0 ||\n"
-    "        voxel.x >= dims.x || voxel.y >= dims.y || voxel.z >= dims.z) return false;\n"
-    "    if (occupied(voxel)) return true;\n"
-    "  }\n"
-    "  return false;\n"
-    "}\n"
-    "float light_at(vec4 light, vec3 p) {\n"
-    "  if (light.w < 0.5) return 0.0;\n"
-    "  float d = distance(light.xyz, p);\n"
-    "  if (d > 24.0) return 0.0;\n"
-    "  if (occluded(light.xyz, p)) return 0.0;\n"
-    "  return (1.0 / (1.0 + 0.005 * d * d)) * (1.0 - smoothstep(18.0, 24.0, d));\n"
+    "float glow_at(vec4 glow, vec3 p) {\n"
+    "  if (glow.w <= 0.0) return 0.0;\n"
+    "  return 1.0 - smoothstep(glow.w * 0.35, glow.w, distance(p, glow.xyz));\n"
     "}\n"
     "void main() {\n"
     "  vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));\n"
@@ -312,8 +251,8 @@ static const char *fs_source =
     "  float light = 0.55 + 0.35 * key + 0.10 * hemi;\n"
     "  vec3 glass = vec3(0.95, 0.96, 0.97) * light;\n"
     "  float alpha = (0.30 + 0.35 * fres) * (0.45 + 0.55 * near);\n"
-    "  float total = min(1.0, light_at(u_light0, v_world) + light_at(u_light1, v_world));\n"
-    "  vec3 lit_glass = mix(glass * 0.18, glass, total);\n"
+    "  float glow = max(glow_at(u_glow0, v_world), glow_at(u_glow1, v_world));\n"
+    "  vec3 lit_glass = mix(glass * GLOW_DARK, glass, glow);\n"
     "  frag_color = vec4(lit_glass, alpha);\n"
     "}\n";
 
@@ -732,96 +671,6 @@ static mat4 marker_model(const marker_t *m) {
     return out;
 }
 
-static void destroy_occupancy(scene_t *s) {
-    if (s->occ_view.id != SG_INVALID_ID) sg_destroy_view(s->occ_view);
-    if (s->occ_sampler.id != SG_INVALID_ID) sg_destroy_sampler(s->occ_sampler);
-    if (s->occ_image.id != SG_INVALID_ID) sg_destroy_image(s->occ_image);
-    s->occ_view.id = SG_INVALID_ID;
-    s->occ_sampler.id = SG_INVALID_ID;
-    s->occ_image.id = SG_INVALID_ID;
-}
-
-/* Surface voxelisation: one R8 byte per cell, set where a triangle crosses the
-   cell centre along its dominant axis. A surface layer leaves doorways and
-   windows open, which a solid fill would seal. */
-static uint8_t *build_occupancy(const uint8_t *vbuf, const uint32_t *ibuf, int tri_count,
-                                const bounds_t *b, float min[3], float *cell_out, int dims[3]) {
-    float cell = OCC_CELL;
-    for (;;) {
-        int peak = 0;
-        for (int i = 0; i < 3; i++) {
-            min[i] = b->min[i] - cell;
-            dims[i] = (int)ceilf((b->max[i] - b->min[i]) / cell) + 2;
-            if (dims[i] > peak) peak = dims[i];
-        }
-        if (peak <= OCC_MAX_DIM) break;
-        cell *= (float)peak / (float)OCC_MAX_DIM;
-    }
-    uint8_t *grid = (uint8_t *)calloc((size_t)dims[0] * (size_t)dims[1] * (size_t)dims[2], 1);
-    if (!grid) return NULL;
-    *cell_out = cell;
-
-    for (int t = 0; t < tri_count; t++) {
-        const float *p0 = (const float *)(vbuf + (size_t)ibuf[t * 3 + 0] * 16);
-        const float *p1 = (const float *)(vbuf + (size_t)ibuf[t * 3 + 1] * 16);
-        const float *p2 = (const float *)(vbuf + (size_t)ibuf[t * 3 + 2] * 16);
-        float e1[3] = { p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2] };
-        float e2[3] = { p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2] };
-        float n[3] = {
-            e1[1] * e2[2] - e1[2] * e2[1],
-            e1[2] * e2[0] - e1[0] * e2[2],
-            e1[0] * e2[1] - e1[1] * e2[0],
-        };
-        float area = 0.5f * sqrtf(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
-        if (area < OCC_MIN_AREA) continue;
-        int dom = 0;
-        float best = fabsf(n[0]);
-        if (fabsf(n[1]) > best) { dom = 1; best = fabsf(n[1]); }
-        if (fabsf(n[2]) > best) { dom = 2; best = fabsf(n[2]); }
-        if (!(best > 0.0f)) continue;
-        const int au = (dom + 1) % 3;
-        const int av = (dom + 2) % 3;
-
-        const float a[2] = { p0[au], p0[av] };
-        const float bq[2] = { p1[au], p1[av] };
-        const float c[2] = { p2[au], p2[av] };
-        const float area2 = (bq[0] - a[0]) * (c[1] - a[1]) - (bq[1] - a[1]) * (c[0] - a[0]);
-        if (fabsf(area2) < 1e-9f) continue;
-
-        int lo[2], hi[2];
-        const float tri_min[2] = { fminf(a[0], fminf(bq[0], c[0])), fminf(a[1], fminf(bq[1], c[1])) };
-        const float tri_max[2] = { fmaxf(a[0], fmaxf(bq[0], c[0])), fmaxf(a[1], fmaxf(bq[1], c[1])) };
-        for (int k = 0; k < 2; k++) {
-            const int axis = k == 0 ? au : av;
-            lo[k] = (int)floorf((tri_min[k] - min[axis]) / cell) - 1;
-            hi[k] = (int)ceilf((tri_max[k] - min[axis]) / cell) + 1;
-            if (lo[k] < 0) lo[k] = 0;
-            if (hi[k] > dims[axis] - 1) hi[k] = dims[axis] - 1;
-        }
-
-        for (int vj = lo[1]; vj <= hi[1]; vj++) {
-            const float py = min[av] + ((float)vj + 0.5f) * cell;
-            for (int ui = lo[0]; ui <= hi[0]; ui++) {
-                const float px = min[au] + ((float)ui + 0.5f) * cell;
-                const float w0 = ((bq[0] - px) * (c[1] - py) - (bq[1] - py) * (c[0] - px)) / area2;
-                const float w1 = ((c[0] - px) * (a[1] - py) - (c[1] - py) * (a[0] - px)) / area2;
-                const float w2 = 1.0f - w0 - w1;
-                if (w0 < -OCC_EPS || w1 < -OCC_EPS || w2 < -OCC_EPS) continue;
-                const float pd = p0[dom] - (n[au] * (px - p0[au]) + n[av] * (py - p0[av])) / n[dom];
-                int dk = (int)floorf((pd - min[dom]) / cell);
-                if (dk < 0) dk = 0;
-                if (dk >= dims[dom]) dk = dims[dom] - 1;
-                int voxel[3];
-                voxel[au] = ui;
-                voxel[av] = vj;
-                voxel[dom] = dk;
-                grid[((size_t)voxel[2] * (size_t)dims[1] + (size_t)voxel[1]) * (size_t)dims[0] + (size_t)voxel[0]] = 255;
-            }
-        }
-    }
-    return grid;
-}
-
 static bool upload_scene(scene_t *s) {
     if (!s->data || s->size < RPD_HEADER_SIZE) return false;
     const uint8_t *p = s->data;
@@ -835,7 +684,6 @@ static bool upload_scene(scene_t *s) {
     const float *hb = (const float *)(p + 28);
     s->bounds.min[0] = hb[0]; s->bounds.min[1] = hb[1]; s->bounds.min[2] = hb[2];
     s->bounds.max[0] = hb[3]; s->bounds.max[1] = hb[4]; s->bounds.max[2] = hb[5];
-    destroy_occupancy(s);
 
     size_t vbytes = (size_t)total_v * 16;
     size_t ibytes = (size_t)total_t * 3 * sizeof(uint32_t);
@@ -896,45 +744,6 @@ static bool upload_scene(scene_t *s) {
         .data = { .ptr = ibuf, .size = ibytes },
         .label = "rpd-triangles",
     });
-    {
-        int dims[3] = { 0, 0, 0 };
-        float min[3] = { 0.0f, 0.0f, 0.0f };
-        float cell = OCC_CELL;
-        uint8_t *grid = build_occupancy(vbuf, ibuf, (int)total_t, &s->bounds, min, &cell, dims);
-        if (!grid) goto fail;
-        s->occ_image = sg_make_image(&(sg_image_desc){
-            .type = SG_IMAGETYPE_3D,
-            .width = dims[0],
-            .height = dims[1],
-            .num_slices = dims[2],
-            .num_mipmaps = 1,
-            .pixel_format = SG_PIXELFORMAT_R8,
-            .data = {
-                .ptr = grid,
-                .size = (size_t)dims[0] * (size_t)dims[1] * (size_t)dims[2],
-            },
-            .label = "rpd-occupancy",
-        });
-        free(grid);
-        memcpy(s->occ_min, min, sizeof(s->occ_min));
-        s->occ_cell = cell;
-        memcpy(s->occ_dims, dims, sizeof(s->occ_dims));
-        s->occ_view = sg_make_view(&(sg_view_desc){
-            .texture = { .image = s->occ_image },
-            .label = "rpd-occupancy-view",
-        });
-        s->occ_sampler = sg_make_sampler(&(sg_sampler_desc){
-            .min_filter = SG_FILTER_NEAREST,
-            .mag_filter = SG_FILTER_NEAREST,
-            .wrap_u = SG_WRAP_CLAMP_TO_EDGE,
-            .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
-            .wrap_w = SG_WRAP_CLAMP_TO_EDGE,
-            .label = "rpd-occupancy-sampler",
-        });
-        if (sg_query_image_state(s->occ_image) != SG_RESOURCESTATE_VALID ||
-            sg_query_view_state(s->occ_view) != SG_RESOURCESTATE_VALID ||
-            sg_query_sampler_state(s->occ_sampler) != SG_RESOURCESTATE_VALID) goto fail;
-    }
     free(vbuf);
     free(ibuf);
     if (sg_query_buffer_state(s->vbuf) != SG_RESOURCESTATE_VALID ||
@@ -973,22 +782,9 @@ static void create_pipelines(scene_t *s) {
     sd.uniform_blocks[1].glsl_uniforms[1].type = SG_UNIFORMTYPE_FLOAT4;
     sd.uniform_blocks[1].glsl_uniforms[1].glsl_name = "u_fog";
     sd.uniform_blocks[1].glsl_uniforms[2].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[2].glsl_name = "u_light0";
+    sd.uniform_blocks[1].glsl_uniforms[2].glsl_name = "u_glow0";
     sd.uniform_blocks[1].glsl_uniforms[3].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[3].glsl_name = "u_light1";
-    sd.uniform_blocks[1].glsl_uniforms[4].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[4].glsl_name = "u_grid";
-    sd.uniform_blocks[1].glsl_uniforms[5].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[5].glsl_name = "u_dims";
-    sd.views[0].texture.stage = SG_SHADERSTAGE_FRAGMENT;
-    sd.views[0].texture.image_type = SG_IMAGETYPE_3D;
-    sd.views[0].texture.sample_type = SG_IMAGESAMPLETYPE_FLOAT;
-    sd.samplers[0].stage = SG_SHADERSTAGE_FRAGMENT;
-    sd.samplers[0].sampler_type = SG_SAMPLERTYPE_NONFILTERING;
-    sd.texture_sampler_pairs[0].stage = SG_SHADERSTAGE_FRAGMENT;
-    sd.texture_sampler_pairs[0].view_slot = 0;
-    sd.texture_sampler_pairs[0].sampler_slot = 0;
-    sd.texture_sampler_pairs[0].glsl_name = "u_occ";
+    sd.uniform_blocks[1].glsl_uniforms[3].glsl_name = "u_glow1";
     sg_shader glass_shd = sg_make_shader(&sd);
     s->pip = make_pipeline(glass_shd);
 
@@ -1099,21 +895,12 @@ static void frame(void) {
             fs_params_t fs = { 0 };
             fs.camera[0] = eye[0]; fs.camera[1] = eye[1]; fs.camera[2] = eye[2]; fs.camera[3] = fog_start;
             fs.fog[0] = fog_end;
-            memcpy(fs.light0, state.light0, sizeof(fs.light0));
-            memcpy(fs.light1, state.light1, sizeof(fs.light1));
-            fs.grid[0] = state.scene.occ_min[0];
-            fs.grid[1] = state.scene.occ_min[1];
-            fs.grid[2] = state.scene.occ_min[2];
-            fs.grid[3] = state.scene.occ_cell;
-            fs.dims[0] = (float)state.scene.occ_dims[0];
-            fs.dims[1] = (float)state.scene.occ_dims[1];
-            fs.dims[2] = (float)state.scene.occ_dims[2];
+            memcpy(fs.glow0, state.glow0, sizeof(fs.glow0));
+            memcpy(fs.glow1, state.glow1, sizeof(fs.glow1));
             sg_apply_pipeline(state.scene.pip);
             sg_apply_bindings(&(sg_bindings){
                 .vertex_buffers[0] = state.scene.vbuf,
                 .index_buffer = state.scene.tri_ibuf,
-                .views[0] = state.scene.occ_view,
-                .samplers[0] = state.scene.occ_sampler,
             });
             sg_apply_uniforms(0, &(sg_range){ &vs, sizeof(vs) });
             sg_apply_uniforms(1, &(sg_range){ &fs, sizeof(fs) });
@@ -1171,12 +958,11 @@ static void init(void) {
     state.camera.pitch = 0.62f;
     state.camera.distance = 150.0f;
     state.camera.target[1] = 10.0f;
-    state.light0[3] = 0.0f;
-    state.light1[3] = 0.0f;
+    state.glow0[3] = GLOW_RADIUS;
+    state.glow1[3] = 0.0f;
 }
 
 static void cleanup(void) {
-    destroy_occupancy(&state.scene);
     sg_shutdown();
     if (state.scene.data) free(state.scene.data);
 }
@@ -1353,10 +1139,10 @@ EMSCRIPTEN_KEEPALIVE int rpd_animate_orbit(float tx, float ty, float tz,
 }
 
 EMSCRIPTEN_KEEPALIVE void rpd_set_player_position(float x, float y, float z) {
-    state.light0[0] = x;
-    state.light0[1] = y + 0.55f;
-    state.light0[2] = z;
-    state.light0[3] = 1.0f;
+    state.glow0[0] = x;
+    state.glow0[1] = y;
+    state.glow0[2] = z;
+    state.glow0[3] = GLOW_RADIUS;
     if (marker_count > 0) {
         markers[0].x = x;
         markers[0].y = y;
@@ -1364,11 +1150,11 @@ EMSCRIPTEN_KEEPALIVE void rpd_set_player_position(float x, float y, float z) {
     }
 }
 
-EMSCRIPTEN_KEEPALIVE void rpd_set_hover_light(int active, float x, float y, float z) {
-    state.light1[0] = x;
-    state.light1[1] = y;
-    state.light1[2] = z;
-    state.light1[3] = active ? 1.0f : 0.0f;
+EMSCRIPTEN_KEEPALIVE void rpd_set_hover_glow(int active, float x, float y, float z) {
+    state.glow1[0] = x;
+    state.glow1[1] = y;
+    state.glow1[2] = z;
+    state.glow1[3] = active ? GLOW_RADIUS : 0.0f;
 }
 
 
