@@ -128,6 +128,11 @@ orbit distance, without moving Claire. Yaw and pitch stay the same. Press F to
 move the camera target smoothly onto Claire, keeping the current distance and
 orientation. Pan, rotate, and zoom still work after either animation.
 
+Confirmed plan waypoint cells stay cyan on the overlay. The glass is bright in a
+soft sphere around Claire and a second soft sphere around the hovered floor cell,
+and it darkens with distance from them. Item markers keep their normal shading in
+the darker glass.
+
 - **Item shapes and colours.** Keys are purple pyramids, key items magenta
   pyramids, healing green spheres, ammo yellow cubes, gunpowder orange cubes,
   weapons orange cylinders, upgrades teal cylinders, and ink ribbons white

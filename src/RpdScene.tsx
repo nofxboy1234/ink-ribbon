@@ -73,6 +73,12 @@ type RpdModule = {
   _rpd_marker_set_rotation: (index: number, radians: number) => void;
   _rpd_marker_count: () => number;
   _rpd_set_player_position: (x: number, y: number, z: number) => void;
+  _rpd_set_hover_glow: (
+    active: number,
+    x: number,
+    y: number,
+    z: number,
+  ) => void;
 };
 
 type RpdFactory = (options: {
@@ -88,7 +94,7 @@ type Hover = {
   y: number;
 };
 
-const CACHE_VERSION = "20261102d";
+const CACHE_VERSION = "20261102e";
 const DISCOVER_RADIUS = 3.0;
 const SPAWN_DISCOVER_RADIUS = 3.5;
 const MOVE_SPEED = 7.0;
@@ -472,6 +478,33 @@ export default function RpdScene({
       ctx.clearRect(0, 0, rect.width, rect.height);
       const matrix = viewProjRef.current;
 
+      const hovered = hoverCellRef.current;
+      if (hovered !== null) {
+        const point = nodePoint(nav, hovered, 0);
+        module._rpd_set_hover_glow(1, point[0], point[1], point[2]);
+      } else {
+        module._rpd_set_hover_glow(0, 0, 0, 0);
+      }
+
+      const cellQuad = (node: number): { x: number; y: number }[] | null => {
+        const x = nav.x[node];
+        const y = nav.y[node] + 0.02;
+        const z = nav.z[node];
+        const half = nav.half;
+        const corners: { x: number; y: number }[] = [];
+        for (const [dx, dz] of [
+          [-half, -half],
+          [half, -half],
+          [half, half],
+          [-half, half],
+        ]) {
+          const point = projectPoint([x + dx, y, z + dz], matrix, rect.width, rect.height);
+          if (!point) return null;
+          corners.push({ x: point.x, y: point.y });
+        }
+        return corners;
+      };
+
       // Grid: cell sides on the active floor, faint centres on the others.
       const activeNodes = navNodesByFloor[activeFloorRef.current] ?? [];
       const lines = gridLines.get(activeFloorRef.current) ?? [];
@@ -519,33 +552,34 @@ export default function RpdScene({
         ctx.fillText(`PLAYER ${playerFloorLabel}`, 18, rect.height - 28);
       }
 
-      const hovered = hoverCellRef.current;
+      const planNodes = new Set<number>();
+      for (const step of planRef.current) {
+        planNodes.add(step.type === "move" ? step.endNode : step.node);
+      }
+      for (const node of planNodes) {
+        const corners = cellQuad(node);
+        if (!corners) continue;
+        ctx.beginPath();
+        ctx.moveTo(corners[0].x, corners[0].y);
+        for (const corner of corners.slice(1)) ctx.lineTo(corner.x, corner.y);
+        ctx.closePath();
+        ctx.fillStyle = "rgba(34, 211, 238, 0.22)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(34, 211, 238, 0.9)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
       if (hovered !== null) {
-        const x = nav.x[hovered];
-        const y = nav.y[hovered] + 0.02;
-        const z = nav.z[hovered];
-        const half = nav.half;
-        const corners: { x: number; y: number }[] = [];
-        let complete = true;
-        for (const [dx, dz] of [
-          [-half, -half],
-          [half, -half],
-          [half, half],
-          [-half, half],
-        ]) {
-          const point = projectPoint([x + dx, y, z + dz], matrix, rect.width, rect.height);
-          if (!point) {
-            complete = false;
-            break;
-          }
-          corners.push({ x: point.x, y: point.y });
-        }
-        if (complete) {
+        const corners = cellQuad(hovered);
+        if (corners) {
           ctx.beginPath();
           ctx.moveTo(corners[0].x, corners[0].y);
           for (const corner of corners.slice(1)) ctx.lineTo(corner.x, corner.y);
           ctx.closePath();
-          ctx.fillStyle = "rgba(57, 255, 20, 0.22)";
+          ctx.fillStyle = planNodes.has(hovered)
+            ? "rgba(57, 255, 20, 0.06)"
+            : "rgba(57, 255, 20, 0.22)";
           ctx.fill();
           ctx.strokeStyle = "rgba(57, 255, 20, 0.9)";
           ctx.lineWidth = 1.5;
@@ -1794,6 +1828,10 @@ export default function RpdScene({
               <span>Unlocked</span>
               <span className="rpd-door-key" style={{ background: "#7f7f7f" }} />
               <span>Unknown</span>
+            </div>
+            <div className="rpd-legend-row">
+              <span className="rpd-dot" style={{ background: "#22d3ee" }} />
+              <span>Waypoint</span>
             </div>
             <p className="rpd-legend-note">
               Items stay hidden until Claire walks near them. Click a discovered

@@ -49,6 +49,11 @@ through `locateFile`.
    light with fresnel alpha and distance fog. The single glass pipeline blends
    with depth compare `ALWAYS` and depth writes off, so every surface contributes
    to the final image. There are no textures, no wireframe edges and no bloom.
+   Two `vec4` glow uniforms carry a sphere centre and radius, and a radius of
+   zero turns that sphere off. The glass is bright inside a soft sphere around
+   Claire and a second soft sphere around the hovered floor cell, then darkens
+   with distance. Item markers keep their normal shading because they use a
+   separate pipeline drawn after the glass.
 3. **Composite to the swapchain.** A fullscreen triangle samples the offscreen
    colour, adds a restrained radial background gradient, vignette and a little
    grain.

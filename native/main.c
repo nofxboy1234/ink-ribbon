@@ -23,6 +23,7 @@
 #define RPD_VERSION 3u
 #define RPD_HEADER_SIZE 100
 #define RPD_PI 3.14159265358979323846f
+#define GLOW_RADIUS 12.0f
 
 typedef struct { float m[16]; } mat4;
 typedef struct { float min[3]; float max[3]; } bounds_t;
@@ -34,6 +35,8 @@ typedef struct {
 typedef struct {
     float camera[4];
     float fog[4];
+    float glow0[4];
+    float glow1[4];
 } fs_params_t;
 
 typedef struct {
@@ -121,6 +124,8 @@ static struct {
     camera_t camera;
     orbit_anim_t orbit;
     float scene_radius;
+    float glow0[4];
+    float glow1[4];
     bool rotating;
     bool panning;
     bool user_moved;
@@ -221,11 +226,18 @@ static const char *vs_source =
 static const char *fs_source =
     "#version 300 es\n"
     "precision highp float;\n"
+    "#define GLOW_DARK 0.18\n"
     "uniform vec4 u_camera;\n"
     "uniform vec4 u_fog;\n"
+    "uniform vec4 u_glow0;\n"
+    "uniform vec4 u_glow1;\n"
     "in vec3 v_world;\n"
     "in vec3 v_color;\n"
     "out vec4 frag_color;\n"
+    "float glow_at(vec4 glow, vec3 p) {\n"
+    "  if (glow.w <= 0.0) return 0.0;\n"
+    "  return 1.0 - smoothstep(glow.w * 0.35, glow.w, distance(p, glow.xyz));\n"
+    "}\n"
     "void main() {\n"
     "  vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));\n"
     "  vec3 view = normalize(u_camera.xyz - v_world);\n"
@@ -239,7 +251,9 @@ static const char *fs_source =
     "  float light = 0.55 + 0.35 * key + 0.10 * hemi;\n"
     "  vec3 glass = vec3(0.95, 0.96, 0.97) * light;\n"
     "  float alpha = (0.30 + 0.35 * fres) * (0.45 + 0.55 * near);\n"
-    "  frag_color = vec4(glass, alpha);\n"
+    "  float glow = max(glow_at(u_glow0, v_world), glow_at(u_glow1, v_world));\n"
+    "  vec3 lit_glass = mix(glass * GLOW_DARK, glass, glow);\n"
+    "  frag_color = vec4(lit_glass, alpha);\n"
     "}\n";
 
 static const char *marker_vs_source =
@@ -767,6 +781,10 @@ static void create_pipelines(scene_t *s) {
     sd.uniform_blocks[1].glsl_uniforms[0].glsl_name = "u_camera";
     sd.uniform_blocks[1].glsl_uniforms[1].type = SG_UNIFORMTYPE_FLOAT4;
     sd.uniform_blocks[1].glsl_uniforms[1].glsl_name = "u_fog";
+    sd.uniform_blocks[1].glsl_uniforms[2].type = SG_UNIFORMTYPE_FLOAT4;
+    sd.uniform_blocks[1].glsl_uniforms[2].glsl_name = "u_glow0";
+    sd.uniform_blocks[1].glsl_uniforms[3].type = SG_UNIFORMTYPE_FLOAT4;
+    sd.uniform_blocks[1].glsl_uniforms[3].glsl_name = "u_glow1";
     sg_shader glass_shd = sg_make_shader(&sd);
     s->pip = make_pipeline(glass_shd);
 
@@ -877,6 +895,8 @@ static void frame(void) {
             fs_params_t fs = { 0 };
             fs.camera[0] = eye[0]; fs.camera[1] = eye[1]; fs.camera[2] = eye[2]; fs.camera[3] = fog_start;
             fs.fog[0] = fog_end;
+            memcpy(fs.glow0, state.glow0, sizeof(fs.glow0));
+            memcpy(fs.glow1, state.glow1, sizeof(fs.glow1));
             sg_apply_pipeline(state.scene.pip);
             sg_apply_bindings(&(sg_bindings){
                 .vertex_buffers[0] = state.scene.vbuf,
@@ -938,6 +958,8 @@ static void init(void) {
     state.camera.pitch = 0.62f;
     state.camera.distance = 150.0f;
     state.camera.target[1] = 10.0f;
+    state.glow0[3] = GLOW_RADIUS;
+    state.glow1[3] = 0.0f;
 }
 
 static void cleanup(void) {
@@ -1117,11 +1139,22 @@ EMSCRIPTEN_KEEPALIVE int rpd_animate_orbit(float tx, float ty, float tz,
 }
 
 EMSCRIPTEN_KEEPALIVE void rpd_set_player_position(float x, float y, float z) {
+    state.glow0[0] = x;
+    state.glow0[1] = y;
+    state.glow0[2] = z;
+    state.glow0[3] = GLOW_RADIUS;
     if (marker_count > 0) {
         markers[0].x = x;
         markers[0].y = y;
         markers[0].z = z;
     }
+}
+
+EMSCRIPTEN_KEEPALIVE void rpd_set_hover_glow(int active, float x, float y, float z) {
+    state.glow1[0] = x;
+    state.glow1[1] = y;
+    state.glow1[2] = z;
+    state.glow1[3] = active ? GLOW_RADIUS : 0.0f;
 }
 
 
