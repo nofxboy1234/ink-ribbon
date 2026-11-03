@@ -48,12 +48,14 @@ through `locateFile`.
    derivatives, flips them toward the camera, and applies a key/fill/hemisphere
    light with fresnel alpha and distance fog. The single glass pipeline blends
    with depth compare `ALWAYS` and depth writes off, so every surface contributes
-   to the final image. There are no textures, no wireframe edges and no bloom.
-   Two `vec4` glow uniforms carry a sphere centre and radius, and a radius of
-   zero turns that sphere off. The glass is bright inside a soft sphere around
-   Claire and a second soft sphere around the hovered floor cell, then darkens
-   with distance. Item markers keep their normal shading because they use a
-   separate pipeline drawn after the glass.
+   to the final image. There are no material textures, no wireframe edges and no
+   bloom. Two point lights, one at Claire and one above the hovered floor cell,
+   use an inverse-square falloff and a range cut. A 0.5 unit surface voxelisation
+   of the large wall, floor, and ceiling triangles becomes a 3D occupancy texture,
+   and the glass shader ray marches it from each light to the fragment. Walls and
+   floors block the light, while door and window openings pass it. Item markers
+   keep their normal shading because they use a separate pipeline drawn after the
+   glass.
 3. **Composite to the swapchain.** A fullscreen triangle samples the offscreen
    colour, adds a restrained radial background gradient, vignette and a little
    grain.

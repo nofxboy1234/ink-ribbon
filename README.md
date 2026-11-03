@@ -128,10 +128,12 @@ orbit distance, without moving Claire. Yaw and pitch stay the same. Press F to
 move the camera target smoothly onto Claire, keeping the current distance and
 orientation. Pan, rotate, and zoom still work after either animation.
 
-Confirmed plan waypoint cells stay cyan on the overlay. The glass is bright in a
-soft sphere around Claire and a second soft sphere around the hovered floor cell,
-and it darkens with distance from them. Item markers keep their normal shading in
-the darker glass.
+Confirmed plan waypoint cells stay cyan on the overlay. Two point lights, one at
+Claire and one above the hovered floor cell, brighten the glass with an
+inverse-square falloff. A 0.5 unit occupancy grid of the large wall, floor, and
+ceiling surfaces shadows them, so light stays in the current room, corridor, or
+space and spills only through real door and window openings. Item markers keep
+their normal shading in the darker glass.
 
 - **Item shapes and colours.** Keys are purple pyramids, key items magenta
   pyramids, healing green spheres, ammo yellow cubes, gunpowder orange cubes,
