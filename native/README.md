@@ -75,10 +75,13 @@ window clears both drag flags.
 - `rpd_set_orbit` sets the target, yaw, pitch and distance; the client uses it
   to frame a planned route. `rpd_get_camera` publishes the live eye pose to the
   URL hash.
-- `rpd_animate_orbit` eases the target to a new point over a duration clamped to
-  0.05 to 2 seconds, and leaves yaw, pitch and distance unchanged. The client
-  uses it to move the target to the hovered floor cell with Space and onto
-  Claire with F. A drag, scroll, touch, reset or `rpd_set_orbit` call cancels
-  the animation.
+- `rpd_animate_orbit` takes a target point, an optional distance and a
+  duration. It eases the target and the distance to the new values with the same
+  smoothstep, over a duration clamped to 0.05 to 2 seconds. A negative distance
+  keeps the current zoom, and any other distance clamps to 8 through 700. Yaw
+  and pitch do not change. The client uses it to move the target to the hovered
+  floor cell and zoom in close with Space, and to center on Claire at the
+  current distance with F. A drag, scroll, touch, reset or `rpd_set_orbit` call
+  cancels the animation.
 
 The asset is in metres, Y-up, with the RPD main hall near the origin.

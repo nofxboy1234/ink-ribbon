@@ -48,7 +48,13 @@ type RpdModule = {
     pitch: number,
     distance: number,
   ) => number;
-  _rpd_animate_orbit: (tx: number, ty: number, tz: number, duration: number) => number;
+  _rpd_animate_orbit: (
+    tx: number,
+    ty: number,
+    tz: number,
+    distance: number,
+    duration: number,
+  ) => number;
   _rpd_get_view_proj: (ptr: number) => number;
   _rpd_marker_clear: () => void;
   _rpd_marker_add: (
@@ -82,7 +88,7 @@ type Hover = {
   y: number;
 };
 
-const CACHE_VERSION = "20261102c";
+const CACHE_VERSION = "20261102d";
 const DISCOVER_RADIUS = 3.0;
 const SPAWN_DISCOVER_RADIUS = 3.5;
 const MOVE_SPEED = 7.0;
@@ -1533,7 +1539,7 @@ export default function RpdScene({
         const player = playerRef.current;
         const module = moduleRef.current;
         if (!player || !module) return;
-        module._rpd_animate_orbit(player[0], player[1], player[2], 0.35);
+        module._rpd_animate_orbit(player[0], player[1], player[2], -1, 0.35);
         event.preventDefault();
         setToast("Camera centered on Claire.");
         return;
@@ -1546,7 +1552,7 @@ export default function RpdScene({
       const module = moduleRef.current;
       if (!graph || !module) return;
       const point = nodePoint(graph, node, 0);
-      module._rpd_animate_orbit(point[0], point[1], point[2], 0.35);
+      module._rpd_animate_orbit(point[0], point[1], point[2], 8, 0.35);
       event.preventDefault();
       const q = questRef.current;
       if (q) setToast(`Camera centered on ${nearbyRoom(q, point).name}.`);

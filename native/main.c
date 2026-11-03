@@ -76,6 +76,8 @@ typedef struct {
     bool active;
     float from_target[3];
     float to_target[3];
+    float from_distance;
+    float to_distance;
     float elapsed, duration;
 } orbit_anim_t;
 
@@ -829,6 +831,7 @@ static void update_orbit_animation(float dt) {
     float s = t * t * (3.0f - 2.0f * t);
     for (int i = 0; i < 3; i++)
         state.camera.target[i] = a->from_target[i] + (a->to_target[i] - a->from_target[i]) * s;
+    state.camera.distance = a->from_distance + (a->to_distance - a->from_distance) * s;
     if (t >= 1.0f) a->active = false;
 }
 
@@ -1091,13 +1094,19 @@ EMSCRIPTEN_KEEPALIVE int rpd_set_orbit(float tx, float ty, float tz, float yaw, 
     return 0;
 }
 
-EMSCRIPTEN_KEEPALIVE int rpd_animate_orbit(float tx, float ty, float tz, float duration) {
-    if (!isfinite(tx) || !isfinite(ty) || !isfinite(tz) || !isfinite(duration)) return -1;
+EMSCRIPTEN_KEEPALIVE int rpd_animate_orbit(float tx, float ty, float tz,
+                                           float distance, float duration) {
+    if (!isfinite(tx) || !isfinite(ty) || !isfinite(tz) ||
+        !isfinite(distance) || !isfinite(duration)) return -1;
     orbit_anim_t *a = &state.orbit;
     memcpy(a->from_target, state.camera.target, sizeof(a->from_target));
     a->to_target[0] = tx;
     a->to_target[1] = ty;
     a->to_target[2] = tz;
+    a->from_distance = state.camera.distance;
+    a->to_distance = distance < 0.0f
+        ? state.camera.distance
+        : fminf(700.0f, fmaxf(8.0f, distance));
     a->elapsed = 0.0f;
     a->duration = fminf(2.0f, fmaxf(0.05f, duration));
     a->active = true;

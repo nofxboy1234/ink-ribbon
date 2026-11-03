@@ -12,7 +12,13 @@ export type RpdModule = {
     pitch: number,
     distance: number,
   ) => number;
-  _rpd_animate_orbit: (tx: number, ty: number, tz: number, duration: number) => number;
+  _rpd_animate_orbit: (
+    tx: number,
+    ty: number,
+    tz: number,
+    distance: number,
+    duration: number,
+  ) => number;
   _rpd_get_view_proj: (ptr: number) => number;
   _rpd_marker_clear: () => void;
   _rpd_marker_add: (
