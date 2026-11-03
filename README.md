@@ -132,8 +132,9 @@ Confirmed plan waypoint cells stay cyan on the overlay. Two point lights, one at
 Claire and one above the hovered floor cell, brighten the glass with an
 inverse-square falloff. A 0.5 unit occupancy grid of the large wall, floor, and
 ceiling surfaces shadows them, so light stays in the current room, corridor, or
-space and spills only through real door and window openings. Item markers keep
-their normal shading in the darker glass.
+space and spills only through real door and window openings. Press L to turn the
+cursor light off or on. The light at Claire stays on. Item markers keep their
+normal shading in the darker glass.
 
 - **Item shapes and colours.** Keys are purple pyramids, key items magenta
   pyramids, healing green spheres, ammo yellow cubes, gunpowder orange cubes,
@@ -165,6 +166,7 @@ game PAK and the decompile at `~/repos/reze`.
 | `Escape` | Pause or resume and clear the route |
 | `Space` | Move the camera target smoothly to the hovered floor cell and zoom to the closest orbit distance, keeping yaw and pitch |
 | `F` | Center the camera smoothly on Claire, keeping the current distance and orientation |
+| `L` | Toggle the cursor point light |
 | Click floor cell | Preview a route to that cell |
 | Click discovered item | Preview a route beside the item and open its action popups |
 | Click door | Preview a route to the door and show its lock state |

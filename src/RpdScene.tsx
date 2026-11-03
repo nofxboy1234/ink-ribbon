@@ -235,6 +235,7 @@ export default function RpdScene({
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const clickHandled = useRef(false);
   const hoverCellRef = useRef<number | null>(null);
+  const cursorLightOnRef = useRef(true);
   const cancelledRef = useRef(false);
   const cancelRunRef = useRef(false);
   const pausedRef = useRef(false);
@@ -479,7 +480,7 @@ export default function RpdScene({
       const matrix = viewProjRef.current;
 
       const hovered = hoverCellRef.current;
-      if (hovered !== null) {
+      if (cursorLightOnRef.current && hovered !== null) {
         const point = nodePoint(nav, hovered, 1.5);
         module._rpd_set_hover_light(1, point[0], point[1], point[2]);
       } else {
@@ -1566,6 +1567,13 @@ export default function RpdScene({
         event.preventDefault();
         cancelRunRef.current = true;
         pauseAndClearRoute();
+        return;
+      }
+      if (event.code === "KeyL") {
+        event.preventDefault();
+        const next = !cursorLightOnRef.current;
+        cursorLightOnRef.current = next;
+        setToast(next ? "Cursor light on." : "Cursor light off.");
         return;
       }
       if (event.code === "KeyF") {
