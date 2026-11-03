@@ -46,14 +46,17 @@ through `locateFile`.
    position+colour vertex buffer and one `u32` index buffer, then drawn in a
    single call. The fragment shader derives face normals from screen-space
    derivatives, flips them toward the camera, and applies a key/fill/hemisphere
-   light with fresnel alpha and distance fog. The single glass pipeline blends
+   light with fresnel alpha and distance fog. The glass base pipeline blends
    with depth compare `ALWAYS` and depth writes off, so every surface contributes
    to the final image. There are no textures, no wireframe edges and no bloom.
    Two `vec4` glow uniforms carry a sphere centre and radius, and a radius of
    zero turns that sphere off. The glass is bright inside a soft sphere around
    Claire and a second soft sphere around the hovered floor cell, then darkens
-   with distance. Item markers keep their normal shading because they use a
-   separate pipeline drawn after the glass.
+   with distance. When the camera is outside the scene bounds, a second additive
+   glow pipeline redraws the same glass with only the sphere contribution, so the
+   lit surfaces remain visible through intervening geometry. Item markers keep
+   their normal shading because they use a separate pipeline drawn after the
+   glass.
 3. **Composite to the swapchain.** A fullscreen triangle samples the offscreen
    colour, adds a restrained radial background gradient, vignette and a little
    grain.
