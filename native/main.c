@@ -23,8 +23,6 @@
 #define RPD_VERSION 3u
 #define RPD_HEADER_SIZE 100
 #define RPD_PI 3.14159265358979323846f
-#define GLOW_RADIUS 6.0f
-
 typedef struct { float m[16]; } mat4;
 typedef struct { float min[3]; float max[3]; } bounds_t;
 
@@ -35,9 +33,6 @@ typedef struct {
 typedef struct {
     float camera[4];
     float fog[4];
-    float glow0[4];
-    float glow1[4];
-    float pass[4];
 } fs_params_t;
 
 typedef struct {
@@ -101,7 +96,7 @@ typedef struct {
     int marker_index_count[MARKER_SHAPE_COUNT];
     sg_pipeline marker_pip;
     sg_pipeline pip;
-    sg_pipeline mask_pip;
+    sg_pipeline solid_pip;
 } scene_t;
 
 typedef struct {
@@ -126,8 +121,7 @@ static struct {
     camera_t camera;
     orbit_anim_t orbit;
     float scene_radius;
-    float glow0[4];
-    float glow1[4];
+    bool glass_style;
     bool rotating;
     bool panning;
     bool user_moved;
@@ -228,19 +222,11 @@ static const char *vs_source =
 static const char *fs_source =
     "#version 300 es\n"
     "precision highp float;\n"
-    "#define GLOW_DARK 0.18\n"
     "uniform vec4 u_camera;\n"
     "uniform vec4 u_fog;\n"
-    "uniform vec4 u_glow0;\n"
-    "uniform vec4 u_glow1;\n"
-    "uniform vec4 u_pass;\n"
     "in vec3 v_world;\n"
     "in vec3 v_color;\n"
     "out vec4 frag_color;\n"
-    "float glow_at(vec4 glow, vec3 p) {\n"
-    "  if (glow.w <= 0.0) return 0.0;\n"
-    "  return 1.0 - smoothstep(glow.w * 0.35, glow.w, distance(p, glow.xyz));\n"
-    "}\n"
     "void main() {\n"
     "  vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));\n"
     "  vec3 view = normalize(u_camera.xyz - v_world);\n"
@@ -254,16 +240,33 @@ static const char *fs_source =
     "  float light = 0.55 + 0.35 * key + 0.10 * hemi;\n"
     "  vec3 glass = vec3(0.95, 0.96, 0.97) * light;\n"
     "  float alpha = (0.30 + 0.35 * fres) * (0.45 + 0.55 * near);\n"
-    "  float glow = max(glow_at(u_glow0, v_world), glow_at(u_glow1, v_world));\n"
-    "  vec3 lit_glass = mix(glass * GLOW_DARK, glass, glow);\n"
-    "  if (u_pass.x > 1.5) {\n"
-    "    if (glow < 0.02) discard;\n"
-    "    frag_color = vec4(0.0, 0.0, 0.0, smoothstep(0.0, 1.0, glow));\n"
-    "  } else {\n"
-    "    if (u_pass.x > 0.5 && glow < 0.02) discard;\n"
-    "    frag_color = vec4(lit_glass, alpha);\n"
-    "  }\n"
+    "  frag_color = vec4(glass, alpha);\n"
     "}\n";
+
+static const char *solid_fs_source =
+    "#version 300 es\n"
+    "precision highp float;\n"
+    "uniform vec4 u_camera;\n"
+    "uniform vec4 u_fog;\n"
+    "in vec3 v_world;\n"
+    "in vec3 v_color;\n"
+    "out vec4 frag_color;\n"
+    "void main() {\n"
+    "  vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));\n"
+    "  vec3 view = normalize(u_camera.xyz - v_world);\n"
+    "  if (dot(n, view) < 0.0) n = -n;\n"
+    "  float key = max(dot(n, normalize(vec3(0.42, 0.82, 0.38))), 0.0);\n"
+    "  float fill = max(dot(n, normalize(vec3(-0.55, 0.35, -0.65))), 0.0);\n"
+    "  float hemi = 0.5 + 0.5 * n.y;\n"
+    "  float lum = dot(v_color, vec3(0.299, 0.587, 0.114));\n"
+    "  float base = mix(0.24, 0.70, lum);\n"
+    "  float shade = 0.42 + 0.34 * key + 0.14 * fill + 0.10 * hemi;\n"
+    "  float d = length(v_world - u_camera.xyz);\n"
+    "  float near = 1.0 - smoothstep(u_camera.w, u_fog.x, d);\n"
+    "  vec3 grey = vec3(base * shade * (0.34 + 0.66 * near));\n"
+    "  frag_color = vec4(grey, 1.0);\n"
+    "}\n";
+
 
 static const char *marker_vs_source =
     "#version 300 es\n"
@@ -476,7 +479,7 @@ static sg_pipeline make_pipeline(sg_shader shader) {
     return sg_make_pipeline(&pd);
 }
 
-static sg_pipeline make_mask_pipeline(sg_shader shader) {
+static sg_pipeline make_solid_pipeline(sg_shader shader) {
     sg_pipeline_desc pd;
     memset(&pd, 0, sizeof(pd));
     pd.shader = shader;
@@ -488,16 +491,9 @@ static sg_pipeline make_mask_pipeline(sg_shader shader) {
     pd.cull_mode = SG_CULLMODE_NONE;
     pd.face_winding = SG_FACEWINDING_CCW;
     pd.sample_count = 1;
-    pd.depth.compare = SG_COMPAREFUNC_ALWAYS;
-    pd.depth.write_enabled = false;
-    pd.colors[0].blend.enabled = true;
-    pd.colors[0].blend.src_factor_rgb = SG_BLENDFACTOR_ZERO;
-    pd.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-    pd.colors[0].blend.op_rgb = SG_BLENDOP_ADD;
-    pd.colors[0].blend.src_factor_alpha = SG_BLENDFACTOR_ZERO;
-    pd.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-    pd.colors[0].blend.op_alpha = SG_BLENDOP_ADD;
-    pd.label = "mask-pipeline";
+    pd.depth.compare = SG_COMPAREFUNC_LESS_EQUAL;
+    pd.depth.write_enabled = true;
+    pd.label = "solid-pipeline";
     return sg_make_pipeline(&pd);
 }
 
@@ -818,15 +814,32 @@ static void create_pipelines(scene_t *s) {
     sd.uniform_blocks[1].glsl_uniforms[0].glsl_name = "u_camera";
     sd.uniform_blocks[1].glsl_uniforms[1].type = SG_UNIFORMTYPE_FLOAT4;
     sd.uniform_blocks[1].glsl_uniforms[1].glsl_name = "u_fog";
-    sd.uniform_blocks[1].glsl_uniforms[2].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[2].glsl_name = "u_glow0";
-    sd.uniform_blocks[1].glsl_uniforms[3].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[3].glsl_name = "u_glow1";
-    sd.uniform_blocks[1].glsl_uniforms[4].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[4].glsl_name = "u_pass";
     sg_shader glass_shd = sg_make_shader(&sd);
     s->pip = make_pipeline(glass_shd);
-    s->mask_pip = make_mask_pipeline(glass_shd);
+
+    memset(&sd, 0, sizeof(sd));
+    sd.vertex_func.source = vs_source;
+    sd.vertex_func.entry = "main";
+    sd.fragment_func.source = solid_fs_source;
+    sd.fragment_func.entry = "main";
+    sd.attrs[0].base_type = SG_SHADERATTRBASETYPE_FLOAT;
+    sd.attrs[0].glsl_name = "position";
+    sd.attrs[1].base_type = SG_SHADERATTRBASETYPE_FLOAT;
+    sd.attrs[1].glsl_name = "color";
+    sd.uniform_blocks[0].stage = SG_SHADERSTAGE_VERTEX;
+    sd.uniform_blocks[0].size = sizeof(vs_params_t);
+    sd.uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140;
+    sd.uniform_blocks[0].glsl_uniforms[0].type = SG_UNIFORMTYPE_MAT4;
+    sd.uniform_blocks[0].glsl_uniforms[0].glsl_name = "u_view_proj";
+    sd.uniform_blocks[1].stage = SG_SHADERSTAGE_FRAGMENT;
+    sd.uniform_blocks[1].size = sizeof(fs_params_t);
+    sd.uniform_blocks[1].layout = SG_UNIFORMLAYOUT_STD140;
+    sd.uniform_blocks[1].glsl_uniforms[0].type = SG_UNIFORMTYPE_FLOAT4;
+    sd.uniform_blocks[1].glsl_uniforms[0].glsl_name = "u_camera";
+    sd.uniform_blocks[1].glsl_uniforms[1].type = SG_UNIFORMTYPE_FLOAT4;
+    sd.uniform_blocks[1].glsl_uniforms[1].glsl_name = "u_fog";
+    sg_shader solid_shd = sg_make_shader(&sd);
+    s->solid_pip = make_solid_pipeline(solid_shd);
 
     memset(&sd, 0, sizeof(sd));
     sd.vertex_func.source = marker_vs_source;
@@ -935,10 +948,7 @@ static void frame(void) {
             fs_params_t fs = { 0 };
             fs.camera[0] = eye[0]; fs.camera[1] = eye[1]; fs.camera[2] = eye[2]; fs.camera[3] = fog_start;
             fs.fog[0] = fog_end;
-            memcpy(fs.glow0, state.glow0, sizeof(fs.glow0));
-            memcpy(fs.glow1, state.glow1, sizeof(fs.glow1));
-            fs.pass[0] = 0.0f;
-            sg_apply_pipeline(state.scene.pip);
+            sg_apply_pipeline(state.glass_style ? state.scene.pip : state.scene.solid_pip);
             sg_apply_bindings(&(sg_bindings){
                 .vertex_buffers[0] = state.scene.vbuf,
                 .index_buffer = state.scene.tri_ibuf,
@@ -946,25 +956,6 @@ static void frame(void) {
             sg_apply_uniforms(0, &(sg_range){ &vs, sizeof(vs) });
             sg_apply_uniforms(1, &(sg_range){ &fs, sizeof(fs) });
             sg_draw(0, state.scene.triangle_count * 3, 1);
-            fs.pass[0] = 2.0f;
-            sg_apply_pipeline(state.scene.mask_pip);
-            sg_apply_bindings(&(sg_bindings){
-                .vertex_buffers[0] = state.scene.vbuf,
-                .index_buffer = state.scene.tri_ibuf,
-            });
-            sg_apply_uniforms(0, &(sg_range){ &vs, sizeof(vs) });
-            sg_apply_uniforms(1, &(sg_range){ &fs, sizeof(fs) });
-            sg_draw(0, state.scene.triangle_count * 3, 1);
-            fs.pass[0] = 1.0f;
-            sg_apply_pipeline(state.scene.pip);
-            sg_apply_bindings(&(sg_bindings){
-                .vertex_buffers[0] = state.scene.vbuf,
-                .index_buffer = state.scene.tri_ibuf,
-            });
-            sg_apply_uniforms(0, &(sg_range){ &vs, sizeof(vs) });
-            sg_apply_uniforms(1, &(sg_range){ &fs, sizeof(fs) });
-            sg_draw(0, state.scene.triangle_count * 3, 1);
-            fs.pass[0] = 0.0f;
             if (marker_count > 0) {
                 sg_apply_pipeline(state.scene.marker_pip);
                 marker_fs_params_t mf = { 0 };
@@ -1018,8 +1009,7 @@ static void init(void) {
     state.camera.pitch = 0.62f;
     state.camera.distance = 150.0f;
     state.camera.target[1] = 10.0f;
-    state.glow0[3] = GLOW_RADIUS;
-    state.glow1[3] = 0.0f;
+    state.glass_style = false;
 }
 
 static void cleanup(void) {
@@ -1199,10 +1189,6 @@ EMSCRIPTEN_KEEPALIVE int rpd_animate_orbit(float tx, float ty, float tz,
 }
 
 EMSCRIPTEN_KEEPALIVE void rpd_set_player_position(float x, float y, float z) {
-    state.glow0[0] = x;
-    state.glow0[1] = y;
-    state.glow0[2] = z;
-    state.glow0[3] = GLOW_RADIUS;
     if (marker_count > 0) {
         markers[0].x = x;
         markers[0].y = y;
@@ -1210,11 +1196,8 @@ EMSCRIPTEN_KEEPALIVE void rpd_set_player_position(float x, float y, float z) {
     }
 }
 
-EMSCRIPTEN_KEEPALIVE void rpd_set_hover_glow(int active, float x, float y, float z) {
-    state.glow1[0] = x;
-    state.glow1[1] = y;
-    state.glow1[2] = z;
-    state.glow1[3] = active ? GLOW_RADIUS : 0.0f;
+EMSCRIPTEN_KEEPALIVE void rpd_set_render_style(int style) {
+    state.glass_style = style != 0;
 }
 
 

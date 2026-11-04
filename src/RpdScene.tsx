@@ -73,12 +73,7 @@ type RpdModule = {
   _rpd_marker_set_rotation: (index: number, radians: number) => void;
   _rpd_marker_count: () => number;
   _rpd_set_player_position: (x: number, y: number, z: number) => void;
-  _rpd_set_hover_glow: (
-    active: number,
-    x: number,
-    y: number,
-    z: number,
-  ) => void;
+  _rpd_set_render_style: (style: number) => void;
 };
 
 type RpdFactory = (options: {
@@ -94,7 +89,7 @@ type Hover = {
   y: number;
 };
 
-const CACHE_VERSION = "20261102k";
+const CACHE_VERSION = "20261102l";
 const DISCOVER_RADIUS = 3.0;
 const SPAWN_DISCOVER_RADIUS = 3.5;
 const MOVE_SPEED = 7.0;
@@ -235,7 +230,7 @@ export default function RpdScene({
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const clickHandled = useRef(false);
   const hoverCellRef = useRef<number | null>(null);
-  const cursorLightOnRef = useRef(true);
+  const glassStyleRef = useRef(false);
   const cancelledRef = useRef(false);
   const cancelRunRef = useRef(false);
   const pausedRef = useRef(false);
@@ -480,12 +475,6 @@ export default function RpdScene({
       const matrix = viewProjRef.current;
 
       const hovered = hoverCellRef.current;
-      if (cursorLightOnRef.current && hovered !== null) {
-        const point = nodePoint(nav, hovered, 0);
-        module._rpd_set_hover_glow(1, point[0], point[1], point[2]);
-      } else {
-        module._rpd_set_hover_glow(0, 0, 0, 0);
-      }
 
       const cellQuad = (node: number): { x: number; y: number }[] | null => {
         const x = nav.x[node];
@@ -1569,11 +1558,12 @@ export default function RpdScene({
         pauseAndClearRoute();
         return;
       }
-      if (event.code === "KeyL") {
+      if (event.code === "KeyG") {
         event.preventDefault();
-        const next = !cursorLightOnRef.current;
-        cursorLightOnRef.current = next;
-        setToast(next ? "Cursor light on." : "Cursor light off.");
+        const next = !glassStyleRef.current;
+        glassStyleRef.current = next;
+        moduleRef.current?._rpd_set_render_style(next ? 1 : 0);
+        setToast(next ? "Glass view." : "Solid view.");
         return;
       }
       if (event.code === "KeyF") {

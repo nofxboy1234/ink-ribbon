@@ -42,21 +42,16 @@ through `locateFile`.
 
 1. **Offscreen pass.** One RGBA8 color image and one depth image at canvas
    resolution, sample count 1.
-2. **Glass geometry.** All chunks are expanded into one interleaved
+2. **Scene geometry.** All chunks are expanded into one interleaved
    position+colour vertex buffer and one `u32` index buffer, then drawn in a
-   single call. The fragment shader derives face normals from screen-space
-   derivatives, flips them toward the camera, and applies a key/fill/hemisphere
-   light with fresnel alpha and distance fog. The glass base pipeline blends
-   with depth compare `ALWAYS` and depth writes off, so every surface contributes
-   to the final image. There are no textures, no wireframe edges and no bloom.
-   Two `vec4` glow uniforms carry a sphere centre and radius, and a radius of
-   zero turns that sphere off. The glass is bright inside a soft sphere around
-   Claire and a second soft sphere around the hovered floor cell, then darkens
-   with distance. The lit glass is drawn to a smoothed alpha mask that clears the
-   scene beneath it, then redrawn with its normal glass alpha. That keeps the same
-   lit glass visible through intermediate geometry from any camera angle. Item
-   markers keep their normal shading because they use a separate pipeline drawn
-   after the glass.
+   single call. The scene has two pipelines. The default solid pipeline is
+   opaque, depth tested, and writes depth. It turns the vertex colour luminance
+   into grey shades and applies a key/fill/hemisphere light and fog. The glass
+   pipeline uses the white glass colour with fresnel alpha, alpha blending, and
+   depth compare `ALWAYS` with depth writes off, so every surface contributes to
+   the final image. Press G in the client to switch pipelines. Item markers keep
+   their normal shading because they use a separate pipeline drawn after the
+   scene.
 3. **Composite to the swapchain.** A fullscreen triangle samples the offscreen
    colour, adds a restrained radial background gradient, vignette and a little
    grain.

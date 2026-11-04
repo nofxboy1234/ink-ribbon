@@ -2,9 +2,9 @@
 
 The real Raccoon Police Department geometry from *Resident Evil 2* (RT build),
 floors 1–3, rendered in the browser with sokol compiled to WebAssembly. The
-surfaces are not textured and the whole building renders in a single
-translucent glass style. Right-drag orbits the camera, the middle button pans,
-and the wheel zooms.
+surfaces are not textured. The default view uses solid grey shading, and pressing
+G switches the whole building to the glass view. Right-drag orbits the camera,
+the middle button pans, and the wheel zooms.
 
 A green FPS counter sits at the top right of the scene. The same view is now a
 playable Claire A quest map. Walk the RPD and discover items. Click an item or a
@@ -12,7 +12,7 @@ floor cell to preview a dashed route. The route stops on a walkable cell beside
 the item, never on the item's own cell. Orange action popups fan from the clicked
 object. Click a popup to append the move or pickup to the plan, then click
 **Run route** in the bottom-left route dock. The quest panel on the right stays
-visible over the glass view.
+visible over the scene.
 
 ![RPD floors 1–3](docs/preview.jpg)
 
@@ -29,13 +29,12 @@ visible over the glass view.
   rebuild `public/rpd/rpd.bin` from it. `build/` is gitignored, so the scene
   stays local.
 - **Renderer** — a C application using the latest [sokol](https://github.com/floooh/sokol)
-  (`sokol_app` + `sokol_gfx`), compiled to WebAssembly with Emscripten. It draws
-  translucent glass triangles in a simple key/fill/hemisphere light with fresnel
-  alpha, then composites a restrained background gradient. No material textures
-  are sampled.
+  (`sokol_app` + `sokol_gfx`), compiled to WebAssembly with Emscripten. The
+  default view draws solid grey triangles with depth and fog; pressing G switches
+  to translucent glass with fresnel alpha. It then composites a restrained
+  background gradient. No material textures are sampled.
 - **Quest layer.** Claire A, Hardcore, RPD 1F–3F. `public/rpd/quest.json` holds
-  every RPD item location from the Archipelago Claire A data, the key-to-door
-  links taken from its region connections, 25 RPD doorways, and the room graph.
+  three test items, 25 unlocked RPD doorways, and the room graph.
   `public/rpd/nav.json` holds a walkable surface graph sampled from the real
   floors, stairs and ramps. `public/rpd/grid.json` remains the flat
   cell source used to place items. The web app draws the graph, hides items
@@ -128,22 +127,21 @@ orbit distance, without moving Claire. Yaw and pitch stay the same. Press F to
 move the camera target smoothly onto Claire, keeping the current distance and
 orientation. Pan, rotate, and zoom still work after either animation.
 
-Confirmed plan waypoint cells stay cyan on the overlay. The glass is bright in a
-soft sphere around Claire and a second soft sphere around the hovered floor cell,
-and it darkens with distance from them. Press L to turn the cursor sphere off or
-on. The sphere at Claire stays on. The lit glass is drawn to a smoothed alpha
-mask that clears the scene beneath it, then redrawn with its normal glass alpha.
-That keeps the same lit glass visible through intermediate geometry from any
-camera angle. There is no distance threshold. Item markers keep their normal
-shading in the darker glass.
+Confirmed plan waypoint cells stay cyan on the overlay. The default view renders
+the RPD in solid shades of grey. Press G to switch to the glass view, which
+renders the whole building in the glass style instead of only around Claire or
+the cursor. Both views keep the item markers readable.
 
 - **Item shapes and colours.** Keys are purple pyramids, key items magenta
   pyramids, healing green spheres, ammo yellow cubes, gunpowder orange cubes,
   weapons orange cylinders, upgrades teal cylinders, and ink ribbons white
   cylinders. The legend in the panel lists the current palette.
+- **Test items.** The map has three items. Green Herb is in the West Office,
+  Handgun Ammo is in the East Office, and Spade Key is in the Waiting Room. All
+  doors are unlocked so those rooms are reachable.
 - **Doors.** Locked doors are red, unlocked doors blue, unknown doors grey.
-  Locked doors list the item names that open them. A door with an item link
-  shows the linked doors when its item is selected.
+  The reduced test map unlocks every door so the three nearby items are
+  reachable.
 - **Floors.** The floor buttons switch the active grid between 1F, 2F and 3F.
   The player can still move to a cell on another floor. A* crosses real stair
   and ramp edges; it does not teleport between floors.
@@ -151,10 +149,11 @@ shading in the darker glass.
   the Claire A Hardcore locations in those floors. RPD B1 is not part of this
   scene and is excluded.
 
-The location names, item ids and key requirements come from the
+The base location names and door positions come from the
 [RE2R Archipelago world](https://github.com/FuzzyGamesOn/RE2R_AP_World). The
-door positions and walkable cells were checked against the room meshes in the
-game PAK and the decompile at `~/repos/reze`.
+three test items are custom, and all doors are unlocked. The door positions and
+walkable cells were checked against the room meshes in the game PAK and the
+decompile at `~/repos/reze`.
 
 ## Controls
 
@@ -167,7 +166,7 @@ game PAK and the decompile at `~/repos/reze`.
 | `Escape` | Pause or resume and clear the route |
 | `Space` | Move the camera target smoothly to the hovered floor cell and zoom to the closest orbit distance, keeping yaw and pitch |
 | `F` | Center the camera smoothly on Claire, keeping the current distance and orientation |
-| `L` | Toggle the cursor sphere light |
+| `G` | Toggle between the solid grey view and the glass view |
 | Click floor cell | Preview a route to that cell |
 | Click discovered item | Preview a route beside the item and open its action popups |
 | Click door | Preview a route to the door and show its lock state |
