@@ -33,6 +33,7 @@ typedef struct {
 typedef struct {
     float camera[4];
     float fog[4];
+    float clip[4];
 } fs_params_t;
 
 typedef struct {
@@ -173,6 +174,19 @@ static mat4 mat4_perspective(float fovy_rad, float aspect, float near_z, float f
     return m;
 }
 
+static mat4 mat4_ortho(float left, float right, float bottom, float top, float near_z, float far_z) {
+    mat4 m;
+    memset(&m, 0, sizeof(m));
+    m.m[0] = 2.0f / (right - left);
+    m.m[5] = 2.0f / (top - bottom);
+    m.m[10] = -2.0f / (far_z - near_z);
+    m.m[12] = -(right + left) / (right - left);
+    m.m[13] = -(top + bottom) / (top - bottom);
+    m.m[14] = -(far_z + near_z) / (far_z - near_z);
+    m.m[15] = 1.0f;
+    return m;
+}
+
 static mat4 mat4_look_at(float eye[3], float center[3], float up[3]) {
     float f[3] = { center[0] - eye[0], center[1] - eye[1], center[2] - eye[2] };
     float fl = sqrtf(f[0] * f[0] + f[1] * f[1] + f[2] * f[2]);
@@ -235,10 +249,12 @@ static const char *fs_source =
     "precision highp float;\n"
     "uniform vec4 u_camera;\n"
     "uniform vec4 u_fog;\n"
+    "uniform vec4 u_clip;\n"
     "in vec3 v_world;\n"
     "in vec3 v_color;\n"
     "out vec4 frag_color;\n"
     "void main() {\n"
+    "  if (u_clip.z > 0.5 && (v_world.y < u_clip.x || v_world.y > u_clip.y)) discard;\n"
     "  vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));\n"
     "  vec3 view = normalize(u_camera.xyz - v_world);\n"
     "  if (dot(n, view) < 0.0) n = -n;\n"
@@ -259,10 +275,12 @@ static const char *solid_fs_source =
     "precision highp float;\n"
     "uniform vec4 u_camera;\n"
     "uniform vec4 u_fog;\n"
+    "uniform vec4 u_clip;\n"
     "in vec3 v_world;\n"
     "in vec3 v_color;\n"
     "out vec4 frag_color;\n"
     "void main() {\n"
+    "  if (u_clip.z > 0.5 && (v_world.y < u_clip.x || v_world.y > u_clip.y)) discard;\n"
     "  vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));\n"
     "  vec3 view = normalize(u_camera.xyz - v_world);\n"
     "  if (dot(n, view) < 0.0) n = -n;\n"
@@ -886,6 +904,8 @@ static void create_pipelines(scene_t *s) {
     sd.uniform_blocks[1].glsl_uniforms[0].glsl_name = "u_camera";
     sd.uniform_blocks[1].glsl_uniforms[1].type = SG_UNIFORMTYPE_FLOAT4;
     sd.uniform_blocks[1].glsl_uniforms[1].glsl_name = "u_fog";
+    sd.uniform_blocks[1].glsl_uniforms[2].type = SG_UNIFORMTYPE_FLOAT4;
+    sd.uniform_blocks[1].glsl_uniforms[2].glsl_name = "u_clip";
     sg_shader glass_shd = sg_make_shader(&sd);
     s->pip = make_pipeline(glass_shd);
 
@@ -910,6 +930,8 @@ static void create_pipelines(scene_t *s) {
     sd.uniform_blocks[1].glsl_uniforms[0].glsl_name = "u_camera";
     sd.uniform_blocks[1].glsl_uniforms[1].type = SG_UNIFORMTYPE_FLOAT4;
     sd.uniform_blocks[1].glsl_uniforms[1].glsl_name = "u_fog";
+    sd.uniform_blocks[1].glsl_uniforms[2].type = SG_UNIFORMTYPE_FLOAT4;
+    sd.uniform_blocks[1].glsl_uniforms[2].glsl_name = "u_clip";
     sg_shader solid_shd = sg_make_shader(&sd);
     s->solid_pip = make_solid_pipeline(solid_shd);
 
@@ -1006,16 +1028,48 @@ static void frame(void) {
     sg_begin_pass(&state.target.pass);
     sg_apply_viewport(0, 0, state.target.width, state.target.height, true);
 
-    if (state.map_mode && state.map_vertex_count > 0) {
-        map_params_t mp = { 0 };
-        memcpy(mp.camera, state.map_camera, sizeof(mp.camera));
-        memcpy(mp.viewport, state.map_viewport, sizeof(mp.viewport));
-        sg_apply_pipeline(state.map_pip);
-        sg_apply_bindings(&(sg_bindings){
-            .vertex_buffers[0] = state.map_vbuf,
-        });
-        sg_apply_uniforms(0, &(sg_range){ &mp, sizeof(mp) });
-        sg_draw(0, state.map_vertex_count, 1);
+    if (state.map_mode) {
+        if (state.scene.loaded && state.scene.gpu_ready) {
+            float floor_y = state.map_camera[3];
+            float scale = state.map_camera[2];
+            float vw = state.map_viewport[0];
+            float vh = state.map_viewport[1];
+            if (scale > 0.01f && vw > 1.0f && vh > 1.0f) {
+                float half_w = vw / (2.0f * scale);
+                float half_h = vh / (2.0f * scale);
+                float eye[3] = { state.map_camera[0], floor_y + 40.0f, state.map_camera[1] };
+                float aim[3] = { state.map_camera[0], floor_y, state.map_camera[1] };
+                float up[3] = { 0.0f, 0.0f, -1.0f };
+                mat4 proj = mat4_ortho(-half_w, half_w, -half_h, half_h, 0.1f, 80.0f);
+                mat4 view = mat4_look_at(eye, aim, up);
+                vs_params_t vs = { .view_proj = mat4_mul(proj, view) };
+                fs_params_t fs = { 0 };
+                fs.camera[0] = eye[0]; fs.camera[1] = eye[1]; fs.camera[2] = eye[2]; fs.camera[3] = 1000.0f;
+                fs.fog[0] = 2000.0f;
+                fs.clip[0] = floor_y - 0.3f;
+                fs.clip[1] = floor_y + 4.9f;
+                fs.clip[2] = 1.0f;
+                sg_apply_pipeline(state.scene.pip);
+                sg_apply_bindings(&(sg_bindings){
+                    .vertex_buffers[0] = state.scene.vbuf,
+                    .index_buffer = state.scene.tri_ibuf,
+                });
+                sg_apply_uniforms(0, &(sg_range){ &vs, sizeof(vs) });
+                sg_apply_uniforms(1, &(sg_range){ &fs, sizeof(fs) });
+                sg_draw(0, state.scene.triangle_count * 3, 1);
+            }
+        }
+        if (state.map_vertex_count > 0) {
+            map_params_t mp = { 0 };
+            memcpy(mp.camera, state.map_camera, sizeof(mp.camera));
+            memcpy(mp.viewport, state.map_viewport, sizeof(mp.viewport));
+            sg_apply_pipeline(state.map_pip);
+            sg_apply_bindings(&(sg_bindings){
+                .vertex_buffers[0] = state.map_vbuf,
+            });
+            sg_apply_uniforms(0, &(sg_range){ &mp, sizeof(mp) });
+            sg_draw(0, state.map_vertex_count, 1);
+        }
     } else if (!state.map_mode && state.scene.loaded && state.scene.gpu_ready) {
         float eye[3], aim[3], fog_start, fog_end;
         current_eye_aim(eye, aim);
@@ -1300,11 +1354,11 @@ EMSCRIPTEN_KEEPALIVE int rpd_map_set_data(const float *data, int vertex_count) {
     state.map_vertex_count = vertex_count;
     return 0;
 }
-EMSCRIPTEN_KEEPALIVE void rpd_map_set_camera(float cx, float cz, float scale, float vw, float vh) {
+EMSCRIPTEN_KEEPALIVE void rpd_map_set_camera(float cx, float cz, float scale, float vw, float vh, float floor_y) {
     state.map_camera[0] = cx;
     state.map_camera[1] = cz;
     state.map_camera[2] = scale;
-    state.map_camera[3] = 0.0f;
+    state.map_camera[3] = floor_y;
     state.map_viewport[0] = vw;
     state.map_viewport[1] = vh;
     state.map_viewport[2] = 0.0f;

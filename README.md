@@ -158,16 +158,18 @@ decompile at `~/repos/reze`.
 ## 2D floor plans
 
 The 2D button beside the floor buttons, or `M`, switches between the 3D scene
-and a sokol-rendered vector floor plan. The `1F`, `2F` and `3F` buttons choose the
-floor. Walls are derived from the navigation surfaces, and the floor cells, stair
-and ramp cells, doors, discovered items, Claire, the planned route, and cyan
-waypoints are all sokol triangles. Drag to pan, and use the wheel to zoom. The
-room labels and action popups are DOM elements above the map.
+and a top-down map. The `1F`, `2F` and `3F` buttons choose the floor. The map
+reuses the same sokol scene through an orthographic top-down camera, with a clip
+that keeps only the active floor. The walls use the same white glass shader and
+the flooring uses the same semitransparent glass surface as the 3D view. The
+navigation cells, stair and ramp cells, doors, discovered items, Claire, route,
+and waypoints are drawn above that scene.
 
-Map clicks use the same preview and planner as the 3D scene. Choose a map action
-to append it to the plan, then switch views and the same route appears in 3D.
-The room layout follows the [Evil Resource police station maps](https://www.evilresource.com/resident-evil-2-remake/maps/police-station#policestation1f),
-and both views mark stair cells in amber and ramp cells in blue.
+Hovering a cell gives the same green highlight as the 3D navigation grid. `F`
+centers the map on Claire. Drag to pan, and use the wheel to zoom. Map clicks use
+the same preview popup and planner as 3D, so the action fan and the route dock are
+identical in both views. The room layout follows the
+[Evil Resource police station maps](https://www.evilresource.com/resident-evil-2-remake/maps/police-station#policestation1f).
 
 ## Controls
 
@@ -179,7 +181,7 @@ and both views mark stair cells in amber and ramp cells in blue.
 | `R` | Reset camera |
 | `Escape` | Pause or resume and clear the route |
 | `Space` | Move the camera target smoothly to the hovered floor cell and zoom to the closest orbit distance, keeping yaw and pitch |
-| `F` | Center the camera smoothly on Claire, keeping the current distance and orientation |
+| `F` | Center the 3D camera on Claire, or the 2D map on Claire, keeping the current orientation |
 | `G` | Toggle between the solid grey view and the glass view |
 | `M` or the 2D button | Toggle between the 3D scene and the 2D floor plan |
 | 2D drag / wheel | Pan and zoom the 2D floor plan |

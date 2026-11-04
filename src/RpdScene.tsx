@@ -82,6 +82,7 @@ type RpdModule = {
     scale: number,
     vw: number,
     vh: number,
+    floorY: number,
   ) => void;
   _rpd_map_set_data: (ptr: number, vertexCount: number) => number;
 };
@@ -99,7 +100,7 @@ type Hover = {
   y: number;
 };
 
-const CACHE_VERSION = "20261102n";
+const CACHE_VERSION = "20261102o";
 const DISCOVER_RADIUS = 3.0;
 const SPAWN_DISCOVER_RADIUS = 3.5;
 const MOVE_SPEED = 7.0;
@@ -269,6 +270,7 @@ export default function RpdScene({
   const [activeFloor, setActiveFloor] = useState(0);
   const [view2D, setView2D] = useState(false);
   const [mapPopupAnchor, setMapPopupAnchor] = useState<{ x: number; y: number } | null>(null);
+  const [mapFocusToken, setMapFocusToken] = useState(0);
   const [showInventory, setShowInventory] = useState(false);
   const [showLegend, setShowLegend] = useState(true);
   const [statusNote, setStatusNote] = useState(
@@ -1603,6 +1605,12 @@ export default function RpdScene({
         const player = playerRef.current;
         const module = moduleRef.current;
         if (!player || !module) return;
+        if (view2DRef.current) {
+          setMapFocusToken((value) => value + 1);
+          event.preventDefault();
+          setToast("Map centered on Claire.");
+          return;
+        }
         module._rpd_animate_orbit(player[0], player[1], player[2], -1, 0.35);
         event.preventDefault();
         setToast("Camera centered on Claire.");
@@ -1687,8 +1695,8 @@ export default function RpdScene({
   }, [nav, activeFloor]);
 
   const handleMapCamera = useCallback(
-    (cx: number, cz: number, scale: number, vw: number, vh: number) => {
-      moduleRef.current?._rpd_map_set_camera(cx, cz, scale, vw, vh);
+    (cx: number, cz: number, scale: number, vw: number, vh: number, floorY: number) => {
+      moduleRef.current?._rpd_map_set_camera(cx, cz, scale, vw, vh, floorY);
     },
     [],
   );
@@ -1812,6 +1820,7 @@ export default function RpdScene({
             preview={preview}
             onMapData={handleMapData}
             onCamera={handleMapCamera}
+            focusToken={mapFocusToken}
             onPreview={previewTarget}
             onPreviewAnchor={handleMapAnchor}
           />

@@ -17,19 +17,25 @@ type FloorMap2DProps = {
   mapBounds: [number, number, number, number];
   preview: Preview | null;
   onMapData: (vertices: Float32Array) => void;
-  onCamera: (cx: number, cz: number, scale: number, vw: number, vh: number) => void;
+  onCamera: (
+    cx: number,
+    cz: number,
+    scale: number,
+    vw: number,
+    vh: number,
+    floorY: number,
+  ) => void;
+  focusToken: number;
   onPreview: (target: Target) => void;
   onPreviewAnchor: (anchor: { x: number; y: number } | null) => void;
 };
 
 type RGBA = [number, number, number, number];
 
-const FLOOR: RGBA = [0.24, 0.29, 0.35, 0.42];
-const STAIR: RGBA = [0.78, 0.59, 0.28, 0.46];
-const RAMP: RGBA = [0.35, 0.69, 0.85, 0.42];
+const FLOOR: RGBA = [0.38, 0.48, 0.6, 0.1];
+const STAIR: RGBA = [0.78, 0.59, 0.28, 0.26];
+const RAMP: RGBA = [0.35, 0.69, 0.85, 0.26];
 const NAV_BORDER: RGBA = [0.37, 0.65, 0.9, 0.5];
-const WALL: RGBA = [0.67, 0.73, 0.81, 0.95];
-const WALL_CORE: RGBA = [0.09, 0.12, 0.16, 0.95];
 const ROUTE: RGBA = [0.26, 1.0, 0.45, 0.95];
 const PREVIEW: RGBA = [1.0, 0.62, 0.24, 0.9];
 const WAYPOINT: RGBA = [0.13, 0.83, 0.93, 0.42];
@@ -99,6 +105,7 @@ export default function FloorMap2D({
   preview,
   onMapData,
   onCamera,
+  focusToken,
   onPreview,
   onPreviewAnchor,
 }: FloorMap2DProps) {
@@ -115,13 +122,21 @@ export default function FloorMap2D({
     moved: number;
   } | null>(null);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
+  const [hoverNode, setHoverNode] = useState<number | null>(null);
 
   const emitCamera = () => {
     const root = rootRef.current;
     if (!root) return;
     const rect = root.getBoundingClientRect();
     const camera = cameraRef.current;
-    onCamera(camera.cx, camera.cz, camera.scale, rect.width, rect.height);
+    onCamera(
+      camera.cx,
+      camera.cz,
+      camera.scale,
+      rect.width,
+      rect.height,
+      quest.floors[floor]?.level ?? 0,
+    );
   };
 
   useEffect(() => {
@@ -154,38 +169,44 @@ export default function FloorMap2D({
   }, [floor, mapBounds, onCamera]);
 
   useEffect(() => {
+    if (focusToken === 0) return;
+    const camera = cameraRef.current;
+    cameraRef.current = { cx: player[0], cz: player[2], scale: camera.scale };
+    emitCamera();
+    setCameraVersion((value) => value + 1);
+  }, [focusToken]);
+
+  useEffect(() => {
     const out: number[] = [];
     const active: number[] = [];
-    const key = new Map<string, number>();
     for (let i = 0; i < nav.count; i++) {
       if (nav.floor[i] !== floor) continue;
       active.push(i);
-      key.set(`${nav.x[i].toFixed(2)},${nav.z[i].toFixed(2)}`, i);
     }
     const half = nav.half;
     const step = nav.step;
-    const has = (x: number, z: number) => key.has(`${x.toFixed(2)},${z.toFixed(2)}`);
 
     for (const node of active) {
       const x = nav.x[node];
       const z = nav.z[node];
       const colour = nav.kind[node] === 1 ? STAIR : nav.kind[node] === 2 ? RAMP : FLOOR;
       pushRect(out, x, z, step, step, colour);
-    }
-
-    for (const node of active) {
-      const x = nav.x[node];
-      const z = nav.z[node];
-      pushRect(out, x, z, step, step, [WALL_CORE[0], WALL_CORE[1], WALL_CORE[2], 0.22]);
       const edge = Math.max(0.035, step * 0.035);
       pushRect(out, x, z - half, step, edge, NAV_BORDER);
       pushRect(out, x, z + half, step, edge, NAV_BORDER);
       pushRect(out, x - half, z, edge, step, NAV_BORDER);
       pushRect(out, x + half, z, edge, step, NAV_BORDER);
-      if (!has(x, z - step)) pushRect(out, x, z - half, step, 0.09, WALL);
-      if (!has(x, z + step)) pushRect(out, x, z + half, step, 0.09, WALL);
-      if (!has(x - step, z)) pushRect(out, x - half, z, 0.09, step, WALL);
-      if (!has(x + step, z)) pushRect(out, x + half, z, 0.09, step, WALL);
+    }
+
+    if (hoverNode !== null && hoverNode >= 0 && hoverNode < nav.count && nav.floor[hoverNode] === floor) {
+      const x = nav.x[hoverNode];
+      const z = nav.z[hoverNode];
+      pushRect(out, x, z, step, step, [0.22, 1.0, 0.08, 0.3]);
+      const edge = Math.max(0.04, step * 0.04);
+      pushRect(out, x, z - half, step, edge, [0.22, 1.0, 0.08, 0.95]);
+      pushRect(out, x, z + half, step, edge, [0.22, 1.0, 0.08, 0.95]);
+      pushRect(out, x - half, z, edge, step, [0.22, 1.0, 0.08, 0.95]);
+      pushRect(out, x + half, z, edge, step, [0.22, 1.0, 0.08, 0.95]);
     }
 
     const floorPoints = planPath.filter((point) => Math.abs(point[1] - (quest.floors[floor]?.level ?? 0)) < 2.5);
@@ -236,7 +257,7 @@ export default function FloorMap2D({
     }
 
     onMapData(new Float32Array(out));
-  }, [nav, quest, floor, player, discovered, doorStates, plan, planPath, preview, onMapData]);
+  }, [nav, quest, floor, player, discovered, doorStates, plan, planPath, preview, hoverNode, onMapData]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -278,7 +299,26 @@ export default function FloorMap2D({
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
     const root = rootRef.current;
-    if (!drag || !root || drag.id !== event.pointerId) return;
+    if (!root) return;
+    if (!drag) {
+      const rect = root.getBoundingClientRect();
+      const camera = cameraRef.current;
+      const wx = camera.cx + (event.clientX - rect.left - rect.width / 2) / camera.scale;
+      const wz = camera.cz + (event.clientY - rect.top - rect.height / 2) / camera.scale;
+      let nearest = -1;
+      let best = Infinity;
+      for (let i = 0; i < nav.count; i++) {
+        if (nav.floor[i] !== floor) continue;
+        const distance = Math.hypot(nav.x[i] - wx, nav.z[i] - wz);
+        if (distance < best) {
+          best = distance;
+          nearest = i;
+        }
+      }
+      setHoverNode(nearest >= 0 && best <= nav.step * 0.85 ? nearest : null);
+      return;
+    }
+    if (drag.id !== event.pointerId) return;
     const mask = drag.button === 1 ? 4 : drag.button === 0 ? 1 : 2;
     if ((event.buttons & mask) === 0) {
       dragRef.current = null;
@@ -434,6 +474,7 @@ export default function FloorMap2D({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onPointerLeave={() => setHoverNode(null)}
         onLostPointerCapture={() => {
           dragRef.current = null;
         }}

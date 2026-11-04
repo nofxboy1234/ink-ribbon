@@ -52,10 +52,11 @@ through `locateFile`.
    the final image. Press G in the client to switch pipelines. Item markers keep
    their normal shading because they use a separate pipeline drawn after the
    scene.
-3. **Map mode.** The native renderer has a top-down vector map pass. The client
-   builds triangle vertices for the navigation cells, walls, stairs, doors,
-   items, player, route, and waypoints, and uploads them with a pan/zoom camera.
-   The map shader draws the vertices in world space. There is no map texture. The
+3. **Map mode.** The native renderer reuses the scene geometry with an
+   orthographic top-down camera. A fragment clip keeps only the active floor and
+   the glass pipeline draws the white walls and semitransparent flooring. The
+   client uploads navigation, stair, route, door, item, and player triangles,
+   which the map pipeline draws above the scene. There is no map texture. The
    client keeps the room labels and action popups as DOM elements above the map,
    and the same planner handles map and 3D clicks.
 4. **Composite to the swapchain.** A fullscreen triangle samples the offscreen

@@ -50,6 +50,7 @@ export type RpdModule = {
     scale: number,
     vw: number,
     vh: number,
+    floorY: number,
   ) => void;
   _rpd_map_set_data: (ptr: number, vertexCount: number) => number;
 };
