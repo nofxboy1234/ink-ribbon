@@ -218,9 +218,14 @@ tools/extract_rpd.py       PAK lookup + extraction of the 49 RPD meshes
 tools/re_pak.py            minimal KPKA v4 reader (Murmur3 path hashes)
 tools/remesh.py            RE2 RT .mesh parser (LODs, groups, submeshes, buffers)
 tools/rpd_scene.py         Blender import of the 49 rooms and RPDW v3 export
+tools/rpd_world.py         shared 1 m lattice and RPD floor levels
+tools/rpd_blender.py       Blender coordinates, ray casts and material lookup
+tools/rpd_surface.py       walkable surfaces, stairs and line-of-sight tests
+tools/rpd_graph.py         nav links, portals, door bridges and renumbering
 tools/rpd_grid.py          flat 1 m item-placement cells sampled from the scene
-tools/rpd_nav.py           walkable surface graph, stairs and ramps -> nav.json
+tools/rpd_nav.py           nav build entry point: scan, link and report -> nav.json
 tools/rpd_quest.py         builds public/rpd/quest.json from the AP data and grid
+tools/check_data_parity.py semantic JSON and checksum comparison for public/rpd
 tools/rpd_ap_source.json   Claire A RPD regions, locations and door conditions
 docs/extraction.md         PAK format, mesh format, Blender round trip and asset layout
 tools/rpd_floor_meshes.txt exact PAK paths for floors 1-3
