@@ -17,7 +17,9 @@
     "quest": "npm run quest:grid && npm run quest:data && npm run nav:build",
     "wasm": "bash native/build.sh",
     "deploy": "void deploy --platform cloudflare",
-    "nav:build": "blender -b -P tools/rpd_nav.py"
+    "nav:build": "blender -b -P tools/rpd_nav.py",
+    "verify:rpd": "node tools/verify_rpd.mjs",
+    "check:structure": "node tools/check_structure.mjs"
   },
   "dependencies": {
     "hono": "4.13.14",

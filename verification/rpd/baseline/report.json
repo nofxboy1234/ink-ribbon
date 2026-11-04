@@ -1,0 +1,361 @@
+{
+  "shots": [
+    "01-3d-solid",
+    "02-3d-glass",
+    "03-2d-1f",
+    "04-2d-2f",
+    "05-2d-3f",
+    "06-before-f",
+    "07-after-f",
+    "08-hover",
+    "09-popup",
+    "10-plan",
+    "11-2d-route",
+    "12-3d-route"
+  ],
+  "errors": [],
+  "states": {
+    "solid": {
+      "floors": [
+        {
+          "text": "1F0/2",
+          "active": "true"
+        },
+        {
+          "text": "2F0/1",
+          "active": "false"
+        },
+        {
+          "text": "3F0/0",
+          "active": "false"
+        },
+        {
+          "text": "2D",
+          "active": "false"
+        }
+      ],
+      "panel": "QUEST PLANNER\n\nMain Hall\n0/3\n\nWalk near items to discover them. Click a discover",
+      "mapTitle": null,
+      "label": null,
+      "popup": "",
+      "plan": [],
+      "player": [
+        0,
+        1.250000011920929,
+        8
+      ],
+      "moving": false,
+      "view": "2D"
+    },
+    "map1f": {
+      "floors": [
+        {
+          "text": "1F0/2",
+          "active": "true"
+        },
+        {
+          "text": "2F0/1",
+          "active": "false"
+        },
+        {
+          "text": "3F0/0",
+          "active": "false"
+        },
+        {
+          "text": "3D",
+          "active": "true"
+        }
+      ],
+      "panel": "QUEST PLANNER\n\nMain Hall\n0/3\n\nWalk near items to discover them. Click a discover",
+      "mapTitle": "1F · SOKOL TOP-DOWN\n3646 cells · 2 items · 15 doors · wheel to zoom · drag to pan",
+      "label": {
+        "x": 690,
+        "y": 563,
+        "text": "CLAIRE"
+      },
+      "popup": "",
+      "plan": [],
+      "player": [
+        0,
+        1.250000011920929,
+        8
+      ],
+      "moving": false,
+      "view": "3D"
+    },
+    "map2f": {
+      "floors": [
+        {
+          "text": "1F0/2",
+          "active": "false"
+        },
+        {
+          "text": "2F0/1",
+          "active": "true"
+        },
+        {
+          "text": "3F0/0",
+          "active": "false"
+        },
+        {
+          "text": "3D",
+          "active": "true"
+        }
+      ],
+      "panel": "QUEST PLANNER\n\nMain Hall\n0/3\n\nWalk near items to discover them. Click a discover",
+      "mapTitle": "2F · SOKOL TOP-DOWN\n1731 cells · 1 items · 8 doors · wheel to zoom · drag to pan",
+      "label": null,
+      "popup": "",
+      "plan": [],
+      "player": [
+        0,
+        1.250000011920929,
+        8
+      ],
+      "moving": false,
+      "view": "3D"
+    },
+    "map3f": {
+      "floors": [
+        {
+          "text": "1F0/2",
+          "active": "false"
+        },
+        {
+          "text": "2F0/1",
+          "active": "false"
+        },
+        {
+          "text": "3F0/0",
+          "active": "true"
+        },
+        {
+          "text": "3D",
+          "active": "true"
+        }
+      ],
+      "panel": "QUEST PLANNER\n\nMain Hall\n0/3\n\nWalk near items to discover them. Click a discover",
+      "mapTitle": "3F · SOKOL TOP-DOWN\n1426 cells · 0 items · 2 doors · wheel to zoom · drag to pan",
+      "label": null,
+      "popup": "",
+      "plan": [],
+      "player": [
+        0,
+        1.250000011920929,
+        8
+      ],
+      "moving": false,
+      "view": "3D"
+    },
+    "beforeF": {
+      "floors": [
+        {
+          "text": "1F0/2",
+          "active": "true"
+        },
+        {
+          "text": "2F0/1",
+          "active": "false"
+        },
+        {
+          "text": "3F0/0",
+          "active": "false"
+        },
+        {
+          "text": "3D",
+          "active": "true"
+        }
+      ],
+      "panel": "QUEST PLANNER\n\nWest Storage Room\n0/3\n\nWalk near items to discover them. Click a ",
+      "mapTitle": "1F · SOKOL TOP-DOWN\n3646 cells · 2 items · 15 doors · wheel to zoom · drag to pan",
+      "label": null,
+      "popup": "",
+      "plan": [],
+      "player": [
+        -30,
+        10.85,
+        -4
+      ],
+      "moving": false,
+      "view": "3D"
+    },
+    "afterF": {
+      "floors": [
+        {
+          "text": "1F0/2",
+          "active": "false"
+        },
+        {
+          "text": "2F0/1",
+          "active": "false"
+        },
+        {
+          "text": "3F0/0",
+          "active": "true"
+        },
+        {
+          "text": "3D",
+          "active": "true"
+        }
+      ],
+      "panel": "QUEST PLANNER\n\nWest Storage Room\n0/3\n\nWalk near items to discover them. Click a ",
+      "mapTitle": "3F · SOKOL TOP-DOWN\n1426 cells · 0 items · 2 doors · wheel to zoom · drag to pan",
+      "label": {
+        "x": 710,
+        "y": 444,
+        "text": "CLAIRE"
+      },
+      "popup": "",
+      "plan": [],
+      "player": [
+        -30,
+        10.85,
+        -4
+      ],
+      "moving": false,
+      "view": "3D"
+    },
+    "popup": {
+      "floors": [
+        {
+          "text": "1F0/2",
+          "active": "true"
+        },
+        {
+          "text": "2F0/1",
+          "active": "false"
+        },
+        {
+          "text": "3F0/0",
+          "active": "false"
+        },
+        {
+          "text": "3D",
+          "active": "true"
+        }
+      ],
+      "panel": "QUEST PLANNER\n\nMain Hall cell\n0/3\n\nPreview to Main Hall cell. Choose an action.\n",
+      "mapTitle": "1F · SOKOL TOP-DOWN\n3646 cells · 2 items · 15 doors · wheel to zoom · drag to pan",
+      "label": {
+        "x": 690,
+        "y": 563,
+        "text": "CLAIRE"
+      },
+      "popup": "Move to Main Hall cell",
+      "plan": [],
+      "player": [
+        0,
+        1.25,
+        8
+      ],
+      "moving": false,
+      "view": "3D"
+    },
+    "plan": {
+      "floors": [
+        {
+          "text": "1F0/2",
+          "active": "true"
+        },
+        {
+          "text": "2F0/1",
+          "active": "false"
+        },
+        {
+          "text": "3F0/0",
+          "active": "false"
+        },
+        {
+          "text": "3D",
+          "active": "true"
+        }
+      ],
+      "panel": "QUEST PLANNER\n\nMain Hall\n0/3\n\nPlan has 1 step. Click another target or run the r",
+      "mapTitle": "1F · SOKOL TOP-DOWN\n3646 cells · 2 items · 15 doors · wheel to zoom · drag to pan",
+      "label": {
+        "x": 690,
+        "y": 563,
+        "text": "CLAIRE"
+      },
+      "popup": "",
+      "plan": [
+        "Move to Main Hall cell"
+      ],
+      "player": [
+        0,
+        1.25,
+        8
+      ],
+      "moving": false,
+      "view": "3D"
+    },
+    "route2d": {
+      "floors": [
+        {
+          "text": "1F0/2",
+          "active": "true"
+        },
+        {
+          "text": "2F0/1",
+          "active": "false"
+        },
+        {
+          "text": "3F0/0",
+          "active": "false"
+        },
+        {
+          "text": "3D",
+          "active": "true"
+        }
+      ],
+      "panel": "QUEST PLANNER\n\nMain Hall\n0/3\n\nRoute complete.\n\nINVENTORY\nshow\nhide legend\nKey\nKe",
+      "mapTitle": "1F · SOKOL TOP-DOWN\n3646 cells · 2 items · 15 doors · wheel to zoom · drag to pan",
+      "label": {
+        "x": 660,
+        "y": 563,
+        "text": "CLAIRE"
+      },
+      "popup": "",
+      "plan": [],
+      "player": [
+        -3,
+        1.250000011920929,
+        8
+      ],
+      "moving": false,
+      "view": "3D"
+    },
+    "route3d": {
+      "floors": [
+        {
+          "text": "1F0/2",
+          "active": "true"
+        },
+        {
+          "text": "2F0/1",
+          "active": "false"
+        },
+        {
+          "text": "3F0/0",
+          "active": "false"
+        },
+        {
+          "text": "2D",
+          "active": "false"
+        }
+      ],
+      "panel": "QUEST PLANNER\n\nMain Hall\n0/3\n\nRoute complete.\n\nINVENTORY\nshow\nhide legend\nKey\nKe",
+      "mapTitle": null,
+      "label": null,
+      "popup": "",
+      "plan": [],
+      "player": [
+        -3,
+        1.250000011920929,
+        8
+      ],
+      "moving": false,
+      "view": "2D"
+    }
+  }
+}

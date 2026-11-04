@@ -143,31 +143,39 @@ export default function FloorMap2D({
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    const fit = () => {
+    const rect = root.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return;
+    const rightInset = Math.min(430, Math.max(380, rect.width * 0.31));
+    const left = 42;
+    const top = 158;
+    const plotW = Math.max(120, rect.width - rightInset - left - 24);
+    const plotH = Math.max(120, rect.height - top - 54);
+    const spanX = Math.max(1, mapBounds[2] - mapBounds[0]);
+    const spanZ = Math.max(1, mapBounds[3] - mapBounds[1]);
+    const scale = Math.max(1, Math.min(plotW / spanX, plotH / spanZ));
+    cameraRef.current = {
+      cx: (mapBounds[0] + mapBounds[2]) / 2,
+      cz: (mapBounds[1] + mapBounds[3]) / 2,
+      scale,
+    };
+    setViewport({ width: rect.width, height: rect.height });
+    emitCamera();
+    setCameraVersion((value) => value + 1);
+  }, [floor, mapBounds, onCamera]);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const observer = new ResizeObserver(() => {
       const rect = root.getBoundingClientRect();
       if (rect.width < 1 || rect.height < 1) return;
-      const rightInset = Math.min(430, Math.max(380, rect.width * 0.31));
-      const left = 42;
-      const top = 158;
-      const plotW = Math.max(120, rect.width - rightInset - left - 24);
-      const plotH = Math.max(120, rect.height - top - 54);
-      const spanX = Math.max(1, mapBounds[2] - mapBounds[0]);
-      const spanZ = Math.max(1, mapBounds[3] - mapBounds[1]);
-      const scale = Math.max(1, Math.min(plotW / spanX, plotH / spanZ));
-      cameraRef.current = {
-        cx: (mapBounds[0] + mapBounds[2]) / 2,
-        cz: (mapBounds[1] + mapBounds[3]) / 2,
-        scale,
-      };
       setViewport({ width: rect.width, height: rect.height });
       emitCamera();
       setCameraVersion((value) => value + 1);
-    };
-    fit();
-    const observer = new ResizeObserver(fit);
+    });
     observer.observe(root);
     return () => observer.disconnect();
-  }, [floor, mapBounds, onCamera]);
+  }, [floor, onCamera]);
 
   useEffect(() => {
     if (focusToken === 0) return;
