@@ -51,16 +51,7 @@ export type RpdModule = {
     vw: number,
     vh: number,
   ) => void;
-  _rpd_map_set_image: (
-    width: number,
-    height: number,
-    ptr: number,
-    len: number,
-    minX: number,
-    minZ: number,
-    maxX: number,
-    maxZ: number,
-  ) => number;
+  _rpd_map_set_data: (ptr: number, vertexCount: number) => number;
 };
 
 declare const createRpdModule: (options: {

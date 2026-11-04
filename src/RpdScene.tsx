@@ -83,16 +83,7 @@ type RpdModule = {
     vw: number,
     vh: number,
   ) => void;
-  _rpd_map_set_image: (
-    width: number,
-    height: number,
-    ptr: number,
-    len: number,
-    minX: number,
-    minZ: number,
-    maxX: number,
-    maxZ: number,
-  ) => number;
+  _rpd_map_set_data: (ptr: number, vertexCount: number) => number;
 };
 
 type RpdFactory = (options: {
@@ -108,7 +99,7 @@ type Hover = {
   y: number;
 };
 
-const CACHE_VERSION = "20261102m";
+const CACHE_VERSION = "20261102n";
 const DISCOVER_RADIUS = 3.0;
 const SPAWN_DISCOVER_RADIUS = 3.5;
 const MOVE_SPEED = 7.0;
@@ -1703,43 +1694,17 @@ export default function RpdScene({
     moduleRef.current?._rpd_set_view_mode(view2D ? 1 : 0);
   }, [view2D]);
 
-  useEffect(() => {
-    if (!view2D || !mapBounds) return;
+  const handleMapData = useCallback((vertices: Float32Array) => {
     const module = moduleRef.current;
-    if (!module) return;
-    let cancelled = false;
-    const image = new Image();
-    image.src = `/rpd/maps/${activeFloor + 1}f.png?v=${CACHE_VERSION}`;
-    image
-      .decode()
-      .then(() => {
-        if (cancelled) return;
-        const canvas = document.createElement("canvas");
-        canvas.width = image.naturalWidth;
-        canvas.height = image.naturalHeight;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-        ctx.drawImage(image, 0, 0);
-        const bytes = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-        const ptr = module._malloc(bytes.length);
-        module.HEAPU8.set(bytes, ptr);
-        module._rpd_map_set_image(
-          canvas.width,
-          canvas.height,
-          ptr,
-          bytes.length,
-          mapBounds[0],
-          mapBounds[1],
-          mapBounds[2],
-          mapBounds[3],
-        );
-        module._free(ptr);
-      })
-      .catch(() => setToast("2D map unavailable."));
-    return () => {
-      cancelled = true;
-    };
-  }, [view2D, activeFloor, mapBounds]);
+    if (!module || vertices.length === 0) return;
+    const ptr = module._malloc(vertices.byteLength);
+    module.HEAPU8.set(
+      new Uint8Array(vertices.buffer, vertices.byteOffset, vertices.byteLength),
+      ptr,
+    );
+    module._rpd_map_set_data(ptr, vertices.length / 6);
+    module._free(ptr);
+  }, []);
 
   const floorCounts = quest
     ? quest.floors.map((floor) => ({
@@ -1821,6 +1786,7 @@ export default function RpdScene({
             planPath={planPath}
             mapBounds={mapBounds}
             preview={preview}
+            onMapData={handleMapData}
             onCamera={handleMapCamera}
             onPreview={previewTarget}
             onCommit={commitChoice}

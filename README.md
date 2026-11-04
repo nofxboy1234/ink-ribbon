@@ -158,16 +158,16 @@ decompile at `~/repos/reze`.
 ## 2D floor plans
 
 The 2D button beside the floor buttons, or `M`, switches between the 3D scene
-and a top-down plan. The `1F`, `2F` and `3F` buttons choose the floor. The floor
-plan is the [Evil Resource police station map](https://www.evilresource.com/resident-evil-2-remake/maps/police-station#policestation1f)
-drawn as a sokol texture. The navigation cells, stair and ramp cells, room names,
-doors, discovered items, Claire, the planned route, and cyan waypoints are drawn
-over it. Drag to pan, and use the wheel to zoom.
+and a sokol-rendered vector floor plan. The `1F`, `2F` and `3F` buttons choose the
+floor. Walls are derived from the navigation surfaces, and the floor cells, stair
+and ramp cells, doors, discovered items, Claire, the planned route, and cyan
+waypoints are all sokol triangles. Drag to pan, and use the wheel to zoom. The
+room labels and action popups are DOM elements above the map.
 
 Map clicks use the same preview and planner as the 3D scene. Choose a map action
 to append it to the plan, then switch views and the same route appears in 3D.
-The actual floor plan shows the solid walls and stairs, and both views mark
-stair cells in amber and ramp cells in blue.
+The room layout follows the [Evil Resource police station maps](https://www.evilresource.com/resident-evil-2-remake/maps/police-station#policestation1f),
+and both views mark stair cells in amber and ramp cells in blue.
 
 ## Controls
 

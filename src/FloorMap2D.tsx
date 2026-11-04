@@ -16,34 +16,74 @@ type FloorMap2DProps = {
   planPath: Vec3[];
   mapBounds: [number, number, number, number];
   preview: Preview | null;
+  onMapData: (vertices: Float32Array) => void;
   onCamera: (cx: number, cz: number, scale: number, vw: number, vh: number) => void;
   onPreview: (target: Target) => void;
   onCommit: (choice: PlanChoice) => void;
   onClosePreview: () => void;
 };
 
-const FLOOR_COLOUR = "rgba(148, 162, 176, 0.20)";
-const CELL_EDGE = "rgba(190, 210, 230, 0.22)";
-const STAIR_COLOUR = "rgba(214, 169, 92, 0.32)";
-const STAIR_EDGE = "rgba(240, 196, 116, 0.72)";
-const RAMP_COLOUR = "rgba(125, 211, 252, 0.28)";
-const RAMP_EDGE = "rgba(125, 211, 252, 0.8)";
-const TEXT = "rgba(221, 234, 247, 0.9)";
-const MUTED = "rgba(157, 181, 205, 0.7)";
-const ROUTE = "#43ff74";
-const PREVIEW = "#ff9d3c";
-const WAYPOINT = "rgba(34, 211, 238, 0.4)";
-const WAYPOINT_EDGE = "rgba(34, 211, 238, 0.95)";
-const PLAYER = "#c28cff";
-const DOOR_SIZE = 5;
+type RGBA = [number, number, number, number];
 
-function drawDiamond(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
-  ctx.beginPath();
-  ctx.moveTo(x, y - r);
-  ctx.lineTo(x + r, y);
-  ctx.lineTo(x, y + r);
-  ctx.lineTo(x - r, y);
-  ctx.closePath();
+const FLOOR: RGBA = [0.24, 0.29, 0.35, 0.42];
+const STAIR: RGBA = [0.78, 0.59, 0.28, 0.46];
+const RAMP: RGBA = [0.35, 0.69, 0.85, 0.42];
+const WALL: RGBA = [0.67, 0.73, 0.81, 0.95];
+const WALL_CORE: RGBA = [0.09, 0.12, 0.16, 0.95];
+const ROUTE: RGBA = [0.26, 1.0, 0.45, 0.95];
+const PREVIEW: RGBA = [1.0, 0.62, 0.24, 0.9];
+const WAYPOINT: RGBA = [0.13, 0.83, 0.93, 0.42];
+const DOOR: RGBA = [0.12, 0.47, 0.71, 1.0];
+const PLAYER: RGBA = [0.76, 0.55, 1.0, 1.0];
+
+function pushQuad(
+  out: number[],
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+  cx: number,
+  cz: number,
+  dx: number,
+  dz: number,
+  colour: RGBA,
+) {
+  const [r, g, b, a] = colour;
+  out.push(
+    ax, az, r, g, b, a,
+    bx, bz, r, g, b, a,
+    cx, cz, r, g, b, a,
+    ax, az, r, g, b, a,
+    cx, cz, r, g, b, a,
+    dx, dz, r, g, b, a,
+  );
+}
+
+function pushRect(out: number[], x: number, z: number, w: number, h: number, colour: RGBA) {
+  pushQuad(out, x - w / 2, z - h / 2, x + w / 2, z - h / 2, x + w / 2, z + h / 2, x - w / 2, z + h / 2, colour);
+}
+
+function pushSegment(out: number[], ax: number, az: number, bx: number, bz: number, width: number, colour: RGBA) {
+  const dx = bx - ax;
+  const dz = bz - az;
+  const len = Math.hypot(dx, dz);
+  if (len < 1e-5) return;
+  const nx = (-dz / len) * width * 0.5;
+  const nz = (dx / len) * width * 0.5;
+  pushQuad(out, ax + nx, az + nz, bx + nx, bz + nz, bx - nx, bz - nz, ax - nx, az - nz, colour);
+}
+
+function pushDisc(out: number[], x: number, z: number, r: number, colour: RGBA, segments = 14) {
+  for (let i = 0; i < segments; i++) {
+    const a0 = (i / segments) * Math.PI * 2;
+    const a1 = ((i + 1) / segments) * Math.PI * 2;
+    const [cr, cg, cb, ca] = colour;
+    out.push(
+      x, z, cr, cg, cb, ca,
+      x + Math.cos(a0) * r, z + Math.sin(a0) * r, cr, cg, cb, ca,
+      x + Math.cos(a1) * r, z + Math.sin(a1) * r, cr, cg, cb, ca,
+    );
+  }
 }
 
 export default function FloorMap2D({
@@ -57,12 +97,13 @@ export default function FloorMap2D({
   planPath,
   mapBounds,
   preview,
+  onMapData,
   onCamera,
   onPreview,
   onCommit,
   onClosePreview,
 }: FloorMap2DProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<MapCamera>({ cx: 0, cz: 0, scale: 8 });
   const [, setCameraVersion] = useState(0);
   const dragRef = useRef<{
@@ -73,20 +114,21 @@ export default function FloorMap2D({
     cz: number;
     moved: number;
   } | null>(null);
+  const [viewport, setViewport] = useState({ width: 0, height: 0 });
 
   const emitCamera = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
+    const root = rootRef.current;
+    if (!root) return;
+    const rect = root.getBoundingClientRect();
     const camera = cameraRef.current;
     onCamera(camera.cx, camera.cz, camera.scale, rect.width, rect.height);
   };
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const root = rootRef.current;
+    if (!root) return;
     const fit = () => {
-      const rect = canvas.getBoundingClientRect();
+      const rect = root.getBoundingClientRect();
       if (rect.width < 1 || rect.height < 1) return;
       const rightInset = Math.min(430, Math.max(380, rect.width * 0.31));
       const left = 42;
@@ -101,234 +143,102 @@ export default function FloorMap2D({
         cz: (mapBounds[1] + mapBounds[3]) / 2,
         scale,
       };
+      setViewport({ width: rect.width, height: rect.height });
       emitCamera();
       setCameraVersion((value) => value + 1);
     };
     fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(root);
+    return () => observer.disconnect();
   }, [floor, mapBounds, onCamera]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const draw = () => {
-      const rect = canvas.getBoundingClientRect();
-      if (rect.width < 1 || rect.height < 1) return;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      if (canvas.width !== Math.round(rect.width * dpr)) {
-        canvas.width = Math.round(rect.width * dpr);
-      }
-      if (canvas.height !== Math.round(rect.height * dpr)) {
-        canvas.height = Math.round(rect.height * dpr);
-      }
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, rect.width, rect.height);
+    const out: number[] = [];
+    const active: number[] = [];
+    const key = new Map<string, number>();
+    for (let i = 0; i < nav.count; i++) {
+      if (nav.floor[i] !== floor) continue;
+      active.push(i);
+      key.set(`${nav.x[i].toFixed(2)},${nav.z[i].toFixed(2)}`, i);
+    }
+    const half = nav.half;
+    const step = nav.step;
+    const has = (x: number, z: number) => key.has(`${x.toFixed(2)},${z.toFixed(2)}`);
 
-      const camera = cameraRef.current;
-      const { cx, cz, scale } = camera;
-      const px = (x: number) => (x - cx) * scale + rect.width / 2;
-      const pz = (z: number) => (z - cz) * scale + rect.height / 2;
-      const nodes: number[] = [];
-      for (let i = 0; i < nav.count; i++) {
-        if (nav.floor[i] !== floor) continue;
-        nodes.push(i);
-      }
+    for (const node of active) {
+      const x = nav.x[node];
+      const z = nav.z[node];
+      const colour = nav.kind[node] === 1 ? STAIR : nav.kind[node] === 2 ? RAMP : FLOOR;
+      pushRect(out, x, z, step, step, colour);
+    }
 
-      const floorLevel = quest.floors[floor]?.level ?? 0;
-      const floorLabel = quest.floors[floor]?.label ?? `${floor + 1}F`;
-      const floorItems = quest.items.filter(
-        (item) => Math.abs(item.y - floorLevel - 0.36) < 0.8,
+    for (const node of active) {
+      const x = nav.x[node];
+      const z = nav.z[node];
+      pushRect(out, x, z, step, step, [WALL_CORE[0], WALL_CORE[1], WALL_CORE[2], 0.22]);
+      if (!has(x, z - step)) pushRect(out, x, z - half, step, 0.09, WALL);
+      if (!has(x, z + step)) pushRect(out, x, z + half, step, 0.09, WALL);
+      if (!has(x - step, z)) pushRect(out, x - half, z, 0.09, step, WALL);
+      if (!has(x + step, z)) pushRect(out, x + half, z, 0.09, step, WALL);
+    }
+
+    const floorPoints = planPath.filter((point) => Math.abs(point[1] - (quest.floors[floor]?.level ?? 0)) < 2.5);
+    for (let i = 1; i < floorPoints.length; i++) {
+      pushSegment(out, floorPoints[i - 1][0], floorPoints[i - 1][2], floorPoints[i][0], floorPoints[i][2], 0.22, ROUTE);
+    }
+
+    if (preview) {
+      const previewPoints = preview.points.filter(
+        (point) => Math.abs(point[1] - (quest.floors[floor]?.level ?? 0)) < 2.5,
       );
-      const floorDoors = quest.doors.filter(
-        (door) => Math.abs(door.y - floorLevel) < 2.5,
-      );
-      ctx.fillStyle = TEXT;
-      ctx.font = "600 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "alphabetic";
-      ctx.fillText(`${floorLabel} · SOKOL TOP-DOWN`, 42, 146);
-      ctx.fillStyle = MUTED;
-      ctx.font = "10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
-      ctx.fillText(
-        `${nodes.length} cells · ${floorItems.length} items · ${floorDoors.length} doors · wheel to zoom · drag to pan`,
-        42,
-        162,
-      );
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(34, 166, rect.width - 34, rect.height - 166);
-      ctx.clip();
-
-      for (const node of nodes) {
-        const x = px(nav.x[node]) - scale / 2;
-        const y = pz(nav.z[node]) - scale / 2;
-        const kind = nav.kind[node];
-        ctx.fillStyle = kind === 1 ? STAIR_COLOUR : kind === 2 ? RAMP_COLOUR : FLOOR_COLOUR;
-        ctx.strokeStyle = kind === 1 ? STAIR_EDGE : kind === 2 ? RAMP_EDGE : CELL_EDGE;
-        ctx.lineWidth = 0.6;
-        ctx.fillRect(x, y, Math.max(1.5, scale - 0.7), Math.max(1.5, scale - 0.7));
-        ctx.strokeRect(x, y, Math.max(1.5, scale - 0.7), Math.max(1.5, scale - 0.7));
-      }
-
-      const pathPoints: Vec3[] = planPath.filter(
-        (point) => Math.abs(point[1] - floorLevel) < 2.5,
-      );
-      if (pathPoints.length > 1) {
-        ctx.strokeStyle = "rgba(67, 255, 116, 0.28)";
-        ctx.lineWidth = Math.max(5, scale * 0.7);
-        ctx.lineJoin = "round";
-        ctx.beginPath();
-        ctx.moveTo(px(pathPoints[0][0]), pz(pathPoints[0][2]));
-        for (const point of pathPoints.slice(1)) ctx.lineTo(px(point[0]), pz(point[2]));
-        ctx.stroke();
-        ctx.strokeStyle = ROUTE;
-        ctx.lineWidth = 2.2;
-        ctx.beginPath();
-        ctx.moveTo(px(pathPoints[0][0]), pz(pathPoints[0][2]));
-        for (const point of pathPoints.slice(1)) ctx.lineTo(px(point[0]), pz(point[2]));
-        ctx.stroke();
-      }
-
-      if (preview) {
-        const points = preview.points.filter(
-          (point) => Math.abs(point[1] - floorLevel) < 2.5,
-        );
-        if (points.length > 1) {
-          ctx.strokeStyle = PREVIEW;
-          ctx.lineWidth = 1.8;
-          ctx.setLineDash([5, 5]);
-          ctx.beginPath();
-          ctx.moveTo(px(points[0][0]), pz(points[0][2]));
-          for (const point of points.slice(1)) ctx.lineTo(px(point[0]), pz(point[2]));
-          ctx.stroke();
-          ctx.setLineDash([]);
-        }
-      }
-
-      for (const step of plan) {
-        const node = step.type === "move" ? step.endNode : step.node;
-        if (node < 0 || node >= nav.count || nav.floor[node] !== floor) continue;
-        const x = px(nav.x[node]) - scale / 2;
-        const y = pz(nav.z[node]) - scale / 2;
-        ctx.fillStyle = WAYPOINT;
-        ctx.fillRect(x, y, scale, scale);
-        ctx.strokeStyle = WAYPOINT_EDGE;
-        ctx.lineWidth = 1.4;
-        ctx.strokeRect(x + 0.5, y + 0.5, scale - 1, scale - 1);
-      }
-
-      for (const door of floorDoors) {
-        const colour = DOOR_COLOURS[doorStates.get(door.id) ?? door.state];
-        ctx.fillStyle = `rgb(${colour[0]}, ${colour[1]}, ${colour[2]})`;
-        ctx.fillRect(
-          px(door.x) - DOOR_SIZE / 2,
-          pz(door.z) - DOOR_SIZE / 2,
-          DOOR_SIZE,
-          DOOR_SIZE,
+      for (let i = 1; i < previewPoints.length; i++) {
+        pushSegment(
+          out,
+          previewPoints[i - 1][0],
+          previewPoints[i - 1][2],
+          previewPoints[i][0],
+          previewPoints[i][2],
+          0.18,
+          PREVIEW,
         );
       }
+    }
 
-      for (const item of floorItems) {
-        if (!discovered.has(item.id)) continue;
-        const x = px(item.x);
-        const y = pz(item.z);
-        ctx.fillStyle = item.color;
-        ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
-        ctx.lineWidth = 1.5;
-        if (item.shape === "sphere" || item.shape === "cylinder") {
-          ctx.beginPath();
-          ctx.arc(x, y, 4.5, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-        } else if (item.shape === "cube") {
-          ctx.fillRect(x - 4, y - 4, 8, 8);
-          ctx.strokeRect(x - 4, y - 4, 8, 8);
-        } else {
-          drawDiamond(ctx, x, y, 5);
-          ctx.fill();
-          ctx.stroke();
-        }
-      }
+    for (const step of plan) {
+      const node = step.type === "move" ? step.endNode : step.node;
+      if (node < 0 || node >= nav.count || nav.floor[node] !== floor) continue;
+      pushRect(out, nav.x[node], nav.z[node], stepWidth(nav), stepWidth(nav), WAYPOINT);
+    }
 
-      if (Math.abs(player[1] - floorLevel - 0.9) < 2.2) {
-        const x = px(player[0]);
-        const y = pz(player[2]);
-        ctx.fillStyle = "rgba(194, 140, 255, 0.16)";
-        ctx.beginPath();
-        ctx.arc(x, y, 14, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = PLAYER;
-        ctx.strokeStyle = "rgba(236, 221, 255, 0.95)";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(x, y, 5.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = TEXT;
-        ctx.font = "600 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
-        ctx.fillText("CLAIRE", x + 10, y + 3);
-      }
+    const floorLevel = quest.floors[floor]?.level ?? 0;
+    for (const door of quest.doors) {
+      if (Math.abs(door.y - floorLevel) >= 2.5) continue;
+      const rgb = DOOR_COLOURS[doorStates.get(door.id) ?? door.state];
+      pushRect(out, door.x, door.z, 0.22, 0.22, [rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, 1]);
+    }
 
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      for (const room of quest.rooms) {
-        if (room.floor !== floor) continue;
-        const x = px(room.x);
-        const y = pz(room.z);
-        if (x < 34 || x > rect.width || y < 160 || y > rect.height) continue;
-        ctx.font = "9px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
-        const width = ctx.measureText(room.name).width;
-        ctx.fillStyle = "rgba(4, 7, 10, 0.72)";
-        ctx.fillRect(x - width / 2 - 3, y - 7, width + 6, 12);
-        ctx.fillStyle = "rgba(219, 232, 245, 0.8)";
-        ctx.fillText(room.name, x, y);
-      }
-      ctx.restore();
+    for (const item of quest.items) {
+      if (!discovered.has(item.id)) continue;
+      if (Math.abs(item.y - floorLevel - 0.36) >= 0.8) continue;
+      const rgb = item.rgb;
+      pushDisc(out, item.x, item.z, 0.2, [rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, 1]);
+    }
 
-      const legendY = rect.height - 24;
-      const legend: [string, string][] = [
-        [PLAYER, "CLAIRE"],
-        [ROUTE, "ROUTE"],
-        [PREVIEW, "PREVIEW"],
-        ["#2dd4bf", "WAYPOINT"],
-        ["#1f77b4", "DOOR"],
-        ["#43d17a", "ITEM"],
-        ["#d6a95c", "STAIR"],
-      ];
-      let legendX = 42;
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.font = "9px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
-      for (const [colour, label] of legend) {
-        ctx.fillStyle = colour;
-        ctx.fillRect(legendX, legendY - 4, 8, 8);
-        ctx.fillStyle = MUTED;
-        ctx.fillText(label, legendX + 13, legendY);
-        legendX += 13 + ctx.measureText(label).width + 18;
-      }
-      if (Math.abs(player[1] - floorLevel - 0.9) >= 2.2) {
-        ctx.fillStyle = MUTED;
-        ctx.fillText("Claire is on another floor", 42, rect.height - 44);
-      }
-    };
-    draw();
-    const observer = new ResizeObserver(draw);
-    observer.observe(canvas);
-    window.addEventListener("resize", draw);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", draw);
-    };
-  }, [nav, quest, floor, player, discovered, doorStates, plan, planPath, preview]);
+    if (Math.abs(player[1] - floorLevel - 0.9) < 2.2) {
+      pushDisc(out, player[0], player[2], 0.44, [PLAYER[0], PLAYER[1], PLAYER[2], 0.16], 18);
+      pushDisc(out, player[0], player[2], 0.15, PLAYER, 14);
+    }
+
+    onMapData(new Float32Array(out));
+  }, [nav, quest, floor, player, discovered, doorStates, plan, planPath, preview, onMapData]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const root = rootRef.current;
+    if (!root) return;
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
-      const rect = canvas.getBoundingClientRect();
+      const rect = root.getBoundingClientRect();
       const mx = event.clientX - rect.left - rect.width / 2;
       const my = event.clientY - rect.top - rect.height / 2;
       const camera = cameraRef.current;
@@ -339,14 +249,13 @@ export default function FloorMap2D({
       emitCamera();
       setCameraVersion((value) => value + 1);
     };
-    canvas.addEventListener("wheel", onWheel, { passive: false });
-    return () => canvas.removeEventListener("wheel", onWheel);
+    root.addEventListener("wheel", onWheel, { passive: false });
+    return () => root.removeEventListener("wheel", onWheel);
   }, []);
 
-  const onPointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    canvas.setPointerCapture(event.pointerId);
+  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!rootRef.current) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
     const camera = cameraRef.current;
     dragRef.current = {
       id: event.pointerId,
@@ -358,10 +267,10 @@ export default function FloorMap2D({
     };
   };
 
-  const onPointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+  const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
-    const canvas = canvasRef.current;
-    if (!drag || !canvas || drag.id !== event.pointerId) return;
+    const root = rootRef.current;
+    if (!drag || !root || drag.id !== event.pointerId) return;
     const dx = event.clientX - drag.x;
     const dy = event.clientY - drag.y;
     drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
@@ -375,13 +284,13 @@ export default function FloorMap2D({
     setCameraVersion((value) => value + 1);
   };
 
-  const onPointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
+  const onPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
-    const canvas = canvasRef.current;
+    const root = rootRef.current;
     dragRef.current = null;
-    if (!drag || !canvas || drag.id !== event.pointerId) return;
+    if (!drag || !root || drag.id !== event.pointerId) return;
     if (event.type === "pointercancel" || drag.moved > 4) return;
-    const rect = canvas.getBoundingClientRect();
+    const rect = root.getBoundingClientRect();
     const camera = cameraRef.current;
     const sx = event.clientX - rect.left;
     const sy = event.clientY - rect.top;
@@ -430,28 +339,74 @@ export default function FloorMap2D({
         nearest = i;
       }
     }
-    if (nearest >= 0 && best <= nav.step * 0.85) {
+    if (nearest >= 0 && best <= nav.step * 2.5) {
       onPreview({ kind: "cell", node: nearest });
     }
   };
 
-  const previewAnchor = (() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !preview) return null;
-    const rect = canvas.getBoundingClientRect();
-    const camera = cameraRef.current;
-    return {
-      x: (preview.anchor[0] - camera.cx) * camera.scale + rect.width / 2,
-      y: (preview.anchor[2] - camera.cz) * camera.scale + rect.height / 2,
-    };
-  })();
+  const camera = cameraRef.current;
+  const floorLevel = quest.floors[floor]?.level ?? 0;
+  const floorLabel = quest.floors[floor]?.label ?? `${floor + 1}F`;
+  const floorItems = quest.items.filter((item) => Math.abs(item.y - floorLevel - 0.36) < 0.8);
+  const floorDoors = quest.doors.filter((door) => Math.abs(door.y - floorLevel) < 2.5);
+  const rooms = quest.rooms.filter((room) => room.floor === floor);
+  let activeCount = 0;
+  for (let i = 0; i < nav.count; i++) if (nav.floor[i] === floor) activeCount += 1;
+
+  const previewAnchor = preview
+    ? {
+        x: (preview.anchor[0] - camera.cx) * camera.scale + viewport.width / 2,
+        y: (preview.anchor[2] - camera.cz) * camera.scale + viewport.height / 2,
+      }
+    : null;
 
   return (
-    <>
-      <canvas
-        ref={canvasRef}
-        className="rpd-map"
-        aria-label="Top-down RPD floor plan"
+    <div className="rpd-map" ref={rootRef}>
+      <div className="rpd-map-labels" aria-hidden="true">
+        <div className="rpd-map-title">
+          <strong>{floorLabel} · SOKOL TOP-DOWN</strong>
+          <span>
+            {activeCount} cells · {floorItems.length} items · {floorDoors.length} doors · wheel to zoom · drag to pan
+          </span>
+        </div>
+        {rooms.map((room) => (
+          <span
+            key={room.name}
+            className="rpd-map-room"
+            style={{
+              left: (room.x - camera.cx) * camera.scale + viewport.width / 2,
+              top: (room.z - camera.cz) * camera.scale + viewport.height / 2,
+            }}
+          >
+            {room.name}
+          </span>
+        ))}
+        {Math.abs(player[1] - floorLevel - 0.9) < 2.2 && (
+          <span
+            className="rpd-map-player"
+            style={{
+              left: (player[0] - camera.cx) * camera.scale + viewport.width / 2,
+              top: (player[2] - camera.cz) * camera.scale + viewport.height / 2,
+            }}
+          >
+            CLAIRE
+          </span>
+        )}
+        <div className="rpd-map-legend">
+          <span><i style={{ background: "#c28cff" }} />CLAIRE</span>
+          <span><i style={{ background: "#43ff74" }} />ROUTE</span>
+          <span><i style={{ background: "#ff9d3c" }} />PREVIEW</span>
+          <span><i style={{ background: "#22d3ee" }} />WAYPOINT</span>
+          <span><i style={{ background: "#1f77b4" }} />DOOR</span>
+          <span><i style={{ background: "#43d17a" }} />ITEM</span>
+          <span><i style={{ background: "#d6a95c" }} />STAIR</span>
+        </div>
+        {Math.abs(player[1] - floorLevel - 0.9) >= 2.2 && (
+          <div className="rpd-map-note">Claire is on another floor</div>
+        )}
+      </div>
+      <div
+        className="rpd-map-hit"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -483,6 +438,10 @@ export default function FloorMap2D({
           ))}
         </div>
       )}
-    </>
+    </div>
   );
+}
+
+function stepWidth(nav: NavGraph) {
+  return nav.step;
 }
