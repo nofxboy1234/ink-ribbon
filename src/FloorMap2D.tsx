@@ -251,13 +251,8 @@ export default function FloorMap2D({
       pushDisc(out, item.x, item.z, 0.2, [rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, 1]);
     }
 
-    if (Math.abs(player[1] - floorLevel - 0.9) < 2.2) {
-      pushDisc(out, player[0], player[2], 0.44, [PLAYER[0], PLAYER[1], PLAYER[2], 0.16], 18);
-      pushDisc(out, player[0], player[2], 0.15, PLAYER, 14);
-    }
-
     onMapData(new Float32Array(out));
-  }, [nav, quest, floor, player, discovered, doorStates, plan, planPath, preview, hoverNode, onMapData]);
+  }, [nav, quest, floor, discovered, doorStates, plan, planPath, preview, hoverNode, onMapData]);
 
   useEffect(() => {
     const root = rootRef.current;

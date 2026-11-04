@@ -100,10 +100,10 @@ type Hover = {
   y: number;
 };
 
-const CACHE_VERSION = "20261102o";
+const CACHE_VERSION = "20261102p";
 const DISCOVER_RADIUS = 3.0;
 const SPAWN_DISCOVER_RADIUS = 3.5;
-const MOVE_SPEED = 7.0;
+const MOVE_SPEED = 3.5;
 
 async function fetchScene(
   url: string,
@@ -1170,7 +1170,6 @@ export default function RpdScene({
       const duration = Math.max(260, (total / MOVE_SPEED) * 1000);
       let elapsed = 0;
       let last = performance.now();
-      let lastUi = 0;
       const step = (now: number) => {
         if (cancelledRef.current || cancelRunRef.current) {
           resolve();
@@ -1197,14 +1196,11 @@ export default function RpdScene({
         playerRef.current = position;
         module._rpd_set_player_position(position[0], position[1], position[2]);
         revealItems(position);
-        if (now - lastUi > 110) {
-          lastUi = now;
-          setPlayer(position);
-          const room = nearbyRoom(questRef.current!, position);
-          if (room.name !== roomRef.current) {
-            roomRef.current = room.name;
-            setPlayerRoom(room.name);
-          }
+        setPlayer(position);
+        const room = nearbyRoom(questRef.current!, position);
+        if (room.name !== roomRef.current) {
+          roomRef.current = room.name;
+          setPlayerRoom(room.name);
         }
         if (t < 1) {
           requestAnimationFrame(step);
