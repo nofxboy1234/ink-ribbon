@@ -155,6 +155,14 @@ three test items are custom, and all doors are unlocked. The door positions and
 walkable cells were checked against the room meshes in the game PAK and the
 decompile at `~/repos/reze`.
 
+## 2D floor plans
+
+The 2D button beside the floor buttons, or `M`, switches between the 3D scene
+and a top-down plan. The `1F`, `2F` and `3F` buttons choose the floor. The plans
+are drawn from the RPD navigation grid and show walkable cells, room names,
+doors, discovered items, Claire, the planned route, and cyan waypoints. The room
+layout follows the [Evil Resource police station maps](https://www.evilresource.com/resident-evil-2-remake/maps/police-station#policestation1f).
+
 ## Controls
 
 | Input | Action |
@@ -167,6 +175,7 @@ decompile at `~/repos/reze`.
 | `Space` | Move the camera target smoothly to the hovered floor cell and zoom to the closest orbit distance, keeping yaw and pitch |
 | `F` | Center the camera smoothly on Claire, keeping the current distance and orientation |
 | `G` | Toggle between the solid grey view and the glass view |
+| `M` or the 2D button | Toggle between the 3D scene and the 2D floor plan |
 | Click floor cell | Preview a route to that cell |
 | Click discovered item | Preview a route beside the item and open its action popups |
 | Click door | Preview a route to the door and show its lock state |

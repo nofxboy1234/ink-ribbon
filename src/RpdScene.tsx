@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import FloorMap2D from "./FloorMap2D";
 import {
   CATEGORY_LABELS,
   DOOR_COLOURS,
@@ -231,6 +232,7 @@ export default function RpdScene({
   const clickHandled = useRef(false);
   const hoverCellRef = useRef<number | null>(null);
   const glassStyleRef = useRef(false);
+  const view2DRef = useRef(false);
   const cancelledRef = useRef(false);
   const cancelRunRef = useRef(false);
   const pausedRef = useRef(false);
@@ -256,6 +258,7 @@ export default function RpdScene({
   const [toast, setToast] = useState<string>("");
   const [hover, setHover] = useState<Hover | null>(null);
   const [activeFloor, setActiveFloor] = useState(0);
+  const [view2D, setView2D] = useState(false);
   const [showInventory, setShowInventory] = useState(false);
   const [showLegend, setShowLegend] = useState(true);
   const [statusNote, setStatusNote] = useState(
@@ -1546,6 +1549,13 @@ export default function RpdScene({
     setToast("Framed the route.");
   };
 
+  const toggleView2D = () => {
+    const next = !view2DRef.current;
+    view2DRef.current = next;
+    setView2D(next);
+    setToast(next ? "2D floor plan." : "3D view.");
+  };
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -1556,6 +1566,11 @@ export default function RpdScene({
         event.preventDefault();
         cancelRunRef.current = true;
         pauseAndClearRoute();
+        return;
+      }
+      if (event.code === "KeyM") {
+        event.preventDefault();
+        toggleView2D();
         return;
       }
       if (event.code === "KeyG") {
@@ -1656,6 +1671,7 @@ export default function RpdScene({
           className="rpd-canvas"
           data-cell={hover?.kind === "cell" ? "true" : undefined}
           aria-label={label}
+          style={view2D ? { display: "none" } : undefined}
           onPointerDown={handlePointerDown}
           onPointerUp={handlePointerUp}
           onClick={handleClick}
@@ -1669,11 +1685,17 @@ export default function RpdScene({
           }}
           onContextMenu={(event) => event.preventDefault()}
         />
-        <canvas ref={overlayRef} className="rpd-overlay" aria-hidden="true" />
+        <canvas
+          ref={overlayRef}
+          className="rpd-overlay"
+          aria-hidden="true"
+          style={view2D ? { display: "none" } : undefined}
+        />
         <div
           className="rpd-popup-layer"
           ref={popupLayerRef}
           data-visible={preview ? "true" : "false"}
+          style={view2D ? { display: "none" } : undefined}
         >
           {preview?.choices.map((choice, index) => {
             const offset = fanOffset(index, preview.choices.length);
@@ -1693,11 +1715,23 @@ export default function RpdScene({
             );
           })}
         </div>
-        {hover && !preview && (
+        {!view2D && hover && !preview && (
           <div className="rpd-tooltip" style={{ left: hover.x + 14, top: hover.y + 14 }}>
             <strong>{hover.label}</strong>
             <span>{hover.detail}</span>
           </div>
+        )}
+        {view2D && nav && quest && (
+          <FloorMap2D
+            nav={nav}
+            quest={quest}
+            floor={activeFloor}
+            player={player}
+            discovered={discovered}
+            doorStates={doorStates}
+            plan={plan}
+            planPath={planPath}
+          />
         )}
       </div>
 
@@ -1726,6 +1760,17 @@ export default function RpdScene({
             </small>
           </button>
         ))}
+        <button
+          className="rpd-floor rpd-view-toggle"
+          data-active={view2D}
+          title="Toggle 2D floor plan"
+          onClick={(event) => {
+            if (event.detail > 0) event.currentTarget.blur();
+            toggleView2D();
+          }}
+        >
+          <span>{view2D ? "3D" : "2D"}</span>
+        </button>
         <button
           className="rpd-icon-button"
           title="Reset run"
