@@ -22,7 +22,19 @@ Done predicate: `npm run wasm`, `npm run typecheck`, `npm run build`, `npm run c
 | 7 stylesheet split and dedupe | `0f719d2` | contract, no duplicate selectors | VERIFIED |
 | 8 native module split | `1622f19` | wasm, build, contract; main.c 29, largest 552 | VERIFIED |
 | 9 Python tools split | `ec66de2` | data parity, py_compile, largest 567 | VERIFIED |
-| 5-6 RpdScene session and UI split | pending | RpdScene under 300, structure gate, contract | IN PROGRESS |
+| 5-6 RpdScene session and UI split | `7d71fe7` | RpdScene 57, largest new file 350, structure gate, contract | VERIFIED |
+
+## Final gates
+
+Run on the merged root after all units:
+
+- `npm run wasm` 0
+- `npm run typecheck` 0
+- `npm run build` 0
+- `npm run check:structure` 0, "Structure checks passed."
+- `npm run verify:rpd` 0, "Contract passed. 12 screenshots matched."
+
+Structural result: `RpdScene.tsx` 57 lines; largest runtime file `native/src/rpd_scene.c` 552; largest TS file `src/session/useQuestSession.ts` 350; `native/main.c` 29; no raw `_rpd_*` outside `src/wasm/client.ts`; no duplicate `RpdModule`; no duplicate CSS selectors.
 
 ## Data caveats
 
