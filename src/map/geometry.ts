@@ -1,8 +1,7 @@
 import type { NavGraph } from "../nav";
 import { DOOR_COLOURS, type DoorState, type Quest, type Vec3 } from "../quest";
 import type { PlanStep, Preview } from "../planner";
-
-type RGBA = [number, number, number, number];
+import { NAV_CELL_SIDE_RGBA, navAreaColour, type RGBA } from "../nav/style";
 
 export type MapGeometryInput = {
   nav: NavGraph;
@@ -16,10 +15,10 @@ export type MapGeometryInput = {
   hoverNode: number | null;
 };
 
-const FLOOR: RGBA = [0.38, 0.48, 0.6, 0.1];
-const STAIR: RGBA = [0.78, 0.59, 0.28, 0.26];
-const RAMP: RGBA = [0.35, 0.69, 0.85, 0.26];
-const NAV_BORDER: RGBA = [0.37, 0.65, 0.9, 0.5];
+const FLOOR = navAreaColour("floor", 0.08);
+const STAIR = navAreaColour("stair", 0.18);
+const RAMP = navAreaColour("ramp", 0.16);
+const NAV_BORDER = NAV_CELL_SIDE_RGBA;
 const HOVER: RGBA = [0.22, 1.0, 0.08, 0.3];
 const HOVER_EDGE: RGBA = [0.22, 1.0, 0.08, 0.95];
 const ROUTE: RGBA = [0.26, 1.0, 0.45, 0.95];

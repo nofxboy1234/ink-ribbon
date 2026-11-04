@@ -4,6 +4,7 @@ import { nearbyRoom } from "../quest";
 import type { Door, Quest, Vec3 } from "../quest";
 import type { PlanStep, Preview } from "../planner";
 import { popupGeometry, projectPoint } from "./geometry";
+import { NAV_CELL_CENTRE, NAV_CELL_OTHER, NAV_CELL_SIDE } from "../nav/style";
 
 type GridLines = Map<number, [Vec3, Vec3][]>;
 
@@ -81,7 +82,7 @@ export function drawSceneOverlay(input: SceneOverlayInput) {
       const activeNodes = navNodesByFloor[activeFloor] ?? [];
       const lines = gridLines.get(activeFloor) ?? [];
       ctx.save();
-      ctx.strokeStyle = "rgba(70, 170, 255, 0.22)";
+      ctx.strokeStyle = NAV_CELL_SIDE;
       ctx.lineWidth = 0.8;
       ctx.beginPath();
       for (const [a, b] of lines) {
@@ -100,10 +101,10 @@ export function drawSceneOverlay(input: SceneOverlayInput) {
         if (point.x < -10 || point.x > rect.width + 10 || point.y < -10 || point.y > rect.height + 10) continue;
         ctx.fillStyle =
           nav.kind[node] === 1
-            ? "rgba(240, 196, 116, 0.62)"
+            ? NAV_CELL_CENTRE.stair.css
             : nav.kind[node] === 2
-              ? "rgba(125, 211, 252, 0.55)"
-              : "rgba(151, 205, 255, 0.42)";
+              ? NAV_CELL_CENTRE.ramp.css
+              : NAV_CELL_CENTRE.floor.css;
         ctx.fillRect(point.x - 0.6, point.y - 0.6, 1.2, 1.2);
       }
       for (let floorIndex = 0; floorIndex < navNodesByFloor.length; floorIndex++) {
@@ -112,7 +113,7 @@ export function drawSceneOverlay(input: SceneOverlayInput) {
           const point = projectPoint([nav.x[node], nav.y[node] + 0.03, nav.z[node]], matrix, rect.width, rect.height);
           if (!point) continue;
           if (point.x < 0 || point.x > rect.width || point.y < 0 || point.y > rect.height) continue;
-          ctx.fillStyle = "rgba(151, 205, 255, 0.08)";
+          ctx.fillStyle = NAV_CELL_OTHER;
           ctx.fillRect(point.x - 0.6, point.y - 0.6, 1.2, 1.2);
         }
       }
