@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import FloorMap2D from "./FloorMap2D";
+import { createRpdClient, type RpdClient } from "./wasm/client";
 import {
   CATEGORY_LABELS,
   DOOR_COLOURS,
@@ -34,63 +35,6 @@ import {
   type Preview,
   type Target,
 } from "./planner";
-
-type RpdModule = {
-  HEAPU8: Uint8Array;
-  _malloc: (size: number) => number;
-  _free: (ptr: number) => void;
-  _rpd_load_scene: (ptr: number, size: number) => number;
-  _rpd_get_camera: (ptr: number) => number;
-  _rpd_set_orbit: (
-    tx: number,
-    ty: number,
-    tz: number,
-    yaw: number,
-    pitch: number,
-    distance: number,
-  ) => number;
-  _rpd_animate_orbit: (
-    tx: number,
-    ty: number,
-    tz: number,
-    distance: number,
-    duration: number,
-  ) => number;
-  _rpd_get_view_proj: (ptr: number) => number;
-  _rpd_marker_clear: () => void;
-  _rpd_marker_add: (
-    shape: number,
-    x: number,
-    y: number,
-    z: number,
-    size: number,
-    r: number,
-    g: number,
-    b: number,
-  ) => number;
-  _rpd_marker_set_visible: (index: number, visible: number) => void;
-  _rpd_marker_set_position: (index: number, x: number, y: number, z: number) => void;
-  _rpd_marker_set_color: (index: number, r: number, g: number, b: number) => void;
-  _rpd_marker_set_rotation: (index: number, radians: number) => void;
-  _rpd_marker_count: () => number;
-  _rpd_set_player_position: (x: number, y: number, z: number) => void;
-  _rpd_set_render_style: (style: number) => void;
-  _rpd_set_view_mode: (mode: number) => void;
-  _rpd_map_set_camera: (
-    cx: number,
-    cz: number,
-    scale: number,
-    vw: number,
-    vh: number,
-    floorY: number,
-  ) => void;
-  _rpd_map_set_data: (ptr: number, vertexCount: number) => number;
-};
-
-type RpdFactory = (options: {
-  canvas: HTMLCanvasElement;
-  locateFile: (path: string) => string;
-}) => Promise<RpdModule>;
 
 type Hover = {
   kind: "item" | "door" | "cell";
@@ -230,13 +174,12 @@ export default function RpdScene({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const moduleRef = useRef<RpdModule | null>(null);
+  const clientRef = useRef<RpdClient | null>(null);
   const questRef = useRef<Quest | null>(null);
   const navRef = useRef<NavGraph | null>(null);
   const itemMarkers = useRef(new Map<string, number>());
   const doorMarkers = useRef(new Map<string, number>());
   const playerMarker = useRef(-1);
-  const viewProjPtr = useRef(0);
   const viewProjRef = useRef<Float32Array>(new Float32Array(16));
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const clickHandled = useRef(false);
@@ -466,15 +409,9 @@ export default function RpdScene({
   useEffect(() => {
     if (!quest || !nav) return;
     const frame = (now: number) => {
-      const module = moduleRef.current;
-      if (!module || !canvasRef.current) return;
-      if (!viewProjPtr.current) viewProjPtr.current = module._malloc(16 * 4);
-      module._rpd_get_view_proj(viewProjPtr.current);
-      viewProjRef.current = new Float32Array(
-        module.HEAPU8.buffer,
-        viewProjPtr.current,
-        16,
-      ).slice();
+      const client = clientRef.current;
+      if (!client || !canvasRef.current) return;
+      viewProjRef.current = client.getViewProj();
       const canvas = overlayRef.current;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
@@ -749,8 +686,8 @@ export default function RpdScene({
 
   const revealItems = (position: Vec3, force = false): Set<string> => {
     const q = questRef.current;
-    const module = moduleRef.current;
-    if (!q || !module) return discoveredRef.current;
+    const client = clientRef.current;
+    if (!q || !client) return discoveredRef.current;
     let next = discoveredRef.current;
     let changed = false;
     for (const item of q.items) {
@@ -763,7 +700,7 @@ export default function RpdScene({
       next.add(item.id);
       changed = true;
       const marker = itemMarkers.current.get(item.id);
-      if (marker !== undefined) module._rpd_marker_set_visible(marker, 1);
+      if (marker !== undefined) client.markerSetVisible(marker, 1);
       setToast(`Discovered ${item.name} — ${item.location}`);
     }
     if (changed) {
@@ -784,7 +721,7 @@ export default function RpdScene({
         if (!probe.getContext("webgl2")) {
           throw new Error("this browser does not provide WebGL2");
         }
-        const [asset, questResponse, navResponse, factory] = await Promise.all([
+        const [asset, questResponse, navResponse, client] = await Promise.all([
           fetchScene(`${assetUrl}?v=${CACHE_VERSION}`, controller.signal, (fraction) => {
             if (!cancelledRef.current) setProgress(fraction);
           }),
@@ -800,25 +737,21 @@ export default function RpdScene({
               return response.json() as Promise<NavFile>;
             },
           ),
-          import("./wasm/rpd.js").then(
-            (imported) => (imported.default ?? imported) as unknown as RpdFactory,
-          ),
+          createRpdClient({
+            canvas,
+            locateFile: (path: string) => `/rpd/${path}?v=${CACHE_VERSION}`,
+          }),
         ]);
-        if (cancelledRef.current) return;
-        const module = await factory({
-          canvas,
-          locateFile: (path: string) => `/rpd/${path}?v=${CACHE_VERSION}`,
-        });
-        if (cancelledRef.current) return;
-        moduleRef.current = module;
+        if (cancelledRef.current) {
+          client.dispose();
+          return;
+        }
+        clientRef.current = client;
         if (import.meta.env.DEV) {
-          (window as unknown as { __rpd?: RpdModule }).__rpd = module;
+          (window as unknown as { __rpd?: RpdClient }).__rpd = client;
         }
 
-        const ptr = module._malloc(asset.byteLength);
-        module.HEAPU8.set(asset, ptr);
-        const result = module._rpd_load_scene(ptr, asset.byteLength);
-        module._free(ptr);
+        const result = client.loadScene(asset);
         if (result !== 0) throw new Error("the RPD scene could not be loaded");
 
         await nextFrame();
@@ -844,8 +777,8 @@ export default function RpdScene({
             : questResponse.spawn;
         const questData: Quest = { ...questResponse, items: snappedItems, spawn };
 
-        module._rpd_marker_clear();
-        playerMarker.current = module._rpd_marker_add(
+        client.markerClear();
+        playerMarker.current = client.markerAdd(
           SHAPES.sphere,
           spawn[0],
           spawn[1],
@@ -855,10 +788,10 @@ export default function RpdScene({
           147,
           249,
         );
-        module._rpd_set_player_position(spawn[0], spawn[1], spawn[2]);
+        client.setPlayerPosition(spawn[0], spawn[1], spawn[2]);
         for (const item of questData.items) {
           const shape = SHAPES[item.shape] ?? SHAPES.cube;
-          const marker = module._rpd_marker_add(
+          const marker = client.markerAdd(
             shape,
             item.x,
             item.y,
@@ -869,11 +802,11 @@ export default function RpdScene({
             item.rgb[2],
           );
           itemMarkers.current.set(item.id, marker);
-          module._rpd_marker_set_visible(marker, 0);
+          client.markerSetVisible(marker, 0);
         }
         for (const door of questResponse.doors) {
           const colour = DOOR_COLOURS[door.state];
-          const marker = module._rpd_marker_add(
+          const marker = client.markerAdd(
             DOOR_SHAPE,
             door.x,
             door.y + 1.05,
@@ -883,7 +816,7 @@ export default function RpdScene({
             colour[1],
             colour[2],
           );
-          module._rpd_marker_set_rotation(marker, door.yaw ?? 0);
+          client.markerSetRotation(marker, door.yaw ?? 0);
           doorMarkers.current.set(door.id, marker);
         }
         questRef.current = questData;
@@ -902,12 +835,10 @@ export default function RpdScene({
         revealItems(spawn, true);
 
         // Mirror the live view into the URL so a pose can be reopened or sent.
-        const cameraPtr = module._malloc(6 * 4);
         let last = "";
         const syncCamera = () => {
           if (cancelledRef.current) return;
-          module._rpd_get_camera(cameraPtr);
-          const view = new Float32Array(module.HEAPU8.buffer, cameraPtr, 6);
+          const view = client.getCamera();
           const text = [view[0], view[1], view[2], view[3], view[4]]
             .map((value) => (Math.round(value * 100) / 100).toString())
             .join(",");
@@ -1110,7 +1041,7 @@ export default function RpdScene({
 
   const performPickup = (itemId: string) => {
     const q = questRef.current;
-    const module = moduleRef.current;
+    const client = clientRef.current;
     const item = q?.items.find((entry) => entry.id === itemId);
     if (!item) return;
     if (!itemSatisfied(item, inventoryRef.current)) {
@@ -1126,14 +1057,14 @@ export default function RpdScene({
     pickedRef.current = nextPicked;
     setPicked(nextPicked);
     const marker = itemMarkers.current.get(item.id);
-    if (marker !== undefined && module) module._rpd_marker_set_visible(marker, 0);
+    if (marker !== undefined && client) client.markerSetVisible(marker, 0);
     setToast(`Picked up ${item.name}`);
     setStatusNote(`Picked up ${item.name}.`);
   };
 
   const useKey = (doorId: string, itemName: string) => {
     const q = questRef.current;
-    const module = moduleRef.current;
+    const client = clientRef.current;
     const door = q?.doors.find((entry) => entry.id === doorId);
     if (!door) return;
     const nextStates = new Map(doorStatesRef.current);
@@ -1141,9 +1072,9 @@ export default function RpdScene({
     doorStatesRef.current = nextStates;
     setDoorStates(nextStates);
     const marker = doorMarkers.current.get(door.id);
-    if (marker !== undefined && module) {
+    if (marker !== undefined && client) {
       const colour = DOOR_COLOURS.unlocked;
-      module._rpd_marker_set_color(marker, colour[0], colour[1], colour[2]);
+      client.markerSetColor(marker, colour[0], colour[1], colour[2]);
     }
     if (itemName) {
       const nextInventory = new Set(inventoryRef.current);
@@ -1157,8 +1088,8 @@ export default function RpdScene({
 
   const moveAlong = (points: Vec3[], label: string) =>
     new Promise<void>((resolve) => {
-      const module = moduleRef.current;
-      if (!module) {
+      const client = clientRef.current;
+      if (!client) {
         resolve();
         return;
       }
@@ -1194,7 +1125,7 @@ export default function RpdScene({
           }
         }
         playerRef.current = position;
-        module._rpd_set_player_position(position[0], position[1], position[2]);
+        client.setPlayerPosition(position[0], position[1], position[2]);
         revealItems(position);
         setPlayer(position);
         const room = nearbyRoom(questRef.current!, position);
@@ -1462,7 +1393,7 @@ export default function RpdScene({
         setPlayer(position);
         const q = questRef.current;
         if (q) setPlayerRoom(nearbyRoom(q, position).name);
-        moduleRef.current?._rpd_set_player_position(x, y, z);
+        clientRef.current?.setPlayerPosition(x, y, z);
       },
       checkPath: () => {
         const graph = navRef.current;
@@ -1541,12 +1472,12 @@ export default function RpdScene({
   };
 
   const focusRoute = () => {
-    const module = moduleRef.current;
+    const client = clientRef.current;
     const route =
       planPathRef.current.length > 0
         ? planPathRef.current
         : previewRef.current?.points ?? [];
-    if (!module || route.length < 2) return;
+    if (!client || route.length < 2) return;
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity, maxY = -Infinity;
     for (const [x, y, z] of route) {
       minX = Math.min(minX, x); maxX = Math.max(maxX, x);
@@ -1561,7 +1492,7 @@ export default function RpdScene({
     const distance = distance3(eye, target);
     const yaw = Math.atan2(eye[0] - target[0], eye[2] - target[2]);
     const pitch = Math.asin((eye[1] - target[1]) / distance);
-    module._rpd_set_orbit(
+    client.setOrbit(
       target[0],
       target[1],
       target[2],
@@ -1600,15 +1531,15 @@ export default function RpdScene({
         event.preventDefault();
         const next = !glassStyleRef.current;
         glassStyleRef.current = next;
-        moduleRef.current?._rpd_set_render_style(next ? 1 : 0);
+        clientRef.current?.setRenderStyle(next ? 1 : 0);
         setToast(next ? "Glass view." : "Solid view.");
         return;
       }
       if (event.code === "KeyF") {
         if (event.shiftKey || target?.closest('[contenteditable="true"]')) return;
         const player = playerRef.current;
-        const module = moduleRef.current;
-        if (!player || !module) return;
+        const client = clientRef.current;
+        if (!player || !client) return;
         if (view2DRef.current) {
           const graph = navRef.current;
           const q = questRef.current;
@@ -1623,7 +1554,7 @@ export default function RpdScene({
           setToast("Map centered on Claire.");
           return;
         }
-        module._rpd_animate_orbit(player[0], player[1], player[2], -1, 0.35);
+        client.animateOrbit(player[0], player[1], player[2], -1, 0.35);
         event.preventDefault();
         setToast("Camera centered on Claire.");
         return;
@@ -1633,10 +1564,10 @@ export default function RpdScene({
       const node = hoverCellRef.current;
       if (node === null) return;
       const graph = navRef.current;
-      const module = moduleRef.current;
-      if (!graph || !module) return;
+      const client = clientRef.current;
+      if (!graph || !client) return;
       const point = nodePoint(graph, node, 0);
-      module._rpd_animate_orbit(point[0], point[1], point[2], 8, 0.35);
+      client.animateOrbit(point[0], point[1], point[2], 8, 0.35);
       event.preventDefault();
       const q = questRef.current;
       if (q) setToast(`Camera centered on ${nearbyRoom(q, point).name}.`);
@@ -1647,8 +1578,8 @@ export default function RpdScene({
 
   const reset = () => {
     const q = questRef.current;
-    const module = moduleRef.current;
-    if (!q || !module) return;
+    const client = clientRef.current;
+    if (!q || !client) return;
     setInventory(new Set());
     inventoryRef.current = new Set();
     setPicked(new Set());
@@ -1657,7 +1588,7 @@ export default function RpdScene({
     discoveredRef.current = new Set();
     for (const [id, marker] of itemMarkers.current) {
       const item = q.items.find((entry) => entry.id === id);
-      if (item) module._rpd_marker_set_visible(marker, 0);
+      if (item) client.markerSetVisible(marker, 0);
     }
     const states = new Map<string, DoorState>();
     for (const door of q.doors) {
@@ -1665,7 +1596,7 @@ export default function RpdScene({
       const marker = doorMarkers.current.get(door.id);
       if (marker !== undefined) {
         const colour = DOOR_COLOURS[door.state];
-        module._rpd_marker_set_color(marker, colour[0], colour[1], colour[2]);
+        client.markerSetColor(marker, colour[0], colour[1], colour[2]);
       }
     }
     doorStatesRef.current = states;
@@ -1676,7 +1607,7 @@ export default function RpdScene({
     roomRef.current = room.name;
     setPlayerRoom(room.name);
     setActiveFloor(room.floor);
-    module._rpd_set_player_position(q.spawn[0], q.spawn[1], q.spawn[2]);
+    client.setPlayerPosition(q.spawn[0], q.spawn[1], q.spawn[2]);
     revealItems(q.spawn, true);
     refreshAfterAction();
     setToast("Run reset.");
@@ -1708,25 +1639,17 @@ export default function RpdScene({
 
   const handleMapCamera = useCallback(
     (cx: number, cz: number, scale: number, vw: number, vh: number, floorY: number) => {
-      moduleRef.current?._rpd_map_set_camera(cx, cz, scale, vw, vh, floorY);
+      clientRef.current?.setMapCamera(cx, cz, scale, vw, vh, floorY);
     },
     [],
   );
 
   useEffect(() => {
-    moduleRef.current?._rpd_set_view_mode(view2D ? 1 : 0);
+    clientRef.current?.setViewMode(view2D ? 1 : 0);
   }, [view2D]);
 
   const handleMapData = useCallback((vertices: Float32Array) => {
-    const module = moduleRef.current;
-    if (!module || vertices.length === 0) return;
-    const ptr = module._malloc(vertices.byteLength);
-    module.HEAPU8.set(
-      new Uint8Array(vertices.buffer, vertices.byteOffset, vertices.byteLength),
-      ptr,
-    );
-    module._rpd_map_set_data(ptr, vertices.length / 6);
-    module._free(ptr);
+    clientRef.current?.setMapData(vertices);
   }, []);
 
   const handleMapAnchor = useCallback((anchor: { x: number; y: number } | null) => {
