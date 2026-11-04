@@ -100,7 +100,7 @@ type Hover = {
   y: number;
 };
 
-const CACHE_VERSION = "20261102p";
+const CACHE_VERSION = "20261102q";
 const DISCOVER_RADIUS = 3.0;
 const SPAWN_DISCOVER_RADIUS = 3.5;
 const MOVE_SPEED = 3.5;
@@ -1602,6 +1602,14 @@ export default function RpdScene({
         const module = moduleRef.current;
         if (!player || !module) return;
         if (view2DRef.current) {
+          const graph = navRef.current;
+          const q = questRef.current;
+          if (!graph || !q) return;
+          const playerNode = nearestNode(graph, player, 3.0);
+          const playerFloor =
+            playerNode >= 0 ? graph.floor[playerNode] : nearbyRoom(q, player).floor;
+          activeFloorRef.current = playerFloor;
+          setActiveFloor(playerFloor);
           setMapFocusToken((value) => value + 1);
           event.preventDefault();
           setToast("Map centered on Claire.");

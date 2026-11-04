@@ -112,6 +112,7 @@ export default function FloorMap2D({
   const rootRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<MapCamera>({ cx: 0, cz: 0, scale: 8 });
   const [cameraVersion, setCameraVersion] = useState(0);
+  const focusAnimRef = useRef(0);
   const dragRef = useRef<{
     id: number;
     button: number;
@@ -170,10 +171,23 @@ export default function FloorMap2D({
 
   useEffect(() => {
     if (focusToken === 0) return;
-    const camera = cameraRef.current;
-    cameraRef.current = { cx: player[0], cz: player[2], scale: camera.scale };
-    emitCamera();
-    setCameraVersion((value) => value + 1);
+    const from = { ...cameraRef.current };
+    const started = performance.now();
+    const duration = 420;
+    const animate = (now: number) => {
+      const t = Math.min(1, (now - started) / duration);
+      const ease = 1 - Math.pow(1 - t, 3);
+      cameraRef.current = {
+        cx: from.cx + (player[0] - from.cx) * ease,
+        cz: from.cz + (player[2] - from.cz) * ease,
+        scale: from.scale,
+      };
+      emitCamera();
+      setCameraVersion((value) => value + 1);
+      if (t < 1) focusAnimRef.current = requestAnimationFrame(animate);
+    };
+    focusAnimRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(focusAnimRef.current);
   }, [focusToken]);
 
   useEffect(() => {
@@ -276,6 +290,7 @@ export default function FloorMap2D({
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 && event.button !== 1) return;
+    cancelAnimationFrame(focusAnimRef.current);
     event.preventDefault();
     if (!rootRef.current) return;
     event.currentTarget.setPointerCapture(event.pointerId);

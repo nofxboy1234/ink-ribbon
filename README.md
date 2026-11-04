@@ -166,7 +166,9 @@ navigation cells, stair and ramp cells, doors, discovered items, Claire, route,
 and waypoints are drawn above that scene.
 
 Hovering a cell gives the same green highlight as the 3D navigation grid. `F`
-centers the map on Claire. Drag to pan, and use the wheel to zoom. Map clicks use
+switches the map to Claire’s floor and centers on her with an eased pan. Drag to
+pan, and use the wheel to zoom. Claire is drawn with the 3D player marker through
+the orthographic camera. Map clicks use
 the same preview popup and planner as 3D, so the action fan and the route dock are
 identical in both views. The room layout follows the
 [Evil Resource police station maps](https://www.evilresource.com/resident-evil-2-remake/maps/police-station#policestation1f).
@@ -181,7 +183,7 @@ identical in both views. The room layout follows the
 | `R` | Reset camera |
 | `Escape` | Pause or resume and clear the route |
 | `Space` | Move the camera target smoothly to the hovered floor cell and zoom to the closest orbit distance, keeping yaw and pitch |
-| `F` | Center the 3D camera on Claire, or the 2D map on Claire, keeping the current orientation |
+| `F` | Center the 3D camera on Claire, or switch the 2D map to Claire’s floor and center on her |
 | `G` | Toggle between the solid grey view and the glass view |
 | `M` or the 2D button | Toggle between the 3D scene and the 2D floor plan |
 | 2D drag / wheel | Pan and zoom the 2D floor plan |
