@@ -1,7 +1,14 @@
 # Renderer
 
-A single C file (`main.c`) using sokol. It is compiled to WebAssembly and
-loaded by `src/RpdScene.tsx`.
+A small set of C modules under `native/src`, using sokol. `main.c` only defines
+`sokol_main`; `build.sh` compiles it with `src/*.c` and `-I native/src`. The
+result is compiled to WebAssembly and loaded by `src/RpdScene.tsx`.
+
+Modules: `rpd_math` (matrices and camera pan), `rpd_shaders` (GLSL and uniform
+structs), `rpd_target` (offscreen pass and composite), `rpd_scene` (mesh,
+pipelines, markers, 3D pass), `rpd_map` (2D pass and map exports), `rpd_input`
+(mouse and touch), and `rpd_app` (frame loop and app exports). `rpd_state`
+holds the shared renderer state and `rpd_sokol` pins the backend define.
 
 ## sokol
 

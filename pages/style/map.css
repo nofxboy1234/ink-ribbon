@@ -1,0 +1,94 @@
+.rpd-map {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.rpd-map-hit {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+}
+
+.rpd-map-hit:active {
+  cursor: grabbing;
+}
+
+.rpd-map-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.rpd-map-title {
+  position: absolute;
+  top: 142px;
+  left: 42px;
+  display: grid;
+  gap: 4px;
+}
+
+.rpd-map-title strong {
+  color: rgba(221, 234, 247, 0.9);
+  font: 600 12px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.rpd-map-title span {
+  color: rgba(157, 181, 205, 0.75);
+  font: 10px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.rpd-map-room {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 1px 4px;
+  background: rgb(4 7 10 / 74%);
+  color: rgb(219 232 245 / 82%);
+  font: 9px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: nowrap;
+}
+
+.rpd-map-player {
+  position: absolute;
+  transform: translate(10px, -50%);
+  padding: 1px 4px;
+  background: transparent;
+  color: #eedcff;
+  font: 9px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: nowrap;
+}
+
+.rpd-map-legend {
+  position: absolute;
+  left: 42px;
+  bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  color: rgba(157, 181, 205, 0.75);
+  font: 9px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.rpd-map-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rpd-map-legend i {
+  width: 8px;
+  height: 8px;
+  display: inline-block;
+}
+
+.rpd-map-note {
+  position: absolute;
+  left: 42px;
+  bottom: 40px;
+  color: rgba(157, 181, 205, 0.75);
+  font: 10px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}

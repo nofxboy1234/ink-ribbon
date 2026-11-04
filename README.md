@@ -86,7 +86,7 @@ npm run scene:import
 # 3. pack the scene into public/rpd/rpd.bin
 npm run scene:export
 
-npm run wasm   # only needed after changing native/main.c
+npm run wasm   # only needed after changing native/
 
 # rebuild the walkable cells, the quest data and the nav graph (Blender + Python)
 npm run quest
