@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import FloorMap2D from "./FloorMap2D";
 import { createRpdClient, type RpdClient } from "./wasm/client";
+import { fanOffset, pointInQuad, popupGeometry, projectPoint } from "./overlay/geometry";
+import { drawSceneOverlay } from "./overlay/sceneOverlay";
 import {
   CATEGORY_LABELS,
   DOOR_COLOURS,
@@ -87,79 +89,6 @@ function distance3(a: Vec3, b: Vec3): number {
 
 function itemPoint(item: Item): Vec3 {
   return [item.x, item.y, item.z];
-}
-
-function projectPoint(
-  point: Vec3,
-  matrix: Float32Array,
-  width: number,
-  height: number,
-): { x: number; y: number; depth: number } | null {
-  const [x, y, z] = point;
-  const w = matrix[3] * x + matrix[7] * y + matrix[11] * z + matrix[15];
-  if (w <= 0.0001) return null;
-  const cx = (matrix[0] * x + matrix[4] * y + matrix[8] * z + matrix[12]) / w;
-  const cy = (matrix[1] * x + matrix[5] * y + matrix[9] * z + matrix[13]) / w;
-  return {
-    x: (cx * 0.5 + 0.5) * width,
-    y: (1 - (cy * 0.5 + 0.5)) * height,
-    depth: w,
-  };
-}
-
-function pointInQuad(
-  x: number,
-  y: number,
-  quad: { x: number; y: number }[],
-): boolean {
-  let sign = 0;
-  for (let i = 0; i < quad.length; i++) {
-    const a = quad[i];
-    const b = quad[(i + 1) % quad.length];
-    const cross = (b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x);
-    if (Math.abs(cross) < 1e-6) continue;
-    const next = Math.sign(cross);
-    if (sign === 0) sign = next;
-    else if (next !== sign) return false;
-  }
-  return true;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
-function fanOffset(index: number, count: number): { x: number; y: number } {
-  if (count <= 1) return { x: 0, y: -72 };
-  if (count === 2) {
-    return index === 0 ? { x: -86, y: -66 } : { x: 86, y: -66 };
-  }
-  if (count === 3) {
-    if (index === 0) return { x: -104, y: 0 };
-    if (index === 1) return { x: 0, y: -80 };
-    return { x: 104, y: 0 };
-  }
-  const spread = Math.PI * 0.95;
-  const angle = -Math.PI / 2 - spread / 2 + (index / (count - 1)) * spread;
-  const radius = 98;
-  return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius - 8 };
-}
-
-function popupGeometry(
-  anchor: { x: number; y: number },
-  count: number,
-  width: number,
-  height: number,
-): { x: number; y: number; offsets: { x: number; y: number }[] } {
-  const minX = Math.min(170, width / 2);
-  const maxX = Math.max(minX, width - 170);
-  const minY = Math.min(220, Math.max(90, height - 90));
-  const maxY = Math.max(minY, height - 60);
-  return {
-    x: clamp(anchor.x, minX, maxX),
-    y: clamp(anchor.y, minY, maxY),
-    offsets: Array.from({ length: count }, (_, index) => fanOffset(index, count)),
-  };
 }
 
 type RpdSceneProps = {
@@ -277,19 +206,6 @@ export default function RpdScene({
   const rooms = quest?.rooms ?? [];
   const items = quest?.items ?? [];
   const doors = quest?.doors ?? [];
-
-  const currentFloor = useMemo(() => {
-    if (nav) {
-      const node = nearestNode(nav, playerRef.current, 3.0);
-      if (node >= 0) return nav.floor[node];
-    }
-    if (!quest) return 0;
-    return nearbyRoom(quest, playerRef.current).floor;
-  }, [quest, nav, player]);
-
-  useEffect(() => {
-    if (quest && nav) setActiveFloor(currentFloor);
-  }, [quest, nav, currentFloor]);
 
   const itemLookup = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const doorLookup = useMemo(() => new Map(doors.map((door) => [door.id, door])), [doors]);
@@ -410,258 +326,30 @@ export default function RpdScene({
     if (!quest || !nav) return;
     const frame = (now: number) => {
       const client = clientRef.current;
-      if (!client || !canvasRef.current) return;
-      viewProjRef.current = client.getViewProj();
       const canvas = overlayRef.current;
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      if (canvas.width !== Math.floor(rect.width * dpr) || canvas.height !== Math.floor(rect.height * dpr)) {
-        canvas.width = Math.floor(rect.width * dpr);
-        canvas.height = Math.floor(rect.height * dpr);
+      if (client && canvas) {
+        const viewProj = client.getViewProj();
+        viewProjRef.current = viewProj;
+        drawSceneOverlay({
+          canvas,
+          viewProj,
+          quest,
+          nav,
+          activeFloor,
+          doors,
+          gridLines,
+          navNodesByFloor,
+          player: playerRef.current,
+          hovered: hoverCellRef.current,
+          plan: planRef.current,
+          planPath: planPathRef.current,
+          preview: previewRef.current,
+          planCursor: planStateRef.current?.cursor ?? null,
+          view2D: view2DRef.current,
+          popupLayer: popupLayerRef.current,
+        });
       }
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, rect.width, rect.height);
-      const matrix = viewProjRef.current;
-
-      const hovered = hoverCellRef.current;
-
-      const cellQuad = (node: number): { x: number; y: number }[] | null => {
-        const x = nav.x[node];
-        const y = nav.y[node] + 0.02;
-        const z = nav.z[node];
-        const half = nav.half;
-        const corners: { x: number; y: number }[] = [];
-        for (const [dx, dz] of [
-          [-half, -half],
-          [half, -half],
-          [half, half],
-          [-half, half],
-        ]) {
-          const point = projectPoint([x + dx, y, z + dz], matrix, rect.width, rect.height);
-          if (!point) return null;
-          corners.push({ x: point.x, y: point.y });
-        }
-        return corners;
-      };
-
-      // Grid: cell sides on the active floor, faint centres on the others.
-      const activeNodes = navNodesByFloor[activeFloorRef.current] ?? [];
-      const lines = gridLines.get(activeFloorRef.current) ?? [];
-      ctx.save();
-      ctx.strokeStyle = "rgba(70, 170, 255, 0.22)";
-      ctx.lineWidth = 0.8;
-      ctx.beginPath();
-      for (const [a, b] of lines) {
-        const pa = projectPoint(a, matrix, rect.width, rect.height);
-        const pb = projectPoint(b, matrix, rect.width, rect.height);
-        if (!pa || !pb) continue;
-        if (pa.x < -20 || pa.x > rect.width + 20 || pa.y < -20 || pa.y > rect.height + 20) continue;
-        ctx.moveTo(pa.x, pa.y);
-        ctx.lineTo(pb.x, pb.y);
-      }
-      ctx.stroke();
-      ctx.restore();
-      for (const node of activeNodes) {
-        const point = projectPoint([nav.x[node], nav.y[node] + 0.03, nav.z[node]], matrix, rect.width, rect.height);
-        if (!point) continue;
-        if (point.x < -10 || point.x > rect.width + 10 || point.y < -10 || point.y > rect.height + 10) continue;
-        ctx.fillStyle =
-          nav.kind[node] === 1
-            ? "rgba(240, 196, 116, 0.62)"
-            : nav.kind[node] === 2
-              ? "rgba(125, 211, 252, 0.55)"
-              : "rgba(151, 205, 255, 0.42)";
-        ctx.fillRect(point.x - 0.6, point.y - 0.6, 1.2, 1.2);
-      }
-      for (let floorIndex = 0; floorIndex < navNodesByFloor.length; floorIndex++) {
-        if (floorIndex === activeFloorRef.current) continue;
-        for (const node of navNodesByFloor[floorIndex]) {
-          const point = projectPoint([nav.x[node], nav.y[node] + 0.03, nav.z[node]], matrix, rect.width, rect.height);
-          if (!point) continue;
-          if (point.x < 0 || point.x > rect.width || point.y < 0 || point.y > rect.height) continue;
-          ctx.fillStyle = "rgba(151, 205, 255, 0.08)";
-          ctx.fillRect(point.x - 0.6, point.y - 0.6, 1.2, 1.2);
-        }
-      }
-
-      const playerNode = nearestNode(nav, playerRef.current, 3.0);
-      const playerFloor = playerNode >= 0 ? nav.floor[playerNode] : nearbyRoom(quest, playerRef.current).floor;
-      const activeLabel = nav.floors[activeFloorRef.current]?.label ?? "";
-      const playerFloorLabel = nav.floors[playerFloor]?.label ?? "";
-      ctx.font = "600 11px ui-monospace, SFMono-Regular, Menlo, monospace";
-      ctx.fillStyle = "rgba(151, 205, 255, 0.7)";
-      ctx.fillText(`GRID ${activeLabel}`, 18, rect.height - 48);
-      if (playerFloor !== activeFloorRef.current) {
-        ctx.fillStyle = "rgba(255, 214, 102, 0.85)";
-        ctx.fillText(`PLAYER ${playerFloorLabel}`, 18, rect.height - 28);
-      }
-
-      const planNodes = new Set<number>();
-      for (const step of planRef.current) {
-        planNodes.add(step.type === "move" ? step.endNode : step.node);
-      }
-      for (const node of planNodes) {
-        const corners = cellQuad(node);
-        if (!corners) continue;
-        ctx.beginPath();
-        ctx.moveTo(corners[0].x, corners[0].y);
-        for (const corner of corners.slice(1)) ctx.lineTo(corner.x, corner.y);
-        ctx.closePath();
-        ctx.fillStyle = "rgba(34, 211, 238, 0.22)";
-        ctx.fill();
-        ctx.strokeStyle = "rgba(34, 211, 238, 0.9)";
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-      }
-
-      if (hovered !== null) {
-        const corners = cellQuad(hovered);
-        if (corners) {
-          ctx.beginPath();
-          ctx.moveTo(corners[0].x, corners[0].y);
-          for (const corner of corners.slice(1)) ctx.lineTo(corner.x, corner.y);
-          ctx.closePath();
-          ctx.fillStyle = planNodes.has(hovered)
-            ? "rgba(57, 255, 20, 0.06)"
-            : "rgba(57, 255, 20, 0.22)";
-          ctx.fill();
-          ctx.strokeStyle = "rgba(57, 255, 20, 0.9)";
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-        }
-      }
-
-      const route = planPathRef.current;
-      if (route.length > 1) {
-        ctx.save();
-        ctx.lineJoin = "round";
-        ctx.lineCap = "round";
-        ctx.shadowColor = "#39ff14";
-        ctx.shadowBlur = 12;
-        ctx.strokeStyle = "#39ff14";
-        ctx.lineWidth = 2.4;
-        ctx.beginPath();
-        let started = false;
-        for (const p of route) {
-          const point = projectPoint(p, matrix, rect.width, rect.height);
-          if (!point) continue;
-          if (!started) {
-            ctx.moveTo(point.x, point.y);
-            started = true;
-          } else {
-            ctx.lineTo(point.x, point.y);
-          }
-        }
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      if (route.length > 1) {
-        for (const d of doors) {
-          if (!route.some((p) => Math.hypot(p[0] - d.x, p[2] - d.z) < 0.05)) continue;
-          const point = projectPoint([d.x, d.y + 1.0, d.z], matrix, rect.width, rect.height);
-          if (!point) continue;
-          ctx.beginPath();
-          ctx.fillStyle = "rgba(57, 255, 20, 0.16)";
-          ctx.arc(point.x, point.y, 10, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = "#39ff14";
-          ctx.font = "600 10px ui-monospace, SFMono-Regular, Menlo, monospace";
-          ctx.fillText("door", point.x + 12, point.y + 3);
-        }
-      }
-
-      const previewNow = previewRef.current;
-      if (previewNow && previewNow.points.length > 1) {
-        ctx.save();
-        ctx.lineJoin = "round";
-        ctx.lineCap = "round";
-        ctx.setLineDash([6, 5]);
-        ctx.strokeStyle = "#7dffb0";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        let started = false;
-        for (const p of previewNow.points) {
-          const point = projectPoint(p, matrix, rect.width, rect.height);
-          if (!point) continue;
-          if (!started) {
-            ctx.moveTo(point.x, point.y);
-            started = true;
-          } else {
-            ctx.lineTo(point.x, point.y);
-          }
-        }
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      const planEndpoint =
-        route.length > 0
-          ? route[route.length - 1]
-          : planRef.current.length > 0
-            ? (planStateRef.current?.cursor ?? null)
-            : null;
-      if (planEndpoint) {
-        const point = projectPoint(planEndpoint, matrix, rect.width, rect.height);
-        if (point) {
-          ctx.beginPath();
-          ctx.strokeStyle = "#39ff14";
-          ctx.lineWidth = 1.6;
-          ctx.arc(point.x, point.y, 4.5, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-      }
-      if (previewNow) {
-        const goal = previewNow.points[previewNow.points.length - 1];
-        const point = projectPoint(goal, matrix, rect.width, rect.height);
-        if (point) {
-          ctx.beginPath();
-          ctx.strokeStyle = "#ff9d3c";
-          ctx.lineWidth = 1.6;
-          ctx.arc(point.x, point.y, 4.5, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-      }
-
-      if (!view2DRef.current) {
-        const layer = popupLayerRef.current;
-        if (layer) {
-          const anchor = previewNow
-            ? projectPoint(previewNow.anchor, matrix, rect.width, rect.height)
-            : null;
-          if (!previewNow || !anchor) {
-            layer.style.visibility = "hidden";
-          } else {
-            const geometry = popupGeometry(
-              anchor,
-              previewNow.choices.length,
-              rect.width,
-              rect.height,
-            );
-            layer.style.transform = `translate3d(${geometry.x}px, ${geometry.y}px, 0)`;
-            layer.style.visibility = "visible";
-            ctx.save();
-            ctx.strokeStyle = "#ff9d3c";
-            ctx.lineWidth = 1.2;
-            ctx.lineCap = "round";
-            ctx.shadowColor = "rgba(255, 157, 60, 0.7)";
-            ctx.shadowBlur = 8;
-            ctx.setLineDash([]);
-            ctx.beginPath();
-            for (const offset of geometry.offsets) {
-              ctx.moveTo(anchor.x, anchor.y);
-              ctx.lineTo(geometry.x + offset.x, geometry.y + offset.y);
-            }
-            ctx.stroke();
-            ctx.restore();
-          }
-        }
-      }
-
-      requestAnimationFrame(frame);
+      raf = requestAnimationFrame(frame);
     };
     let raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
