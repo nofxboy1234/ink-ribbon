@@ -1456,6 +1456,14 @@ export default function RpdScene({
         inventoryRef.current = next;
         setInventory(next);
       },
+      setPlayer: (x: number, y: number, z: number) => {
+        const position: Vec3 = [x, y, z];
+        playerRef.current = position;
+        setPlayer(position);
+        const q = questRef.current;
+        if (q) setPlayerRoom(nearbyRoom(q, position).name);
+        moduleRef.current?._rpd_set_player_position(x, y, z);
+      },
       checkPath: () => {
         const graph = navRef.current;
         const points = buildPlanPath(planRef.current);

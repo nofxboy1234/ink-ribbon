@@ -415,7 +415,16 @@ export default function FloorMap2D({
   const floorLabel = quest.floors[floor]?.label ?? `${floor + 1}F`;
   const floorItems = quest.items.filter((item) => Math.abs(item.y - floorLevel - 0.36) < 0.8);
   const floorDoors = quest.doors.filter((door) => Math.abs(door.y - floorLevel) < 2.5);
-  const rooms = quest.rooms.filter((room) => room.floor === floor);
+  const playerOnFloor = Math.abs(player[1] - floorLevel - 0.9) < 2.2;
+  const playerScreenX = (player[0] - camera.cx) * camera.scale + viewport.width / 2;
+  const playerScreenY = (player[2] - camera.cz) * camera.scale + viewport.height / 2;
+  const rooms = quest.rooms.filter((room) => {
+    if (room.floor !== floor) return false;
+    if (!playerOnFloor) return true;
+    const x = (room.x - camera.cx) * camera.scale + viewport.width / 2;
+    const y = (room.z - camera.cz) * camera.scale + viewport.height / 2;
+    return Math.hypot(x - playerScreenX, y - playerScreenY) > 36;
+  });
   let activeCount = 0;
   for (let i = 0; i < nav.count; i++) if (nav.floor[i] === floor) activeCount += 1;
 
