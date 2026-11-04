@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { NavGraph } from "./nav";
 import { DOOR_COLOURS, type DoorState, type Quest, type Vec3 } from "./quest";
-import type { PlanChoice, PlanStep, Preview, Target } from "./planner";
+import type { PlanStep, Preview, Target } from "./planner";
 
 type MapCamera = { cx: number; cz: number; scale: number };
 
@@ -19,8 +19,7 @@ type FloorMap2DProps = {
   onMapData: (vertices: Float32Array) => void;
   onCamera: (cx: number, cz: number, scale: number, vw: number, vh: number) => void;
   onPreview: (target: Target) => void;
-  onCommit: (choice: PlanChoice) => void;
-  onClosePreview: () => void;
+  onPreviewAnchor: (anchor: { x: number; y: number } | null) => void;
 };
 
 type RGBA = [number, number, number, number];
@@ -28,6 +27,7 @@ type RGBA = [number, number, number, number];
 const FLOOR: RGBA = [0.24, 0.29, 0.35, 0.42];
 const STAIR: RGBA = [0.78, 0.59, 0.28, 0.46];
 const RAMP: RGBA = [0.35, 0.69, 0.85, 0.42];
+const NAV_BORDER: RGBA = [0.37, 0.65, 0.9, 0.5];
 const WALL: RGBA = [0.67, 0.73, 0.81, 0.95];
 const WALL_CORE: RGBA = [0.09, 0.12, 0.16, 0.95];
 const ROUTE: RGBA = [0.26, 1.0, 0.45, 0.95];
@@ -100,12 +100,11 @@ export default function FloorMap2D({
   onMapData,
   onCamera,
   onPreview,
-  onCommit,
-  onClosePreview,
+  onPreviewAnchor,
 }: FloorMap2DProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<MapCamera>({ cx: 0, cz: 0, scale: 8 });
-  const [, setCameraVersion] = useState(0);
+  const [cameraVersion, setCameraVersion] = useState(0);
   const dragRef = useRef<{
     id: number;
     button: number;
@@ -178,6 +177,11 @@ export default function FloorMap2D({
       const x = nav.x[node];
       const z = nav.z[node];
       pushRect(out, x, z, step, step, [WALL_CORE[0], WALL_CORE[1], WALL_CORE[2], 0.22]);
+      const edge = Math.max(0.035, step * 0.035);
+      pushRect(out, x, z - half, step, edge, NAV_BORDER);
+      pushRect(out, x, z + half, step, edge, NAV_BORDER);
+      pushRect(out, x - half, z, edge, step, NAV_BORDER);
+      pushRect(out, x + half, z, edge, step, NAV_BORDER);
       if (!has(x, z - step)) pushRect(out, x, z - half, step, 0.09, WALL);
       if (!has(x, z + step)) pushRect(out, x, z + half, step, 0.09, WALL);
       if (!has(x - step, z)) pushRect(out, x - half, z, 0.09, step, WALL);
@@ -365,12 +369,19 @@ export default function FloorMap2D({
   let activeCount = 0;
   for (let i = 0; i < nav.count; i++) if (nav.floor[i] === floor) activeCount += 1;
 
-  const previewAnchor = preview
-    ? {
-        x: (preview.anchor[0] - camera.cx) * camera.scale + viewport.width / 2,
-        y: (preview.anchor[2] - camera.cz) * camera.scale + viewport.height / 2,
-      }
-    : null;
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!preview || !root) {
+      onPreviewAnchor(null);
+      return;
+    }
+    const rect = root.getBoundingClientRect();
+    const cam = cameraRef.current;
+    onPreviewAnchor({
+      x: (preview.anchor[0] - cam.cx) * cam.scale + rect.width / 2,
+      y: (preview.anchor[2] - cam.cz) * cam.scale + rect.height / 2,
+    });
+  }, [preview, cameraVersion, viewport, onPreviewAnchor]);
 
   return (
     <div className="rpd-map" ref={rootRef}>
@@ -432,31 +443,7 @@ export default function FloorMap2D({
         onAuxClick={(event) => event.preventDefault()}
         onContextMenu={(event) => event.preventDefault()}
       />
-      {preview && previewAnchor && (
-        <div
-          className="rpd-map-actions"
-          style={{ left: previewAnchor.x + 14, top: previewAnchor.y + 14 }}
-        >
-          <header>
-            <strong>{preview.label}</strong>
-            <button type="button" onClick={onClosePreview} aria-label="Close map actions">
-              ×
-            </button>
-          </header>
-          {preview.choices.map((choice, index) => (
-            <button
-              key={`${choice.kind}-${choice.label}-${index}`}
-              type="button"
-              className="rpd-map-choice"
-              data-kind={choice.kind}
-              disabled={choice.kind === "info"}
-              onClick={() => onCommit(choice)}
-            >
-              {choice.label}
-            </button>
-          ))}
-        </div>
-      )}
+
     </div>
   );
 }

@@ -268,6 +268,7 @@ export default function RpdScene({
   const [hover, setHover] = useState<Hover | null>(null);
   const [activeFloor, setActiveFloor] = useState(0);
   const [view2D, setView2D] = useState(false);
+  const [mapPopupAnchor, setMapPopupAnchor] = useState<{ x: number; y: number } | null>(null);
   const [showInventory, setShowInventory] = useState(false);
   const [showLegend, setShowLegend] = useState(true);
   const [statusNote, setStatusNote] = useState(
@@ -686,36 +687,38 @@ export default function RpdScene({
         }
       }
 
-      const layer = popupLayerRef.current;
-      if (layer) {
-        const anchor = previewNow
-          ? projectPoint(previewNow.anchor, matrix, rect.width, rect.height)
-          : null;
-        if (!previewNow || !anchor) {
-          layer.style.visibility = "hidden";
-        } else {
-          const geometry = popupGeometry(
-            anchor,
-            previewNow.choices.length,
-            rect.width,
-            rect.height,
-          );
-          layer.style.transform = `translate3d(${geometry.x}px, ${geometry.y}px, 0)`;
-          layer.style.visibility = "visible";
-          ctx.save();
-          ctx.strokeStyle = "#ff9d3c";
-          ctx.lineWidth = 1.2;
-          ctx.lineCap = "round";
-          ctx.shadowColor = "rgba(255, 157, 60, 0.7)";
-          ctx.shadowBlur = 8;
-          ctx.setLineDash([]);
-          ctx.beginPath();
-          for (const offset of geometry.offsets) {
-            ctx.moveTo(anchor.x, anchor.y);
-            ctx.lineTo(geometry.x + offset.x, geometry.y + offset.y);
+      if (!view2DRef.current) {
+        const layer = popupLayerRef.current;
+        if (layer) {
+          const anchor = previewNow
+            ? projectPoint(previewNow.anchor, matrix, rect.width, rect.height)
+            : null;
+          if (!previewNow || !anchor) {
+            layer.style.visibility = "hidden";
+          } else {
+            const geometry = popupGeometry(
+              anchor,
+              previewNow.choices.length,
+              rect.width,
+              rect.height,
+            );
+            layer.style.transform = `translate3d(${geometry.x}px, ${geometry.y}px, 0)`;
+            layer.style.visibility = "visible";
+            ctx.save();
+            ctx.strokeStyle = "#ff9d3c";
+            ctx.lineWidth = 1.2;
+            ctx.lineCap = "round";
+            ctx.shadowColor = "rgba(255, 157, 60, 0.7)";
+            ctx.shadowBlur = 8;
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            for (const offset of geometry.offsets) {
+              ctx.moveTo(anchor.x, anchor.y);
+              ctx.lineTo(geometry.x + offset.x, geometry.y + offset.y);
+            }
+            ctx.stroke();
+            ctx.restore();
           }
-          ctx.stroke();
-          ctx.restore();
         }
       }
 
@@ -1706,6 +1709,28 @@ export default function RpdScene({
     module._free(ptr);
   }, []);
 
+  const handleMapAnchor = useCallback((anchor: { x: number; y: number } | null) => {
+    setMapPopupAnchor(anchor);
+  }, []);
+
+  useEffect(() => {
+    if (!view2D) return;
+    const layer = popupLayerRef.current;
+    if (!layer) return;
+    if (!preview || !mapPopupAnchor) {
+      layer.style.visibility = "hidden";
+      return;
+    }
+    const geometry = popupGeometry(
+      mapPopupAnchor,
+      preview.choices.length,
+      window.innerWidth,
+      window.innerHeight,
+    );
+    layer.style.transform = `translate3d(${geometry.x}px, ${geometry.y}px, 0)`;
+    layer.style.visibility = "visible";
+  }, [view2D, preview, mapPopupAnchor]);
+
   const floorCounts = quest
     ? quest.floors.map((floor) => ({
         ...floor,
@@ -1748,7 +1773,6 @@ export default function RpdScene({
           className="rpd-popup-layer"
           ref={popupLayerRef}
           data-visible={preview ? "true" : "false"}
-          style={view2D ? { display: "none" } : undefined}
         >
           {preview?.choices.map((choice, index) => {
             const offset = fanOffset(index, preview.choices.length);
@@ -1789,8 +1813,7 @@ export default function RpdScene({
             onMapData={handleMapData}
             onCamera={handleMapCamera}
             onPreview={previewTarget}
-            onCommit={commitChoice}
-            onClosePreview={closePreview}
+            onPreviewAnchor={handleMapAnchor}
           />
         )}
       </div>
