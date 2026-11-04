@@ -108,6 +108,7 @@ export default function FloorMap2D({
   const [, setCameraVersion] = useState(0);
   const dragRef = useRef<{
     id: number;
+    button: number;
     x: number;
     y: number;
     cx: number;
@@ -254,11 +255,14 @@ export default function FloorMap2D({
   }, []);
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 && event.button !== 1) return;
+    event.preventDefault();
     if (!rootRef.current) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     const camera = cameraRef.current;
     dragRef.current = {
       id: event.pointerId,
+      button: event.button,
       x: event.clientX,
       y: event.clientY,
       cx: camera.cx,
@@ -271,6 +275,11 @@ export default function FloorMap2D({
     const drag = dragRef.current;
     const root = rootRef.current;
     if (!drag || !root || drag.id !== event.pointerId) return;
+    const mask = drag.button === 1 ? 4 : drag.button === 0 ? 1 : 2;
+    if ((event.buttons & mask) === 0) {
+      dragRef.current = null;
+      return;
+    }
     const dx = event.clientX - drag.x;
     const dy = event.clientY - drag.y;
     drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
@@ -288,6 +297,9 @@ export default function FloorMap2D({
     const drag = dragRef.current;
     const root = rootRef.current;
     dragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
     if (!drag || !root || drag.id !== event.pointerId) return;
     if (event.type === "pointercancel" || drag.moved > 4) return;
     const rect = root.getBoundingClientRect();
@@ -411,6 +423,13 @@ export default function FloorMap2D({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onLostPointerCapture={() => {
+          dragRef.current = null;
+        }}
+        onMouseDown={(event) => {
+          if (event.button === 1) event.preventDefault();
+        }}
+        onAuxClick={(event) => event.preventDefault()}
         onContextMenu={(event) => event.preventDefault()}
       />
       {preview && previewAnchor && (
