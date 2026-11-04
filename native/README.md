@@ -52,14 +52,21 @@ through `locateFile`.
    the final image. Press G in the client to switch pipelines. Item markers keep
    their normal shading because they use a separate pipeline drawn after the
    scene.
-3. **Composite to the swapchain.** A fullscreen triangle samples the offscreen
+3. **Map mode.** The native renderer has a top-down map pass. The client uploads
+   the active Evil Resource floor image as RGBA, and the map shader draws it as a
+   world-space textured quad with a pan/zoom camera. The client draws the
+   navigation, stair, door, item, player, route, and waypoint overlay above the
+   map. The same planner handles map and 3D clicks.
+4. **Composite to the swapchain.** A fullscreen triangle samples the offscreen
    colour, adds a restrained radial background gradient, vignette and a little
    grain.
 
 ## Input
 
 Right-drag orbits the camera. Middle-drag pans. The wheel zooms between 8 and
-700 units. `R` resets the camera. A drag with no button held does nothing.
+700 units. `R` resets the camera. A drag with no button held does nothing. In 2D
+map mode the client handles drag to pan and wheel to zoom, and the 3D camera
+input is left untouched.
 
 Drag scale comes from the camera distance and the vertical FOV, so a pixel of
 drag maps to a constant world distance. Touch uses the same camera. A one-finger

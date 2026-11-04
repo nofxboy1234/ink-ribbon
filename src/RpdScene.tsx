@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import FloorMap2D from "./FloorMap2D";
 import {
   CATEGORY_LABELS,
@@ -75,6 +75,24 @@ type RpdModule = {
   _rpd_marker_count: () => number;
   _rpd_set_player_position: (x: number, y: number, z: number) => void;
   _rpd_set_render_style: (style: number) => void;
+  _rpd_set_view_mode: (mode: number) => void;
+  _rpd_map_set_camera: (
+    cx: number,
+    cz: number,
+    scale: number,
+    vw: number,
+    vh: number,
+  ) => void;
+  _rpd_map_set_image: (
+    width: number,
+    height: number,
+    ptr: number,
+    len: number,
+    minX: number,
+    minZ: number,
+    maxX: number,
+    maxZ: number,
+  ) => number;
 };
 
 type RpdFactory = (options: {
@@ -90,7 +108,7 @@ type Hover = {
   y: number;
 };
 
-const CACHE_VERSION = "20261102l";
+const CACHE_VERSION = "20261102m";
 const DISCOVER_RADIUS = 3.0;
 const SPAWN_DISCOVER_RADIUS = 3.5;
 const MOVE_SPEED = 7.0;
@@ -515,11 +533,16 @@ export default function RpdScene({
       }
       ctx.stroke();
       ctx.restore();
-      ctx.fillStyle = "rgba(151, 205, 255, 0.42)";
       for (const node of activeNodes) {
         const point = projectPoint([nav.x[node], nav.y[node] + 0.03, nav.z[node]], matrix, rect.width, rect.height);
         if (!point) continue;
         if (point.x < -10 || point.x > rect.width + 10 || point.y < -10 || point.y > rect.height + 10) continue;
+        ctx.fillStyle =
+          nav.kind[node] === 1
+            ? "rgba(240, 196, 116, 0.62)"
+            : nav.kind[node] === 2
+              ? "rgba(125, 211, 252, 0.55)"
+              : "rgba(151, 205, 255, 0.42)";
         ctx.fillRect(point.x - 0.6, point.y - 0.6, 1.2, 1.2);
       }
       for (let floorIndex = 0; floorIndex < navNodesByFloor.length; floorIndex++) {
@@ -1652,6 +1675,72 @@ export default function RpdScene({
       ? itemLookup.get(preview.target.id)
       : undefined;
 
+  const mapBounds = useMemo<[number, number, number, number] | null>(() => {
+    if (!nav) return null;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+    for (let i = 0; i < nav.count; i++) {
+      if (nav.floor[i] !== activeFloor) continue;
+      minX = Math.min(minX, nav.x[i]);
+      maxX = Math.max(maxX, nav.x[i]);
+      minZ = Math.min(minZ, nav.z[i]);
+      maxZ = Math.max(maxZ, nav.z[i]);
+    }
+    if (!Number.isFinite(minX)) return null;
+    return [minX - 1.5, minZ - 1.5, maxX + 1.5, maxZ + 1.5];
+  }, [nav, activeFloor]);
+
+  const handleMapCamera = useCallback(
+    (cx: number, cz: number, scale: number, vw: number, vh: number) => {
+      moduleRef.current?._rpd_map_set_camera(cx, cz, scale, vw, vh);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    moduleRef.current?._rpd_set_view_mode(view2D ? 1 : 0);
+  }, [view2D]);
+
+  useEffect(() => {
+    if (!view2D || !mapBounds) return;
+    const module = moduleRef.current;
+    if (!module) return;
+    let cancelled = false;
+    const image = new Image();
+    image.src = `/rpd/maps/${activeFloor + 1}f.png?v=${CACHE_VERSION}`;
+    image
+      .decode()
+      .then(() => {
+        if (cancelled) return;
+        const canvas = document.createElement("canvas");
+        canvas.width = image.naturalWidth;
+        canvas.height = image.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        ctx.drawImage(image, 0, 0);
+        const bytes = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        const ptr = module._malloc(bytes.length);
+        module.HEAPU8.set(bytes, ptr);
+        module._rpd_map_set_image(
+          canvas.width,
+          canvas.height,
+          ptr,
+          bytes.length,
+          mapBounds[0],
+          mapBounds[1],
+          mapBounds[2],
+          mapBounds[3],
+        );
+        module._free(ptr);
+      })
+      .catch(() => setToast("2D map unavailable."));
+    return () => {
+      cancelled = true;
+    };
+  }, [view2D, activeFloor, mapBounds]);
+
   const floorCounts = quest
     ? quest.floors.map((floor) => ({
         ...floor,
@@ -1671,7 +1760,6 @@ export default function RpdScene({
           className="rpd-canvas"
           data-cell={hover?.kind === "cell" ? "true" : undefined}
           aria-label={label}
-          style={view2D ? { display: "none" } : undefined}
           onPointerDown={handlePointerDown}
           onPointerUp={handlePointerUp}
           onClick={handleClick}
@@ -1721,7 +1809,7 @@ export default function RpdScene({
             <span>{hover.detail}</span>
           </div>
         )}
-        {view2D && nav && quest && (
+        {view2D && nav && quest && mapBounds && (
           <FloorMap2D
             nav={nav}
             quest={quest}
@@ -1731,6 +1819,12 @@ export default function RpdScene({
             doorStates={doorStates}
             plan={plan}
             planPath={planPath}
+            mapBounds={mapBounds}
+            preview={preview}
+            onCamera={handleMapCamera}
+            onPreview={previewTarget}
+            onCommit={commitChoice}
+            onClosePreview={closePreview}
           />
         )}
       </div>

@@ -158,10 +158,16 @@ decompile at `~/repos/reze`.
 ## 2D floor plans
 
 The 2D button beside the floor buttons, or `M`, switches between the 3D scene
-and a top-down plan. The `1F`, `2F` and `3F` buttons choose the floor. The plans
-are drawn from the RPD navigation grid and show walkable cells, room names,
-doors, discovered items, Claire, the planned route, and cyan waypoints. The room
-layout follows the [Evil Resource police station maps](https://www.evilresource.com/resident-evil-2-remake/maps/police-station#policestation1f).
+and a top-down plan. The `1F`, `2F` and `3F` buttons choose the floor. The floor
+plan is the [Evil Resource police station map](https://www.evilresource.com/resident-evil-2-remake/maps/police-station#policestation1f)
+drawn as a sokol texture. The navigation cells, stair and ramp cells, room names,
+doors, discovered items, Claire, the planned route, and cyan waypoints are drawn
+over it. Drag to pan, and use the wheel to zoom.
+
+Map clicks use the same preview and planner as the 3D scene. Choose a map action
+to append it to the plan, then switch views and the same route appears in 3D.
+The actual floor plan shows the solid walls and stairs, and both views mark
+stair cells in amber and ramp cells in blue.
 
 ## Controls
 
@@ -176,6 +182,7 @@ layout follows the [Evil Resource police station maps](https://www.evilresource.
 | `F` | Center the camera smoothly on Claire, keeping the current distance and orientation |
 | `G` | Toggle between the solid grey view and the glass view |
 | `M` or the 2D button | Toggle between the 3D scene and the 2D floor plan |
+| 2D drag / wheel | Pan and zoom the 2D floor plan |
 | Click floor cell | Preview a route to that cell |
 | Click discovered item | Preview a route beside the item and open its action popups |
 | Click door | Preview a route to the door and show its lock state |

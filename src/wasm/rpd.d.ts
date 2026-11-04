@@ -43,6 +43,24 @@ export type RpdModule = {
   _rpd_marker_count: () => number;
   _rpd_set_player_position: (x: number, y: number, z: number) => void;
   _rpd_set_render_style: (style: number) => void;
+  _rpd_set_view_mode: (mode: number) => void;
+  _rpd_map_set_camera: (
+    cx: number,
+    cz: number,
+    scale: number,
+    vw: number,
+    vh: number,
+  ) => void;
+  _rpd_map_set_image: (
+    width: number,
+    height: number,
+    ptr: number,
+    len: number,
+    minX: number,
+    minZ: number,
+    maxX: number,
+    maxZ: number,
+  ) => number;
 };
 
 declare const createRpdModule: (options: {

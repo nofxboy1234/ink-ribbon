@@ -114,6 +114,12 @@ typedef struct {
     bool dirty;
 } target_t;
 
+typedef struct {
+    float rect[4];
+    float camera[4];
+    float viewport[4];
+} map_params_t;
+
 static struct {
     sg_pass_action pass_action;
     target_t target;
@@ -122,6 +128,15 @@ static struct {
     orbit_anim_t orbit;
     float scene_radius;
     bool glass_style;
+    bool map_mode;
+    sg_image map_img;
+    sg_view map_view;
+    sg_sampler map_smp;
+    sg_pipeline map_pip;
+    sg_buffer map_quad;
+    float map_rect[4];
+    float map_camera[4];
+    float map_viewport[4];
     bool rotating;
     bool panning;
     bool user_moved;
@@ -267,6 +282,39 @@ static const char *solid_fs_source =
     "  frag_color = vec4(grey, 1.0);\n"
     "}\n";
 
+
+static const char *map_vs_source =
+    "#version 300 es\n"
+    "uniform vec4 u_rect;\n"
+    "uniform vec4 u_camera;\n"
+    "uniform vec4 u_viewport;\n"
+    "in vec2 position;\n"
+    "out vec2 v_uv;\n"
+    "void main() {\n"
+    "  vec2 world = mix(u_rect.xy, u_rect.zw, position);\n"
+    "  vec2 offset = (world - u_camera.xy) * u_camera.z;\n"
+    "  vec2 ndc = offset / (u_viewport.xy * 0.5);\n"
+    "  gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0);\n"
+    "  v_uv = position;\n"
+    "}\n";
+
+static const char *map_fs_source =
+    "#version 300 es\n"
+    "precision highp float;\n"
+    "uniform sampler2D u_tex;\n"
+    "in vec2 v_uv;\n"
+    "out vec4 frag_color;\n"
+    "void main() {\n"
+    "  vec4 tex = texture(u_tex, v_uv);\n"
+    "  float lum = dot(tex.rgb, vec3(0.299, 0.587, 0.114));\n"
+    "  float ink = 1.0 - smoothstep(0.35, 0.88, lum);\n"
+    "  vec3 paper = vec3(0.035, 0.045, 0.055);\n"
+    "  vec3 line = vec3(0.58, 0.64, 0.72);\n"
+    "  vec3 col = mix(paper, line, ink);\n"
+    "  float orange = smoothstep(0.06, 0.24, tex.r - tex.b);\n"
+    "  col = mix(col, vec3(0.74, 0.53, 0.24), orange * 0.7);\n"
+    "  frag_color = vec4(col, 1.0);\n"
+    "}\n";
 
 static const char *marker_vs_source =
     "#version 300 es\n"
@@ -446,6 +494,57 @@ static void create_composite_resources(void) {
         .depth.compare = SG_COMPAREFUNC_ALWAYS,
         .depth.write_enabled = false,
         .label = "composite-pipeline",
+    });
+
+    const float map_quad[] = { 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f };
+    state.map_quad = sg_make_buffer(&(sg_buffer_desc){
+        .data = { .ptr = map_quad, .size = sizeof(map_quad) },
+        .label = "map-quad",
+    });
+    state.map_smp = sg_make_sampler(&(sg_sampler_desc){
+        .min_filter = SG_FILTER_LINEAR,
+        .mag_filter = SG_FILTER_LINEAR,
+        .wrap_u = SG_WRAP_CLAMP_TO_EDGE,
+        .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
+        .label = "map-sampler",
+    });
+    memset(&sd, 0, sizeof(sd));
+    sd.vertex_func.source = map_vs_source;
+    sd.vertex_func.entry = "main";
+    sd.fragment_func.source = map_fs_source;
+    sd.fragment_func.entry = "main";
+    sd.attrs[0].base_type = SG_SHADERATTRBASETYPE_FLOAT;
+    sd.attrs[0].glsl_name = "position";
+    sd.views[0].texture.stage = SG_SHADERSTAGE_FRAGMENT;
+    sd.views[0].texture.image_type = SG_IMAGETYPE_2D;
+    sd.views[0].texture.sample_type = SG_IMAGESAMPLETYPE_FLOAT;
+    sd.samplers[0].stage = SG_SHADERSTAGE_FRAGMENT;
+    sd.samplers[0].sampler_type = SG_SAMPLERTYPE_FILTERING;
+    sd.texture_sampler_pairs[0].stage = SG_SHADERSTAGE_FRAGMENT;
+    sd.texture_sampler_pairs[0].view_slot = 0;
+    sd.texture_sampler_pairs[0].sampler_slot = 0;
+    sd.texture_sampler_pairs[0].glsl_name = "u_tex";
+    sd.uniform_blocks[0].stage = SG_SHADERSTAGE_VERTEX;
+    sd.uniform_blocks[0].size = sizeof(map_params_t);
+    sd.uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140;
+    sd.uniform_blocks[0].glsl_uniforms[0].type = SG_UNIFORMTYPE_FLOAT4;
+    sd.uniform_blocks[0].glsl_uniforms[0].glsl_name = "u_rect";
+    sd.uniform_blocks[0].glsl_uniforms[1].type = SG_UNIFORMTYPE_FLOAT4;
+    sd.uniform_blocks[0].glsl_uniforms[1].glsl_name = "u_camera";
+    sd.uniform_blocks[0].glsl_uniforms[2].type = SG_UNIFORMTYPE_FLOAT4;
+    sd.uniform_blocks[0].glsl_uniforms[2].glsl_name = "u_viewport";
+    sg_shader map_shd = sg_make_shader(&sd);
+    state.map_pip = sg_make_pipeline(&(sg_pipeline_desc){
+        .shader = map_shd,
+        .layout = {
+            .buffers[0].stride = 8,
+            .attrs[0].format = SG_VERTEXFORMAT_FLOAT2,
+        },
+        .primitive_type = SG_PRIMITIVETYPE_TRIANGLES,
+        .sample_count = sapp_sample_count(),
+        .depth.compare = SG_COMPAREFUNC_ALWAYS,
+        .depth.write_enabled = false,
+        .label = "map-pipeline",
     });
 
 
@@ -934,7 +1033,20 @@ static void frame(void) {
     sg_begin_pass(&state.target.pass);
     sg_apply_viewport(0, 0, state.target.width, state.target.height, true);
 
-    if (state.scene.loaded && state.scene.gpu_ready) {
+    if (state.map_mode && state.map_img.id != SG_INVALID_ID) {
+        map_params_t mp = { 0 };
+        memcpy(mp.rect, state.map_rect, sizeof(mp.rect));
+        memcpy(mp.camera, state.map_camera, sizeof(mp.camera));
+        memcpy(mp.viewport, state.map_viewport, sizeof(mp.viewport));
+        sg_apply_pipeline(state.map_pip);
+        sg_apply_bindings(&(sg_bindings){
+            .vertex_buffers[0] = state.map_quad,
+            .views[0] = state.map_view,
+            .samplers[0] = state.map_smp,
+        });
+        sg_apply_uniforms(0, &(sg_range){ &mp, sizeof(mp) });
+        sg_draw(0, 6, 1);
+    } else if (!state.map_mode && state.scene.loaded && state.scene.gpu_ready) {
         float eye[3], aim[3], fog_start, fog_end;
         current_eye_aim(eye, aim);
         float camera_distance = state.camera.distance;
@@ -1200,6 +1312,44 @@ EMSCRIPTEN_KEEPALIVE void rpd_set_render_style(int style) {
     state.glass_style = style != 0;
 }
 
+
+EMSCRIPTEN_KEEPALIVE void rpd_set_view_mode(int mode) {
+    state.map_mode = mode != 0;
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_map_set_image(int w, int h, const unsigned char *pixels, int len,
+                                            float min_x, float min_z, float max_x, float max_z) {
+    if (w <= 0 || h <= 0 || !pixels || len < w * h * 4) return -1;
+    if (state.map_view.id != SG_INVALID_ID) sg_destroy_view(state.map_view);
+    if (state.map_img.id != SG_INVALID_ID) sg_destroy_image(state.map_img);
+    state.map_img = sg_make_image(&(sg_image_desc){
+        .width = w,
+        .height = h,
+        .pixel_format = SG_PIXELFORMAT_RGBA8,
+        .data = { .ptr = pixels, .size = len },
+        .label = "floor-map",
+    });
+    state.map_view = sg_make_view(&(sg_view_desc){
+        .texture.image = state.map_img,
+        .label = "floor-map-view",
+    });
+    state.map_rect[0] = min_x;
+    state.map_rect[1] = min_z;
+    state.map_rect[2] = max_x;
+    state.map_rect[3] = max_z;
+    return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE void rpd_map_set_camera(float cx, float cz, float scale, float vw, float vh) {
+    state.map_camera[0] = cx;
+    state.map_camera[1] = cz;
+    state.map_camera[2] = scale;
+    state.map_camera[3] = 0.0f;
+    state.map_viewport[0] = vw;
+    state.map_viewport[1] = vh;
+    state.map_viewport[2] = 0.0f;
+    state.map_viewport[3] = 0.0f;
+}
 
 EMSCRIPTEN_KEEPALIVE int rpd_get_view_proj(float *out) {
     if (!out) return -1;
