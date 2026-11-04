@@ -14,8 +14,9 @@ fi
 source "${EMSDK}/emsdk_env.sh" >/dev/null 2>&1
 
 mkdir -p "${ROOT}/public/rpd" "${ROOT}/src/wasm"
-emcc "${ROOT}/native/main.c" \
+emcc "${ROOT}/native/main.c" "${ROOT}"/native/src/*.c \
     -o "${ROOT}/src/wasm/rpd.js" \
+    -I "${ROOT}/native/src" \
     -I "${ROOT}/native/third_party/sokol" \
     -O3 \
     -sUSE_WEBGL2=1 \
