@@ -278,15 +278,29 @@ async function run() {
     await setFloor(0);
     await shot("07-ortho-1f-clean");
 
-    await cdp.mouse("mouseMoved", 320, 350);
+    const cell = JSON.parse(await cdp.eval("JSON.stringify(window.__quest.walkableCell())"));
+    assert(cell && cell.screen, "the DEV API did not return a walkable cell");
+    const cellX = cell.screen.x;
+    const cellY = cell.screen.y;
+    await cdp.mouse("mouseMoved", cellX, cellY);
     await sleep(400);
     await shot("08-hover");
 
-    await cdp.mouse("mousePressed", 320, 350);
-    await cdp.mouse("mouseReleased", 320, 350);
+    await cdp.mouse("mousePressed", cellX, cellY);
+    await cdp.mouse("mouseReleased", cellX, cellY);
     await sleep(600);
-    const popup = await cdp.eval("window.__quest.popup()");
+    let popup = await cdp.eval("window.__quest.popup()");
     assert(popup.open, "clicking a walkable cell did not open the routing popup");
+    assert(!popup.choices.some((choice) => choice.label.includes("TAKE")), "a walkable cell should offer a waypoint");
+    await cdp.mouse("mousePressed", 240, 760);
+    await cdp.mouse("mouseReleased", 240, 760);
+    await sleep(400);
+    assert(!(await cdp.eval("window.__quest.popup().open")), "clicking outside should dismiss the popup");
+
+    await cdp.mouse("mousePressed", cellX, cellY);
+    await cdp.mouse("mouseReleased", cellX, cellY);
+    await sleep(600);
+    popup = await cdp.eval("window.__quest.popup()");
     const waypointChoice = popup.choices.find(
       (choice) => choice.enabled && choice.label.includes("ADD WAYPOINT"),
     );
@@ -359,6 +373,119 @@ async function run() {
     await sleep(700);
     await shot("13-claire-closeup");
 
+    const items = await cdp.eval("window.__quest.items()");
+    assert(items.length === 9, "expected nine items");
+    const itemRooms = new Map();
+    for (const item of items) {
+      itemRooms.set(item.roomName, (itemRooms.get(item.roomName) ?? 0) + 1);
+    }
+    const threeRooms = [...itemRooms.values()].filter((count) => count === 3).length;
+    assert(threeRooms >= 3, "expected three items in each of three rooms");
+
+    await cdp.key("KeyM", "m", 77);
+    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) >= 0.999", 20000);
+    await setFloor(0);
+    await sleep(500);
+
+    const farItem = items[8];
+    const farScreen = JSON.parse(await cdp.eval(
+      `JSON.stringify(window.__quest.project(${farItem.x}, ${farItem.y}, ${farItem.z}))`,
+    ));
+    await cdp.mouse("mousePressed", farScreen.x, farScreen.y);
+    await cdp.mouse("mouseReleased", farScreen.x, farScreen.y);
+    await sleep(700);
+    const farPopup = await cdp.eval("window.__quest.popup()");
+    assert(farPopup.open && farPopup.item === 8, "clicking an item cell did not open its popup");
+    assert(
+      !farPopup.choices.some((choice) => choice.enabled && choice.label.includes("TAKE")),
+      "a distant item should not offer Take",
+    );
+    const walkChoice = farPopup.choices.find(
+      (choice) => choice.enabled && choice.label.includes("WALK NEXT"),
+    );
+    assert(walkChoice, "a distant item should offer Walk next to it");
+    await shot("14-item-popup");
+    await cdp.mouse("mousePressed", (walkChoice.x0 + walkChoice.x1) / 2, (walkChoice.y0 + walkChoice.y1) / 2);
+    await cdp.mouse("mouseReleased", (walkChoice.x0 + walkChoice.x1) / 2, (walkChoice.y0 + walkChoice.y1) / 2);
+    await sleep(600);
+    assert((await cdp.eval("window.__quest.debug().plan.length")) > 0, "Walk next did not add a waypoint");
+    assert((await cdp.eval("window.__quest.debug().routePoints")) > 1, "Walk next did not build a route");
+    await cdp.eval("window.__quest.reset()");
+    await sleep(400);
+
+    for (let i = 0; i < 8; i += 1) {
+      const item = (await cdp.eval("window.__quest.items()"))[i];
+      const stood = await cdp.eval(`window.__quest.standNextTo(${i})`);
+      assert(stood, `could not stand next to item ${i}`);
+      await sleep(500);
+      const screen = JSON.parse(await cdp.eval(
+        `JSON.stringify(window.__quest.project(${item.x}, ${item.y}, ${item.z}))`,
+      ));
+      await cdp.mouse("mousePressed", screen.x, screen.y);
+      await cdp.mouse("mouseReleased", screen.x, screen.y);
+      await sleep(700);
+      const itemPopup = await cdp.eval("window.__quest.popup()");
+      assert(itemPopup.open, `item ${i} did not open a popup`);
+      assert(itemPopup.item === i, `item ${i} popup pointed at ${itemPopup.item}`);
+      const takeChoice = itemPopup.choices.find(
+        (choice) => choice.enabled && choice.label.includes("TAKE"),
+      );
+      assert(takeChoice, `item ${i} popup has no Take choice`);
+      const takeX = (takeChoice.x0 + takeChoice.x1) / 2;
+      const takeY = (takeChoice.y0 + takeChoice.y1) / 2;
+      await cdp.mouse("mouseMoved", takeX, takeY);
+      await sleep(200);
+      await cdp.mouse("mousePressed", takeX, takeY);
+      await cdp.mouse("mouseReleased", takeX, takeY);
+      await sleep(700);
+      const slots = await cdp.eval("window.__quest.inventory()");
+      assert(slots.filter(Boolean).length === i + 1, `taking item ${i} did not fill a slot`);
+      assert((await cdp.eval("window.__quest.items()"))[i].taken, `item ${i} is not marked taken`);
+      if (i === 0) {
+        const unblocked = await cdp.eval(`(() => {
+          const entry = window.__quest.items()[0];
+          window.__quest.setPlayer(entry.x, entry.y, entry.z);
+          const player = window.__quest.debug().player;
+          return Math.hypot(player[0] - entry.x, player[2] - entry.z) < 0.2;
+        })()`);
+        assert(unblocked, "taking an item did not unblock its nav cell");
+        await sleep(400);
+      }
+      if (i === 2) {
+        await sleep(600);
+        await shot("15-inventory-3");
+      }
+    }
+    await sleep(700);
+    await shot("16-inventory-full");
+    const fullSlots = await cdp.eval("window.__quest.inventory()");
+    assert(fullSlots.every(Boolean), "the inventory should have eight filled slots");
+
+    const ninth = (await cdp.eval("window.__quest.items()"))[8];
+    const stoodNinth = await cdp.eval("window.__quest.standNextTo(8)");
+    assert(stoodNinth, "could not stand next to the ninth item");
+    await sleep(500);
+    const ninthScreen = JSON.parse(await cdp.eval(
+      `JSON.stringify(window.__quest.project(${ninth.x}, ${ninth.y}, ${ninth.z}))`,
+    ));
+    await cdp.mouse("mousePressed", ninthScreen.x, ninthScreen.y);
+    await cdp.mouse("mouseReleased", ninthScreen.x, ninthScreen.y);
+    await sleep(700);
+    const refused = await cdp.eval("window.__quest.popup()");
+    assert(refused.open, "the ninth item did not open a popup");
+    assert(refused.message === "INVENTORY FULL", `expected Inventory full, got ${refused.message}`);
+    const refusedTake = refused.choices.find((choice) => choice.label.includes("TAKE"));
+    assert(refusedTake && !refusedTake.enabled, "the ninth Take should be disabled");
+    await shot("17-inventory-refused");
+    await cdp.mouse("mousePressed", (refusedTake.x0 + refusedTake.x1) / 2, (refusedTake.y0 + refusedTake.y1) / 2);
+    await cdp.mouse("mouseReleased", (refusedTake.x0 + refusedTake.x1) / 2, (refusedTake.y0 + refusedTake.y1) / 2);
+    await sleep(400);
+    assert(!(await cdp.eval("window.__quest.items()"))[8].taken, "the ninth item must stay on the floor");
+    const afterRefusal = await cdp.eval("window.__quest.inventory()");
+    assert(afterRefusal.filter(Boolean).length === 8, "a refused take must not change the inventory");
+
+    report.states.items = items;
+    report.states.inventory = await cdp.eval("window.__quest.inventory()");
     report.shots = shots;
     report.errors = cdp.errors;
     const reportPath = join(update ? baselineDir : currentDir, "report.json");

@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "rpd_items.h"
 #include "rpd_markers.h"
 #include "rpd_popup.h"
 #include "rpd_route.h"
@@ -54,11 +55,16 @@ static float dist2(float ax, float ay, float az, float bx, float by, float bz) {
     return dx * dx + dy * dy + dz * dz;
 }
 
+static void sync_blocked_nodes(void) {
+    for (int i = 0; i < nav_count; i++) nav_blocked[i] = items_node_blocked(i) ? 1 : 0;
+}
+
 static int nearest_node_on(int floor, float x, float y, float z, float maxd) {
     int best = -1;
     float bestd = maxd * maxd;
     for (int i = 0; i < nav_count; i++) {
         if (nav_floor[i] != floor) continue;
+        if (nav_blocked[i]) continue;
         float d = dist2(nav_x[i], nav_y[i], nav_z[i], x, y, z);
         if (d < bestd) { bestd = d; best = i; }
     }
@@ -250,6 +256,7 @@ void plan_set_graph(int count, const float *x, const float *y, const float *z,
         memcpy(nav_adj, adjacency, sizeof(int) * (size_t)edges);
         memcpy(nav_cost, adjacency_cost, sizeof(float) * (size_t)edges);
     }
+    items_reset();
     player_node = -1;
     fitted_floor = -1;
 }
@@ -286,6 +293,10 @@ void plan_set_spawn(float x, float y, float z) {
     waypoint_count = 0; route_count = 0; moving = 0; hover = -1;
     popup_close();
     markers_ensure_player(player[0], player[1], player[2]);
+    items_place(nav_count, nav_x, nav_y, nav_z, nav_floor, nav_kind,
+                nav_first, nav_adj, room_count, room_x, room_z, room_floor, spawn);
+    items_sync_markers();
+    sync_blocked_nodes();
 }
 
 void plan_set_floor(int index) {
@@ -356,7 +367,64 @@ void plan_pointer_move(float x, float y) {
     hover = pick_cell(x, y);
 }
 
+static bool player_adjacent(int node) {
+    if (player_node < 0) return false;
+    for (int e = nav_first[node]; e < nav_first[node + 1]; e++) {
+        if (nav_adj[e] == player_node) return true;
+    }
+    return false;
+}
+
+static int nearest_free_neighbor(int node) {
+    int best = -1;
+    float best_distance = 1e30f;
+    int start = player_node;
+    if (start < 0) start = nearest_node_on(active_floor, player[0], player[1], player[2], 4.0f);
+    for (int e = nav_first[node]; e < nav_first[node + 1]; e++) {
+        int candidate = nav_adj[e];
+        if (nav_blocked[candidate]) continue;
+        if (start >= 0) {
+            int path[MAX_ROUTE];
+            if (route_find_path(nav_count, nav_x, nav_y, nav_z, nav_first, nav_adj, nav_cost,
+                                nav_blocked, start, candidate, path, MAX_ROUTE) <= 0) continue;
+        }
+        float dx = nav_x[candidate] - player[0];
+        float dz = nav_z[candidate] - player[2];
+        float distance = dx * dx + dz * dz;
+        if (distance < best_distance) {
+            best_distance = distance;
+            best = candidate;
+        }
+    }
+    return best;
+}
+
+static void open_item_popup(int node, int item) {
+    const item_t *entry = items_get(item);
+    if (!entry) return;
+    float sx, sy, depth;
+    project(nav_x[node], nav_y[node] + 0.45f, nav_z[node], &sx, &sy, &depth);
+    if (sx < -1e8f) return;
+    popup_open(node, item, sx + 26.0f, sy - 10.0f);
+    popup_set_message(entry->name);
+    if (player_adjacent(node)) {
+        bool full = items_inventory_count() >= INVENTORY_SLOTS;
+        if (full) {
+            popup_set_message("INVENTORY FULL");
+            popup_add_choice(POPUP_ACTION_TAKE, "TAKE - INVENTORY FULL", false);
+        } else {
+            popup_add_choice(POPUP_ACTION_TAKE, "TAKE", true);
+        }
+    } else {
+        popup_add_choice(POPUP_ACTION_WALK_NEXT, "WALK NEXT TO IT", true);
+    }
+}
+
 static void open_node_popup(int node) {
+    if (items_at_node(node) >= 0) {
+        open_item_popup(node, items_at_node(node));
+        return;
+    }
     float sx, sy, depth;
     project(nav_x[node], nav_y[node] + 0.06f, nav_z[node], &sx, &sy, &depth);
     if (sx < -1e8f) return;
@@ -368,7 +436,13 @@ static void open_node_popup(int node) {
 static void popup_execute(popup_action_t action) {
     popup_t chosen = *popup_get();
     popup_close();
-    if (action == POPUP_ACTION_WAYPOINT) add_waypoint_node(chosen.node);
+    if (action == POPUP_ACTION_WAYPOINT) {
+        add_waypoint_node(chosen.node);
+    } else if (action == POPUP_ACTION_WALK_NEXT) {
+        add_waypoint_node(nearest_free_neighbor(chosen.node));
+    } else if (action == POPUP_ACTION_TAKE) {
+        if (items_take(chosen.item) == 0) sync_blocked_nodes();
+    }
 }
 
 void plan_pointer_down(float x, float y) {
@@ -382,6 +456,12 @@ void plan_pointer_down(float x, float y) {
             if (p->choices[hit].enabled) popup_execute(p->choices[hit].action);
             return;
         }
+    }
+    int node = pick_cell(x, y);
+    if (node >= 0 && items_at_node(node) >= 0) {
+        open_node_popup(node);
+        last_player_click = -1.0;
+        return;
     }
     float sx, sy, depth;
     project(player[0], player[1] + 0.9f, player[2], &sx, &sy, &depth);
@@ -402,7 +482,6 @@ void plan_pointer_down(float x, float y) {
         popup_close();
         return;
     }
-    int node = pick_cell(x, y);
     if (node >= 0) open_node_popup(node);
     last_player_click = -1.0;
 }

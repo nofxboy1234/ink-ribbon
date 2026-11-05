@@ -45,7 +45,7 @@ emcc "${ROOT}/native/main.c" "${ROOT}"/native/src/*.c \
     -sINITIAL_MEMORY=67108864 \
     -sMAXIMUM_MEMORY=1073741824 \
     -sNO_EXIT_RUNTIME=1 \
-    -sEXPORTED_FUNCTIONS=_main,_malloc,_free,_rpd_load_scene,_rpd_get_camera,_rpd_set_orbit,_rpd_animate_orbit,_rpd_get_view_proj,_rpd_marker_clear,_rpd_marker_add,_rpd_marker_set_visible,_rpd_marker_set_position,_rpd_marker_set_color,_rpd_marker_set_rotation,_rpd_marker_count,_rpd_set_player_position,_rpd_set_view_mode,_rpd_map_set_camera,_rpd_debug_blend,_rpd_plan_route,_rpd_popup_state,_rpd_popup_choice,_rpd_popup_label,_rpd_popup_message \
+    -sEXPORTED_FUNCTIONS=_main,_malloc,_free,_rpd_load_scene,_rpd_get_camera,_rpd_set_orbit,_rpd_animate_orbit,_rpd_get_view_proj,_rpd_marker_clear,_rpd_marker_add,_rpd_marker_set_visible,_rpd_marker_set_position,_rpd_marker_set_color,_rpd_marker_set_rotation,_rpd_marker_count,_rpd_set_player_position,_rpd_set_view_mode,_rpd_map_set_camera,_rpd_debug_blend,_rpd_plan_route,_rpd_popup_state,_rpd_popup_choice,_rpd_popup_label,_rpd_popup_message,_rpd_item_count,_rpd_item,_rpd_item_name,_rpd_item_room,_rpd_inventory_count,_rpd_inventory \
     -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32
 
 mv "${ROOT}/src/wasm/rpd.wasm" "${ROOT}/public/rpd/rpd.wasm"

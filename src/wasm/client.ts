@@ -77,6 +77,22 @@ export type RpdClient = {
     label: string;
   } | null;
   popupMessage(): string;
+  itemCount(): number;
+  item(index: number): {
+    x: number;
+    y: number;
+    z: number;
+    r: number;
+    g: number;
+    b: number;
+    node: number;
+    taken: boolean;
+    room: number;
+    name: string;
+    roomName: string;
+  } | null;
+  inventoryCount(): number;
+  inventory(): Float32Array;
   planMoveState(): Float32Array;
   setFpsVisible(visible: boolean): void;
   planCount(): number;
@@ -269,6 +285,46 @@ export async function createRpdClient(options: {
     },
     popupMessage() {
       return utf8((module as unknown as { _rpd_popup_message: () => number })._rpd_popup_message());
+    },
+    itemCount() {
+      return (module as unknown as { _rpd_item_count: () => number })._rpd_item_count();
+    },
+    item(index) {
+      const ptr = module._malloc(9 * 4);
+      const ok = (module as unknown as { _rpd_item: (i: number, p: number) => number })
+        ._rpd_item(index, ptr);
+      if (!ok) {
+        module._free(ptr);
+        return null;
+      }
+      const out = new Float32Array(heap.HEAPU8.buffer, ptr, 9).slice();
+      module._free(ptr);
+      const namePtr = (module as unknown as { _rpd_item_name: (i: number) => number })._rpd_item_name(index);
+      const roomPtr = (module as unknown as { _rpd_item_room: (i: number) => number })._rpd_item_room(index);
+      return {
+        x: out[0],
+        y: out[1],
+        z: out[2],
+        r: out[3],
+        g: out[4],
+        b: out[5],
+        node: out[6],
+        taken: out[7] !== 0,
+        room: out[8],
+        name: utf8(namePtr),
+        roomName: utf8(roomPtr),
+      };
+    },
+    inventoryCount() {
+      return (module as unknown as { _rpd_inventory_count: () => number })._rpd_inventory_count();
+    },
+    inventory() {
+      const ptr = module._malloc(8 * 4 * 4);
+      (module as unknown as { _rpd_inventory: (p: number, cap: number) => number })
+        ._rpd_inventory(ptr, 8);
+      const out = new Float32Array(heap.HEAPU8.buffer, ptr, 32).slice();
+      module._free(ptr);
+      return out;
     },
     setFpsVisible(visible) {
       (module as unknown as { _rpd_set_fps_visible: (v: number) => void })._rpd_set_fps_visible(visible ? 1 : 0);

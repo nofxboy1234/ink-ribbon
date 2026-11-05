@@ -8,6 +8,7 @@
 
 #include "rpd_app.h"
 #include "rpd_input.h"
+#include "rpd_items.h"
 #include "rpd_overlay.h"
 #include "rpd_plan.h"
 #include "rpd_popup.h"
@@ -294,6 +295,43 @@ EMSCRIPTEN_KEEPALIVE int rpd_plan_player(float *out) {
     float p[3]; plan_player(p);
     out[0] = p[0]; out[1] = p[1]; out[2] = p[2];
     return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_item_count(void) { return items_count(); }
+
+EMSCRIPTEN_KEEPALIVE int rpd_item(int index, float *out) {
+    const item_t *item = items_get(index);
+    if (!item || !out) return 0;
+    out[0] = item->x; out[1] = item->y; out[2] = item->z;
+    out[3] = item->r; out[4] = item->g; out[5] = item->b;
+    out[6] = (float)item->node;
+    out[7] = item->taken ? 1.0f : 0.0f;
+    out[8] = (float)item->room;
+    return 1;
+}
+
+EMSCRIPTEN_KEEPALIVE const char *rpd_item_name(int index) {
+    const item_t *item = items_get(index);
+    return item ? item->name : "";
+}
+
+EMSCRIPTEN_KEEPALIVE const char *rpd_item_room(int index) {
+    return plan_room_name_at(items_room(index));
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_inventory_count(void) { return items_inventory_count(); }
+
+EMSCRIPTEN_KEEPALIVE int rpd_inventory(float *out, int cap) {
+    const inventory_slot_t *slots = items_inventory();
+    int count = INVENTORY_SLOTS < cap ? INVENTORY_SLOTS : cap;
+    if (!out) return 0;
+    for (int i = 0; i < count; i++) {
+        out[i * 4 + 0] = slots[i].filled ? 1.0f : 0.0f;
+        out[i * 4 + 1] = slots[i].r;
+        out[i * 4 + 2] = slots[i].g;
+        out[i * 4 + 3] = slots[i].b;
+    }
+    return count;
 }
 
 EMSCRIPTEN_KEEPALIVE int rpd_popup_state(float *out) {

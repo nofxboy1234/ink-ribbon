@@ -48,6 +48,12 @@ export type RpdModule = {
   _rpd_popup_choice: (index: number, ptr: number) => number;
   _rpd_popup_label: (index: number) => number;
   _rpd_popup_message: () => number;
+  _rpd_item_count: () => number;
+  _rpd_item: (index: number, ptr: number) => number;
+  _rpd_item_name: (index: number) => number;
+  _rpd_item_room: (index: number) => number;
+  _rpd_inventory_count: () => number;
+  _rpd_inventory: (ptr: number, cap: number) => number;
   _rpd_map_set_camera: (
     cx: number,
     cz: number,

@@ -16,6 +16,7 @@ export type PlanSession = {
     planCount: number;
     moving: boolean;
     room: string;
+    inventory: ({ r: number; g: number; b: number } | null)[];
   };
   ref: { canvas: RefObject<HTMLCanvasElement | null> };
   set: { activeFloor: (index: number) => void };
@@ -58,6 +59,9 @@ export function usePlanSession(
   const [planCount, setPlanCount] = useState(0);
   const [moving, setMoving] = useState(false);
   const [room, setRoom] = useState("RPD");
+  const [inventory, setInventory] = useState<({ r: number; g: number; b: number } | null)[]>(
+    () => Array.from({ length: 8 }, () => null),
+  );
   const graphRef = useRef<ReturnType<typeof buildNavGraph> | null>(null);
 
   useEffect(() => {
@@ -179,9 +183,27 @@ export function usePlanSession(
           const count = clientRef.current.planCount();
           const isMoving = clientRef.current.planMoving() !== 0;
           const nextRoom = clientRef.current.planRoom();
+          const slots = clientRef.current.inventory();
+          const nextInventory = Array.from({ length: 8 }, (_, index) =>
+            slots[index * 4] !== 0
+              ? {
+                  r: Math.round(slots[index * 4 + 1] * 255),
+                  g: Math.round(slots[index * 4 + 2] * 255),
+                  b: Math.round(slots[index * 4 + 3] * 255),
+                }
+              : null,
+          );
           setPlanCount((current) => (current === count ? current : count));
           setMoving((current) => (current === isMoving ? current : isMoving));
           setRoom((current) => (current === nextRoom ? current : nextRoom));
+          setInventory((current) => {
+            const same = nextInventory.every((slot, index) => {
+              const previous = current[index];
+              if (!slot || !previous) return slot === previous;
+              return slot.r === previous.r && slot.g === previous.g && slot.b === previous.b;
+            });
+            return same ? current : nextInventory;
+          });
         }, 250);
       } catch (loadError) {
         if (!disposed) setError(loadError instanceof Error ? loadError.message : String(loadError));
@@ -220,6 +242,98 @@ export function usePlanSession(
       },
       setPlayer: (x: number, y: number, z: number) => client.planSetPlayer(x, y, z),
       addTarget: (x: number, z: number) => client.planAddTarget(x, 0, z),
+      items: () => {
+        const out = [];
+        for (let i = 0; i < client.itemCount(); i += 1) {
+          const item = client.item(i);
+          if (item) out.push({ index: i, ...item });
+        }
+        return out;
+      },
+      inventory: () => {
+        const slots = client.inventory();
+        return Array.from({ length: 8 }, (_, index) =>
+          slots[index * 4] !== 0
+            ? {
+                r: Math.round(slots[index * 4 + 1] * 255),
+                g: Math.round(slots[index * 4 + 2] * 255),
+                b: Math.round(slots[index * 4 + 3] * 255),
+              }
+            : null,
+        );
+      },
+      standNextTo: (index: number) => {
+        const item = client.item(index);
+        if (!item) return false;
+        const blocked = new Set(
+          Array.from({ length: client.itemCount() }, (_, i) => client.item(i))
+            .filter((entry) => entry && !entry.taken)
+            .map((entry) => entry!.node),
+        );
+        const player = client.planPlayer();
+        let best = -1;
+        let bestDistance = Infinity;
+        for (let e = graph.first[item.node]; e < graph.first[item.node + 1]; e += 1) {
+          const candidate = graph.adjacency[e];
+          if (blocked.has(candidate)) continue;
+          const distance = Math.hypot(
+            graph.x[candidate] - player[0],
+            graph.y[candidate] - player[1],
+            graph.z[candidate] - player[2],
+          );
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            best = candidate;
+          }
+        }
+        if (best < 0) return false;
+        client.planSetPlayer(graph.x[best], graph.y[best], graph.z[best]);
+        return true;
+      },
+      walkableCell: () => {
+        const blocked = new Set(
+          Array.from({ length: client.itemCount() }, (_, i) => client.item(i))
+            .filter((entry) => entry && !entry.taken)
+            .map((entry) => entry!.node),
+        );
+        const rect = canvas.current?.getBoundingClientRect();
+        if (!rect) return null;
+        const playerArray = client.planPlayer();
+        const player: Vec3 = [playerArray[0], playerArray[1], playerArray[2]];
+        const playerScreen = projectPoint(player, client.getViewProj(), rect.width, rect.height);
+        let best = -1;
+        let bestDistance = Infinity;
+        for (let i = 0; i < graph.count; i += 1) {
+          if (graph.floor[i] !== activeFloor || blocked.has(i)) continue;
+          if (playerScreen) {
+            const screen = projectPoint(
+              [graph.x[i], graph.y[i] + 0.06, graph.z[i]],
+              client.getViewProj(),
+              rect.width,
+              rect.height,
+            );
+            if (screen && Math.hypot(screen.x - playerScreen.x, screen.y - playerScreen.y) < 90) {
+              continue;
+            }
+          }
+          const distance = Math.hypot(graph.x[i], graph.z[i] - 4);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            best = i;
+          }
+        }
+        if (best < 0) return null;
+        return {
+          node: best,
+          world: [graph.x[best], graph.y[best], graph.z[best]],
+          screen: projectPoint(
+            [graph.x[best], graph.y[best] + 0.06, graph.z[best]],
+            client.getViewProj(),
+            rect.width,
+            rect.height,
+          ),
+        };
+      },
       popup: () => {
         const state = client.popupState();
         const choices: unknown[] = [];
@@ -306,7 +420,7 @@ export function usePlanSession(
   }, [loaded, activeFloor]);
 
   return {
-    state: { loaded, error, progress, floors, activeFloor, view2D, planCount, moving, room },
+    state: { loaded, error, progress, floors, activeFloor, view2D, planCount, moving, room, inventory },
     ref: { canvas },
     set: { activeFloor: setActiveFloor },
     actions: {

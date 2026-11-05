@@ -7,11 +7,11 @@ type QuestPanelProps = {
 const SLOTS = 8;
 
 export default function QuestPanel({ session }: QuestPanelProps) {
-  const { planCount, moving, room } = session.state;
+  const { planCount, moving, room, inventory } = session.state;
   const note = moving
     ? "Claire is moving along the route."
     : planCount === 0
-      ? "Switch to the 2D plan, then click the floor to add waypoints. Double click Claire to run the route."
+      ? "Switch to the 2D plan, click a cell and choose Add waypoint. Double click Claire to run the route."
       : `Plan has ${planCount} step${planCount === 1 ? "" : "s"}. Double click Claire to run the route.`;
 
   return (
@@ -27,10 +27,19 @@ export default function QuestPanel({ session }: QuestPanelProps) {
       <div className="rpd-section-title">
         <span>Inventory</span>
       </div>
-      <div className="rpd-inventory" data-empty="true">
-        {Array.from({ length: SLOTS }, (_, index) => (
-          <span className="rpd-slot" key={index} aria-label={`Empty slot ${index + 1}`} />
-        ))}
+      <div className="rpd-inventory" data-empty={inventory.every((slot) => slot === null)}>
+        {Array.from({ length: SLOTS }, (_, index) => {
+          const slot = inventory[index];
+          return (
+            <span
+              className="rpd-slot"
+              key={index}
+              data-filled={slot !== null}
+              style={slot ? { background: `rgb(${slot.r} ${slot.g} ${slot.b})` } : undefined}
+              aria-label={slot ? `Filled slot ${index + 1}` : `Empty slot ${index + 1}`}
+            />
+          );
+        })}
       </div>
       <div className="rpd-legend">
         <div className="rpd-legend-row">
@@ -42,8 +51,8 @@ export default function QuestPanel({ session }: QuestPanelProps) {
           <span>Waypoint</span>
         </div>
         <p className="rpd-legend-note">
-          Switch to the 2D plan, then click the floor to add waypoints. Double click Claire to run
-          the route.
+          Click a cell, choose Add waypoint or take an item, then double click Claire to run the
+          route.
         </p>
       </div>
     </aside>
