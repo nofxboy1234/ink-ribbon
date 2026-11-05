@@ -1,7 +1,6 @@
 #pragma once
 
 #include "rpd_input.h"
-#include "rpd_map.h"
 #include "rpd_math.h"
 #include "rpd_scene.h"
 #include "rpd_sokol.h"
@@ -14,7 +13,6 @@ typedef struct {
     camera_t camera;
     orbit_anim_t orbit;
     float scene_radius;
-    bool glass_style;
     bool map_mode;
     bool ortho;
     float ortho_blend;
@@ -27,7 +25,6 @@ typedef struct {
     float saved_yaw;
     float saved_pitch;
     float saved_distance;
-    map_t map;
     input_t input;
 } rpd_state_t;
 

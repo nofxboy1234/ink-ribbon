@@ -12,30 +12,6 @@
 #define RPD_VERSION 4u
 #define RPD_HEADER_BASE 52
 
-static sg_pipeline make_pipeline(sg_shader shader) {
-    sg_pipeline_desc pd;
-    memset(&pd, 0, sizeof(pd));
-    pd.shader = shader;
-    pd.layout.buffers[0].stride = 16;
-    pd.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
-    pd.layout.attrs[1].format = SG_VERTEXFORMAT_UBYTE4N;
-    pd.primitive_type = SG_PRIMITIVETYPE_TRIANGLES;
-    pd.index_type = SG_INDEXTYPE_UINT32;
-    pd.cull_mode = SG_CULLMODE_NONE;
-    pd.face_winding = SG_FACEWINDING_CCW;
-    pd.sample_count = 1;
-    pd.depth.compare = SG_COMPAREFUNC_ALWAYS;
-    pd.depth.write_enabled = false;
-    pd.colors[0].blend.enabled = true;
-    pd.colors[0].blend.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA;
-    pd.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-    pd.colors[0].blend.op_rgb = SG_BLENDOP_ADD;
-    pd.colors[0].blend.src_factor_alpha = SG_BLENDFACTOR_ONE;
-    pd.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-    pd.colors[0].blend.op_alpha = SG_BLENDOP_ADD;
-    return sg_make_pipeline(&pd);
-}
-
 static sg_pipeline make_solid_pipeline(sg_shader shader) {
     sg_pipeline_desc pd;
     memset(&pd, 0, sizeof(pd));
@@ -165,32 +141,6 @@ void scene_create_pipelines(scene_t *s) {
     memset(&sd, 0, sizeof(sd));
     sd.vertex_func.source = vs_source;
     sd.vertex_func.entry = "main";
-    sd.fragment_func.source = fs_source;
-    sd.fragment_func.entry = "main";
-    sd.attrs[0].base_type = SG_SHADERATTRBASETYPE_FLOAT;
-    sd.attrs[0].glsl_name = "position";
-    sd.attrs[1].base_type = SG_SHADERATTRBASETYPE_FLOAT;
-    sd.attrs[1].glsl_name = "color";
-    sd.uniform_blocks[0].stage = SG_SHADERSTAGE_VERTEX;
-    sd.uniform_blocks[0].size = sizeof(vs_params_t);
-    sd.uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140;
-    sd.uniform_blocks[0].glsl_uniforms[0].type = SG_UNIFORMTYPE_MAT4;
-    sd.uniform_blocks[0].glsl_uniforms[0].glsl_name = "u_view_proj";
-    sd.uniform_blocks[1].stage = SG_SHADERSTAGE_FRAGMENT;
-    sd.uniform_blocks[1].size = sizeof(fs_params_t);
-    sd.uniform_blocks[1].layout = SG_UNIFORMLAYOUT_STD140;
-    sd.uniform_blocks[1].glsl_uniforms[0].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[0].glsl_name = "u_camera";
-    sd.uniform_blocks[1].glsl_uniforms[1].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[1].glsl_name = "u_fog";
-    sd.uniform_blocks[1].glsl_uniforms[2].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[2].glsl_name = "u_clip";
-    sg_shader glass_shd = sg_make_shader(&sd);
-    s->pip = make_pipeline(glass_shd);
-
-    memset(&sd, 0, sizeof(sd));
-    sd.vertex_func.source = vs_source;
-    sd.vertex_func.entry = "main";
     sd.fragment_func.source = solid_fs_source;
     sd.fragment_func.entry = "main";
     sd.attrs[0].base_type = SG_SHADERATTRBASETYPE_FLOAT;
@@ -239,31 +189,6 @@ void scene_create_pipelines(scene_t *s) {
     sd.uniform_blocks[1].glsl_uniforms[1].glsl_name = "u_color";
     sg_shader marker_shd = sg_make_shader(&sd);
     s->marker_pip = make_marker_pipeline(marker_shd);
-}
-
-void scene_render(scene_t *s, const camera_t *cam, float scene_radius, bool glass_style) {
-    float eye[3], aim[3];
-    camera_eye(cam, eye);
-    memcpy(aim, cam->target, sizeof(aim));
-    float camera_distance = cam->distance;
-    float fog_start = camera_distance - scene_radius * 0.55f;
-    float fog_end = camera_distance + scene_radius * 1.15f;
-    float up[3] = { 0.0f, 1.0f, 0.0f };
-    mat4 proj = mat4_perspective(0.62f, (float)sapp_width() / (float)sapp_height(), 0.2f, 1600.0f);
-    mat4 view = mat4_look_at(eye, aim, up);
-    vs_params_t vs = { .view_proj = mat4_mul(proj, view) };
-    fs_params_t fs = { 0 };
-    fs.camera[0] = eye[0]; fs.camera[1] = eye[1]; fs.camera[2] = eye[2]; fs.camera[3] = fog_start;
-    fs.fog[0] = fog_end;
-    sg_apply_pipeline(glass_style ? s->pip : s->solid_pip);
-    sg_apply_bindings(&(sg_bindings){
-        .vertex_buffers[0] = s->vbuf,
-        .index_buffer = s->tri_ibuf,
-    });
-    sg_apply_uniforms(0, &(sg_range){ &vs, sizeof(vs) });
-    sg_apply_uniforms(1, &(sg_range){ &fs, sizeof(fs) });
-    sg_draw(0, s->triangle_count * 3, 1);
-    markers_render(s, vs.view_proj, eye);
 }
 
 void scene_render_matrix(scene_t *s, mat4 view_proj, const float eye[3], bool clip, float clip_min, float clip_max) {

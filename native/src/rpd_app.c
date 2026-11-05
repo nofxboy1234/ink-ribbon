@@ -179,13 +179,11 @@ void rpd_app_init(void) {
     });
     scene_create_pipelines(&g_rpd.scene);
     target_create_composite(&g_rpd.target);
-    map_create_pipeline(&g_rpd.map);
     g_rpd.target.dirty = true;
     g_rpd.camera.yaw = -0.55f;
     g_rpd.camera.pitch = 0.40f;
     g_rpd.camera.distance = 150.0f;
     g_rpd.camera.target[1] = 10.0f;
-    g_rpd.glass_style = false;
     g_rpd.ortho_scale = 8.0f;
     g_rpd.ortho_floor_y = 0.0f;
 }
@@ -251,21 +249,15 @@ EMSCRIPTEN_KEEPALIVE int rpd_animate_orbit(float tx, float ty, float tz,
     return 0;
 }
 
-EMSCRIPTEN_KEEPALIVE void rpd_set_render_style(int style) {
-    g_rpd.glass_style = style != 0;
-}
-
 EMSCRIPTEN_KEEPALIVE void rpd_set_view_mode(int mode) {
     bool ortho = mode != 0;
     if (ortho == g_rpd.ortho) return;
     if (ortho) {
-        if (!g_rpd.ortho_saved) {
-            memcpy(g_rpd.saved_target, g_rpd.camera.target, sizeof(g_rpd.saved_target));
-            g_rpd.saved_yaw = g_rpd.camera.yaw;
-            g_rpd.saved_pitch = g_rpd.camera.pitch;
-            g_rpd.saved_distance = g_rpd.camera.distance;
-            g_rpd.ortho_saved = true;
-        }
+        memcpy(g_rpd.saved_target, g_rpd.camera.target, sizeof(g_rpd.saved_target));
+        g_rpd.saved_yaw = g_rpd.camera.yaw;
+        g_rpd.saved_pitch = g_rpd.camera.pitch;
+        g_rpd.saved_distance = g_rpd.camera.distance;
+        g_rpd.ortho_saved = true;
     }
     g_rpd.ortho = ortho;
     camera_cancel_animation();

@@ -13,32 +13,6 @@ const char *vs_source =
     "  gl_Position = u_view_proj * vec4(position, 1.0);\n"
     "}\n";
 
-const char *fs_source =
-    "#version 300 es\n"
-    "precision highp float;\n"
-    "uniform vec4 u_camera;\n"
-    "uniform vec4 u_fog;\n"
-    "uniform vec4 u_clip;\n"
-    "in vec3 v_world;\n"
-    "in vec3 v_color;\n"
-    "out vec4 frag_color;\n"
-    "void main() {\n"
-    "  if (u_clip.z > 0.5 && (v_world.y < u_clip.x || v_world.y > u_clip.y)) discard;\n"
-    "  vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));\n"
-    "  vec3 view = normalize(u_camera.xyz - v_world);\n"
-    "  if (dot(n, view) < 0.0) n = -n;\n"
-    "  float key = max(dot(n, normalize(vec3(0.42, 0.82, 0.38))), 0.0);\n"
-    "  float fill = max(dot(n, normalize(vec3(-0.55, 0.35, -0.65))), 0.0);\n"
-    "  float hemi = 0.5 + 0.5 * n.y;\n"
-    "  float d = length(v_world - u_camera.xyz);\n"
-    "  float near = 1.0 - smoothstep(u_camera.w, u_fog.x, d);\n"
-    "  float fres = pow(1.0 - max(dot(n, view), 0.0), 2.0);\n"
-    "  float light = 0.55 + 0.35 * key + 0.10 * hemi;\n"
-    "  vec3 glass = vec3(0.95, 0.96, 0.97) * light;\n"
-    "  float alpha = (0.30 + 0.35 * fres) * (0.45 + 0.55 * near);\n"
-    "  frag_color = vec4(glass, alpha);\n"
-    "}\n";
-
 const char *solid_fs_source =
     "#version 300 es\n"
     "precision highp float;\n"
@@ -58,29 +32,6 @@ const char *solid_fs_source =
     "  float hemi = 0.5 + 0.5 * n.y;\n"
     "  float shade = 0.80 + 0.14 * key + 0.04 * fill + 0.02 * hemi;\n"
     "  frag_color = vec4(v_color * shade, 1.0);\n"
-    "}\n";
-
-const char *map_vs_source =
-    "#version 300 es\n"
-    "uniform vec4 u_camera;\n"
-    "uniform vec4 u_viewport;\n"
-    "in vec2 position;\n"
-    "in vec4 color;\n"
-    "out vec4 v_color;\n"
-    "void main() {\n"
-    "  vec2 offset = (position - u_camera.xy) * u_camera.z;\n"
-    "  vec2 ndc = offset / (u_viewport.xy * 0.5);\n"
-    "  gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0);\n"
-    "  v_color = color;\n"
-    "}\n";
-
-const char *map_fs_source =
-    "#version 300 es\n"
-    "precision highp float;\n"
-    "in vec4 v_color;\n"
-    "out vec4 frag_color;\n"
-    "void main() {\n"
-    "  frag_color = v_color;\n"
     "}\n";
 
 const char *marker_vs_source =

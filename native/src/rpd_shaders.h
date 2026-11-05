@@ -28,10 +28,7 @@ typedef struct {
 } map_params_t;
 
 extern const char *vs_source;
-extern const char *fs_source;
 extern const char *solid_fs_source;
-extern const char *map_vs_source;
-extern const char *map_fs_source;
 extern const char *marker_vs_source;
 extern const char *marker_fs_source;
 extern const char *composite_vs_source;

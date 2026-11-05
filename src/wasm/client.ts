@@ -28,7 +28,6 @@ export type RpdClient = {
   markerSetRotation(index: number, radians: number): void;
   markerCount(): number;
   setPlayerPosition(x: number, y: number, z: number): void;
-  setRenderStyle(style: number): void;
   setViewMode(mode: number): void;
   setMapCamera(
     cx: number,
@@ -38,7 +37,6 @@ export type RpdClient = {
     vh: number,
     floorY: number,
   ): void;
-  setMapData(vertices: Float32Array): void;
   debugBlend(): number;
   dispose(): void;
 };
@@ -99,24 +97,11 @@ export async function createRpdClient(options: {
     setPlayerPosition(x, y, z) {
       module._rpd_set_player_position(x, y, z);
     },
-    setRenderStyle(style) {
-      module._rpd_set_render_style(style);
-    },
     setViewMode(mode) {
       module._rpd_set_view_mode(mode);
     },
     setMapCamera(cx, cz, scale, vw, vh, floorY) {
       module._rpd_map_set_camera(cx, cz, scale, vw, vh, floorY);
-    },
-    setMapData(vertices) {
-      if (vertices.length === 0) return;
-      const ptr = module._malloc(vertices.byteLength);
-      module.HEAPU8.set(
-        new Uint8Array(vertices.buffer, vertices.byteOffset, vertices.byteLength),
-        ptr,
-      );
-      module._rpd_map_set_data(ptr, vertices.length / 6);
-      module._free(ptr);
     },
     debugBlend() {
       return (module as unknown as { _rpd_debug_blend?: () => number })._rpd_debug_blend?.() ?? -1;

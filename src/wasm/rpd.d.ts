@@ -42,7 +42,6 @@ export type RpdModule = {
   _rpd_marker_set_rotation: (index: number, radians: number) => void;
   _rpd_marker_count: () => number;
   _rpd_set_player_position: (x: number, y: number, z: number) => void;
-  _rpd_set_render_style: (style: number) => void;
   _rpd_set_view_mode: (mode: number) => void;
   _rpd_map_set_camera: (
     cx: number,
@@ -52,7 +51,6 @@ export type RpdModule = {
     vh: number,
     floorY: number,
   ) => void;
-  _rpd_map_set_data: (ptr: number, vertexCount: number) => number;
 };
 
 declare const createRpdModule: (options: {
