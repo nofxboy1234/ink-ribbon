@@ -456,6 +456,8 @@ void plan_pointer_down(float x, float y) {
             if (p->choices[hit].enabled) popup_execute(p->choices[hit].action);
             return;
         }
+        popup_close();
+        return;
     }
     int node = pick_cell(x, y);
     if (node >= 0 && items_at_node(node) >= 0) {
@@ -475,10 +477,6 @@ void plan_pointer_down(float x, float y) {
     }
     if (near_player) {
         last_player_click = now;
-        popup_close();
-        return;
-    }
-    if (popup_is_open()) {
         popup_close();
         return;
     }
