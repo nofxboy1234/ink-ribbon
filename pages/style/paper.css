@@ -201,3 +201,8 @@ body,
   border: 1px solid rgb(36 34 30 / 18%);
   background: rgb(250 247 239 / 82%);
 }
+
+.rpd-root .rpd-map[data-active="true"] .rpd-map-hit,
+.rpd-root .rpd-map[data-active="true"] .rpd-map-hit:active {
+  cursor: default;
+}

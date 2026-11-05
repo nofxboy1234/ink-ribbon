@@ -26,6 +26,9 @@ static sg_pipeline make_solid_pipeline(sg_shader shader) {
     pd.sample_count = 1;
     pd.depth.compare = SG_COMPAREFUNC_LESS_EQUAL;
     pd.depth.write_enabled = true;
+    pd.color_count = 2;
+    pd.colors[0].pixel_format = SG_PIXELFORMAT_RGBA8;
+    pd.colors[1].pixel_format = SG_PIXELFORMAT_RGBA8;
     pd.label = "solid-pipeline";
     return sg_make_pipeline(&pd);
 }
@@ -44,6 +47,9 @@ static sg_pipeline make_marker_pipeline(sg_shader shader) {
     pd.sample_count = 1;
     pd.depth.compare = SG_COMPAREFUNC_LESS_EQUAL;
     pd.depth.write_enabled = true;
+    pd.color_count = 2;
+    pd.colors[0].pixel_format = SG_PIXELFORMAT_RGBA8;
+    pd.colors[1].pixel_format = SG_PIXELFORMAT_RGBA8;
     pd.label = "marker-pipeline";
     return sg_make_pipeline(&pd);
 }

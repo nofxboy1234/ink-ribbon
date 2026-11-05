@@ -124,6 +124,7 @@ export function useMapPointer({
     const dx = event.clientX - drag.x;
     const dy = event.clientY - drag.y;
     drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
+    if (drag.button !== 1) return;
     const camera = cameraRef.current;
     cameraRef.current = {
       cx: drag.cx - dx / camera.scale,
@@ -142,7 +143,7 @@ export function useMapPointer({
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     if (!drag || !root || drag.id !== event.pointerId) return;
-    if (event.type === "pointercancel" || drag.moved > 4) return;
+    if (drag.button !== 0 || event.type === "pointercancel" || drag.moved > 4) return;
     const rect = root.getBoundingClientRect();
     const camera = cameraRef.current;
     const sx = event.clientX - rect.left;

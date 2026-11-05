@@ -124,7 +124,16 @@ static void update_ortho_blend(float dt) {
     float step = dt / BLEND_DURATION;
     if (g_rpd.ortho_blend < target) g_rpd.ortho_blend = fminf(target, g_rpd.ortho_blend + step);
     else if (g_rpd.ortho_blend > target) g_rpd.ortho_blend = fmaxf(target, g_rpd.ortho_blend - step);
-    if (!g_rpd.ortho && g_rpd.ortho_blend <= 0.001f) return;
+    if (!g_rpd.ortho && g_rpd.ortho_blend <= 0.001f) {
+        if (g_rpd.ortho_saved) {
+            memcpy(g_rpd.camera.target, g_rpd.saved_target, sizeof(g_rpd.saved_target));
+            g_rpd.camera.yaw = g_rpd.saved_yaw;
+            g_rpd.camera.pitch = g_rpd.saved_pitch;
+            g_rpd.camera.distance = g_rpd.saved_distance;
+            g_rpd.ortho_saved = false;
+        }
+        return;
+    }
     float e = blend_ease();
     if (!g_rpd.ortho_saved) return;
     float cx = g_rpd.ortho_center[0];

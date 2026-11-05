@@ -6,10 +6,13 @@
 
 void target_destroy(target_t *t) {
     if (t->color.id != SG_INVALID_ID) sg_destroy_image(t->color);
+    if (t->normal.id != SG_INVALID_ID) sg_destroy_image(t->normal);
     if (t->depth.id != SG_INVALID_ID) sg_destroy_image(t->depth);
     if (t->color_att.id != SG_INVALID_ID) sg_destroy_view(t->color_att);
+    if (t->normal_att.id != SG_INVALID_ID) sg_destroy_view(t->normal_att);
     if (t->depth_att.id != SG_INVALID_ID) sg_destroy_view(t->depth_att);
     if (t->tex_view.id != SG_INVALID_ID) sg_destroy_view(t->tex_view);
+    if (t->normal_tex_view.id != SG_INVALID_ID) sg_destroy_view(t->normal_tex_view);
     if (t->sampler.id != SG_INVALID_ID) sg_destroy_sampler(t->sampler);
     sg_buffer quad = t->quad;
     sg_pipeline pip = t->pip;
@@ -31,6 +34,13 @@ void target_create(target_t *t, int width, int height) {
         .sample_count = 1,
         .label = "rpd-color-target",
     });
+    t->normal = sg_make_image(&(sg_image_desc){
+        .usage = { .color_attachment = true },
+        .width = width, .height = height,
+        .pixel_format = SG_PIXELFORMAT_RGBA8,
+        .sample_count = 1,
+        .label = "rpd-normal-target",
+    });
     t->depth = sg_make_image(&(sg_image_desc){
         .usage = { .depth_stencil_attachment = true },
         .width = width, .height = height,
@@ -42,6 +52,10 @@ void target_create(target_t *t, int width, int height) {
         .color_attachment = { .image = t->color },
         .label = "rpd-color-attachment",
     });
+    t->normal_att = sg_make_view(&(sg_view_desc){
+        .color_attachment = { .image = t->normal },
+        .label = "rpd-normal-attachment",
+    });
     t->depth_att = sg_make_view(&(sg_view_desc){
         .depth_stencil_attachment = { .image = t->depth },
         .label = "rpd-depth-attachment",
@@ -49,6 +63,10 @@ void target_create(target_t *t, int width, int height) {
     t->tex_view = sg_make_view(&(sg_view_desc){
         .texture = { .image = t->color },
         .label = "rpd-color-texture",
+    });
+    t->normal_tex_view = sg_make_view(&(sg_view_desc){
+        .texture = { .image = t->normal },
+        .label = "rpd-normal-texture",
     });
     t->sampler = sg_make_sampler(&(sg_sampler_desc){
         .min_filter = SG_FILTER_LINEAR,
@@ -62,11 +80,16 @@ void target_create(target_t *t, int width, int height) {
             .load_action = SG_LOADACTION_CLEAR,
             .clear_value = { 0.962f, 0.952f, 0.921f, 1.0f },
         },
+        .action.colors[1] = {
+            .load_action = SG_LOADACTION_CLEAR,
+            .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f },
+        },
         .action.depth = {
             .load_action = SG_LOADACTION_CLEAR,
             .clear_value = 1.0f,
         },
         .attachments.colors[0] = t->color_att,
+        .attachments.colors[1] = t->normal_att,
         .attachments.depth_stencil = t->depth_att,
         .label = "rpd-offscreen-pass",
     };
@@ -96,6 +119,15 @@ void target_create_composite(target_t *t) {
     sd.texture_sampler_pairs[0].view_slot = 0;
     sd.texture_sampler_pairs[0].sampler_slot = 0;
     sd.texture_sampler_pairs[0].glsl_name = "u_tex";
+    sd.views[1].texture.stage = SG_SHADERSTAGE_FRAGMENT;
+    sd.views[1].texture.image_type = SG_IMAGETYPE_2D;
+    sd.views[1].texture.sample_type = SG_IMAGESAMPLETYPE_FLOAT;
+    sd.samplers[1].stage = SG_SHADERSTAGE_FRAGMENT;
+    sd.samplers[1].sampler_type = SG_SAMPLERTYPE_FILTERING;
+    sd.texture_sampler_pairs[1].stage = SG_SHADERSTAGE_FRAGMENT;
+    sd.texture_sampler_pairs[1].view_slot = 1;
+    sd.texture_sampler_pairs[1].sampler_slot = 1;
+    sd.texture_sampler_pairs[1].glsl_name = "u_normal";
     sg_shader shd = sg_make_shader(&sd);
     t->pip = sg_make_pipeline(&(sg_pipeline_desc){
         .shader = shd,
@@ -120,7 +152,9 @@ void target_composite(target_t *t, const sg_pass_action *action) {
     sg_apply_bindings(&(sg_bindings){
         .vertex_buffers[0] = t->quad,
         .views[0] = t->tex_view,
+        .views[1] = t->normal_tex_view,
         .samplers[0] = t->sampler,
+        .samplers[1] = t->sampler,
     });
     sg_draw(0, 3, 1);
     sg_end_pass();

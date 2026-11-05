@@ -22,7 +22,7 @@ click her.
 | Right drag | Orbit the perspective camera |
 | Middle drag | Pan the perspective camera |
 | Scroll wheel | Zoom (perspective camera or plan) |
-| Plan drag | Pan the plan |
+| Middle drag (plan) | Pan the plan |
 | Floor buttons | Choose 4F, 3F, 2F, 1F or B1; the plan clips to that storey |
 | Click a room cell or stair | Preview a move, then click the popup to append a waypoint |
 | Double click Claire | Run the committed route |
@@ -94,8 +94,12 @@ accepts RPDW version 4 with any number of floors.
 
 - `solid_fs_source` is a paper shader: albedo times a soft key/fill/hemisphere
   term, no fog and no glass.
-- The composite pass detects ink edges from the rendered colour and lays the
-  result on warm off-white stock with a slight vignette and grain.
+- The offscreen target carries a second RGBA8 attachment with the view-space
+  normal. The composite pass inks both colour discontinuities and normal
+  discontinuities, so wall corners get a line even when two faces are shaded
+  almost identically. Marker pixels write a sentinel normal so Claire stays
+  outline-free. The result sits on warm off-white stock with a slight vignette
+  and grain.
 - `rpd_app.c` keeps one camera. `M` stores the perspective pose, flies it to a
   top-down pose over the active floor and blends the perspective and
   orthographic matrices with a smoothstep, so the switch is an animation rather
@@ -153,7 +157,7 @@ npm run verify:rpd
 
 `verify:rpd` boots the dev server and headless Chrome, drives the scene through
 the five floors, adds a waypoint, double clicks Claire and checks the route is
-walkable and completes, then compares twelve screenshots against
+walkable and completes, then compares thirteen screenshots against
 `verification/rpd/baseline/`. Regenerate the baseline with `--update` after an
 intentional visual change.
 

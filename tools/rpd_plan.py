@@ -215,7 +215,9 @@ def build_floor_geometry(floor: dict, plan: dict) -> list[dict]:
         slab["z1"] += 0.04
         boxes.append(slab)
     for rect in greedy_rects(wall):
-        body = thicken(box_from_rect(floor, rect, level, WALL_HEIGHT - WALL_CAP, COLOUR_WALL))
+        # Sink the wall base into the slab so the floor top and wall bottom are
+        # not coplanar; coincident horizontal faces z-fight into dark specks.
+        body = thicken(box_from_rect(floor, rect, level - 0.08, WALL_HEIGHT - WALL_CAP + 0.08, COLOUR_WALL))
         boxes.append(body)
         cap = dict(body)
         cap["y0"] = round(level + WALL_HEIGHT - WALL_CAP, 3)

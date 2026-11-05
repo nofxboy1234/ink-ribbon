@@ -251,10 +251,24 @@ async function run() {
     assert(report.states.initial.slots === 8, "expected eight inventory slots");
     assert(!report.states.initial.routeDock, "the route dock should be gone");
 
+    await cdp.eval(
+      "window.__cam=null; window.__rpd.setMapCamera=(orig=>(...a)=>{window.__cam=a.slice(0,3);return orig(...a)})(window.__rpd.setMapCamera.bind(window.__rpd));",
+    );
     await cdp.key("KeyM", "m", 77);
-    await sleep(1700);
+    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 1) >= 0.999", 20000);
+    await sleep(250);
     await shot("02-ortho-1f");
     report.states.ortho1f = await facts();
+
+    const camBefore = await cdp.eval("JSON.stringify(window.__cam)");
+    await cdp.mouse("mousePressed", 700, 500);
+    await cdp.mouse("mouseMoved", 720, 490);
+    await cdp.mouse("mouseMoved", 740, 480);
+    await cdp.mouse("mouseReleased", 740, 480);
+    await sleep(350);
+    const camAfter = await cdp.eval("JSON.stringify(window.__cam)");
+    report.states.leftDrag = { before: camBefore, after: camAfter };
+    assert(camBefore === camAfter, "left drag must not pan the plan");
     assert(report.states.ortho1f.view === "3D", "M should switch to the plan view");
     assert(report.states.ortho1f.mapTitle?.includes("1F"), "the plan should show 1F");
 
@@ -304,10 +318,22 @@ async function run() {
     assert(!report.states.arrived.moving, "double clicking Claire should run the route to completion");
 
     await cdp.key("KeyM", "m", 77);
-    await sleep(1700);
+    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) <= 0.001", 20000);
+    await sleep(250);
     await shot("12-route-3d");
     report.states.route3d = await facts();
     assert(report.states.route3d.view === "2D", "M should return to the perspective view");
+
+    await cdp.eval("window.__quest.setPlayer(0, 0.02, 7.5)");
+    await sleep(400);
+    const claireClose = JSON.parse(
+      await cdp.eval("JSON.stringify(window.__quest.debug().player)"),
+    );
+    await cdp.eval(
+      `window.__rpd.setOrbit(${claireClose[0]}, ${claireClose[1] + 0.9}, ${claireClose[2]}, 2.4, 0.12, 4.5)`,
+    );
+    await sleep(700);
+    await shot("13-claire-closeup");
 
     report.shots = shots;
     report.errors = cdp.errors;
