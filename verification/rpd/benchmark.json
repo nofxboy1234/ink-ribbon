@@ -1,0 +1,47 @@
+{
+  "harness": "Chrome headless, SwiftShader, 1400x900, 4 s per scenario",
+  "before": {
+    "3d-idle": {
+      "fps": 2.9995929123875884,
+      "p50FrameMs": 283.39999999999964,
+      "p95FrameMs": 350,
+      "scriptMs": 5191.6410000000005
+    },
+    "plan-idle": {
+      "fps": 2.8103420587754564,
+      "p50FrameMs": 300,
+      "p95FrameMs": 316.7000000000007,
+      "scriptMs": 5565.982
+    },
+    "plan-zoom": {
+      "fps": 3.0927706486088766,
+      "p50FrameMs": 316.6000000000058,
+      "p95FrameMs": 366.6999999999971,
+      "scriptMs": 40344.052
+    }
+  },
+  "after": {
+    "3d-idle": {
+      "fps": 4.480732848747049,
+      "p50FrameMs": 233.29999999999927,
+      "p95FrameMs": 383.39999999999964,
+      "scriptMs": 28.98099999999998
+    },
+    "plan-idle": {
+      "fps": 3.742328227131592,
+      "p50FrameMs": 266.59999999999854,
+      "p95FrameMs": 433.39999999999964,
+      "scriptMs": 30.084
+    },
+    "plan-zoom": {
+      "fps": 3.7001783056937168,
+      "p50FrameMs": 266.6999999999971,
+      "p95FrameMs": 466.6999999999971,
+      "scriptMs": 340.50199999999995
+    }
+  },
+  "runs": {
+    "before": 1,
+    "after": 3
+  }
+}

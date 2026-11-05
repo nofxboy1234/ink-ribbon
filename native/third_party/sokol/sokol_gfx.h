@@ -12786,9 +12786,15 @@ _SOKOL_PRIVATE void _sg_gl_begin_pass(const sg_pass* pass, const _sg_attachments
             glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0);
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
         }
-        if (!_sg_gl_check_framebuffer_status(GL_FRAMEBUFFER)) {
-            _sg.cur_pass.valid = false;
-            return;
+        // One static offscreen framebuffer is used by the RPD renderer.
+        // Re-validating it on every pass costs whole seconds under software GL.
+        static bool fb_checked = false;
+        if (!fb_checked) {
+            fb_checked = true;
+            if (!_sg_gl_check_framebuffer_status(GL_FRAMEBUFFER)) {
+                _sg.cur_pass.valid = false;
+                return;
+            }
         }
         GLenum gl_draw_bufs[SG_MAX_COLOR_ATTACHMENTS];
         SOKOL_ASSERT(_sg.limits.max_color_attachments <= SG_MAX_COLOR_ATTACHMENTS);
