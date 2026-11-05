@@ -1,29 +1,29 @@
-import type { QuestSession } from "../session/types";
+import type { PlanSession } from "../session/usePlanSession";
 
 type QuestPanelProps = {
-  session: QuestSession;
+  session: PlanSession;
 };
 
 const SLOTS = 8;
 
 export default function QuestPanel({ session }: QuestPanelProps) {
-  const { state } = session;
-  const { preview, playerRoom, paused } = state;
+  const { planCount, moving, room } = session.state;
+  const note = moving
+    ? "Claire is moving along the route."
+    : planCount === 0
+      ? "Switch to the 2D plan, then click the floor to add waypoints. Double click Claire to run the route."
+      : `Plan has ${planCount} step${planCount === 1 ? "" : "s"}. Double click Claire to run the route.`;
 
   return (
     <aside className="rpd-panel" aria-label="Route planner">
       <div className="rpd-panel-head">
         <div>
           <p className="rpd-kicker">Route planner</p>
-          <h2>{preview?.label ?? playerRoom}</h2>
+          <h2>{room}</h2>
         </div>
-        <div className="rpd-panel-status">
-          {paused && <span className="rpd-paused">Paused</span>}
-        </div>
+        <div className="rpd-panel-status">{moving && <span className="rpd-paused">Running</span>}</div>
       </div>
-
-      <p className="rpd-note">{state.statusNote}</p>
-
+      <p className="rpd-note">{note}</p>
       <div className="rpd-section-title">
         <span>Inventory</span>
       </div>
@@ -32,7 +32,6 @@ export default function QuestPanel({ session }: QuestPanelProps) {
           <span className="rpd-slot" key={index} aria-label={`Empty slot ${index + 1}`} />
         ))}
       </div>
-
       <div className="rpd-legend">
         <div className="rpd-legend-row">
           <span className="rpd-dot" style={{ background: "#ff79c6" }} />
@@ -43,8 +42,8 @@ export default function QuestPanel({ session }: QuestPanelProps) {
           <span>Waypoint</span>
         </div>
         <p className="rpd-legend-note">
-          Switch to the 2D plan, then click the floor to add waypoints. Double
-          click Claire to run the route.
+          Switch to the 2D plan, then click the floor to add waypoints. Double click Claire to run
+          the route.
         </p>
       </div>
     </aside>

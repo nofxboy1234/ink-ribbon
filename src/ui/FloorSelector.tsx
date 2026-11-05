@@ -1,29 +1,21 @@
-import type { QuestSession, RpdActions } from "../session/types";
-
-type FloorEntry = {
-  index: number;
-  label: string;
-};
+import type { PlanSession } from "../session/usePlanSession";
 
 type FloorSelectorProps = {
-  session: QuestSession;
-  actions: RpdActions;
-  floors: FloorEntry[];
+  session: PlanSession;
 };
 
-export default function FloorSelector({ session, actions, floors }: FloorSelectorProps) {
-  const { state, set } = session;
-
+export default function FloorSelector({ session }: FloorSelectorProps) {
+  const { state, actions } = session;
   return (
     <section className="rpd-floors" aria-label="Floor selector">
-      {floors.map((floor) => (
+      {state.floors.map((floor) => (
         <button
           key={floor.index}
           className="rpd-floor"
           data-active={state.activeFloor === floor.index}
           onClick={(event) => {
             if (event.detail > 0) event.currentTarget.blur();
-            set.activeFloor(floor.index);
+            actions.setFloor(floor.index);
           }}
         >
           <span>{floor.label}</span>
@@ -35,16 +27,16 @@ export default function FloorSelector({ session, actions, floors }: FloorSelecto
         title="Animate between the perspective and top-down plan"
         onClick={(event) => {
           if (event.detail > 0) event.currentTarget.blur();
-          actions.toggleView2D();
+          actions.toggleView();
         }}
       >
         <span>{state.view2D ? "3D" : "2D"}</span>
       </button>
       <button
         className="rpd-icon-button"
-        title="Reset run"
+        title="Reset route"
         onClick={actions.reset}
-        aria-label="Reset run"
+        aria-label="Reset route"
       >
         ↺
       </button>

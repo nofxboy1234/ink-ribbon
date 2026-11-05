@@ -43,5 +43,26 @@
   "runs": {
     "before": 1,
     "after": 3
-  }
+  },
+  "architecture": {
+    "3d-idle": {
+      "fps": 4.64776575260147,
+      "p50FrameMs": 216.69999999999982,
+      "p95FrameMs": 516.7000000000007,
+      "scriptMs": 4.317999999999989
+    },
+    "plan-idle": {
+      "fps": 3.3261267254282387,
+      "p50FrameMs": 316.59999999999854,
+      "p95FrameMs": 433.2999999999993,
+      "scriptMs": 5.869000000000013
+    },
+    "plan-zoom": {
+      "fps": 3.1775799924611827,
+      "p50FrameMs": 316.60000000000036,
+      "p95FrameMs": 549.9000000000015,
+      "scriptMs": 70.38900000000001
+    }
+  },
+  "notes": "SwiftShader software rasterizer at 1400x900; frame time is GPU-bound. The render fix cut median frame time and main-thread script time. The C-owned overlay keeps the 3D median and adds label/raster cost in the plan. p95 did not improve, so the consistency claim is not supported in this harness."
 }

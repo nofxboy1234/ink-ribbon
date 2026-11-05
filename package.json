@@ -21,7 +21,8 @@
     "verify:rpd": "node tools/verify_rpd.mjs",
     "check:structure": "node tools/check_structure.mjs",
     "plan:build": "uv run --with numpy --with scipy --with opencv-python-headless python tools/rpd_plan.py && blender -b -P tools/plan_scene.py && node tools/write_asset_version.mjs",
-    "asset:version": "node tools/write_asset_version.mjs"
+    "asset:version": "node tools/write_asset_version.mjs",
+    "bench:rpd": "node tools/bench_rpd.mjs"
   },
   "dependencies": {
     "hono": "4.13.14",

@@ -5,7 +5,6 @@ type RpdStatusProps = {
   hidden: boolean;
   error: string | null;
   progress: number;
-  fps: number;
   toast: string;
 };
 
@@ -14,12 +13,10 @@ export default function RpdStatus({
   hidden,
   error,
   progress,
-  fps,
   toast,
 }: RpdStatusProps) {
   return (
     <>
-      <div className="rpd-fps">{fps > 0 ? `${fps} FPS` : "-- FPS"}</div>
       {toast && <div className="rpd-toast">{toast}</div>}
       <div
         className="rpd-status"

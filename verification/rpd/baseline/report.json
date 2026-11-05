@@ -8,7 +8,7 @@
     "06-ortho-b1",
     "07-ortho-1f-clean",
     "08-hover",
-    "09-popup",
+    "09-waypoint",
     "10-plan",
     "11-route-ortho",
     "12-route-3d",
@@ -28,10 +28,8 @@
       "slots": 8,
       "routeDock": false,
       "inventoryShown": true,
-      "panel": "ROUTE PLANNER\n\nMain Hall\n\nSwitch to the 2D plan and click a room to add a waypoint. Double",
+      "panel": "ROUTE PLANNER\n\nMain Hall\n\nSwitch to the 2D plan, then click the floor to add waypoints. Do",
       "mapTitle": null,
-      "label": null,
-      "popup": "",
       "plan": [],
       "player": [
         -0.5,
@@ -39,6 +37,12 @@
         7.5
       ],
       "moving": false,
+      "routePoints": 0,
+      "move": [
+        0,
+        0,
+        0
+      ],
       "check": {
         "points": 0,
         "bad": 0,
@@ -60,14 +64,8 @@
       "slots": 8,
       "routeDock": false,
       "inventoryShown": true,
-      "panel": "ROUTE PLANNER\n\nMain Hall\n\nSwitch to the 2D plan and click a room to add a waypoint. Double",
-      "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · drag to pan",
-      "label": {
-        "x": 504,
-        "y": 496,
-        "text": "CLAIRE"
-      },
-      "popup": "",
+      "panel": "ROUTE PLANNER\n\nMain Hall\n\nSwitch to the 2D plan, then click the floor to add waypoints. Do",
+      "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · middle drag to pan",
       "plan": [],
       "player": [
         -0.5,
@@ -75,6 +73,12 @@
         7.5
       ],
       "moving": false,
+      "routePoints": 0,
+      "move": [
+        0,
+        0,
+        0
+      ],
       "check": {
         "points": 0,
         "bad": 0,
@@ -85,8 +89,8 @@
       "view": "3D"
     },
     "leftDrag": {
-      "before": "[20.433268805309734,2.215873893805309,9.840794665940944]",
-      "after": "[20.433268805309734,2.215873893805309,9.840794665940944]"
+      "before": "[17.50990867614746,-8.731142044067383,10.735687255859375]",
+      "after": "[17.50990867614746,-8.731142044067383,10.735687255859375]"
     },
     "orthoB1": {
       "floors": [
@@ -100,19 +104,25 @@
       "slots": 8,
       "routeDock": false,
       "inventoryShown": true,
-      "panel": "ROUTE PLANNER\n\nMain Hall\n\nSwitch to the 2D plan and click a room to add a waypoint. Double",
-      "mapTitle": "B1 · FLOOR PLAN\nwheel to zoom · drag to pan",
-      "label": null,
-      "popup": "",
-      "plan": [],
+      "panel": "ROUTE PLANNER\n\nMain Hall\n\nPlan has 1 step. Double click Claire to run the route.\n\nINVENTOR",
+      "mapTitle": "B1 · FLOOR PLAN\nwheel to zoom · middle drag to pan",
+      "plan": [
+        0
+      ],
       "player": [
         -0.5,
         0.019999999552965164,
         7.5
       ],
       "moving": false,
+      "routePoints": 35,
+      "move": [
+        0,
+        0,
+        0
+      ],
       "check": {
-        "points": 0,
+        "points": 1,
         "bad": 0,
         "worst": 0,
         "nodes": 5541,
@@ -132,16 +142,11 @@
       "slots": 8,
       "routeDock": false,
       "inventoryShown": true,
-      "panel": "ROUTE PLANNER\n\nMain Hall\n\nPlan has 1 step. Click another target or run the route.\n\nINVENTO",
-      "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · drag to pan",
-      "label": {
-        "x": 493,
-        "y": 619,
-        "text": "CLAIRE"
-      },
-      "popup": "",
+      "panel": "ROUTE PLANNER\n\nMain Hall\n\nPlan has 2 steps. Double click Claire to run the route.\n\nINVENTO",
+      "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · middle drag to pan",
       "plan": [
-        "Move to Safety Deposit Room cell"
+        0,
+        0
       ],
       "player": [
         -0.5,
@@ -149,10 +154,16 @@
         7.5
       ],
       "moving": false,
+      "routePoints": 7,
+      "move": [
+        0,
+        0,
+        0
+      ],
       "check": {
-        "points": 63,
+        "points": 2,
         "bad": 0,
-        "worst": 0.45,
+        "worst": 0,
         "nodes": 5541,
         "edges": 14760
       },
@@ -170,23 +181,26 @@
       "slots": 8,
       "routeDock": false,
       "inventoryShown": true,
-      "panel": "ROUTE PLANNER\n\nSafety Deposit Room\n\nRoute complete.\n\nINVENTORY\nClaire\nRoute\nWaypoint\n\nSwit",
-      "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · drag to pan",
-      "label": {
-        "x": 325,
-        "y": 343,
-        "text": "CLAIRE"
-      },
-      "popup": "",
-      "plan": [],
+      "panel": "ROUTE PLANNER\n\nMain Hall\n\nPlan has 2 steps. Double click Claire to run the route.\n\nINVENTO",
+      "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · middle drag to pan",
+      "plan": [
+        0,
+        0
+      ],
       "player": [
-        -17.5,
-        0.4699999995529652,
-        -20.49999999999998
+        1.5,
+        0.09999999403953552,
+        3.5
       ],
       "moving": false,
+      "routePoints": 7,
+      "move": [
+        6,
+        7,
+        0
+      ],
       "check": {
-        "points": 0,
+        "points": 2,
         "bad": 0,
         "worst": 0,
         "nodes": 5541,
@@ -206,19 +220,26 @@
       "slots": 8,
       "routeDock": false,
       "inventoryShown": true,
-      "panel": "ROUTE PLANNER\n\nSafety Deposit Room\n\nRoute complete.\n\nINVENTORY\nClaire\nRoute\nWaypoint\n\nSwit",
+      "panel": "ROUTE PLANNER\n\nMain Hall\n\nPlan has 2 steps. Double click Claire to run the route.\n\nINVENTO",
       "mapTitle": null,
-      "label": null,
-      "popup": "",
-      "plan": [],
+      "plan": [
+        0,
+        0
+      ],
       "player": [
-        -17.5,
-        0.4699999995529652,
-        -20.49999999999998
+        1.5,
+        0.09999999403953552,
+        3.5
       ],
       "moving": false,
+      "routePoints": 7,
+      "move": [
+        6,
+        7,
+        0
+      ],
       "check": {
-        "points": 0,
+        "points": 2,
         "bad": 0,
         "worst": 0,
         "nodes": 5541,

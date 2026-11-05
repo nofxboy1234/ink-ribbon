@@ -8,6 +8,10 @@
 #include "rpd_shaders.h"
 #include "rpd_state.h"
 
+EMSCRIPTEN_KEEPALIVE void rpd_marker_clear(void);
+EMSCRIPTEN_KEEPALIVE int rpd_marker_add(int shape, float x, float y, float z, float size, int r, int g, int b);
+EMSCRIPTEN_KEEPALIVE void rpd_set_player_position(float x, float y, float z);
+
 static marker_t g_markers[MAX_MARKERS];
 static int g_marker_count;
 
@@ -280,6 +284,16 @@ int scene_marker_count(void) {
 const marker_t *scene_marker(int index) {
     if (index < 0 || index >= g_marker_count) return NULL;
     return &g_markers[index];
+}
+
+void markers_ensure_player(float x, float y, float z) {
+    rpd_marker_clear();
+    rpd_marker_add(MARKER_CAPSULE, x, y, z, 1.7f, 255, 121, 198);
+    rpd_set_player_position(x, y, z);
+}
+
+void markers_set_player(float x, float y, float z) {
+    rpd_set_player_position(x, y, z);
 }
 
 EMSCRIPTEN_KEEPALIVE void rpd_set_player_position(float x, float y, float z) {

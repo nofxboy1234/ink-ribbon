@@ -112,11 +112,14 @@ accepts RPDW version 4 with any number of floors.
 
 ## Web app
 
-React + TypeScript on Void. `src/FloorMap2D.tsx` is now a headless orthographic
-camera and label layer: it publishes the plan centre, scale and floor height to
-the renderer and hosts the room labels. The overlay canvas draws the green hover
-cell, cyan waypoint cells, dotted preview route, glowing committed route and the
-Claire label in both views. Nav cells are no longer rendered.
+React + TypeScript on Void owns only the chrome: the brand header, the floor
+selector and view toggle, the route planner with the 2x4 inventory, the plan
+title and the loading status. The plan camera fit and pan/zoom, pointer picking,
+the green hover cell, cyan waypoint cells, the glowing route, the room and
+Claire labels, A* waypoints and Claire's movement are drawn and calculated in
+C. `src/session/usePlanSession.ts` loads the assets, sends the nav graph and
+room table into C once, and polls the plan count and current room at 4 Hz. No
+per-frame React state drives the map.
 
 The right panel always shows a 2×4 empty inventory grid. There is no route dock,
 no glass toggle and no item markers yet; committing a waypoint only appends it
@@ -194,10 +197,11 @@ native/src/rpd_app.c       camera blend, ortho clip and frame loop
 native/src/rpd_scene.c     scene loading and rendering
 native/src/rpd_markers.c   marker shapes (capsule, cube, pyramid, cylinder, door)
 native/src/rpd_shaders.c   paper shader, ink composite, marker shader
-src/nav.ts                 nav graph, A*, route points
-src/planner.ts             pure plan simulation and previews
-src/overlay/sceneOverlay.ts  screen-space hover, waypoints, route and popup
-src/map/useMapCamera.ts    orthographic plan camera and focus animation
+src/nav.ts                 nav graph construction at the load boundary
+src/session/usePlanSession.ts  asset load, C data handoff, plan-state polling
+native/src/rpd_overlay.c   screen-space hover, waypoints, route and labels
+native/src/rpd_plan.c      A* waypoints, picking, map camera and movement
+native/src/rpd_font.h      generated 5x7 label font
 src/ui/QuestPanel.tsx      route instructions and the 2×4 inventory
 ```
 

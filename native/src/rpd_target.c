@@ -1,5 +1,7 @@
 #include "rpd_target.h"
 
+#include "rpd_overlay.h"
+
 #include <string.h>
 
 #include "rpd_shaders.h"
@@ -191,5 +193,6 @@ void target_composite(target_t *t, const sg_pass_action *action) {
         .samplers[2] = t->sampler,
     });
     sg_draw(0, 3, 1);
+    overlay_draw();
     sg_end_pass();
 }

@@ -220,8 +220,6 @@ async function run() {
       await sleep(750);
     };
     const facts = () => cdp.eval(`(() => {
-      const label = document.querySelector('.rpd-map-player');
-      const rect = label?.getBoundingClientRect();
       return {
         floors: [...document.querySelectorAll('.rpd-floor:not(.rpd-view-toggle)')].map((e) => e.textContent.trim()),
         active: document.querySelector('.rpd-floor[data-active="true"]')?.textContent.trim() ?? null,
@@ -230,11 +228,11 @@ async function run() {
         inventoryShown: Boolean(document.querySelector('.rpd-inventory')),
         panel: document.querySelector('.rpd-panel')?.innerText.slice(0, 90) ?? null,
         mapTitle: document.querySelector('.rpd-map-title')?.innerText ?? null,
-        label: rect ? { x: Math.round(rect.left), y: Math.round(rect.top), text: label.textContent } : null,
-        popup: document.querySelector('.rpd-popup-layer')?.innerText ?? null,
         plan: window.__quest.debug().plan,
         player: window.__quest.debug().player,
         moving: window.__quest.debug().moving,
+        routePoints: window.__quest.debug().routePoints,
+        move: window.__quest.debug().move,
         check: window.__quest.checkPath(),
         view: document.querySelector('.rpd-view-toggle')?.textContent.trim() ?? null,
       };
@@ -251,22 +249,19 @@ async function run() {
     assert(report.states.initial.slots === 8, "expected eight inventory slots");
     assert(!report.states.initial.routeDock, "the route dock should be gone");
 
-    await cdp.eval(
-      "window.__cam=null; window.__rpd.setMapCamera=(orig=>(...a)=>{window.__cam=a.slice(0,3);return orig(...a)})(window.__rpd.setMapCamera.bind(window.__rpd));",
-    );
     await cdp.key("KeyM", "m", 77);
     await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 1) >= 0.999", 20000);
     await sleep(250);
     await shot("02-ortho-1f");
     report.states.ortho1f = await facts();
 
-    const camBefore = await cdp.eval("JSON.stringify(window.__cam)");
+    const camBefore = await cdp.eval("JSON.stringify(window.__quest.camera())");
     await cdp.mouse("mousePressed", 700, 500);
     await cdp.mouse("mouseMoved", 720, 490);
     await cdp.mouse("mouseMoved", 740, 480);
     await cdp.mouse("mouseReleased", 740, 480);
     await sleep(350);
-    const camAfter = await cdp.eval("JSON.stringify(window.__cam)");
+    const camAfter = await cdp.eval("JSON.stringify(window.__quest.camera())");
     report.states.leftDrag = { before: camBefore, after: camAfter };
     assert(camBefore === camAfter, "left drag must not pan the plan");
     assert(report.states.ortho1f.view === "3D", "M should switch to the plan view");
@@ -288,17 +283,18 @@ async function run() {
 
     await cdp.mouse("mousePressed", 320, 350);
     await cdp.mouse("mouseReleased", 320, 350);
-    await sleep(700);
-    await shot("09-popup");
-    const hasChoice = await cdp.eval(
-      "Boolean(document.querySelector('.rpd-popup-choice:not(:disabled)'))",
-    );
-    assert(hasChoice, "map click did not open a routing choice");
-    await cdp.eval("document.querySelector('.rpd-popup-choice:not(:disabled)').click()");
-    await sleep(700);
+    await sleep(500);
+    const picked = await cdp.eval("window.__quest.debug().plan.length");
+    assert(picked > 0, "clicking a cell did not add a waypoint");
+    await cdp.eval("window.__quest.reset()");
+    await cdp.eval("window.__quest.addTarget(0, 4)");
+    await sleep(500);
+    await shot("09-waypoint");
+    await cdp.eval("window.__quest.addTarget(2, 4)");
+    await sleep(500);
     await shot("10-plan");
     report.states.plan = await facts();
-    assert(report.states.plan.plan.length > 0, "the waypoint did not add a plan step");
+    assert(report.states.plan.plan.length > 1, "the waypoint did not add plan steps");
     assert(report.states.plan.check && report.states.plan.check.bad === 0, "route leaves the walkable graph");
 
     const claire = JSON.parse(
@@ -308,7 +304,7 @@ async function run() {
       await cdp.mouse("mousePressed", claire.x, claire.y, { clickCount: 2 });
       await cdp.mouse("mouseReleased", claire.x, claire.y, { clickCount: 2 });
     }
-    for (let i = 0; i < 240; i += 1) {
+    for (let i = 0; i < 600; i += 1) {
       await sleep(150);
       if (!(await cdp.eval("window.__quest.debug().moving"))) break;
     }

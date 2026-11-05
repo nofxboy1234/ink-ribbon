@@ -8,6 +8,8 @@
 
 #include "rpd_app.h"
 #include "rpd_input.h"
+#include "rpd_overlay.h"
+#include "rpd_plan.h"
 #include "rpd_state.h"
 
 rpd_state_t g_rpd;
@@ -76,12 +78,12 @@ static mat4 perspective_view_proj(float eye[3]) {
 static mat4 ortho_view_proj(float eye[3]) {
     float vw = (float)(sapp_width() > 0 ? sapp_width() : 1600);
     float vh = (float)(sapp_height() > 0 ? sapp_height() : 900);
-    float scale = g_rpd.ortho_scale > 0.5f ? g_rpd.ortho_scale : 8.0f;
+    float scale = plan_map_scale() > 0.5f ? plan_map_scale() : 8.0f;
     float half_w = vw / (2.0f * scale);
     float half_h = vh / (2.0f * scale);
-    float cx = g_rpd.ortho_center[0];
-    float cz = g_rpd.ortho_center[1];
-    float fy = g_rpd.ortho_floor_y;
+    float cx = plan_map_cx();
+    float cz = plan_map_cz();
+    float fy = plan_level();
     eye[0] = cx;
     eye[1] = fy + 80.0f;
     eye[2] = cz;
@@ -136,9 +138,9 @@ static void update_ortho_blend(float dt) {
     }
     float e = blend_ease();
     if (!g_rpd.ortho_saved) return;
-    float cx = g_rpd.ortho_center[0];
-    float cz = g_rpd.ortho_center[1];
-    float fy = g_rpd.ortho_floor_y;
+    float cx = plan_map_cx();
+    float cz = plan_map_cz();
+    float fy = plan_level();
     g_rpd.camera.target[0] = g_rpd.saved_target[0] + (cx - g_rpd.saved_target[0]) * e;
     g_rpd.camera.target[1] = g_rpd.saved_target[1] + (fy + 0.9f - g_rpd.saved_target[1]) * e;
     g_rpd.camera.target[2] = g_rpd.saved_target[2] + (cz - g_rpd.saved_target[2]) * e;
@@ -149,9 +151,9 @@ static void update_ortho_blend(float dt) {
 }
 
 void rpd_app_frame(void) {
-    float dt = (float)sapp_frame_duration();
-    if (dt < 0.0f) dt = 0.0f;
-    if (dt > 0.1f) dt = 0.1f;
+    float raw_dt = (float)sapp_frame_duration();
+    if (raw_dt < 0.0f) raw_dt = 0.0f;
+    float dt = raw_dt > 0.1f ? 0.1f : raw_dt;
     camera_update_animation(dt);
     update_ortho_blend(dt);
     if (g_rpd.scene.pending) {
@@ -165,16 +167,19 @@ void rpd_app_frame(void) {
     sg_begin_pass(&g_rpd.target.pass);
     sg_apply_viewport(0, 0, g_rpd.target.width, g_rpd.target.height, true);
 
+    float eye[3];
+    mat4 vp = blended_view_proj(eye);
+    float e = blend_ease();
+    float fy = plan_level();
+    plan_update(raw_dt > 0.5f ? 0.5f : raw_dt, vp.m, sapp_width(), sapp_height());
     if (g_rpd.scene.loaded && g_rpd.scene.gpu_ready) {
-        float eye[3];
-        mat4 vp = blended_view_proj(eye);
-        float e = blend_ease();
         bool clip = e > 0.45f;
-        float fy = g_rpd.ortho_floor_y;
         scene_render_matrix(&g_rpd.scene, vp, eye, clip, fy - 0.55f, fy + 4.2f);
     }
     sg_end_pass();
 
+    overlay_build(vp.m, sapp_width(), sapp_height(), e > 0.5f);
+    overlay_upload();
     target_composite(&g_rpd.target, &g_rpd.pass_action);
     sg_commit();
 }
@@ -187,6 +192,7 @@ void rpd_app_init(void) {
         .logger = { .func = slog_func },
     });
     scene_create_pipelines(&g_rpd.scene);
+    overlay_init();
     target_create_composite(&g_rpd.target);
     g_rpd.target.dirty = true;
     g_rpd.camera.yaw = -0.55f;
@@ -202,9 +208,73 @@ void rpd_app_cleanup(void) {
     if (g_rpd.scene.data) free(g_rpd.scene.data);
 }
 
+static bool map_panning;
+EMSCRIPTEN_KEEPALIVE void rpd_set_view_mode(int mode);
+
 void rpd_app_event(const sapp_event *e) {
-    if (g_rpd.ortho_blend > 0.25f) return;
+    if (e->type == SAPP_EVENTTYPE_KEY_DOWN && e->key_code == SAPP_KEYCODE_ESCAPE) {
+        plan_reset();
+        return;
+    }
+    if (g_rpd.ortho_blend > 0.25f) {
+        float s = sapp_dpi_scale();
+        float mx = e->mouse_x * s;
+        float my = e->mouse_y * s;
+        if (e->type == SAPP_EVENTTYPE_MOUSE_MOVE) {
+            if (map_panning) plan_pan(e->mouse_dx * s, e->mouse_dy * s);
+            else plan_pointer_move(mx, my);
+        } else if (e->type == SAPP_EVENTTYPE_MOUSE_DOWN) {
+            if (e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) map_panning = true;
+            else if (e->mouse_button == SAPP_MOUSEBUTTON_LEFT) plan_pointer_down(mx, my);
+        } else if (e->type == SAPP_EVENTTYPE_MOUSE_UP) {
+            if (e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) map_panning = false;
+        } else if (e->type == SAPP_EVENTTYPE_MOUSE_SCROLL) {
+            plan_zoom(mx, my, e->scroll_y);
+        }
+        return;
+    }
     input_handle_event(e);
+}
+
+EMSCRIPTEN_KEEPALIVE void rpd_plan_set_floors(int count, float *levels, float *bounds) {
+    plan_set_floors(count, levels, bounds);
+}
+
+EMSCRIPTEN_KEEPALIVE void rpd_plan_set_graph(int count, float *x, float *y, float *z,
+    uint8_t *floor, uint8_t *kind, int *first, int *adj, float *cost) {
+    plan_set_graph(count, x, y, z, floor, kind, first, adj, cost);
+}
+
+EMSCRIPTEN_KEEPALIVE void rpd_plan_set_rooms(int count, float *x, float *y, float *z,
+    uint8_t *floor, char *names, int names_len, int *offsets) {
+    plan_set_rooms(count, x, y, z, floor, names, names_len, offsets);
+}
+
+EMSCRIPTEN_KEEPALIVE void rpd_plan_set_spawn(float x, float y, float z) { plan_set_spawn(x, y, z); }
+EMSCRIPTEN_KEEPALIVE void rpd_plan_set_player(float x, float y, float z) { plan_set_player(x, y, z); }
+EMSCRIPTEN_KEEPALIVE void rpd_plan_set_floor(int index) { plan_set_floor(index); }
+EMSCRIPTEN_KEEPALIVE void rpd_plan_start_move(void) { plan_start_move(); }
+EMSCRIPTEN_KEEPALIVE void rpd_plan_add_target(float x, float y, float z) { plan_add_target(x, y, z); }
+EMSCRIPTEN_KEEPALIVE int rpd_plan_camera(float *out) {
+    if (!out) return -1;
+    out[0] = plan_map_cx(); out[1] = plan_map_cz(); out[2] = plan_map_scale();
+    return 0;
+}
+EMSCRIPTEN_KEEPALIVE int rpd_plan_route_count(void) { return plan_route_count(); }
+EMSCRIPTEN_KEEPALIVE int rpd_plan_move_state(float *out) {
+    if (!out) return -1;
+    out[0] = (float)plan_move_index(); out[1] = (float)plan_move_count(); out[2] = plan_move_t();
+    return 0;
+}
+EMSCRIPTEN_KEEPALIVE int rpd_plan_count(void) { return plan_count(); }
+EMSCRIPTEN_KEEPALIVE int rpd_plan_moving(void) { return plan_moving(); }
+EMSCRIPTEN_KEEPALIVE const char *rpd_plan_room(void) { return plan_room_name(); }
+EMSCRIPTEN_KEEPALIVE void rpd_plan_reset(void) { plan_reset(); }
+EMSCRIPTEN_KEEPALIVE int rpd_plan_player(float *out) {
+    if (!out) return -1;
+    float p[3]; plan_player(p);
+    out[0] = p[0]; out[1] = p[1]; out[2] = p[2];
+    return 0;
 }
 
 EMSCRIPTEN_KEEPALIVE int rpd_get_camera(float *out) {
