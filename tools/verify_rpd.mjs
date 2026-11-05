@@ -284,9 +284,28 @@ async function run() {
 
     await cdp.mouse("mousePressed", 320, 350);
     await cdp.mouse("mouseReleased", 320, 350);
+    await sleep(600);
+    const popup = await cdp.eval("window.__quest.popup()");
+    assert(popup.open, "clicking a walkable cell did not open the routing popup");
+    const waypointChoice = popup.choices.find(
+      (choice) => choice.enabled && choice.label.includes("ADD WAYPOINT"),
+    );
+    assert(waypointChoice, "the routing popup has no Add waypoint choice");
+    await shot("09-popup");
+    const choiceIndex = popup.choices.indexOf(waypointChoice);
+    const choiceX = (waypointChoice.x0 + waypointChoice.x1) / 2;
+    const choiceY = (waypointChoice.y0 + waypointChoice.y1) / 2;
+    await cdp.mouse("mouseMoved", choiceX, choiceY);
     await sleep(500);
+    const hovered = await cdp.eval("window.__quest.popup().hover");
+    assert(hovered === choiceIndex, "hovering a popup choice did not highlight it");
+    await shot("09-popup-hover");
+    await cdp.mouse("mousePressed", choiceX, choiceY);
+    await cdp.mouse("mouseReleased", choiceX, choiceY);
+    await sleep(600);
+    assert(!(await cdp.eval("window.__quest.popup().open")), "the popup should close after a choice");
     const picked = await cdp.eval("window.__quest.debug().plan.length");
-    assert(picked > 0, "clicking a cell did not add a waypoint");
+    assert(picked > 0, "choosing Add waypoint did not add a waypoint");
     await cdp.eval("window.__quest.reset()");
     await cdp.eval("window.__quest.addTarget(0, 4)");
     await sleep(500);
@@ -297,7 +316,14 @@ async function run() {
     report.states.plan = await facts();
     console.log("route check", JSON.stringify(report.states.plan.check));
     assert(report.states.plan.plan.length > 1, "the waypoint did not add plan steps");
-    assert(report.states.plan.check && report.states.plan.check.bad === 0, "route leaves the walkable graph");
+    assert(
+      report.states.plan.check &&
+        report.states.plan.check.points > 1 &&
+        report.states.plan.check.samples > 0 &&
+        report.states.plan.check.bad === 0 &&
+        report.states.plan.check.worst <= 0.75,
+      "route leaves the walkable graph",
+    );
 
     const claire = JSON.parse(
       await cdp.eval("JSON.stringify(window.__quest.project(...window.__quest.debug().player))"),

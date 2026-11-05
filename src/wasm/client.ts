@@ -66,6 +66,17 @@ export type RpdClient = {
   planCamera(): Float32Array;
   planRouteCount(): number;
   planRoute(): Float32Array;
+  popupState(): Float32Array;
+  popupChoice(index: number): {
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+    enabled: boolean;
+    action: number;
+    label: string;
+  } | null;
+  popupMessage(): string;
   planMoveState(): Float32Array;
   setFpsVisible(visible: boolean): void;
   planCount(): number;
@@ -91,6 +102,11 @@ export async function createRpdClient(options: {
   };
   const viewProjPtr = module._malloc(16 * 4);
   const cameraPtr = module._malloc(6 * 4);
+  const utf8 = (ptr: number) => {
+    let end = ptr;
+    while (heap.HEAPU8[end]) end += 1;
+    return new TextDecoder().decode(heap.HEAPU8.subarray(ptr, end));
+  };
 
   return {
     loadScene(data) {
@@ -223,6 +239,37 @@ export async function createRpdClient(options: {
       module._free(ptr);
       return out;
     },
+    popupState() {
+      const ptr = module._malloc(8 * 4);
+      (module as unknown as { _rpd_popup_state: (p: number) => number })._rpd_popup_state(ptr);
+      const out = new Float32Array(heap.HEAPU8.buffer, ptr, 8).slice();
+      module._free(ptr);
+      return out;
+    },
+    popupChoice(index) {
+      const ptr = module._malloc(6 * 4);
+      const ok = (module as unknown as { _rpd_popup_choice: (i: number, p: number) => number })
+        ._rpd_popup_choice(index, ptr);
+      if (!ok) {
+        module._free(ptr);
+        return null;
+      }
+      const out = new Float32Array(heap.HEAPU8.buffer, ptr, 6).slice();
+      module._free(ptr);
+      const labelPtr = (module as unknown as { _rpd_popup_label: (i: number) => number })._rpd_popup_label(index);
+      return {
+        x0: out[0],
+        y0: out[1],
+        x1: out[2],
+        y1: out[3],
+        enabled: out[4] !== 0,
+        action: out[5],
+        label: utf8(labelPtr),
+      };
+    },
+    popupMessage() {
+      return utf8((module as unknown as { _rpd_popup_message: () => number })._rpd_popup_message());
+    },
     setFpsVisible(visible) {
       (module as unknown as { _rpd_set_fps_visible: (v: number) => void })._rpd_set_fps_visible(visible ? 1 : 0);
     },
@@ -240,10 +287,7 @@ export async function createRpdClient(options: {
       return (module as unknown as { _rpd_plan_moving: () => number })._rpd_plan_moving();
     },
     planRoom() {
-      const ptr = (module as unknown as { _rpd_plan_room: () => number })._rpd_plan_room();
-      let end = ptr;
-      while (heap.HEAPU8[end]) end += 1;
-      return new TextDecoder().decode(heap.HEAPU8.subarray(ptr, end));
+      return utf8((module as unknown as { _rpd_plan_room: () => number })._rpd_plan_room());
     },
     planPlayer() {
       const ptr = module._malloc(3 * 4);

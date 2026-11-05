@@ -220,6 +220,23 @@ export function usePlanSession(
       },
       setPlayer: (x: number, y: number, z: number) => client.planSetPlayer(x, y, z),
       addTarget: (x: number, z: number) => client.planAddTarget(x, 0, z),
+      popup: () => {
+        const state = client.popupState();
+        const choices: unknown[] = [];
+        for (let i = 0; i < state[6]; i += 1) {
+          const choice = client.popupChoice(i);
+          if (choice) choices.push(choice);
+        }
+        return {
+          open: state[7] === 1,
+          node: state[1],
+          item: state[2],
+          hover: state[3],
+          anchor: [state[4], state[5]],
+          message: client.popupMessage(),
+          choices,
+        };
+      },
       reset: () => client.planReset(),
       camera: () => Array.from(client.planCamera()),
       checkPath: () => {

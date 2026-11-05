@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "rpd_markers.h"
+#include "rpd_popup.h"
 #include "rpd_route.h"
 
 #define MAX_WAYPOINTS 32
@@ -174,6 +175,8 @@ static void fit_camera(void) {
     fitted_floor = active_floor;
 }
 
+static void add_waypoint_node(int node);
+
 static int *route_scratch_nodes;
 static int route_scratch_capacity;
 
@@ -281,6 +284,7 @@ void plan_set_spawn(float x, float y, float z) {
         player_node = -1;
     }
     waypoint_count = 0; route_count = 0; moving = 0; hover = -1;
+    popup_close();
     markers_ensure_player(player[0], player[1], player[2]);
 }
 
@@ -290,6 +294,7 @@ void plan_set_floor(int index) {
     active_floor = index;
     fitted_floor = -1;
     hover = -1;
+    popup_close();
     if (view_w > 1 && view_h > 1) fit_camera();
 }
 
@@ -302,6 +307,7 @@ void plan_update(float dt, const float *vp, int width, int height) {
     memcpy(view_proj, vp, sizeof(view_proj));
     view_w = width;
     view_h = height;
+    popup_set_viewport(view_w, view_h);
     if (fitted_floor != active_floor) fit_camera();
     if (!moving) {
         return;
@@ -342,29 +348,63 @@ void plan_update(float dt, const float *vp, int width, int height) {
 
 void plan_pointer_move(float x, float y) {
     if (view_w < 2) return;
+    if (popup_is_open()) {
+        popup_set_hover(popup_hit(x, y));
+        hover = -1;
+        return;
+    }
     hover = pick_cell(x, y);
+}
+
+static void open_node_popup(int node) {
+    float sx, sy, depth;
+    project(nav_x[node], nav_y[node] + 0.06f, nav_z[node], &sx, &sy, &depth);
+    if (sx < -1e8f) return;
+    popup_open(node, -1, sx + 26.0f, sy - 10.0f);
+    popup_set_message("");
+    popup_add_choice(POPUP_ACTION_WAYPOINT, "ADD WAYPOINT", true);
+}
+
+static void popup_execute(popup_action_t action) {
+    popup_t chosen = *popup_get();
+    popup_close();
+    if (action == POPUP_ACTION_WAYPOINT) add_waypoint_node(chosen.node);
 }
 
 void plan_pointer_down(float x, float y) {
     if (view_w < 2) return;
+    static double last_player_click = -1.0;
+    double now = emscripten_get_now();
+    if (popup_is_open()) {
+        int hit = popup_hit(x, y);
+        if (hit >= 0) {
+            const popup_t *p = popup_get();
+            if (p->choices[hit].enabled) popup_execute(p->choices[hit].action);
+            return;
+        }
+    }
     float sx, sy, depth;
     project(player[0], player[1] + 0.9f, player[2], &sx, &sy, &depth);
     float distance = sqrtf((sx - x) * (sx - x) + (sy - y) * (sy - y));
-    static double last_click = -1.0;
-    double now = emscripten_get_now();
-    if (distance < 46.0f) {
-        if (now - last_click < 420.0) plan_start_move();
-        last_click = now;
+    bool near_player = distance < 46.0f;
+    if (near_player && last_player_click > 0.0 && now - last_player_click < 420.0) {
+        plan_start_move();
+        popup_close();
+        last_player_click = -1.0;
+        return;
+    }
+    if (near_player) {
+        last_player_click = now;
+        popup_close();
+        return;
+    }
+    if (popup_is_open()) {
+        popup_close();
         return;
     }
     int node = pick_cell(x, y);
-    if (node >= 0) {
-        if (waypoint_count == 0 || waypoints[waypoint_count - 1] != node) {
-            if (waypoint_count < MAX_WAYPOINTS) waypoints[waypoint_count++] = node;
-            recompute_route();
-        }
-    }
-    last_click = now;
+    if (node >= 0) open_node_popup(node);
+    last_player_click = -1.0;
 }
 
 void plan_set_player(float x, float y, float z) {
@@ -387,6 +427,7 @@ void plan_add_target(float x, float y, float z) {
 }
 
 void plan_start_move(void) {
+    popup_close();
     if (route_count < 2) return;
     memcpy(move_pts, route, sizeof(float) * 3 * (size_t)route_count);
     move_count = route_count;

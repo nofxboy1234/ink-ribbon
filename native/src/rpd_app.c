@@ -10,6 +10,7 @@
 #include "rpd_input.h"
 #include "rpd_overlay.h"
 #include "rpd_plan.h"
+#include "rpd_popup.h"
 #include "rpd_state.h"
 
 rpd_state_t g_rpd;
@@ -293,6 +294,42 @@ EMSCRIPTEN_KEEPALIVE int rpd_plan_player(float *out) {
     float p[3]; plan_player(p);
     out[0] = p[0]; out[1] = p[1]; out[2] = p[2];
     return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_popup_state(float *out) {
+    if (!out) return -1;
+    const popup_t *p = popup_get();
+    out[0] = (float)p->phase;
+    out[1] = (float)p->node;
+    out[2] = (float)p->item;
+    out[3] = (float)p->hover;
+    out[4] = p->anchor[0];
+    out[5] = p->anchor[1];
+    out[6] = (float)p->choice_count;
+    out[7] = p->phase == POPUP_CHOOSING ? 1.0f : 0.0f;
+    return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_popup_choice(int index, float *out) {
+    if (!out) return 0;
+    const popup_t *p = popup_get();
+    if (index < 0 || index >= p->choice_count) return 0;
+    float rect[4];
+    if (!popup_choice_rect(index, rect)) return 0;
+    out[0] = rect[0]; out[1] = rect[1]; out[2] = rect[2]; out[3] = rect[3];
+    out[4] = p->choices[index].enabled ? 1.0f : 0.0f;
+    out[5] = (float)p->choices[index].action;
+    return 1;
+}
+
+EMSCRIPTEN_KEEPALIVE const char *rpd_popup_label(int index) {
+    const popup_t *p = popup_get();
+    if (index < 0 || index >= p->choice_count) return "";
+    return p->choices[index].label;
+}
+
+EMSCRIPTEN_KEEPALIVE const char *rpd_popup_message(void) {
+    return popup_get()->message;
 }
 
 EMSCRIPTEN_KEEPALIVE int rpd_get_camera(float *out) {

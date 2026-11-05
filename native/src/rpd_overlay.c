@@ -7,6 +7,7 @@
 
 #include "rpd_font.h"
 #include "rpd_plan.h"
+#include "rpd_popup.h"
 #include "rpd_sokol.h"
 #include "rpd_shaders.h"
 
@@ -228,6 +229,34 @@ void overlay_init(void) {
     });
 }
 
+static void draw_popup(void) {
+    const popup_t *p = popup_get();
+    if (!p || p->phase != POPUP_CHOOSING) return;
+    float x0, y0, w, h;
+    popup_layout(&x0, &y0, &w, &h);
+    quad(x0 + 5.0f, y0 + 6.0f, x0 + w + 5.0f, y0 + h + 6.0f, 0x24221e38);
+    quad(x0, y0, x0 + w, y0 + h, 0xfaf7efff);
+    line(x0, y0, x0 + w, y0, 2.0f, 0x24221ee6);
+    line(x0 + w, y0, x0 + w, y0 + h, 2.0f, 0x24221ee6);
+    line(x0, y0 + h, x0 + w, y0 + h, 2.0f, 0x24221ee6);
+    line(x0, y0, x0, y0 + h, 2.0f, 0x24221ee6);
+    if (p->message[0]) {
+        text(p->message, x0 + 12.0f, y0 + 10.0f, 1.45f, 0x24221ecc, 0);
+    }
+    for (int i = 0; i < p->choice_count; i++) {
+        float rect[4];
+        if (!popup_choice_rect(i, rect)) continue;
+        const popup_choice_t *choice = &p->choices[i];
+        bool hot = choice->enabled && p->hover == i;
+        if (hot) quad(rect[0], rect[1], rect[2], rect[3], 0x24221ee6);
+        uint32_t color = choice->enabled ? (hot ? 0xf5f1e6ff : 0x24221eff) : 0x24221e66;
+        text(choice->label, rect[0] + 9.0f, rect[1] + 7.0f, 1.5f, color, 0);
+        if (i + 1 < p->choice_count) {
+            line(rect[0], rect[3], rect[2], rect[3], 1.0f, 0x24221e22);
+        }
+    }
+}
+
 void overlay_build(const float *matrix, int width, int height, int ortho, float fps) {
     view_w = width > 1 ? width : 1;
     view_h = height > 1 ? height : 1;
@@ -303,6 +332,8 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
         project(p[0], p[1] + 1.15f, p[2], &sx, &sy);
         if (sx > -1e8f) text("CLAIRE", sx + 15, sy - 5, 1.5f, 0x9b3d78ff, 1);
     }
+
+    draw_popup();
 
     if (fps_visible) {
         char buf[32];
