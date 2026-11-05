@@ -351,7 +351,7 @@ def ramp_chain(cells: list[dict], floor: dict, x: float, z: float, other_level: 
     for i in range(steps + 1):
         t = i / steps
         y = floor["level"] + (other_level - floor["level"]) * t
-        zz = z + 0.9 - 1.8 * t
+        zz = z - 0.9 + 1.8 * t
         ids.append(len(cells))
         cells.append({
             "x": float(round(x, 2)),
@@ -409,7 +409,7 @@ def main() -> int:
         for i in range(steps + 1):
             t = i / steps
             y = lower["level"] + (upper["level"] - lower["level"]) * t
-            zz = z + 0.9 - 1.8 * t
+            zz = z - 0.9 + 1.8 * t
             floor_index = lower["index"] if t < 0.5 else upper["index"]
             chain.append(len(cells))
             cells.append({
