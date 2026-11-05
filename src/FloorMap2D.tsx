@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { NavGraph } from "./nav";
 import type { DoorState, Quest, Vec3 } from "./quest";
 import type { PlanStep, Preview, Target } from "./planner";
-import { buildMapGeometry } from "./map/geometry";
 import { useMapCamera } from "./map/useMapCamera";
 import { useMapPointer } from "./map/useMapPointer";
 import { MapLabels } from "./map/MapLabels";
@@ -18,7 +17,6 @@ type FloorMap2DProps = {
   planPath: Vec3[];
   mapBounds: [number, number, number, number];
   preview: Preview | null;
-  onMapData: (vertices: Float32Array) => void;
   onCamera: (
     cx: number,
     cz: number,
@@ -30,8 +28,15 @@ type FloorMap2DProps = {
   focusToken: number;
   onPreview: (target: Target) => void;
   onPreviewAnchor: (anchor: { x: number; y: number } | null) => void;
+  onHoverNode?: (node: number | null, x: number, y: number) => void;
+  active: boolean;
 };
 
+/**
+ * Headless orthographic camera and room labels for the plan view. The 3D
+ * canvas draws the model; this component publishes the map camera so the C
+ * renderer can build its orthographic projection, and hosts the labels.
+ */
 export default function FloorMap2D({
   nav,
   quest,
@@ -43,14 +48,15 @@ export default function FloorMap2D({
   planPath,
   mapBounds,
   preview,
-  onMapData,
   onCamera,
   focusToken,
   onPreview,
   onPreviewAnchor,
+  onHoverNode,
+  active,
 }: FloorMap2DProps) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const floorLevel = quest.floors[floor]?.level ?? 0;
+  const floorLevel = nav.floors[floor]?.level ?? quest.floors[floor]?.level ?? 0;
 
   const { cameraRef, cameraVersion, viewport, emitCamera, setCameraVersion, cancelFocus } =
     useMapCamera({
@@ -62,7 +68,7 @@ export default function FloorMap2D({
       player,
       onCamera,
     });
-  const { hoverNode, handlers } = useMapPointer({
+  const { handlers } = useMapPointer({
     rootRef,
     cameraRef,
     emitCamera,
@@ -74,27 +80,8 @@ export default function FloorMap2D({
     plan,
     discovered,
     onPreview,
+    onHoverNode,
   });
-
-  const mapGeometry = useMemo(
-    () =>
-      buildMapGeometry({
-        nav,
-        quest,
-        floor,
-        discovered,
-        doorStates,
-        plan,
-        planPath,
-        preview,
-        hoverNode,
-      }),
-    [nav, quest, floor, discovered, doorStates, plan, planPath, preview, hoverNode],
-  );
-
-  useEffect(() => {
-    onMapData(mapGeometry);
-  }, [mapGeometry, onMapData]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -110,17 +97,22 @@ export default function FloorMap2D({
     });
   }, [preview, cameraVersion, viewport, cameraRef, onPreviewAnchor]);
 
+  void doorStates;
+  void planPath;
+
   return (
-    <div className="rpd-map" ref={rootRef}>
-      <MapLabels
-        nav={nav}
-        quest={quest}
-        floor={floor}
-        player={player}
-        camera={cameraRef.current}
-        viewport={viewport}
-      />
-      <div className="rpd-map-hit" {...handlers} />
+    <div className="rpd-map" ref={rootRef} data-active={active ? "true" : "false"}>
+      {active && (
+        <MapLabels
+          nav={nav}
+          quest={quest}
+          floor={floor}
+          player={player}
+          camera={cameraRef.current}
+          viewport={viewport}
+        />
+      )}
+      <div className="rpd-map-hit" {...(active ? handlers : {})} />
     </div>
   );
 }

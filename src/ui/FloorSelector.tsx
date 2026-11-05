@@ -1,16 +1,14 @@
 import type { QuestSession, RpdActions } from "../session/types";
 
-type FloorCount = {
+type FloorEntry = {
   index: number;
   label: string;
-  discovered: number;
-  total: number;
 };
 
 type FloorSelectorProps = {
   session: QuestSession;
   actions: RpdActions;
-  floors: FloorCount[];
+  floors: FloorEntry[];
 };
 
 export default function FloorSelector({ session, actions, floors }: FloorSelectorProps) {
@@ -29,15 +27,12 @@ export default function FloorSelector({ session, actions, floors }: FloorSelecto
           }}
         >
           <span>{floor.label}</span>
-          <small>
-            {floor.discovered}/{floor.total}
-          </small>
         </button>
       ))}
       <button
         className="rpd-floor rpd-view-toggle"
         data-active={state.view2D}
-        title="Toggle 2D floor plan"
+        title="Animate between the perspective and top-down plan"
         onClick={(event) => {
           if (event.detail > 0) event.currentTarget.blur();
           actions.toggleView2D();

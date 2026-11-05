@@ -30,7 +30,6 @@ export default function RpdScene({
   useSceneEffects(session);
   useHotkeys(session, {
     toggleView2D: view.toggleView2D,
-    toggleRenderStyle: view.toggleRenderStyle,
     pauseAndClearRoute: planner.pauseAndClearRoute,
   });
   useDevApi(session, planner, run, picking.pickAt);

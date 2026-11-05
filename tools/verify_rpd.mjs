@@ -217,91 +217,97 @@ async function run() {
     };
     const setFloor = async (floor) => {
       await cdp.eval(`window.__quest.setFloor(${floor})`);
-      await sleep(450);
-    };
-    const setPlayer = async (x, y, z) => {
-      await cdp.eval(`window.__quest.setPlayer(${x}, ${y}, ${z})`);
-      await sleep(450);
+      await sleep(750);
     };
     const facts = () => cdp.eval(`(() => {
       const label = document.querySelector('.rpd-map-player');
       const rect = label?.getBoundingClientRect();
       return {
-        floors: [...document.querySelectorAll('.rpd-floor')].map((e) => ({ text: e.textContent.trim(), active: e.dataset.active })),
-        panel: document.querySelector('.rpd-panel')?.innerText.slice(0, 80) ?? null,
+        floors: [...document.querySelectorAll('.rpd-floor:not(.rpd-view-toggle)')].map((e) => e.textContent.trim()),
+        active: document.querySelector('.rpd-floor[data-active="true"]')?.textContent.trim() ?? null,
+        slots: document.querySelectorAll('.rpd-slot').length,
+        routeDock: Boolean(document.querySelector('.rpd-route-dock')),
+        inventoryShown: Boolean(document.querySelector('.rpd-inventory')),
+        panel: document.querySelector('.rpd-panel')?.innerText.slice(0, 90) ?? null,
         mapTitle: document.querySelector('.rpd-map-title')?.innerText ?? null,
         label: rect ? { x: Math.round(rect.left), y: Math.round(rect.top), text: label.textContent } : null,
         popup: document.querySelector('.rpd-popup-layer')?.innerText ?? null,
         plan: window.__quest.debug().plan,
         player: window.__quest.debug().player,
         moving: window.__quest.debug().moving,
+        check: window.__quest.checkPath(),
         view: document.querySelector('.rpd-view-toggle')?.textContent.trim() ?? null,
       };
     })()`);
+    const assert = (ok, message) => {
+      if (!ok) throw new Error(message);
+    };
 
     const report = { shots: [], errors: [], states: {} };
 
-    await shot("01-3d-solid");
-    report.states.solid = await facts();
+    await shot("01-3d");
+    report.states.initial = await facts();
+    assert(report.states.initial.floors.length === 5, "expected five floor buttons");
+    assert(report.states.initial.slots === 8, "expected eight inventory slots");
+    assert(!report.states.initial.routeDock, "the route dock should be gone");
 
-    await cdp.key("KeyG", "g", 71);
-    await sleep(700);
-    await shot("02-3d-glass");
-    await cdp.key("KeyG", "g", 71);
-    await sleep(500);
+    await cdp.key("KeyM", "m", 77);
+    await sleep(1700);
+    await shot("02-ortho-1f");
+    report.states.ortho1f = await facts();
+    assert(report.states.ortho1f.view === "3D", "M should switch to the plan view");
+    assert(report.states.ortho1f.mapTitle?.includes("1F"), "the plan should show 1F");
 
-    await cdp.eval("document.querySelector('.rpd-view-toggle').click()");
-    await sleep(1300);
-    report.states.map1f = await facts();
-    await shot("03-2d-1f");
+    for (const [floor, name] of [[1, "03-ortho-2f"], [2, "04-ortho-3f"], [3, "05-ortho-4f"], [4, "06-ortho-b1"]]) {
+      await setFloor(floor);
+      await shot(name);
+    }
+    report.states.orthoB1 = await facts();
+    assert(report.states.orthoB1.mapTitle?.includes("B1"), "floor selection should reach B1");
 
-    await setFloor(1);
-    report.states.map2f = await facts();
-    await shot("04-2d-2f");
-
-    await setFloor(2);
-    report.states.map3f = await facts();
-    await shot("05-2d-3f");
-
-    await setPlayer(-30, 10.85, -4);
     await setFloor(0);
-    report.states.beforeF = await facts();
-    await shot("06-before-f");
-    await cdp.key("KeyF", "f", 70);
-    await sleep(800);
-    report.states.afterF = await facts();
-    await shot("07-after-f");
+    await shot("07-ortho-1f-clean");
 
-    await cdp.mouse("mouseMoved", 650, 500);
-    await sleep(500);
+    await cdp.mouse("mouseMoved", 320, 350);
+    await sleep(400);
     await shot("08-hover");
 
-    await setFloor(0);
-    await setPlayer(0, 1.25, 8);
-    await cdp.mouse("mousePressed", 650, 570);
-    await cdp.mouse("mouseReleased", 650, 570);
+    await cdp.mouse("mousePressed", 320, 350);
+    await cdp.mouse("mouseReleased", 320, 350);
     await sleep(700);
-    report.states.popup = await facts();
     await shot("09-popup");
     const hasChoice = await cdp.eval(
       "Boolean(document.querySelector('.rpd-popup-choice:not(:disabled)'))",
     );
-    if (!hasChoice) throw new Error("Map click did not open a routing choice");
+    assert(hasChoice, "map click did not open a routing choice");
     await cdp.eval("document.querySelector('.rpd-popup-choice:not(:disabled)').click()");
     await sleep(700);
-    report.states.plan = await facts();
     await shot("10-plan");
-    await cdp.eval("window.__quest.run()");
-    for (let i = 0; i < 160; i++) {
+    report.states.plan = await facts();
+    assert(report.states.plan.plan.length > 0, "the waypoint did not add a plan step");
+    assert(report.states.plan.check && report.states.plan.check.bad === 0, "route leaves the walkable graph");
+
+    const claire = JSON.parse(
+      await cdp.eval("JSON.stringify(window.__quest.project(...window.__quest.debug().player))"),
+    );
+    for (let i = 0; i < 2; i += 1) {
+      await cdp.mouse("mousePressed", claire.x, claire.y, { clickCount: 2 });
+      await cdp.mouse("mouseReleased", claire.x, claire.y, { clickCount: 2 });
+    }
+    for (let i = 0; i < 240; i += 1) {
       await sleep(150);
       if (!(await cdp.eval("window.__quest.debug().moving"))) break;
     }
-    report.states.route2d = await facts();
-    await shot("11-2d-route");
-    await cdp.eval("document.querySelector('.rpd-view-toggle').click()");
-    await sleep(1300);
+    await sleep(400);
+    await shot("11-route-ortho");
+    report.states.arrived = await facts();
+    assert(!report.states.arrived.moving, "double clicking Claire should run the route to completion");
+
+    await cdp.key("KeyM", "m", 77);
+    await sleep(1700);
+    await shot("12-route-3d");
     report.states.route3d = await facts();
-    await shot("12-3d-route");
+    assert(report.states.route3d.view === "2D", "M should return to the perspective view");
 
     report.shots = shots;
     report.errors = cdp.errors;

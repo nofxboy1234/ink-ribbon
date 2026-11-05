@@ -30,6 +30,7 @@ export function useMapCamera({
   onCamera,
 }: MapCameraInput) {
   const cameraRef = useRef<MapCamera>({ cx: 0, cz: 0, scale: 8 });
+  const offsetRef = useRef({ x: 0, y: 0 });
   const focusAnimRef = useRef(0);
   const [cameraVersion, setCameraVersion] = useState(0);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
@@ -55,9 +56,17 @@ export function useMapCamera({
     const spanX = Math.max(1, mapBounds[2] - mapBounds[0]);
     const spanZ = Math.max(1, mapBounds[3] - mapBounds[1]);
     const scale = Math.max(1, Math.min(plotW / spanX, plotH / spanZ));
+    // Park the plan in the free area left of the side panel rather than in
+    // the middle of the window.
+    const plotCx = left + plotW / 2;
+    const plotCy = top + plotH / 2;
+    offsetRef.current = {
+      x: (plotCx - rect.width / 2) / scale,
+      y: (plotCy - rect.height / 2) / scale,
+    };
     cameraRef.current = {
-      cx: (mapBounds[0] + mapBounds[2]) / 2,
-      cz: (mapBounds[1] + mapBounds[3]) / 2,
+      cx: (mapBounds[0] + mapBounds[2]) / 2 - offsetRef.current.x,
+      cz: (mapBounds[1] + mapBounds[3]) / 2 - offsetRef.current.y,
       scale,
     };
     setViewport({ width: rect.width, height: rect.height });
@@ -88,8 +97,8 @@ export function useMapCamera({
       const t = Math.min(1, (now - started) / duration);
       const ease = 1 - Math.pow(1 - t, 3);
       cameraRef.current = {
-        cx: from.cx + (player[0] - from.cx) * ease,
-        cz: from.cz + (player[2] - from.cz) * ease,
+        cx: from.cx + (player[0] - offsetRef.current.x - from.cx) * ease,
+        cz: from.cz + (player[2] - offsetRef.current.y - from.cz) * ease,
         scale: from.scale,
       };
       emitCamera();

@@ -1,360 +1,224 @@
 {
   "shots": [
-    "01-3d-solid",
-    "02-3d-glass",
-    "03-2d-1f",
-    "04-2d-2f",
-    "05-2d-3f",
-    "06-before-f",
-    "07-after-f",
+    "01-3d",
+    "02-ortho-1f",
+    "03-ortho-2f",
+    "04-ortho-3f",
+    "05-ortho-4f",
+    "06-ortho-b1",
+    "07-ortho-1f-clean",
     "08-hover",
     "09-popup",
     "10-plan",
-    "11-2d-route",
-    "12-3d-route"
+    "11-route-ortho",
+    "12-route-3d"
   ],
   "errors": [],
   "states": {
-    "solid": {
+    "initial": {
       "floors": [
-        {
-          "text": "1F0/2",
-          "active": "true"
-        },
-        {
-          "text": "2F0/1",
-          "active": "false"
-        },
-        {
-          "text": "3F0/0",
-          "active": "false"
-        },
-        {
-          "text": "2D",
-          "active": "false"
-        }
+        "4F",
+        "3F",
+        "2F",
+        "1F",
+        "B1"
       ],
-      "panel": "QUEST PLANNER\n\nMain Hall\n0/3\n\nWalk near items to discover them. Click a discover",
+      "active": "1F",
+      "slots": 8,
+      "routeDock": false,
+      "inventoryShown": true,
+      "panel": "ROUTE PLANNER\n\nMain Hall\n\nSwitch to the 2D plan and click a room to add a waypoint. Double",
       "mapTitle": null,
       "label": null,
       "popup": "",
       "plan": [],
       "player": [
-        0,
-        1.250000011920929,
-        8
+        -0.5,
+        0.019999999552965164,
+        7.5
       ],
       "moving": false,
+      "check": {
+        "points": 0,
+        "bad": 0,
+        "worst": 0,
+        "nodes": 5541,
+        "edges": 14760
+      },
       "view": "2D"
     },
-    "map1f": {
+    "ortho1f": {
       "floors": [
-        {
-          "text": "1F0/2",
-          "active": "true"
-        },
-        {
-          "text": "2F0/1",
-          "active": "false"
-        },
-        {
-          "text": "3F0/0",
-          "active": "false"
-        },
-        {
-          "text": "3D",
-          "active": "true"
-        }
+        "4F",
+        "3F",
+        "2F",
+        "1F",
+        "B1"
       ],
-      "panel": "QUEST PLANNER\n\nMain Hall\n0/3\n\nWalk near items to discover them. Click a discover",
-      "mapTitle": "1F · SOKOL TOP-DOWN\n3646 cells · 2 items · 15 doors · wheel to zoom · drag to pan",
+      "active": "1F",
+      "slots": 8,
+      "routeDock": false,
+      "inventoryShown": true,
+      "panel": "ROUTE PLANNER\n\nMain Hall\n\nSwitch to the 2D plan and click a room to add a waypoint. Double",
+      "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · drag to pan",
       "label": {
-        "x": 690,
-        "y": 563,
+        "x": 504,
+        "y": 496,
         "text": "CLAIRE"
       },
       "popup": "",
       "plan": [],
       "player": [
-        0,
-        1.250000011920929,
-        8
+        -0.5,
+        0.019999999552965164,
+        7.5
       ],
       "moving": false,
-      "view": "3D"
-    },
-    "map2f": {
-      "floors": [
-        {
-          "text": "1F0/2",
-          "active": "false"
-        },
-        {
-          "text": "2F0/1",
-          "active": "true"
-        },
-        {
-          "text": "3F0/0",
-          "active": "false"
-        },
-        {
-          "text": "3D",
-          "active": "true"
-        }
-      ],
-      "panel": "QUEST PLANNER\n\nMain Hall\n0/3\n\nWalk near items to discover them. Click a discover",
-      "mapTitle": "2F · SOKOL TOP-DOWN\n1731 cells · 1 items · 8 doors · wheel to zoom · drag to pan",
-      "label": null,
-      "popup": "",
-      "plan": [],
-      "player": [
-        0,
-        1.250000011920929,
-        8
-      ],
-      "moving": false,
-      "view": "3D"
-    },
-    "map3f": {
-      "floors": [
-        {
-          "text": "1F0/2",
-          "active": "false"
-        },
-        {
-          "text": "2F0/1",
-          "active": "false"
-        },
-        {
-          "text": "3F0/0",
-          "active": "true"
-        },
-        {
-          "text": "3D",
-          "active": "true"
-        }
-      ],
-      "panel": "QUEST PLANNER\n\nMain Hall\n0/3\n\nWalk near items to discover them. Click a discover",
-      "mapTitle": "3F · SOKOL TOP-DOWN\n1426 cells · 0 items · 2 doors · wheel to zoom · drag to pan",
-      "label": null,
-      "popup": "",
-      "plan": [],
-      "player": [
-        0,
-        1.250000011920929,
-        8
-      ],
-      "moving": false,
-      "view": "3D"
-    },
-    "beforeF": {
-      "floors": [
-        {
-          "text": "1F0/2",
-          "active": "true"
-        },
-        {
-          "text": "2F0/1",
-          "active": "false"
-        },
-        {
-          "text": "3F0/0",
-          "active": "false"
-        },
-        {
-          "text": "3D",
-          "active": "true"
-        }
-      ],
-      "panel": "QUEST PLANNER\n\nWest Storage Room\n0/3\n\nWalk near items to discover them. Click a ",
-      "mapTitle": "1F · SOKOL TOP-DOWN\n3646 cells · 2 items · 15 doors · wheel to zoom · drag to pan",
-      "label": null,
-      "popup": "",
-      "plan": [],
-      "player": [
-        -30,
-        10.85,
-        -4
-      ],
-      "moving": false,
-      "view": "3D"
-    },
-    "afterF": {
-      "floors": [
-        {
-          "text": "1F0/2",
-          "active": "false"
-        },
-        {
-          "text": "2F0/1",
-          "active": "false"
-        },
-        {
-          "text": "3F0/0",
-          "active": "true"
-        },
-        {
-          "text": "3D",
-          "active": "true"
-        }
-      ],
-      "panel": "QUEST PLANNER\n\nWest Storage Room\n0/3\n\nWalk near items to discover them. Click a ",
-      "mapTitle": "3F · SOKOL TOP-DOWN\n1426 cells · 0 items · 2 doors · wheel to zoom · drag to pan",
-      "label": {
-        "x": 710,
-        "y": 444,
-        "text": "CLAIRE"
+      "check": {
+        "points": 0,
+        "bad": 0,
+        "worst": 0,
+        "nodes": 5541,
+        "edges": 14760
       },
+      "view": "3D"
+    },
+    "orthoB1": {
+      "floors": [
+        "4F",
+        "3F",
+        "2F",
+        "1F",
+        "B1"
+      ],
+      "active": "B1",
+      "slots": 8,
+      "routeDock": false,
+      "inventoryShown": true,
+      "panel": "ROUTE PLANNER\n\nMain Hall\n\nSwitch to the 2D plan and click a room to add a waypoint. Double",
+      "mapTitle": "B1 · FLOOR PLAN\nwheel to zoom · drag to pan",
+      "label": null,
       "popup": "",
       "plan": [],
       "player": [
-        -30,
-        10.85,
-        -4
+        -0.5,
+        0.019999999552965164,
+        7.5
       ],
       "moving": false,
-      "view": "3D"
-    },
-    "popup": {
-      "floors": [
-        {
-          "text": "1F0/2",
-          "active": "true"
-        },
-        {
-          "text": "2F0/1",
-          "active": "false"
-        },
-        {
-          "text": "3F0/0",
-          "active": "false"
-        },
-        {
-          "text": "3D",
-          "active": "true"
-        }
-      ],
-      "panel": "QUEST PLANNER\n\nMain Hall cell\n0/3\n\nPreview to Main Hall cell. Choose an action.\n",
-      "mapTitle": "1F · SOKOL TOP-DOWN\n3646 cells · 2 items · 15 doors · wheel to zoom · drag to pan",
-      "label": {
-        "x": 690,
-        "y": 563,
-        "text": "CLAIRE"
+      "check": {
+        "points": 0,
+        "bad": 0,
+        "worst": 0,
+        "nodes": 5541,
+        "edges": 14760
       },
-      "popup": "Move to Main Hall cell",
-      "plan": [],
-      "player": [
-        0,
-        1.25,
-        8
-      ],
-      "moving": false,
       "view": "3D"
     },
     "plan": {
       "floors": [
-        {
-          "text": "1F0/2",
-          "active": "true"
-        },
-        {
-          "text": "2F0/1",
-          "active": "false"
-        },
-        {
-          "text": "3F0/0",
-          "active": "false"
-        },
-        {
-          "text": "3D",
-          "active": "true"
-        }
+        "4F",
+        "3F",
+        "2F",
+        "1F",
+        "B1"
       ],
-      "panel": "QUEST PLANNER\n\nMain Hall\n0/3\n\nPlan has 1 step. Click another target or run the r",
-      "mapTitle": "1F · SOKOL TOP-DOWN\n3646 cells · 2 items · 15 doors · wheel to zoom · drag to pan",
+      "active": "1F",
+      "slots": 8,
+      "routeDock": false,
+      "inventoryShown": true,
+      "panel": "ROUTE PLANNER\n\nMain Hall\n\nPlan has 1 step. Click another target or run the route.\n\nINVENTO",
+      "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · drag to pan",
       "label": {
-        "x": 690,
-        "y": 563,
+        "x": 493,
+        "y": 619,
         "text": "CLAIRE"
       },
       "popup": "",
       "plan": [
-        "Move to Main Hall cell"
+        "Move to Safety Deposit Room cell"
       ],
       "player": [
-        0,
-        1.25,
-        8
+        -0.5,
+        0.019999999552965164,
+        7.5
       ],
       "moving": false,
+      "check": {
+        "points": 63,
+        "bad": 0,
+        "worst": 0.45,
+        "nodes": 5541,
+        "edges": 14760
+      },
       "view": "3D"
     },
-    "route2d": {
+    "arrived": {
       "floors": [
-        {
-          "text": "1F0/2",
-          "active": "true"
-        },
-        {
-          "text": "2F0/1",
-          "active": "false"
-        },
-        {
-          "text": "3F0/0",
-          "active": "false"
-        },
-        {
-          "text": "3D",
-          "active": "true"
-        }
+        "4F",
+        "3F",
+        "2F",
+        "1F",
+        "B1"
       ],
-      "panel": "QUEST PLANNER\n\nMain Hall\n0/3\n\nRoute complete.\n\nINVENTORY\nshow\nhide legend\nKey\nKe",
-      "mapTitle": "1F · SOKOL TOP-DOWN\n3646 cells · 2 items · 15 doors · wheel to zoom · drag to pan",
+      "active": "1F",
+      "slots": 8,
+      "routeDock": false,
+      "inventoryShown": true,
+      "panel": "ROUTE PLANNER\n\nSafety Deposit Room\n\nRoute complete.\n\nINVENTORY\nClaire\nRoute\nWaypoint\n\nSwit",
+      "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · drag to pan",
       "label": {
-        "x": 660,
-        "y": 563,
+        "x": 325,
+        "y": 343,
         "text": "CLAIRE"
       },
       "popup": "",
       "plan": [],
       "player": [
-        -3,
-        1.250000011920929,
-        8
+        -17.5,
+        0.4699999995529652,
+        -20.49999999999998
       ],
       "moving": false,
+      "check": {
+        "points": 0,
+        "bad": 0,
+        "worst": 0,
+        "nodes": 5541,
+        "edges": 14760
+      },
       "view": "3D"
     },
     "route3d": {
       "floors": [
-        {
-          "text": "1F0/2",
-          "active": "true"
-        },
-        {
-          "text": "2F0/1",
-          "active": "false"
-        },
-        {
-          "text": "3F0/0",
-          "active": "false"
-        },
-        {
-          "text": "2D",
-          "active": "false"
-        }
+        "4F",
+        "3F",
+        "2F",
+        "1F",
+        "B1"
       ],
-      "panel": "QUEST PLANNER\n\nMain Hall\n0/3\n\nRoute complete.\n\nINVENTORY\nshow\nhide legend\nKey\nKe",
+      "active": "1F",
+      "slots": 8,
+      "routeDock": false,
+      "inventoryShown": true,
+      "panel": "ROUTE PLANNER\n\nSafety Deposit Room\n\nRoute complete.\n\nINVENTORY\nClaire\nRoute\nWaypoint\n\nSwit",
       "mapTitle": null,
       "label": null,
       "popup": "",
       "plan": [],
       "player": [
-        -3,
-        1.250000011920929,
-        8
+        -17.5,
+        0.4699999995529652,
+        -20.49999999999998
       ],
       "moving": false,
+      "check": {
+        "points": 0,
+        "bad": 0,
+        "worst": 0,
+        "nodes": 5541,
+        "edges": 14760
+      },
       "view": "2D"
     }
   }

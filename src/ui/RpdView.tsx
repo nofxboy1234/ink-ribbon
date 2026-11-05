@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import type { CanvasHandlers, QuestSession, RpdActions } from "../session/types";
 import FloorSelector from "./FloorSelector";
 import QuestPanel from "./QuestPanel";
-import RouteDock from "./RouteDock";
 import RpdStage from "./RpdStage";
 import RpdStatus from "./RpdStatus";
 
@@ -14,24 +13,18 @@ type RpdViewProps = {
 };
 
 export default function RpdView({ session, actions, canvasHandlers, label }: RpdViewProps) {
-  const { state, data, ref } = session;
-  const { quest, preview } = state;
+  const { state, ref } = session;
+  const { preview } = state;
 
-  const floorCounts = useMemo(() => {
-    if (!quest) return [];
-    return quest.floors.map((floor) => ({
-      ...floor,
-      discovered: quest.items.filter(
-        (item) => state.discovered.has(item.id) && Math.abs(item.y - floor.level - 0.36) < 0.8,
-      ).length,
-      total: quest.items.filter((item) => Math.abs(item.y - floor.level - 0.36) < 0.8).length,
-    }));
-  }, [quest, state.discovered]);
+  const floorList = useMemo(() => {
+    if (!state.nav) return [];
+    return state.nav.floors
+      .slice()
+      .sort((a, b) => b.level - a.level)
+      .map((floor) => ({ index: floor.index, label: floor.label }));
+  }, [state.nav]);
 
-  const linkedItem =
-    preview?.target.kind === "item" ? data.itemLookup.get(preview.target.id) : undefined;
-
-  const statusText = state.error ? `Scene error — ${state.error}` : "Loading RPD floors 1–3";
+  const statusText = state.error ? `Scene error — ${state.error}` : "Loading the RPD building";
 
   return (
     <main className="rpd-root" ref={ref.wrap} data-paused={state.paused}>
@@ -46,15 +39,13 @@ export default function RpdView({ session, actions, canvasHandlers, label }: Rpd
         <div className="rpd-brand-mark">RPD</div>
         <div>
           <h1>Claire A · Hardcore</h1>
-          <p>Raccoon Police Department · 1F–3F</p>
+          <p>Raccoon Police Department · 4F · 3F · 2F · 1F · B1</p>
         </div>
       </header>
 
-      <FloorSelector session={session} actions={actions} floors={floorCounts} />
+      <FloorSelector session={session} actions={actions} floors={floorList} />
 
-      <QuestPanel session={session} linkedItem={linkedItem} />
-
-      {state.plan.length > 0 && <RouteDock session={session} actions={actions} />}
+      <QuestPanel session={session} />
 
       <RpdStatus
         statusText={statusText}

@@ -24,6 +24,7 @@ type MapPointerInput = {
   plan: readonly PlanStep[];
   discovered: ReadonlySet<string>;
   onPreview: (target: Target) => void;
+  onHoverNode?: (node: number | null, x: number, y: number) => void;
 };
 
 export function useMapPointer({
@@ -38,6 +39,7 @@ export function useMapPointer({
   plan,
   discovered,
   onPreview,
+  onHoverNode,
 }: MapPointerInput) {
   const [hoverNode, setHoverNode] = useState<number | null>(null);
   const dragRef = useRef<{
@@ -108,7 +110,9 @@ export function useMapPointer({
           nearest = i;
         }
       }
-      setHoverNode(nearest >= 0 && best <= nav.step * 0.85 ? nearest : null);
+      const hit = nearest >= 0 && best <= nav.step * 0.85 ? nearest : null;
+      setHoverNode(hit);
+      onHoverNode?.(hit, event.clientX, event.clientY);
       return;
     }
     if (drag.id !== event.pointerId) return;

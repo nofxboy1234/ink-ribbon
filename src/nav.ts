@@ -5,7 +5,7 @@ export type NavFile = {
   version: number;
   step: number;
   half: number;
-  floors: { index: number; label: string; level: number }[];
+  floors: { index: number; label: string; level: number; bounds?: [number, number, number, number] }[];
   nodes: {
     x: number;
     y: number;

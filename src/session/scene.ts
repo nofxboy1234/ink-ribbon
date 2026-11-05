@@ -1,6 +1,6 @@
 import type { Item, Vec3 } from "../quest";
 
-export const CACHE_VERSION = "20261102q";
+export const CACHE_VERSION = "20261105a";
 export const DISCOVER_RADIUS = 3.0;
 export const SPAWN_DISCOVER_RADIUS = 3.5;
 export const MOVE_SPEED = 3.5;

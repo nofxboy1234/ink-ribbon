@@ -15,6 +15,7 @@ enum {
     MARKER_PYRAMID,
     MARKER_CYLINDER,
     MARKER_DOOR,
+    MARKER_CAPSULE,
     MARKER_SHAPE_COUNT,
 };
 
@@ -48,6 +49,7 @@ typedef struct {
 void scene_create_pipelines(scene_t *s);
 bool scene_upload(scene_t *s);
 void scene_render(scene_t *s, const camera_t *cam, float scene_radius, bool glass_style);
+void scene_render_matrix(scene_t *s, mat4 view_proj, const float eye[3], bool clip, float clip_min, float clip_max);
 mat4 marker_model(const marker_t *m);
 int scene_marker_count(void);
 const marker_t *scene_marker(int index);

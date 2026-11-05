@@ -60,7 +60,7 @@ void target_create(target_t *t, int width, int height) {
     t->pass = (sg_pass){
         .action.colors[0] = {
             .load_action = SG_LOADACTION_CLEAR,
-            .clear_value = { 0.0f, 0.0f, 0.0f, 1.0f },
+            .clear_value = { 0.962f, 0.952f, 0.921f, 1.0f },
         },
         .action.depth = {
             .load_action = SG_LOADACTION_CLEAR,

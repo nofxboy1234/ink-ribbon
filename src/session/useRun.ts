@@ -187,7 +187,7 @@ export function useRun(
     revealItems(quest.spawn, true);
     planner.refreshAfterAction();
     set.toast("Run reset.");
-    set.statusNote("Walk near items to discover them. Click a discovered item or a floor cell to preview a route.");
+    set.statusNote("Claire is back at the main hall. Open the 2D plan to plot a new route.");
   };
 
   return { runPlan, reset };

@@ -1,10 +1,9 @@
 import { useRef } from "react";
 import { nodePoint } from "../nav";
 import { pointInQuad, projectPoint } from "../overlay/geometry";
-import { CATEGORY_LABELS, itemSatisfied, nearbyRoom } from "../quest";
+import { nearbyRoom } from "../quest";
 import type { Target } from "../planner";
-import { itemPoint } from "./scene";
-import type { CanvasHandlers, Hover, QuestSession } from "./types";
+import type { CanvasHandlers, QuestSession } from "./types";
 
 export function usePicking(
   session: QuestSession,
@@ -58,34 +57,16 @@ export function usePicking(
   };
 
   const pickAt = (clientX: number, clientY: number): Target | null => {
-    const quest = refs.quest.current;
-    const canvas = ref.overlay.current;
-    if (!quest || !canvas) return null;
-    const rect = canvas.getBoundingClientRect();
-    const matrix = refs.viewProj.current;
-    const nearest: { target: Target; distance: number; kind: number }[] = [];
-    for (const item of quest.items) {
-      if (!refs.discovered.current.has(item.id) || refs.picked.current.has(item.id)) continue;
-      const point = projectPoint(itemPoint(item), matrix, rect.width, rect.height);
-      if (!point) continue;
-      const distance = Math.hypot(point.x - clientX, point.y - clientY);
-      if (distance < 26) nearest.push({ target: { kind: "item", id: item.id }, distance, kind: 0 });
-    }
-    for (const door of quest.doors) {
-      const point = projectPoint([door.x, door.y + 1.05, door.z], matrix, rect.width, rect.height);
-      if (!point) continue;
-      const distance = Math.hypot(point.x - clientX, point.y - clientY);
-      if (distance < 26) nearest.push({ target: { kind: "door", id: door.id }, distance, kind: 1 });
-    }
-    nearest.sort((a, b) => a.kind - b.kind || a.distance - b.distance);
-    if (nearest.length > 0 && nearest[0].distance < 24) return nearest[0].target;
+    if (!refs.view2D.current) return null;
     const active = cellAt(clientX, clientY, refs.activeFloor.current);
     if (active) return active.target;
-    for (const floor of quest.floors) {
-      if (floor.index === refs.activeFloor.current) continue;
-      const fallback = cellAt(clientX, clientY, floor.index);
+    const graph = refs.nav.current;
+    if (!graph) return null;
+    for (let floor = 0; floor < graph.floors.length; floor += 1) {
+      if (floor === refs.activeFloor.current) continue;
+      const fallback = cellAt(clientX, clientY, floor);
       if (fallback) {
-        set.activeFloor(floor.index);
+        set.activeFloor(floor);
         return fallback.target;
       }
     }
@@ -93,84 +74,29 @@ export function usePicking(
   };
 
   const hoverAt = (clientX: number, clientY: number) => {
+    const graph = refs.nav.current;
     const quest = refs.quest.current;
-    const canvas = ref.overlay.current;
-    if (!quest || !canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const matrix = refs.viewProj.current;
-    let best: { hover: Hover; distance: number } | null = null;
-    for (const item of quest.items) {
-      if (!refs.discovered.current.has(item.id) || refs.picked.current.has(item.id)) continue;
-      const point = projectPoint(itemPoint(item), matrix, rect.width, rect.height);
-      if (!point) continue;
-      const distance = Math.hypot(point.x - clientX, point.y - clientY);
-      if (distance < 22 && (!best || distance < best.distance)) {
-        best = {
-          distance,
-          hover: {
-            kind: "item",
-            label: item.name,
-            detail: `${item.location} · ${CATEGORY_LABELS[item.category] ?? "Item"}${
-              item.links.length
-                ? ` · unlocks ${item.links
-                    .map((id) => data.doorLookup.get(id)?.label)
-                    .filter(Boolean)
-                    .join(", ")}`
-                : ""
-            }${item.itemLinks.length ? ` · links ${item.itemLinks
-              .map((id) => data.itemLookup.get(id)?.name)
-              .filter(Boolean)
-              .join(", ")}` : ""}${!itemSatisfied(item, refs.inventory.current) ? ` · needs ${item.requires.join(" / ")}` : ""}`,
-            x: clientX,
-            y: clientY,
-          },
-        };
-      }
+    if (!graph || !quest || !refs.view2D.current) {
+      refs.hoverCell.current = null;
+      set.hover(null);
+      return;
     }
-    for (const door of quest.doors) {
-      const point = projectPoint([door.x, door.y + 1.05, door.z], matrix, rect.width, rect.height);
-      if (!point) continue;
-      const distance = Math.hypot(point.x - clientX, point.y - clientY);
-      if (distance < 22 && (!best || distance < best.distance)) {
-        const state = refs.doorStates.current.get(door.id) ?? door.state;
-        best = {
-          distance,
-          hover: {
-            kind: "door",
-            label: door.label,
-            detail:
-              state === "locked"
-                ? `Locked${door.requires.length ? ` · ${door.requires.join(" / ")}` : ""}`
-                : state === "unlocked"
-                  ? "Unlocked"
-                  : "Unknown",
-            x: clientX,
-            y: clientY,
-          },
-        };
-      }
-    }
-    if (!best) {
-      const cellHit = cellAt(clientX, clientY, refs.activeFloor.current);
-      if (cellHit && cellHit.target.kind === "cell") {
-        refs.hoverCell.current = cellHit.target.node;
-        const graph = refs.nav.current;
-        if (graph) {
-          const point = nodePoint(graph, cellHit.target.node);
-          const room = nearbyRoom(quest, point);
-          set.hover({
-            kind: "cell",
-            label: room.name,
-            detail: "Click this floor cell to move Claire here",
-            x: clientX,
-            y: clientY,
-          });
-        }
-        return;
-      }
+    const hit = cellAt(clientX, clientY, refs.activeFloor.current);
+    if (hit && hit.target.kind === "cell") {
+      refs.hoverCell.current = hit.target.node;
+      const point = nodePoint(graph, hit.target.node);
+      const room = nearbyRoom(quest, point);
+      set.hover({
+        kind: "cell",
+        label: room.name,
+        detail: "Click to add a waypoint",
+        x: clientX,
+        y: clientY,
+      });
+      return;
     }
     refs.hoverCell.current = null;
-    set.hover(best?.hover ?? null);
+    set.hover(null);
   };
 
   const pickFromClick = (

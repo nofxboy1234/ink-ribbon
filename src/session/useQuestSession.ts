@@ -53,7 +53,7 @@ export function useQuestSession(): QuestSession {
   const [showInventory, setShowInventory] = useState(false);
   const [showLegend, setShowLegend] = useState(true);
   const [statusNote, setStatusNote] = useState(
-    "Walk near items to discover them. Click a discovered item or a floor cell to preview a route.",
+    "Switch to the 2D plan and click a room to add a waypoint. Double click Claire to run the route.",
   );
 
   const playerRef = useRef(player);
@@ -213,6 +213,10 @@ export function useQuestSession(): QuestSession {
 
   const mapBounds = useMemo<[number, number, number, number] | null>(() => {
     if (!nav) return null;
+    const bounds = nav.floors[activeFloor]?.bounds;
+    if (bounds && bounds.length === 4) {
+      return [bounds[0] - 1.5, bounds[1] - 1.5, bounds[2] + 1.5, bounds[3] + 1.5];
+    }
     let minX = Infinity;
     let maxX = -Infinity;
     let minZ = Infinity;

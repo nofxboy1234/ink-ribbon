@@ -1,6 +1,8 @@
 import { useCallback } from "react";
 import FloorMap2D from "../FloorMap2D";
-import { fanOffset } from "../overlay/geometry";
+import { fanOffset, projectPoint } from "../overlay/geometry";
+import { nodePoint } from "../nav";
+import { nearbyRoom } from "../quest";
 import type { CanvasHandlers, QuestSession, RpdActions } from "../session/types";
 
 type RpdStageProps = {
@@ -22,13 +24,6 @@ export default function RpdStage({ session, actions, canvasHandlers, label }: Rp
     [refs],
   );
 
-  const handleMapData = useCallback(
-    (vertices: Float32Array) => {
-      refs.client.current?.setMapData(vertices);
-    },
-    [refs],
-  );
-
   const handleMapAnchor = useCallback(
     (anchor: { x: number; y: number } | null) => {
       session.set.mapPopupAnchor(anchor);
@@ -36,8 +31,53 @@ export default function RpdStage({ session, actions, canvasHandlers, label }: Rp
     [session.set],
   );
 
+  const handleHoverNode = useCallback(
+    (node: number | null, clientX: number, clientY: number) => {
+      refs.hoverCell.current = node;
+      if (node === null) {
+        session.set.hover(null);
+        return;
+      }
+      const graph = refs.nav.current;
+      const questRef = refs.quest.current;
+      if (!graph || !questRef) return;
+      const point = nodePoint(graph, node);
+      session.set.hover({
+        kind: "cell",
+        label: nearbyRoom(questRef, point).name,
+        detail: "Click to add a waypoint",
+        x: clientX,
+        y: clientY,
+      });
+    },
+    [refs.nav, refs.quest, refs.hoverCell, session.set],
+  );
+
+  const handleDoubleClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!view2D) return;
+      const canvas = ref.overlay.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      if (!refs.nav.current) return;
+      const point = projectPoint(
+        [player[0], player[1] + 0.55, player[2]],
+        refs.viewProj.current,
+        rect.width,
+        rect.height,
+      );
+      if (!point) return;
+      const dx = event.clientX - rect.left - point.x;
+      const dy = event.clientY - rect.top - point.y;
+      if (Math.hypot(dx, dy) > 52) return;
+      event.preventDefault();
+      actions.runPlan();
+    },
+    [actions, player, refs.nav, refs.viewProj, ref.overlay, view2D],
+  );
+
   return (
-    <div className="rpd-stage">
+    <div className="rpd-stage" onDoubleClick={handleDoubleClick}>
       <canvas
         ref={ref.canvas}
         id="canvas"
@@ -46,12 +86,7 @@ export default function RpdStage({ session, actions, canvasHandlers, label }: Rp
         aria-label={label}
         {...canvasHandlers}
       />
-      <canvas
-        ref={ref.overlay}
-        className="rpd-overlay"
-        aria-hidden="true"
-        style={view2D ? { display: "none" } : undefined}
-      />
+      <canvas ref={ref.overlay} className="rpd-overlay" aria-hidden="true" />
       <div
         className="rpd-popup-layer"
         ref={ref.popupLayer}
@@ -81,7 +116,7 @@ export default function RpdStage({ session, actions, canvasHandlers, label }: Rp
           <span>{hover.detail}</span>
         </div>
       )}
-      {view2D && nav && quest && data.mapBounds && (
+      {nav && quest && data.mapBounds && (
         <FloorMap2D
           nav={nav}
           quest={quest}
@@ -93,11 +128,12 @@ export default function RpdStage({ session, actions, canvasHandlers, label }: Rp
           planPath={data.planPath}
           mapBounds={data.mapBounds}
           preview={preview}
-          onMapData={handleMapData}
           onCamera={handleMapCamera}
           focusToken={state.mapFocusToken}
           onPreview={actions.previewTarget}
           onPreviewAnchor={handleMapAnchor}
+          onHoverNode={handleHoverNode}
+          active={view2D}
         />
       )}
     </div>

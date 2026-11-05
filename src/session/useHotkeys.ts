@@ -5,7 +5,6 @@ import type { QuestSession } from "./types";
 
 type HotkeyActions = {
   toggleView2D: () => void;
-  toggleRenderStyle: () => void;
   pauseAndClearRoute: () => void;
 };
 
@@ -27,11 +26,6 @@ export function useHotkeys(session: QuestSession, actions: HotkeyActions) {
       if (event.code === "KeyM") {
         event.preventDefault();
         actions.toggleView2D();
-        return;
-      }
-      if (event.code === "KeyG") {
-        event.preventDefault();
-        actions.toggleRenderStyle();
         return;
       }
       if (event.code === "KeyF") {

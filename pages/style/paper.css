@@ -1,0 +1,203 @@
+/* Paper and ink theme: off-white stock, charcoal line work. */
+html,
+body,
+#root {
+  background: #f2eee4;
+  color: #24221e;
+}
+
+.rpd-root .rpd-root {
+  background: #f2eee4;
+}
+
+.rpd-root .rpd-brand {
+  border: 1px solid rgb(36 34 30 / 28%);
+  background: rgb(250 247 239 / 88%);
+  box-shadow: 0 14px 34px rgb(36 34 30 / 10%);
+  backdrop-filter: blur(6px);
+}
+
+.rpd-root .rpd-brand-mark {
+  border: 1px solid #24221e;
+  color: #24221e;
+  text-shadow: none;
+}
+
+.rpd-root .rpd-brand h1 {
+  color: #1d1b17;
+}
+
+.rpd-root .rpd-brand p {
+  color: rgb(36 34 30 / 55%);
+}
+
+.rpd-floor,
+.rpd-root .rpd-icon-button {
+  border: 1px solid rgb(36 34 30 / 22%);
+  background: rgb(250 247 239 / 85%);
+  color: rgb(36 34 30 / 62%);
+  backdrop-filter: blur(6px);
+}
+
+.rpd-root .rpd-floor[data-active="true"] {
+  border-color: #24221e;
+  background: #24221e;
+  color: #f5f1e6;
+  box-shadow: none;
+}
+
+.rpd-floor:hover,
+.rpd-root .rpd-icon-button:hover {
+  border-color: #24221e;
+  color: #24221e;
+}
+
+.rpd-root .rpd-floor[data-active="true"]:hover {
+  color: #f5f1e6;
+}
+
+.rpd-root .rpd-panel {
+  width: min(330px, 100vw - 36px);
+  padding: 18px;
+  border: 1px solid rgb(36 34 30 / 26%);
+  background: rgb(250 247 239 / 90%);
+  box-shadow: 0 18px 44px rgb(36 34 30 / 10%);
+  backdrop-filter: blur(8px);
+  color: #24221e;
+}
+
+.rpd-root .rpd-panel-head {
+  border-bottom: 1px solid rgb(36 34 30 / 16%);
+}
+
+.rpd-root .rpd-kicker {
+  color: rgb(36 34 30 / 55%);
+}
+
+.rpd-root .rpd-panel h2 {
+  color: #17150f;
+}
+
+.rpd-note,
+.rpd-legend-row,
+.rpd-root .rpd-legend-note {
+  color: rgb(36 34 30 / 70%);
+}
+
+.rpd-root .rpd-section-title {
+  color: #17150f;
+  border-top: 1px solid rgb(36 34 30 / 14%);
+  padding-top: 12px;
+}
+
+.rpd-root .rpd-inventory {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.rpd-root .rpd-slot {
+  aspect-ratio: 1;
+  border: 1px solid rgb(36 34 30 / 42%);
+  background:
+    linear-gradient(135deg, rgb(36 34 30 / 4%), transparent 60%),
+    rgb(255 253 247 / 70%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 45%);
+}
+
+.rpd-root .rpd-dot {
+  border: 1px solid rgb(36 34 30 / 30%);
+}
+
+.rpd-root .rpd-map-title strong {
+  color: #24221e;
+}
+
+.rpd-root .rpd-map-title span {
+  color: rgb(36 34 30 / 55%);
+}
+
+.rpd-root .rpd-map-room {
+  background: rgb(250 247 239 / 82%);
+  color: #2a2721;
+  border: 1px solid rgb(36 34 30 / 12%);
+}
+
+.rpd-root .rpd-map-player {
+  color: #b3278b;
+  font-weight: 700;
+}
+
+.rpd-root .rpd-map[data-active="false"] .rpd-map-hit {
+  pointer-events: none;
+  cursor: default;
+}
+
+.rpd-root .rpd-tooltip {
+  background: rgb(250 247 239 / 94%);
+  border: 1px solid #24221e;
+  box-shadow: 0 12px 30px rgb(36 34 30 / 14%);
+}
+
+.rpd-root .rpd-tooltip strong {
+  color: #17150f;
+}
+
+.rpd-root .rpd-tooltip span {
+  color: rgb(36 34 30 / 65%);
+}
+
+.rpd-root .rpd-toast {
+  background: rgb(250 247 239 / 94%);
+  border: 1px solid #24221e;
+  color: #24221e;
+  box-shadow: 0 10px 26px rgb(36 34 30 / 12%);
+}
+
+.rpd-root .rpd-popup-choice {
+  background: rgb(250 247 239 / 96%);
+  border: 1px solid #24221e;
+  color: #24221e;
+  box-shadow: 0 10px 24px rgb(36 34 30 / 16%);
+}
+
+.rpd-root .rpd-popup-choice:hover:not(:disabled) {
+  background: #24221e;
+  color: #f5f1e6;
+}
+
+.rpd-root .rpd-popup-choice[data-kind="info"] {
+  background: #efe9dc;
+  border-color: rgb(36 34 30 / 30%);
+  color: rgb(36 34 30 / 60%);
+}
+
+.rpd-root .rpd-status {
+  background: #f2eee4;
+}
+
+.rpd-root .rpd-status-inner {
+  color: rgb(36 34 30 / 65%);
+}
+
+.rpd-root .rpd-status-mark {
+  background: rgb(36 34 30 / 16%);
+}
+
+.rpd-root .rpd-status-mark::after {
+  background: #24221e;
+}
+
+.rpd-root .rpd-fps {
+  color: rgb(36 34 30 / 45%);
+  text-shadow: none;
+}
+
+.rpd-root .rpd-map-title {
+  top: auto;
+  bottom: 18px;
+  left: 42px;
+  padding: 6px 9px;
+  border: 1px solid rgb(36 34 30 / 18%);
+  background: rgb(250 247 239 / 82%);
+}

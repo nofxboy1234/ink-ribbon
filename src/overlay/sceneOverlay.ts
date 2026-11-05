@@ -4,7 +4,6 @@ import { nearbyRoom } from "../quest";
 import type { Door, Quest, Vec3 } from "../quest";
 import type { PlanStep, Preview } from "../planner";
 import { popupGeometry, projectPoint } from "./geometry";
-import { NAV_CELL_CENTRE, NAV_CELL_OTHER, NAV_CELL_SIDE } from "../nav/style";
 
 type GridLines = Map<number, [Vec3, Vec3][]>;
 
@@ -56,6 +55,9 @@ export function drawSceneOverlay(input: SceneOverlayInput) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, rect.width, rect.height);
       const matrix = viewProj;
+      const floorLevel = nav.floors[activeFloor]?.level ?? 0;
+      const onActiveFloor = (p: Vec3) =>
+        !view2D || (p[1] > floorLevel - 1.4 && p[1] < floorLevel + 3.6);
 
       const hovered = input.hovered;
 
@@ -78,61 +80,19 @@ export function drawSceneOverlay(input: SceneOverlayInput) {
         return corners;
       };
 
-      // Grid: cell sides on the active floor, faint centres on the others.
-      const activeNodes = navNodesByFloor[activeFloor] ?? [];
-      const lines = gridLines.get(activeFloor) ?? [];
-      ctx.save();
-      ctx.strokeStyle = NAV_CELL_SIDE;
-      ctx.lineWidth = 0.8;
-      ctx.beginPath();
-      for (const [a, b] of lines) {
-        const pa = projectPoint(a, matrix, rect.width, rect.height);
-        const pb = projectPoint(b, matrix, rect.width, rect.height);
-        if (!pa || !pb) continue;
-        if (pa.x < -20 || pa.x > rect.width + 20 || pa.y < -20 || pa.y > rect.height + 20) continue;
-        ctx.moveTo(pa.x, pa.y);
-        ctx.lineTo(pb.x, pb.y);
-      }
-      ctx.stroke();
-      ctx.restore();
-      for (const node of activeNodes) {
-        const point = projectPoint([nav.x[node], nav.y[node] + 0.03, nav.z[node]], matrix, rect.width, rect.height);
-        if (!point) continue;
-        if (point.x < -10 || point.x > rect.width + 10 || point.y < -10 || point.y > rect.height + 10) continue;
-        ctx.fillStyle =
-          nav.kind[node] === 1
-            ? NAV_CELL_CENTRE.stair.css
-            : nav.kind[node] === 2
-              ? NAV_CELL_CENTRE.ramp.css
-              : NAV_CELL_CENTRE.floor.css;
-        ctx.fillRect(point.x - 0.6, point.y - 0.6, 1.2, 1.2);
-      }
-      for (let floorIndex = 0; floorIndex < navNodesByFloor.length; floorIndex++) {
-        if (floorIndex === activeFloor) continue;
-        for (const node of navNodesByFloor[floorIndex]) {
-          const point = projectPoint([nav.x[node], nav.y[node] + 0.03, nav.z[node]], matrix, rect.width, rect.height);
-          if (!point) continue;
-          if (point.x < 0 || point.x > rect.width || point.y < 0 || point.y > rect.height) continue;
-          ctx.fillStyle = NAV_CELL_OTHER;
-          ctx.fillRect(point.x - 0.6, point.y - 0.6, 1.2, 1.2);
-        }
-      }
-
       const playerNode = nearestNode(nav, player, 3.0);
       const playerFloor = playerNode >= 0 ? nav.floor[playerNode] : nearbyRoom(quest, player).floor;
       const activeLabel = nav.floors[activeFloor]?.label ?? "";
       const playerFloorLabel = nav.floors[playerFloor]?.label ?? "";
       ctx.font = "600 11px ui-monospace, SFMono-Regular, Menlo, monospace";
-      ctx.fillStyle = "rgba(151, 205, 255, 0.7)";
-      ctx.fillText(`GRID ${activeLabel}`, 18, rect.height - 48);
-      if (playerFloor !== activeFloor) {
-        ctx.fillStyle = "rgba(255, 214, 102, 0.85)";
-        ctx.fillText(`PLAYER ${playerFloorLabel}`, 18, rect.height - 28);
-      }
+      void playerFloorLabel;
+      void activeLabel;
 
       const planNodes = new Set<number>();
       for (const step of plan) {
-        planNodes.add(step.type === "move" ? step.endNode : step.node);
+        const node = step.type === "move" ? step.endNode : step.node;
+        if (view2D && nav.floor[node] !== activeFloor) continue;
+        planNodes.add(node);
       }
       for (const node of planNodes) {
         const corners = cellQuad(node);
@@ -165,7 +125,7 @@ export function drawSceneOverlay(input: SceneOverlayInput) {
         }
       }
 
-      const route = planPath;
+      const route = planPath.filter(onActiveFloor);
       if (route.length > 1) {
         ctx.save();
         ctx.lineJoin = "round";
@@ -206,7 +166,8 @@ export function drawSceneOverlay(input: SceneOverlayInput) {
       }
 
       const previewNow = preview;
-      if (previewNow && previewNow.points.length > 1) {
+      const previewPoints = previewNow ? previewNow.points.filter(onActiveFloor) : [];
+      if (previewPoints.length > 1) {
         ctx.save();
         ctx.lineJoin = "round";
         ctx.lineCap = "round";
@@ -215,7 +176,7 @@ export function drawSceneOverlay(input: SceneOverlayInput) {
         ctx.lineWidth = 2;
         ctx.beginPath();
         let started = false;
-        for (const p of previewNow.points) {
+        for (const p of previewPoints) {
           const point = projectPoint(p, matrix, rect.width, rect.height);
           if (!point) continue;
           if (!started) {

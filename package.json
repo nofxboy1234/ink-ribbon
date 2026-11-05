@@ -19,7 +19,8 @@
     "deploy": "void deploy --platform cloudflare",
     "nav:build": "blender -b -P tools/rpd_nav.py",
     "verify:rpd": "node tools/verify_rpd.mjs",
-    "check:structure": "node tools/check_structure.mjs"
+    "check:structure": "node tools/check_structure.mjs",
+    "plan:build": "uv run --with numpy --with scipy --with opencv-python-headless python tools/rpd_plan.py && blender -b -P tools/plan_scene.py"
   },
   "dependencies": {
     "hono": "4.13.14",

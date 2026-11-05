@@ -73,6 +73,7 @@ export const SHAPES = {
   cube: 1,
   pyramid: 2,
   cylinder: 3,
+  capsule: 5,
 } as const;
 
 export const DOOR_SHAPE = 4;
@@ -104,6 +105,17 @@ export function itemRadius(category: string): number {
 }
 
 export function nearbyRoom(quest: Quest, point: Vec3): Room {
+  if (quest.rooms.length === 0) {
+    return { name: "RPD", floor: 0, level: point[1], x: point[0], y: point[1], z: point[2], zone: 1 };
+  }
+  if (point[1] < -2.4) {
+    const base = quest.rooms[0];
+    return { ...base, name: "B1 Parking Garage", floor: 4, level: -5.2 };
+  }
+  if (point[1] > 13.2) {
+    const base = quest.rooms[0];
+    return { ...base, name: "Clock Tower", floor: 3, level: 15.6 };
+  }
   let best = quest.rooms[0];
   let bestDistance = Infinity;
   for (const room of quest.rooms) {

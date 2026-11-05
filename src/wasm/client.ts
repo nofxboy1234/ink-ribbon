@@ -39,6 +39,7 @@ export type RpdClient = {
     floorY: number,
   ): void;
   setMapData(vertices: Float32Array): void;
+  debugBlend(): number;
   dispose(): void;
 };
 
@@ -116,6 +117,9 @@ export async function createRpdClient(options: {
       );
       module._rpd_map_set_data(ptr, vertices.length / 6);
       module._free(ptr);
+    },
+    debugBlend() {
+      return (module as unknown as { _rpd_debug_blend?: () => number })._rpd_debug_blend?.() ?? -1;
     },
     dispose() {
       module._free(viewProjPtr);
