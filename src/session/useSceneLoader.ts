@@ -26,25 +26,41 @@ export function useSceneLoader(
         if (!probe.getContext("webgl2")) {
           throw new Error("this browser does not provide WebGL2");
         }
+        let version = CACHE_VERSION;
+        try {
+          const manifest = await fetch(`/rpd/version.json?t=${Date.now()}`, {
+            signal: controller.signal,
+            cache: "no-store",
+          });
+          if (manifest.ok) {
+            const parsed = (await manifest.json()) as { version?: string };
+            if (parsed.version) version = parsed.version;
+          }
+        } catch {
+          // fall back to the bundled cache key
+        }
+        const versionQuery = `${assetUrl.includes("?") ? "&" : "?"}v=${version}`;
         const [asset, questResponse, navResponse, client] = await Promise.all([
-          fetchScene(`${assetUrl}?v=${CACHE_VERSION}`, controller.signal, (fraction) => {
+          fetchScene(`${assetUrl}${versionQuery}`, controller.signal, (fraction) => {
             if (!refs.cancelled.current) set.progress(fraction);
           }),
-          fetch(`/rpd/quest.json?v=${CACHE_VERSION}`, { signal: controller.signal }).then(
-            (response) => {
-              if (!response.ok) throw new Error("could not load the quest data");
-              return response.json() as Promise<Quest>;
-            },
-          ),
-          fetch(`/rpd/nav.json?v=${CACHE_VERSION}`, { signal: controller.signal }).then(
-            (response) => {
-              if (!response.ok) throw new Error("could not load the navigation graph");
-              return response.json() as Promise<NavFile>;
-            },
-          ),
+          fetch(`/rpd/quest.json?v=${version}`, {
+            signal: controller.signal,
+            cache: "no-store",
+          }).then((response) => {
+            if (!response.ok) throw new Error("could not load the quest data");
+            return response.json() as Promise<Quest>;
+          }),
+          fetch(`/rpd/nav.json?v=${version}`, {
+            signal: controller.signal,
+            cache: "no-store",
+          }).then((response) => {
+            if (!response.ok) throw new Error("could not load the navigation graph");
+            return response.json() as Promise<NavFile>;
+          }),
           createRpdClient({
             canvas,
-            locateFile: (path: string) => `/rpd/${path}?v=${CACHE_VERSION}`,
+            locateFile: (path: string) => `/rpd/${path}?v=${version}`,
           }),
         ]);
         if (refs.cancelled.current) {

@@ -7,12 +7,15 @@
 typedef struct {
     sg_image color;
     sg_image normal;
+    sg_image linear;
     sg_image depth;
     sg_view color_att;
     sg_view normal_att;
+    sg_view linear_att;
     sg_view depth_att;
     sg_view tex_view;
     sg_view normal_tex_view;
+    sg_view linear_tex_view;
     sg_sampler sampler;
     sg_pass pass;
     sg_pipeline pip;

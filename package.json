@@ -15,12 +15,13 @@
     "quest:grid": "blender -b -P tools/rpd_grid.py",
     "quest:data": "python3 tools/rpd_quest.py",
     "quest": "npm run quest:grid && npm run quest:data && npm run nav:build",
-    "wasm": "bash native/build.sh",
+    "wasm": "bash native/build.sh && node tools/write_asset_version.mjs",
     "deploy": "void deploy --platform cloudflare",
     "nav:build": "blender -b -P tools/rpd_nav.py",
     "verify:rpd": "node tools/verify_rpd.mjs",
     "check:structure": "node tools/check_structure.mjs",
-    "plan:build": "uv run --with numpy --with scipy --with opencv-python-headless python tools/rpd_plan.py && blender -b -P tools/plan_scene.py"
+    "plan:build": "uv run --with numpy --with scipy --with opencv-python-headless python tools/rpd_plan.py && blender -b -P tools/plan_scene.py && node tools/write_asset_version.mjs",
+    "asset:version": "node tools/write_asset_version.mjs"
   },
   "dependencies": {
     "hono": "4.13.14",

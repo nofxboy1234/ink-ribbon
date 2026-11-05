@@ -1,0 +1,9 @@
+{
+  "version": "8a6c0e871fda546e",
+  "files": [
+    "rpd.bin",
+    "nav.json",
+    "quest.json",
+    "rpd.wasm"
+  ]
+}

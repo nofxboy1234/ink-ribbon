@@ -143,6 +143,11 @@ npm run plan:build   # tools/rpd_plan.py + Blender export
 npm run wasm         # only after changing native/
 ```
 
+`npm run wasm` and `npm run plan:build` also write `public/rpd/version.json`, a
+content hash of the bin, nav graph, quest data and wasm. The app fetches that
+file with `no-store` and versions every asset URL with the hash, so a rebuilt
+shader or graph is never served from an older browser cache.
+
 The plan images are checked in at `tools/rpd_plans/`. The old decompiled-mesh
 pipeline (`npm run data`, `npm run scene:*`, `npm run quest`) is kept for
 reference but is not used by the page.
