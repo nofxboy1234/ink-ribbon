@@ -478,7 +478,7 @@ void plan_pan(float dx, float dy) {
 void plan_zoom(float x, float y, float amount) {
     float wx = map_cx + (x - view_w * 0.5f) / map_scale;
     float wz = map_cz + (y - view_h * 0.5f) / map_scale;
-    float next = map_scale * powf(0.9f, amount);
+    float next = map_scale * powf(1.1f, amount);
     if (next < 2.5f) next = 2.5f;
     if (next > 42.0f) next = 42.0f;
     map_scale = next;

@@ -153,6 +153,16 @@ static void update_ortho_blend(float dt) {
 void rpd_app_frame(void) {
     float raw_dt = (float)sapp_frame_duration();
     if (raw_dt < 0.0f) raw_dt = 0.0f;
+    static float fps_accum;
+    static int fps_frames;
+    static float fps_value;
+    fps_accum += raw_dt;
+    fps_frames++;
+    if (fps_accum >= 0.5f) {
+        fps_value = (float)fps_frames / fps_accum;
+        fps_accum = 0.0f;
+        fps_frames = 0;
+    }
     float dt = raw_dt > 0.1f ? 0.1f : raw_dt;
     camera_update_animation(dt);
     update_ortho_blend(dt);
@@ -178,7 +188,7 @@ void rpd_app_frame(void) {
     }
     sg_end_pass();
 
-    overlay_build(vp.m, sapp_width(), sapp_height(), e > 0.5f);
+    overlay_build(vp.m, sapp_width(), sapp_height(), e > 0.5f, fps_value);
     overlay_upload();
     target_composite(&g_rpd.target, &g_rpd.pass_action);
     sg_commit();
@@ -255,6 +265,7 @@ EMSCRIPTEN_KEEPALIVE void rpd_plan_set_player(float x, float y, float z) { plan_
 EMSCRIPTEN_KEEPALIVE void rpd_plan_set_floor(int index) { plan_set_floor(index); }
 EMSCRIPTEN_KEEPALIVE void rpd_plan_start_move(void) { plan_start_move(); }
 EMSCRIPTEN_KEEPALIVE void rpd_plan_add_target(float x, float y, float z) { plan_add_target(x, y, z); }
+EMSCRIPTEN_KEEPALIVE void rpd_set_fps_visible(int visible) { overlay_set_fps_visible(visible); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_camera(float *out) {
     if (!out) return -1;
     out[0] = plan_map_cx(); out[1] = plan_map_cz(); out[2] = plan_map_scale();

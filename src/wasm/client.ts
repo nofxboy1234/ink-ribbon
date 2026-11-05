@@ -66,6 +66,7 @@ export type RpdClient = {
   planCamera(): Float32Array;
   planRouteCount(): number;
   planMoveState(): Float32Array;
+  setFpsVisible(visible: boolean): void;
   planCount(): number;
   planMoving(): number;
   planRoom(): string;
@@ -210,6 +211,9 @@ export async function createRpdClient(options: {
     },
     planRouteCount() {
       return (module as unknown as { _rpd_plan_route_count: () => number })._rpd_plan_route_count();
+    },
+    setFpsVisible(visible) {
+      (module as unknown as { _rpd_set_fps_visible: (v: number) => void })._rpd_set_fps_visible(visible ? 1 : 0);
     },
     planMoveState() {
       const ptr = module._malloc(3 * 4);

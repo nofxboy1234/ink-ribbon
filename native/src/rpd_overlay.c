@@ -42,6 +42,7 @@ static int vcount;
 static int text_count;
 
 static int view_w = 1, view_h = 1;
+static int fps_visible = 1;
 static float vp[16];
 
 static const uint8_t *col(uint32_t c) {
@@ -143,6 +144,10 @@ static void draw_cell(int node, uint32_t fill, uint32_t stroke) {
         push(xs[i], ys[i], fill); push(xs[i + 1], ys[i + 1], fill); push(xs[0], ys[0], fill);
     }
     for (int i = 0; i < 4; i++) line(xs[i], ys[i], xs[i + 1], ys[i + 1], 1.5f, stroke);
+}
+
+void overlay_set_fps_visible(int visible) {
+    fps_visible = visible != 0;
 }
 
 void overlay_init(void) {
@@ -284,7 +289,7 @@ void overlay_init(void) {
     });
 }
 
-void overlay_build(const float *matrix, int width, int height, int ortho) {
+void overlay_build(const float *matrix, int width, int height, int ortho, float fps) {
     view_w = width > 1 ? width : 1;
     view_h = height > 1 ? height : 1;
     memcpy(vp, matrix, sizeof(vp));
@@ -330,11 +335,11 @@ void overlay_build(const float *matrix, int width, int height, int ortho) {
             if (sx < 18 || sy < 18 || sx > view_w - 18 || sy > view_h - 18) continue;
             const char *name = plan_room_name_at(i);
             if (!name || !*name) continue;
-            float w = text_width(name, 1.25f);
+            float w = text_width(name, 1.8f);
             float x0 = sx - w * 0.5f - 4;
-            float y0 = sy - 3;
+            float y0 = sy - 4;
             float x1 = x0 + w + 8;
-            float y1 = y0 + RPD_FONT_H * 1.25f + 6;
+            float y1 = y0 + RPD_FONT_H * 1.8f + 8;
             bool clash = false;
             for (int k = 0; k < placed_count; k++) {
                 if (x0 < placed[k][2] && x1 > placed[k][0] && y0 < placed[k][3] && y1 > placed[k][1]) {
@@ -348,7 +353,7 @@ void overlay_build(const float *matrix, int width, int height, int ortho) {
                 placed[placed_count][2] = x1; placed[placed_count][3] = y1;
                 placed_count++;
             }
-            text(name, sx - w * 0.5f, sy, 1.25f, 0x4a4842f0, 1);
+            text(name, sx - w * 0.5f, sy, 1.8f, 0x4a4842f0, 1);
         }
     }
 
@@ -357,9 +362,15 @@ void overlay_build(const float *matrix, int width, int height, int ortho) {
         plan_player(p);
         float sx, sy;
         project(p[0], p[1] + 1.15f, p[2], &sx, &sy);
-        if (sx > -1e8f) text("CLAIRE", sx + 12, sy - 4, 1.15f, 0x9b3d78ff, 1);
+        if (sx > -1e8f) text("CLAIRE", sx + 15, sy - 5, 1.5f, 0x9b3d78ff, 1);
     }
 
+    if (fps_visible) {
+        char buf[32];
+        if (fps >= 0.5f) snprintf(buf, sizeof(buf), "FPS %d", (int)(fps + 0.5f));
+        else snprintf(buf, sizeof(buf), "FPS --");
+        text(buf, (float)view_w - text_width(buf, 1.6f) - 390.0f, 16.0f, 1.6f, 0x4a4842f0, 1);
+    }
     if (vcount <= 0) return;
 }
 

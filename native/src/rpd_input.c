@@ -12,6 +12,10 @@ void input_handle_event(const sapp_event *e) {
         g_rpd.input.user_moved = true;
         if (e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) g_rpd.input.rotating = true;
         if (e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) g_rpd.input.panning = true;
+        if (e->mouse_button == SAPP_MOUSEBUTTON_LEFT) {
+            g_rpd.input.rotating = false;
+            g_rpd.input.panning = false;
+        }
         g_rpd.input.last_x = e->mouse_x;
         g_rpd.input.last_y = e->mouse_y;
         g_rpd.input.pointer_valid = true;
@@ -19,6 +23,10 @@ void input_handle_event(const sapp_event *e) {
     case SAPP_EVENTTYPE_MOUSE_UP:
         if (e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) g_rpd.input.rotating = false;
         if (e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) g_rpd.input.panning = false;
+        if (e->mouse_button == SAPP_MOUSEBUTTON_LEFT) {
+            g_rpd.input.rotating = false;
+            g_rpd.input.panning = false;
+        }
         break;
     case SAPP_EVENTTYPE_MOUSE_ENTER:
         g_rpd.input.last_x = e->mouse_x;

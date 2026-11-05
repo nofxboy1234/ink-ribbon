@@ -13,6 +13,7 @@ export default function RpdStage({ session, label }: RpdStageProps) {
         id="canvas"
         className="rpd-canvas"
         aria-label={label}
+        onContextMenu={(event) => event.preventDefault()}
       />
     </div>
   );

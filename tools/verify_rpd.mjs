@@ -243,6 +243,7 @@ async function run() {
 
     const report = { shots: [], errors: [], states: {} };
 
+    await cdp.eval("window.__rpd.setFpsVisible(false)");
     await shot("01-3d");
     report.states.initial = await facts();
     assert(report.states.initial.floors.length === 5, "expected five floor buttons");
