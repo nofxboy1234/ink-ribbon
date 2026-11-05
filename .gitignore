@@ -21,3 +21,6 @@ void.lock.json
 __pycache__/
 *.pyc
 verification/rpd/current/
+
+# sokol-shdc generated shader headers.
+native/gen/

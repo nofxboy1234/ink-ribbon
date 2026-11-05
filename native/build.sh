@@ -13,10 +13,24 @@ fi
 # shellcheck disable=SC1091
 source "${EMSDK}/emsdk_env.sh" >/dev/null 2>&1
 
-mkdir -p "${ROOT}/public/rpd" "${ROOT}/src/wasm"
+SHDC="${SOKOL_SHDC:-$HOME/.cache/sokol-tools-bin/bin/linux/sokol-shdc}"
+if [[ ! -x "${SHDC}" ]]; then
+    SHDC="$(command -v sokol-shdc || true)"
+fi
+if [[ -z "${SHDC}" ]]; then
+    echo "sokol-shdc not found; set SOKOL_SHDC." >&2
+    exit 1
+fi
+
+mkdir -p "${ROOT}/public/rpd" "${ROOT}/src/wasm" "${ROOT}/native/gen"
+"${SHDC}" -i "${ROOT}/native/src/rpd_shaders.glsl" \
+    -o "${ROOT}/native/gen/rpd_shaders_gen.h" \
+    -l glsl300es -f sokol
+
 emcc "${ROOT}/native/main.c" "${ROOT}"/native/src/*.c \
     -o "${ROOT}/src/wasm/rpd.js" \
     -I "${ROOT}/native/src" \
+    -I "${ROOT}/native/gen" \
     -I "${ROOT}/native/third_party/sokol" \
     -O3 \
     -sUSE_WEBGL2=1 \

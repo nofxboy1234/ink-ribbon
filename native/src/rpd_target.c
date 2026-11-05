@@ -127,42 +127,7 @@ void target_create_composite(target_t *t) {
         .data = { .ptr = quad, .size = sizeof(quad) },
         .label = "fullscreen-quad",
     });
-    sg_shader_desc sd;
-    memset(&sd, 0, sizeof(sd));
-    sd.vertex_func.source = composite_vs_source;
-    sd.vertex_func.entry = "main";
-    sd.fragment_func.source = composite_fs_source;
-    sd.fragment_func.entry = "main";
-    sd.attrs[0].base_type = SG_SHADERATTRBASETYPE_FLOAT;
-    sd.attrs[0].glsl_name = "position";
-    sd.views[0].texture.stage = SG_SHADERSTAGE_FRAGMENT;
-    sd.views[0].texture.image_type = SG_IMAGETYPE_2D;
-    sd.views[0].texture.sample_type = SG_IMAGESAMPLETYPE_FLOAT;
-    sd.samplers[0].stage = SG_SHADERSTAGE_FRAGMENT;
-    sd.samplers[0].sampler_type = SG_SAMPLERTYPE_FILTERING;
-    sd.texture_sampler_pairs[0].stage = SG_SHADERSTAGE_FRAGMENT;
-    sd.texture_sampler_pairs[0].view_slot = 0;
-    sd.texture_sampler_pairs[0].sampler_slot = 0;
-    sd.texture_sampler_pairs[0].glsl_name = "u_tex";
-    sd.views[1].texture.stage = SG_SHADERSTAGE_FRAGMENT;
-    sd.views[1].texture.image_type = SG_IMAGETYPE_2D;
-    sd.views[1].texture.sample_type = SG_IMAGESAMPLETYPE_FLOAT;
-    sd.samplers[1].stage = SG_SHADERSTAGE_FRAGMENT;
-    sd.samplers[1].sampler_type = SG_SAMPLERTYPE_FILTERING;
-    sd.texture_sampler_pairs[1].stage = SG_SHADERSTAGE_FRAGMENT;
-    sd.texture_sampler_pairs[1].view_slot = 1;
-    sd.texture_sampler_pairs[1].sampler_slot = 1;
-    sd.texture_sampler_pairs[1].glsl_name = "u_normal";
-    sd.views[2].texture.stage = SG_SHADERSTAGE_FRAGMENT;
-    sd.views[2].texture.image_type = SG_IMAGETYPE_2D;
-    sd.views[2].texture.sample_type = SG_IMAGESAMPLETYPE_FLOAT;
-    sd.samplers[2].stage = SG_SHADERSTAGE_FRAGMENT;
-    sd.samplers[2].sampler_type = SG_SAMPLERTYPE_FILTERING;
-    sd.texture_sampler_pairs[2].stage = SG_SHADERSTAGE_FRAGMENT;
-    sd.texture_sampler_pairs[2].view_slot = 2;
-    sd.texture_sampler_pairs[2].sampler_slot = 2;
-    sd.texture_sampler_pairs[2].glsl_name = "u_depth";
-    sg_shader shd = sg_make_shader(&sd);
+    sg_shader shd = sg_make_shader(composite_shader_desc(sg_query_backend()));
     t->pip = sg_make_pipeline(&(sg_pipeline_desc){
         .shader = shd,
         .layout = {

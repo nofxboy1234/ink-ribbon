@@ -145,75 +145,26 @@ fail:
 
 
 void scene_create_pipelines(scene_t *s) {
-    sg_shader_desc sd;
-    memset(&sd, 0, sizeof(sd));
-    sd.vertex_func.source = vs_source;
-    sd.vertex_func.entry = "main";
-    sd.fragment_func.source = solid_fs_source;
-    sd.fragment_func.entry = "main";
-    sd.attrs[0].base_type = SG_SHADERATTRBASETYPE_FLOAT;
-    sd.attrs[0].glsl_name = "position";
-    sd.attrs[1].base_type = SG_SHADERATTRBASETYPE_FLOAT;
-    sd.attrs[1].glsl_name = "color";
-    sd.uniform_blocks[0].stage = SG_SHADERSTAGE_VERTEX;
-    sd.uniform_blocks[0].size = sizeof(vs_params_t);
-    sd.uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140;
-    sd.uniform_blocks[0].glsl_uniforms[0].type = SG_UNIFORMTYPE_MAT4;
-    sd.uniform_blocks[0].glsl_uniforms[0].glsl_name = "u_view_proj";
-    sd.uniform_blocks[1].stage = SG_SHADERSTAGE_FRAGMENT;
-    sd.uniform_blocks[1].size = sizeof(fs_params_t);
-    sd.uniform_blocks[1].layout = SG_UNIFORMLAYOUT_STD140;
-    sd.uniform_blocks[1].glsl_uniforms[0].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[0].glsl_name = "u_camera";
-    sd.uniform_blocks[1].glsl_uniforms[1].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[1].glsl_name = "u_fog";
-    sd.uniform_blocks[1].glsl_uniforms[2].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[2].glsl_name = "u_clip";
-    sg_shader solid_shd = sg_make_shader(&sd);
-    s->solid_pip = make_solid_pipeline(solid_shd);
-
-    memset(&sd, 0, sizeof(sd));
-    sd.vertex_func.source = marker_vs_source;
-    sd.vertex_func.entry = "main";
-    sd.fragment_func.source = marker_fs_source;
-    sd.fragment_func.entry = "main";
-    sd.attrs[0].base_type = SG_SHADERATTRBASETYPE_FLOAT;
-    sd.attrs[0].glsl_name = "position";
-    sd.attrs[1].base_type = SG_SHADERATTRBASETYPE_FLOAT;
-    sd.attrs[1].glsl_name = "normal";
-    sd.uniform_blocks[0].stage = SG_SHADERSTAGE_VERTEX;
-    sd.uniform_blocks[0].size = sizeof(marker_vs_params_t);
-    sd.uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140;
-    sd.uniform_blocks[0].glsl_uniforms[0].type = SG_UNIFORMTYPE_MAT4;
-    sd.uniform_blocks[0].glsl_uniforms[0].glsl_name = "u_view_proj";
-    sd.uniform_blocks[0].glsl_uniforms[1].type = SG_UNIFORMTYPE_MAT4;
-    sd.uniform_blocks[0].glsl_uniforms[1].glsl_name = "u_model";
-    sd.uniform_blocks[1].stage = SG_SHADERSTAGE_FRAGMENT;
-    sd.uniform_blocks[1].size = sizeof(marker_fs_params_t);
-    sd.uniform_blocks[1].layout = SG_UNIFORMLAYOUT_STD140;
-    sd.uniform_blocks[1].glsl_uniforms[0].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[0].glsl_name = "u_camera";
-    sd.uniform_blocks[1].glsl_uniforms[1].type = SG_UNIFORMTYPE_FLOAT4;
-    sd.uniform_blocks[1].glsl_uniforms[1].glsl_name = "u_color";
-    sg_shader marker_shd = sg_make_shader(&sd);
-    s->marker_pip = make_marker_pipeline(marker_shd);
+    s->solid_pip = make_solid_pipeline(sg_make_shader(solid_shader_desc(sg_query_backend())));
+    s->marker_pip = make_marker_pipeline(sg_make_shader(marker_shader_desc(sg_query_backend())));
 }
 
 void scene_render_matrix(scene_t *s, mat4 view_proj, const float eye[3], bool clip, float clip_min, float clip_max) {
-    vs_params_t vs = { .view_proj = view_proj };
-    fs_params_t fs = { 0 };
-    fs.camera[0] = eye[0]; fs.camera[1] = eye[1]; fs.camera[2] = eye[2]; fs.camera[3] = 1000.0f;
-    fs.fog[0] = 2000.0f;
-    fs.clip[0] = clip_min;
-    fs.clip[1] = clip_max;
-    fs.clip[2] = clip ? 1.0f : 0.0f;
+    solid_vs_params_t vs;
+    memcpy(vs.u_view_proj, view_proj.m, sizeof(vs.u_view_proj));
+    solid_fs_params_t fs = { 0 };
+    fs.u_camera[0] = eye[0]; fs.u_camera[1] = eye[1]; fs.u_camera[2] = eye[2]; fs.u_camera[3] = 1000.0f;
+    fs.u_fog[0] = 2000.0f;
+    fs.u_clip[0] = clip_min;
+    fs.u_clip[1] = clip_max;
+    fs.u_clip[2] = clip ? 1.0f : 0.0f;
     sg_apply_pipeline(s->solid_pip);
     sg_apply_bindings(&(sg_bindings){
         .vertex_buffers[0] = s->vbuf,
         .index_buffer = s->tri_ibuf,
     });
-    sg_apply_uniforms(0, &(sg_range){ &vs, sizeof(vs) });
-    sg_apply_uniforms(1, &(sg_range){ &fs, sizeof(fs) });
+    sg_apply_uniforms(UB_solid_vs_params, &(sg_range){ &vs, sizeof(vs) });
+    sg_apply_uniforms(UB_solid_fs_params, &(sg_range){ &fs, sizeof(fs) });
     sg_draw(0, s->triangle_count * 3, 1);
     markers_render(s, view_proj, eye);
 }

@@ -259,20 +259,23 @@ void markers_render(scene_t *s, mat4 view_proj, const float eye[3]) {
     if (g_marker_count <= 0) return;
     sg_apply_pipeline(s->marker_pip);
     marker_fs_params_t mf = { 0 };
-    mf.camera[0] = eye[0]; mf.camera[1] = eye[1]; mf.camera[2] = eye[2];
+    mf.u_camera[0] = eye[0]; mf.u_camera[1] = eye[1]; mf.u_camera[2] = eye[2];
     for (int i = 0; i < g_marker_count; i++) {
         const marker_t *m = &g_markers[i];
         if (!m->visible) continue;
         if (m->shape < 0 || m->shape >= MARKER_SHAPE_COUNT) continue;
         if (s->marker_index_count[m->shape] <= 0) continue;
-        marker_vs_params_t mv = { view_proj, marker_model(m) };
-        mf.color[0] = m->r; mf.color[1] = m->g; mf.color[2] = m->b; mf.color[3] = 1.0f;
+        marker_vs_params_t mv;
+        mat4 model = marker_model(m);
+        memcpy(mv.u_view_proj, view_proj.m, sizeof(mv.u_view_proj));
+        memcpy(mv.u_model, model.m, sizeof(mv.u_model));
+        mf.u_color[0] = m->r; mf.u_color[1] = m->g; mf.u_color[2] = m->b; mf.u_color[3] = 1.0f;
         sg_apply_bindings(&(sg_bindings){
             .vertex_buffers[0] = s->marker_vbuf[m->shape],
             .index_buffer = s->marker_ibuf[m->shape],
         });
-        sg_apply_uniforms(0, &(sg_range){ &mv, sizeof(mv) });
-        sg_apply_uniforms(1, &(sg_range){ &mf, sizeof(mf) });
+        sg_apply_uniforms(UB_marker_vs_params, &(sg_range){ &mv, sizeof(mv) });
+        sg_apply_uniforms(UB_marker_fs_params, &(sg_range){ &mf, sizeof(mf) });
         sg_draw(0, s->marker_index_count[m->shape], 1);
     }
 }

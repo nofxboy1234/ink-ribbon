@@ -8,6 +8,7 @@
 #include "rpd_font.h"
 #include "rpd_plan.h"
 #include "rpd_sokol.h"
+#include "rpd_shaders.h"
 
 #define MAX_VERTS (240 * 1024)
 #define MAX_TEXT_VERTS (24 * 1024)
@@ -188,32 +189,7 @@ void overlay_init(void) {
         .size = sizeof(overlay_vertex) * MAX_VERTS,
         .label = "overlay-vertices",
     });
-    sg_shader shd = sg_make_shader(&(sg_shader_desc){
-        .vertex_func.source =
-            "#version 300 es\n"
-            "precision highp float;\n"
-            "layout(location=0) in vec2 pos;\n"
-            "layout(location=1) in vec4 color;\n"
-            "uniform vec4 u_view;\n"
-            "out vec4 v_color;\n"
-            "void main(){ gl_Position=vec4(pos.x/u_view.x*2.0-1.0, 1.0-pos.y/u_view.y*2.0, 0.0, 1.0); v_color=color; }\n",
-        .fragment_func.source =
-            "#version 300 es\n"
-            "precision highp float;\n"
-            "in vec4 v_color;\n"
-            "out vec4 frag_color;\n"
-            "void main(){ frag_color=v_color; }\n",
-        .attrs[0].base_type = SG_SHADERATTRBASETYPE_FLOAT,
-        .attrs[0].glsl_name = "pos",
-        .attrs[1].base_type = SG_SHADERATTRBASETYPE_FLOAT,
-        .attrs[1].glsl_name = "color",
-        .uniform_blocks[0].stage = SG_SHADERSTAGE_VERTEX,
-        .uniform_blocks[0].size = 16,
-        .uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140,
-        .uniform_blocks[0].glsl_uniforms[0].type = SG_UNIFORMTYPE_FLOAT4,
-        .uniform_blocks[0].glsl_uniforms[0].glsl_name = "u_view",
-        .label = "overlay-shader",
-    });
+    sg_shader shd = sg_make_shader(overlay_shader_desc(sg_query_backend()));
     pip = sg_make_pipeline(&(sg_pipeline_desc){
         .shader = shd,
         .layout = {
@@ -231,44 +207,7 @@ void overlay_init(void) {
         },
         .label = "overlay-pipeline",
     });
-    sg_shader text_shd = sg_make_shader(&(sg_shader_desc){
-        .vertex_func.source =
-            "#version 300 es\n"
-            "precision highp float;\n"
-            "layout(location=0) in vec2 pos;\n"
-            "layout(location=1) in vec2 uv;\n"
-            "layout(location=2) in vec4 color;\n"
-            "uniform vec4 u_view;\n"
-            "out vec2 v_uv; out vec4 v_color;\n"
-            "void main(){ gl_Position=vec4(pos.x/u_view.x*2.0-1.0, 1.0-pos.y/u_view.y*2.0, 0.0, 1.0); v_uv=uv; v_color=color; }\n",
-        .fragment_func.source =
-            "#version 300 es\n"
-            "precision highp float;\n"
-            "uniform sampler2D u_font;\n"
-            "in vec2 v_uv; in vec4 v_color; out vec4 frag_color;\n"
-            "void main(){ float a=texture(u_font, v_uv).r; if(a<0.5) discard; frag_color=vec4(v_color.rgb, v_color.a); }\n",
-        .attrs[0].base_type = SG_SHADERATTRBASETYPE_FLOAT,
-        .attrs[0].glsl_name = "pos",
-        .attrs[1].base_type = SG_SHADERATTRBASETYPE_FLOAT,
-        .attrs[1].glsl_name = "uv",
-        .attrs[2].base_type = SG_SHADERATTRBASETYPE_FLOAT,
-        .attrs[2].glsl_name = "color",
-        .uniform_blocks[0].stage = SG_SHADERSTAGE_VERTEX,
-        .uniform_blocks[0].size = 16,
-        .uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140,
-        .uniform_blocks[0].glsl_uniforms[0].type = SG_UNIFORMTYPE_FLOAT4,
-        .uniform_blocks[0].glsl_uniforms[0].glsl_name = "u_view",
-        .views[0].texture.stage = SG_SHADERSTAGE_FRAGMENT,
-        .views[0].texture.image_type = SG_IMAGETYPE_2D,
-        .views[0].texture.sample_type = SG_IMAGESAMPLETYPE_FLOAT,
-        .samplers[0].stage = SG_SHADERSTAGE_FRAGMENT,
-        .samplers[0].sampler_type = SG_SAMPLERTYPE_FILTERING,
-        .texture_sampler_pairs[0].stage = SG_SHADERSTAGE_FRAGMENT,
-        .texture_sampler_pairs[0].view_slot = 0,
-        .texture_sampler_pairs[0].sampler_slot = 0,
-        .texture_sampler_pairs[0].glsl_name = "u_font",
-        .label = "overlay-text-shader",
-    });
+    sg_shader text_shd = sg_make_shader(overlay_text_shader_desc(sg_query_backend()));
     text_pip = sg_make_pipeline(&(sg_pipeline_desc){
         .shader = text_shd,
         .layout = {
@@ -396,8 +335,8 @@ void overlay_draw(void) {
     if (vcount <= 0) return;
     sg_apply_pipeline(pip);
     sg_apply_bindings(&(sg_bindings){ .vertex_buffers[0] = vbuf });
-    float view[4] = { (float)view_w, (float)view_h, 0.0f, 0.0f };
-    sg_apply_uniforms(0, &(sg_range){ .ptr = view, .size = sizeof(view) });
+    u_view_t view = { { (float)view_w, (float)view_h, 0.0f, 0.0f } };
+    sg_apply_uniforms(UB_u_view, &(sg_range){ .ptr = &view, .size = sizeof(view) });
     if (vcount > 0) sg_draw(0, vcount, 1);
     if (text_count > 0) {
         sg_apply_pipeline(text_pip);
@@ -406,7 +345,7 @@ void overlay_draw(void) {
             .views[0] = font_view,
             .samplers[0] = font_sampler,
         });
-        sg_apply_uniforms(0, &(sg_range){ .ptr = view, .size = sizeof(view) });
+        sg_apply_uniforms(UB_u_view, &(sg_range){ .ptr = &view, .size = sizeof(view) });
         sg_draw(0, text_count, 1);
     }
 }
