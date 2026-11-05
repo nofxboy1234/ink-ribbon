@@ -295,6 +295,7 @@ async function run() {
     await sleep(500);
     await shot("10-plan");
     report.states.plan = await facts();
+    console.log("route check", JSON.stringify(report.states.plan.check));
     assert(report.states.plan.plan.length > 1, "the waypoint did not add plan steps");
     assert(report.states.plan.check && report.states.plan.check.bad === 0, "route leaves the walkable graph");
 

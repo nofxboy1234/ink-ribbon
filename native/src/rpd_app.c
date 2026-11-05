@@ -272,6 +272,13 @@ EMSCRIPTEN_KEEPALIVE int rpd_plan_camera(float *out) {
     return 0;
 }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_route_count(void) { return plan_route_count(); }
+EMSCRIPTEN_KEEPALIVE int rpd_plan_route(float *out, int cap) {
+    int n = plan_route_count();
+    if (n > cap) n = cap;
+    if (!out || n <= 0) return 0;
+    memcpy(out, plan_route(), sizeof(float) * 3 * (size_t)n);
+    return n;
+}
 EMSCRIPTEN_KEEPALIVE int rpd_plan_move_state(float *out) {
     if (!out) return -1;
     out[0] = (float)plan_move_index(); out[1] = (float)plan_move_count(); out[2] = plan_move_t();

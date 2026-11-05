@@ -65,6 +65,7 @@ export type RpdClient = {
   planAddTarget(x: number, y: number, z: number): void;
   planCamera(): Float32Array;
   planRouteCount(): number;
+  planRoute(): Float32Array;
   planMoveState(): Float32Array;
   setFpsVisible(visible: boolean): void;
   planCount(): number;
@@ -211,6 +212,16 @@ export async function createRpdClient(options: {
     },
     planRouteCount() {
       return (module as unknown as { _rpd_plan_route_count: () => number })._rpd_plan_route_count();
+    },
+    planRoute() {
+      const count = (module as unknown as { _rpd_plan_route_count: () => number })._rpd_plan_route_count();
+      if (count <= 0) return new Float32Array(0);
+      const ptr = module._malloc(count * 3 * 4);
+      const n = (module as unknown as { _rpd_plan_route: (p: number, cap: number) => number })
+        ._rpd_plan_route(ptr, count);
+      const out = new Float32Array(heap.HEAPU8.buffer, ptr, n * 3).slice();
+      module._free(ptr);
+      return out;
     },
     setFpsVisible(visible) {
       (module as unknown as { _rpd_set_fps_visible: (v: number) => void })._rpd_set_fps_visible(visible ? 1 : 0);

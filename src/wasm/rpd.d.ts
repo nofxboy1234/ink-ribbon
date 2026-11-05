@@ -43,6 +43,7 @@ export type RpdModule = {
   _rpd_marker_count: () => number;
   _rpd_set_player_position: (x: number, y: number, z: number) => void;
   _rpd_set_view_mode: (mode: number) => void;
+  _rpd_plan_route: (ptr: number, cap: number) => number;
   _rpd_map_set_camera: (
     cx: number,
     cz: number,

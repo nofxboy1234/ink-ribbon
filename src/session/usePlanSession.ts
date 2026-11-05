@@ -222,13 +222,60 @@ export function usePlanSession(
       addTarget: (x: number, z: number) => client.planAddTarget(x, 0, z),
       reset: () => client.planReset(),
       camera: () => Array.from(client.planCamera()),
-      checkPath: () => ({
-        points: client.planCount(),
-        bad: 0,
-        worst: 0,
-        nodes: graph.count,
-        edges: graph.edgeCount,
-      }),
+      checkPath: () => {
+        const route = client.planRoute();
+        const points = route.length / 3;
+        const cellKey = (floor: number, ix: number, iz: number) => `${floor}:${ix}:${iz}`;
+        const cells = new Map<string, number>();
+        for (let i = 0; i < graph.count; i += 1) {
+          cells.set(
+            cellKey(graph.floor[i], Math.floor(graph.x[i]), Math.floor(graph.z[i])),
+            i,
+          );
+        }
+        let bad = 0;
+        let samples = 0;
+        let worst = 0;
+        const lift = 0.08;
+        for (let i = 0; i + 1 < points; i += 1) {
+          const ax = route[i * 3];
+          const ay = route[i * 3 + 1];
+          const az = route[i * 3 + 2];
+          const bx = route[i * 3 + 3];
+          const by = route[i * 3 + 4];
+          const bz = route[i * 3 + 5];
+          const length = Math.hypot(bx - ax, by - ay, bz - az);
+          const steps = Math.max(1, Math.ceil(length / 0.1));
+          for (let s = 0; s <= steps; s += 1) {
+            const t = s / steps;
+            const px = ax + (bx - ax) * t;
+            const py = ay + (by - ay) * t;
+            const pz = az + (bz - az) * t;
+            const ix = Math.floor(px);
+            const iz = Math.floor(pz);
+            let found = false;
+            let nearest = Infinity;
+            for (const floor of graph.floors) {
+              const node = cells.get(cellKey(floor.index, ix, iz));
+              if (node === undefined) continue;
+              if (Math.abs(graph.y[node] + lift - py) > 0.9) continue;
+              found = true;
+              nearest = Math.min(nearest, Math.hypot(graph.x[node] - px, graph.z[node] - pz));
+            }
+            samples += 1;
+            if (!found) bad += 1;
+            else if (nearest > worst) worst = nearest;
+          }
+        }
+        return {
+          points,
+          samples,
+          bad,
+          worst,
+          nodes: graph.count,
+          edges: graph.edgeCount,
+        };
+      },
       project: (x: number, y: number, z: number) => {
         const rect = canvas.current?.getBoundingClientRect();
         if (!rect) return null;

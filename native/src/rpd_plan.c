@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "rpd_markers.h"
+#include "rpd_route.h"
 
 #define MAX_WAYPOINTS 32
 #define MAX_ROUTE 8192
@@ -15,6 +16,7 @@ static float *nav_x, *nav_y, *nav_z;
 static uint8_t *nav_floor, *nav_kind;
 static int *nav_first, *nav_adj;
 static float *nav_cost;
+static uint8_t *nav_blocked;
 
 static int floor_count;
 static float floor_levels[8];
@@ -45,10 +47,6 @@ static float view_proj[16];
 static int view_w, view_h;
 static float map_cx, map_cz, map_scale = 8.0f;
 static int fitted_floor = -1;
-
-static float *astar_g, *astar_f;
-static int *astar_from, *astar_heap, *astar_pos;
-static uint8_t *astar_state;
 
 static float dist2(float ax, float ay, float az, float bx, float by, float bz) {
     float dx = ax - bx, dy = (ay - by) * 1.4f, dz = az - bz;
@@ -176,90 +174,14 @@ static void fit_camera(void) {
     fitted_floor = active_floor;
 }
 
-static int heap_pop(void) {
-    int top = astar_heap[1];
-    int last = astar_heap[astar_heap[0]--];
-    astar_heap[1] = last;
-    if (astar_heap[0] > 0) {
-        int i = 1;
-        while (1) {
-            int l = i * 2 + 1, r = l + 1, m = i;
-            if (l < astar_heap[0] && astar_f[astar_heap[l]] < astar_f[astar_heap[m]]) m = l;
-            if (r < astar_heap[0] && astar_f[astar_heap[r]] < astar_f[astar_heap[m]]) m = r;
-            if (m == i) break;
-            int t = astar_heap[i]; astar_heap[i] = astar_heap[m]; astar_heap[m] = t;
-            astar_pos[astar_heap[i]] = i; astar_pos[astar_heap[m]] = m;
-            i = m;
-        }
-    }
-    (void)last;
-    return top;
-}
+static int *route_scratch_nodes;
+static int route_scratch_capacity;
 
-static void heap_push(int node) {
-    int i = ++astar_heap[0];
-    astar_heap[i] = node;
-    astar_pos[node] = i;
-    while (i > 1) {
-        int p = i / 2;
-        if (astar_f[astar_heap[p]] <= astar_f[astar_heap[i]]) break;
-        int t = astar_heap[p]; astar_heap[p] = astar_heap[i]; astar_heap[i] = t;
-        astar_pos[astar_heap[p]] = p; astar_pos[astar_heap[i]] = i;
-        i = p;
-    }
-}
-
-static int astar(int start, int goal, int *out, int out_cap) {
-    if (start < 0 || goal < 0 || start >= nav_count || goal >= nav_count) return 0;
-    if (start == goal) { out[0] = start; return 1; }
-    for (int i = 0; i < nav_count; i++) {
-        astar_g[i] = 1e30f; astar_f[i] = 1e30f; astar_from[i] = -1; astar_state[i] = 0;
-    }
-    astar_heap[0] = 0;
-    astar_g[start] = 0;
-    astar_f[start] = sqrtf(dist2(nav_x[start], nav_y[start], nav_z[start], nav_x[goal], nav_y[goal], nav_z[goal]));
-    heap_push(start);
-    while (astar_heap[0] > 0) {
-        int cur = heap_pop();
-        if (astar_state[cur] == 2) continue;
-        astar_state[cur] = 2;
-        if (cur == goal) break;
-        for (int e = nav_first[cur]; e < nav_first[cur + 1]; e++) {
-            int nxt = nav_adj[e];
-            if (astar_state[nxt] == 2) continue;
-            float tentative = astar_g[cur] + nav_cost[e];
-            if (tentative >= astar_g[nxt]) continue;
-            astar_g[nxt] = tentative;
-            astar_from[nxt] = cur;
-            astar_f[nxt] = tentative + sqrtf(dist2(nav_x[nxt], nav_y[nxt], nav_z[nxt], nav_x[goal], nav_y[goal], nav_z[goal]));
-            if (astar_state[nxt] == 0) {
-                astar_state[nxt] = 1;
-                heap_push(nxt);
-            } else if (astar_pos[nxt] > 0) {
-                int i = astar_pos[nxt];
-                while (i > 1) {
-                    int p = i / 2;
-                    if (astar_f[astar_heap[p]] <= astar_f[astar_heap[i]]) break;
-                    int t = astar_heap[p]; astar_heap[p] = astar_heap[i]; astar_heap[i] = t;
-                    astar_pos[astar_heap[p]] = p; astar_pos[astar_heap[i]] = i;
-                    i = p;
-                }
-            }
-        }
-    }
-    if (astar_from[goal] < 0 && goal != start) return 0;
-    int path[MAX_ROUTE];
-    int n = 0;
-    int cur = goal;
-    while (cur >= 0 && n < MAX_ROUTE) {
-        path[n++] = cur;
-        if (cur == start) break;
-        cur = astar_from[cur];
-    }
-    if (n == 0 || path[n - 1] != start) return 0;
-    if (n > out_cap) n = out_cap;
-    for (int i = 0; i < n; i++) out[i] = path[n - 1 - i];
-    return n;
+static void ensure_route_scratch(int count) {
+    if (route_scratch_capacity >= count) return;
+    free(route_scratch_nodes);
+    route_scratch_nodes = (int *)malloc(sizeof(int) * (size_t)count);
+    route_scratch_capacity = count;
 }
 
 static void recompute_route(void) {
@@ -268,20 +190,21 @@ static void recompute_route(void) {
     if (start < 0) start = player_node;
     if (start < 0) return;
     int path[MAX_ROUTE];
+    int path_count = 0;
     for (int w = 0; w < waypoint_count; w++) {
-        int n = astar(start, waypoints[w], path, MAX_ROUTE);
+        int n = route_find_path(nav_count, nav_x, nav_y, nav_z, nav_first, nav_adj, nav_cost,
+                                nav_blocked, start, waypoints[w], path, MAX_ROUTE);
         if (n <= 0) continue;
         for (int i = 0; i < n; i++) {
-            if (route_count > 0 && i == 0) continue;
-            if (route_count >= MAX_ROUTE) break;
-            int node = path[i];
-            route[route_count * 3 + 0] = nav_x[node];
-            route[route_count * 3 + 1] = nav_y[node] + 0.08f;
-            route[route_count * 3 + 2] = nav_z[node];
-            route_count++;
+            if (path_count > 0 && i == 0) continue;
+            if (path_count >= MAX_ROUTE) break;
+            if (path_count == 0) ensure_route_scratch(MAX_ROUTE);
+            route_scratch_nodes[path_count++] = path[i];
         }
         start = waypoints[w];
     }
+    if (path_count <= 0) return;
+    route_count = route_smooth(path_count, route_scratch_nodes, nav_x, nav_y, nav_z, 0.08f, route, MAX_ROUTE);
 }
 
 void plan_set_floors(int count, const float *levels, const float *bounds) {
@@ -298,9 +221,7 @@ void plan_set_graph(int count, const float *x, const float *y, const float *z,
                     const uint8_t *floor, const uint8_t *kind, const int *first,
                     const int *adjacency, const float *adjacency_cost) {
     free(nav_x); free(nav_y); free(nav_z); free(nav_floor); free(nav_kind);
-    free(nav_first); free(nav_adj); free(nav_cost);
-    free(astar_g); free(astar_f); free(astar_from); free(astar_heap);
-    free(astar_pos); free(astar_state);
+    free(nav_first); free(nav_adj); free(nav_cost); free(nav_blocked);
     nav_count = count;
     nav_x = malloc(sizeof(float) * count);
     nav_y = malloc(sizeof(float) * count);
@@ -313,18 +234,19 @@ void plan_set_graph(int count, const float *x, const float *y, const float *z,
     memcpy(nav_z, z, sizeof(float) * count);
     memcpy(nav_floor, floor, sizeof(uint8_t) * count);
     memcpy(nav_kind, kind, sizeof(uint8_t) * count);
-    memcpy(nav_first, first, sizeof(int) * (count + 1));
-    int edges = nav_first[count];
-    nav_adj = malloc(sizeof(int) * edges);
-    nav_cost = malloc(sizeof(float) * edges);
-    memcpy(nav_adj, adjacency, sizeof(int) * edges);
-    memcpy(nav_cost, adjacency_cost, sizeof(float) * edges);
-    astar_g = malloc(sizeof(float) * count);
-    astar_f = malloc(sizeof(float) * count);
-    astar_from = malloc(sizeof(int) * count);
-    astar_heap = malloc(sizeof(int) * (count + 1));
-    astar_pos = malloc(sizeof(int) * count);
-    astar_state = malloc(sizeof(uint8_t) * count);
+    nav_blocked = calloc((size_t)count, sizeof(uint8_t));
+    int filtered_edges = route_filter_diagonals(count, nav_x, nav_z, nav_floor,
+                                                first, adjacency, adjacency_cost,
+                                                &nav_first, &nav_adj, &nav_cost);
+    if (filtered_edges < 0) {
+        nav_first = malloc(sizeof(int) * (size_t)(count + 1));
+        memcpy(nav_first, first, sizeof(int) * (size_t)(count + 1));
+        int edges = nav_first[count];
+        nav_adj = malloc(sizeof(int) * (size_t)edges);
+        nav_cost = malloc(sizeof(float) * (size_t)edges);
+        memcpy(nav_adj, adjacency, sizeof(int) * (size_t)edges);
+        memcpy(nav_cost, adjacency_cost, sizeof(float) * (size_t)edges);
+    }
     player_node = -1;
     fitted_floor = -1;
 }
@@ -452,13 +374,16 @@ void plan_set_player(float x, float y, float z) {
     recompute_route();
 }
 
-void plan_add_target(float x, float y, float z) {
-    int node = nearest_node_on(active_floor, x, y, z, 4.0f);
-    if (node < 0) return;
+static void add_waypoint_node(int node) {
+    if (node < 0 || node >= nav_count) return;
     if (waypoint_count == 0 || waypoints[waypoint_count - 1] != node) {
         if (waypoint_count < MAX_WAYPOINTS) waypoints[waypoint_count++] = node;
         recompute_route();
     }
+}
+
+void plan_add_target(float x, float y, float z) {
+    add_waypoint_node(nearest_node_on(active_floor, x, y, z, 4.0f));
 }
 
 void plan_start_move(void) {
