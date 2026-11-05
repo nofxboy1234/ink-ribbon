@@ -318,6 +318,19 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
     if (ortho) {
         float placed[MAX_LABELS][4];
         int placed_count = 0;
+        float player[3];
+        plan_player(player);
+        float psx, psy;
+        project(player[0], player[1] + 1.15f, player[2], &psx, &psy);
+        bool player_visible = psx > -1e8f;
+        float player_w = text_width("CLAIRE", 1.5f);
+        if (player_visible && placed_count < MAX_LABELS) {
+            placed[placed_count][0] = psx + 15 - 4;
+            placed[placed_count][1] = psy - 5 - 3;
+            placed[placed_count][2] = psx + 15 + player_w + 4;
+            placed[placed_count][3] = psy - 5 + RPD_FONT_H * 1.5f + 3;
+            placed_count++;
+        }
         int rooms = plan_room_count();
         for (int i = 0; i < rooms; i++) {
             if (plan_room_floor(i) != level) continue;
@@ -347,14 +360,7 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
             }
             text(name, sx - w * 0.5f, sy, 1.8f, 0x4a4842f0, 1);
         }
-    }
-
-    if (ortho) {
-        float p[3];
-        plan_player(p);
-        float sx, sy;
-        project(p[0], p[1] + 1.15f, p[2], &sx, &sy);
-        if (sx > -1e8f) text("CLAIRE", sx + 15, sy - 5, 1.5f, 0x9b3d78ff, 1);
+        if (player_visible) text("CLAIRE", psx + 15, psy - 5, 1.5f, 0x9b3d78ff, 1);
     }
 
     if (ortho) draw_items();
