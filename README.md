@@ -24,7 +24,7 @@ click her.
 | Scroll wheel | Zoom (perspective camera or plan) |
 | Middle drag (plan) | Pan the plan |
 | Floor buttons | Choose 4F, 3F, 2F, 1F or B1; the plan clips to that storey |
-| Click a room cell or stair | Preview a move, then click the popup to append a waypoint |
+| Click a room cell or stair | Open the routing popup, then choose Add waypoint, Take, or Walk next to it |
 | Double click Claire | Run the committed route |
 | `F` | Frame Claire |
 | `Escape` | Pause and clear the route |
@@ -92,8 +92,11 @@ The C renderer in `native/src/` still draws one indexed mesh through
 `rpd_scene.c`. Marker geometry lives in `rpd_markers.c`; the scene loader
 accepts RPDW version 4 with any number of floors.
 
-- `solid_fs_source` is a paper shader: albedo times a soft key/fill/hemisphere
-  term, no fog and no glass.
+- `native/src/rpd_shaders.glsl` holds the paper shader, the ink composite, the
+  marker shader and both overlay stages. `native/build.sh` runs `sokol-shdc` to
+  generate `native/gen/rpd_shaders_gen.h` for the GLES3/WebGL2 backend. The
+  solid fragment shader is albedo times a soft key/fill/hemisphere term, with
+  no fog and no glass.
 - The offscreen target carries a second RGBA8 attachment with the view-space
   normal. The composite pass inks both colour discontinuities and normal
   discontinuities, so wall corners get a line even when two faces are shaded
@@ -116,14 +119,16 @@ React + TypeScript on Void owns only the chrome: the brand header, the floor
 selector and view toggle, the route planner with the 2x4 inventory, the plan
 title and the loading status. The plan camera fit and pan/zoom, pointer picking,
 the green hover cell, cyan waypoint cells, the glowing route, the room and
-Claire labels, A* waypoints and Claire's movement are drawn and calculated in
-C. `src/session/usePlanSession.ts` loads the assets, sends the nav graph and
-room table into C once, and polls the plan count and current room at 4 Hz. No
-per-frame React state drives the map.
+Claire labels, the routing popup, nine sphere items, A* waypoints and Claire's
+movement are drawn and calculated in C. `src/session/usePlanSession.ts` loads the
+assets, sends the nav graph and room table into C once, and polls the plan
+count, current room and inventory at 4 Hz. No per-frame React state drives the
+map.
 
-The right panel always shows a 2×4 empty inventory grid. There is no route dock,
-no glass toggle and no item markers yet; committing a waypoint only appends it
-to the plan, and a double click on Claire's capsule starts the run.
+The right panel shows a 2×4 inventory grid. Each filled slot shows the colour of
+the sphere Claire took. Items block their nav cell until taken. A routing popup
+offers Add waypoint on a walkable cell, and Take or Walk next to it on an item
+cell. A double click on Claire's capsule starts the run.
 
 ## Run it
 
@@ -196,13 +201,16 @@ public/rpd/quest.json      room names, doors and links (items are not rendered)
 native/src/rpd_app.c       camera blend, ortho clip and frame loop
 native/src/rpd_scene.c     scene loading and rendering
 native/src/rpd_markers.c   marker shapes (capsule, cube, pyramid, cylinder, door)
-native/src/rpd_shaders.c   paper shader, ink composite, marker shader
+native/src/rpd_shaders.glsl  shdc source for the paper, marker and overlay shaders
+native/src/rpd_route.c     diagonal edge filter, A* and bezier route smoothing
+native/src/rpd_items.c     item placement, blocked nodes and the eight-slot inventory
+native/src/rpd_popup.c     routing popup state, layout and hit testing
 src/nav.ts                 nav graph construction at the load boundary
 src/session/usePlanSession.ts  asset load, C data handoff, plan-state polling
 native/src/rpd_overlay.c   screen-space hover, waypoints, route and labels
 native/src/rpd_plan.c      A* waypoints, picking, map camera and movement
 native/src/rpd_font.h      generated 5x7 label font
-src/ui/QuestPanel.tsx      route instructions and the 2×4 inventory
+src/ui/QuestPanel.tsx      route instructions and the polled 2×4 inventory
 ```
 
 ## Assets and licensing
