@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "rpd_font.h"
 #include "rpd_items.h"
 #include "rpd_plan.h"
 #include "rpd_popup.h"
@@ -13,39 +12,23 @@
 #include "rpd_shaders.h"
 
 #define MAX_VERTS (240 * 1024)
-#define MAX_TEXT_VERTS (24 * 1024)
 #define MAX_LABELS 64
-#define FONT_COLS 16
-#define FONT_ROWS 6
-#define FONT_CELL_W 6
-#define FONT_CELL_H 8
-#define FONT_ATLAS_W (FONT_COLS * FONT_CELL_W)
-#define FONT_ATLAS_H (FONT_ROWS * FONT_CELL_H)
+#define DTX_SCALE 1.6f
+#define DTX_CELL (8.0f * DTX_SCALE)
 
 typedef struct {
     float x, y;
     uint8_t r, g, b, a;
 } overlay_vertex;
 
-typedef struct {
-    float x, y, u, v;
-    uint8_t r, g, b, a;
-} text_vertex;
-
 static sg_pipeline pip;
-static sg_pipeline text_pip;
 static sg_buffer vbuf;
-static sg_buffer text_vbuf;
-static sg_image font_image;
-static sg_view font_view;
-static sg_sampler font_sampler;
 static overlay_vertex *verts;
-static text_vertex *text_verts;
 static int vcount;
-static int text_count;
 
 static int view_w = 1, view_h = 1;
 static int fps_visible = 1;
+static int text_ready = 1;
 static float vp[16];
 
 static const uint8_t *col(uint32_t c) {
@@ -86,51 +69,18 @@ static void project(float x, float y, float z, float *sx, float *sy) {
     *sy = (1.0f - (cy / cw * 0.5f + 0.5f)) * (float)view_h;
 }
 
-static float text_width(const char *s, float scale) {
-    int n = 0;
-    while (s[n]) n++;
-    return (float)n * 6.0f * scale - scale;
+static float dtx_width(const char *s) {
+    return (float)(s ? strlen(s) : 0) * DTX_CELL;
 }
 
-static void text(const char *s, float x, float y, float scale, uint32_t color, int chip) {
-    if (!s || !*s) return;
-    char upper[96];
-    int n = 0;
-    while (s[n] && n < 95) {
-        char c = s[n];
-        if (c >= 'a' && c <= 'z') c = (char)(c - 32);
-        upper[n] = c;
-        n++;
-    }
-    upper[n] = 0;
-    float w = text_width(upper, scale);
-    if (chip) {
-        quad(x - 4, y - 3, x + w + 4, y + RPD_FONT_H * scale + 3, 0xf2f0e8d6);
-    }
-    for (int i = 0; i < n; i++) {
-        unsigned ch = (unsigned char)upper[i];
-        if (ch < RPD_FONT_FIRST || ch > RPD_FONT_LAST) { x += 6.0f * scale; continue; }
-        int glyph = (int)ch - RPD_FONT_FIRST;
-        int cell = glyph;
-        int cx = (cell % FONT_COLS) * FONT_CELL_W;
-        int cy = (cell / FONT_COLS) * FONT_CELL_H;
-        float u0 = (float)(cx + 1) / FONT_ATLAS_W;
-        float v0 = (float)(cy + 1) / FONT_ATLAS_H;
-        float u1 = (float)(cx + 1 + RPD_FONT_W) / FONT_ATLAS_W;
-        float v1 = (float)(cy + 1 + RPD_FONT_H) / FONT_ATLAS_H;
-        float x1 = x + RPD_FONT_W * scale;
-        float y1 = y + RPD_FONT_H * scale;
-        uint8_t rgb[4] = { (uint8_t)((color >> 24) & 0xff), (uint8_t)((color >> 16) & 0xff), (uint8_t)((color >> 8) & 0xff), (uint8_t)(color & 0xff) };
-        if (text_count + 6 <= MAX_TEXT_VERTS) {
-            text_verts[text_count++] = (text_vertex){ x, y, u0, v0, rgb[0], rgb[1], rgb[2], rgb[3] };
-            text_verts[text_count++] = (text_vertex){ x1, y, u1, v0, rgb[0], rgb[1], rgb[2], rgb[3] };
-            text_verts[text_count++] = (text_vertex){ x1, y1, u1, v1, rgb[0], rgb[1], rgb[2], rgb[3] };
-            text_verts[text_count++] = (text_vertex){ x, y, u0, v0, rgb[0], rgb[1], rgb[2], rgb[3] };
-            text_verts[text_count++] = (text_vertex){ x1, y1, u1, v1, rgb[0], rgb[1], rgb[2], rgb[3] };
-            text_verts[text_count++] = (text_vertex){ x, y1, u0, v1, rgb[0], rgb[1], rgb[2], rgb[3] };
-        }
-        x += 6.0f * scale;
-    }
+static void dtx_text(const char *s, float x, float y, uint32_t color, int chip) {
+    if (!text_ready || !s || !*s) return;
+    float width = dtx_width(s);
+    if (chip) quad(x - 4, y - 3, x + width + 4, y + DTX_CELL + 3, 0xf2f0e8d6);
+    sdtx_pos(x / DTX_CELL, y / DTX_CELL);
+    uint8_t *rgba = (uint8_t *)col(color);
+    sdtx_color4b(rgba[0], rgba[1], rgba[2], rgba[3]);
+    sdtx_puts(s);
 }
 
 static void draw_cell(int node, uint32_t fill, uint32_t stroke) {
@@ -153,39 +103,12 @@ void overlay_set_fps_visible(int visible) {
     fps_visible = visible != 0;
 }
 
+void overlay_set_text_ready(int ready) {
+    text_ready = ready != 0;
+}
+
 void overlay_init(void) {
     verts = malloc(sizeof(overlay_vertex) * MAX_VERTS);
-    text_verts = malloc(sizeof(text_vertex) * MAX_TEXT_VERTS);
-    uint8_t atlas[FONT_ATLAS_W * FONT_ATLAS_H];
-    memset(atlas, 0, sizeof(atlas));
-    for (int glyph = 0; glyph < 95; glyph++) {
-        int cx = (glyph % FONT_COLS) * FONT_CELL_W + 1;
-        int cy = (glyph / FONT_COLS) * FONT_CELL_H + 1;
-        for (int row = 0; row < RPD_FONT_H; row++) {
-            uint8_t bits = rpd_font_bits[glyph][row];
-            for (int c = 0; c < RPD_FONT_W; c++) {
-                if (bits & (1 << c)) atlas[(cy + row) * FONT_ATLAS_W + cx + c] = 255;
-            }
-        }
-    }
-    font_image = sg_make_image(&(sg_image_desc){
-        .width = FONT_ATLAS_W,
-        .height = FONT_ATLAS_H,
-        .pixel_format = SG_PIXELFORMAT_R8,
-        .data = { .ptr = atlas, .size = sizeof(atlas) },
-        .label = "rpd-font-atlas",
-    });
-    font_view = sg_make_view(&(sg_view_desc){ .texture = { .image = font_image }, .label = "rpd-font-view" });
-    font_sampler = sg_make_sampler(&(sg_sampler_desc){
-        .min_filter = SG_FILTER_LINEAR,
-        .mag_filter = SG_FILTER_LINEAR,
-        .label = "rpd-font-sampler",
-    });
-    text_vbuf = sg_make_buffer(&(sg_buffer_desc){
-        .usage = { .vertex_buffer = true, .write_transient = true },
-        .size = sizeof(text_vertex) * MAX_TEXT_VERTS,
-        .label = "overlay-text-vertices",
-    });
     vbuf = sg_make_buffer(&(sg_buffer_desc){
         .usage = { .vertex_buffer = true, .write_transient = true },
         .size = sizeof(overlay_vertex) * MAX_VERTS,
@@ -208,25 +131,6 @@ void overlay_init(void) {
             .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
         },
         .label = "overlay-pipeline",
-    });
-    sg_shader text_shd = sg_make_shader(overlay_text_shader_desc(sg_query_backend()));
-    text_pip = sg_make_pipeline(&(sg_pipeline_desc){
-        .shader = text_shd,
-        .layout = {
-            .attrs = {
-                [0] = { .format = SG_VERTEXFORMAT_FLOAT2 },
-                [1] = { .format = SG_VERTEXFORMAT_FLOAT2, .offset = 8 },
-                [2] = { .format = SG_VERTEXFORMAT_UBYTE4N, .offset = 16 },
-            },
-        },
-        .colors[0].blend = {
-            .enabled = true,
-            .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
-            .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-            .src_factor_alpha = SG_BLENDFACTOR_ONE,
-            .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-        },
-        .label = "overlay-text-pipeline",
     });
 }
 
@@ -265,7 +169,7 @@ static void draw_popup(void) {
     line(x0, y0 + h, x0 + w, y0 + h, 2.0f, 0x24221ee6);
     line(x0, y0, x0, y0 + h, 2.0f, 0x24221ee6);
     if (p->message[0]) {
-        text(p->message, x0 + 12.0f, y0 + 10.0f, 1.45f, 0x24221ecc, 0);
+        dtx_text(p->message, x0 + 12.0f, y0 + 10.0f, 0x24221ecc, 0);
     }
     for (int i = 0; i < p->choice_count; i++) {
         float rect[4];
@@ -274,7 +178,7 @@ static void draw_popup(void) {
         bool hot = choice->enabled && p->hover == i;
         if (hot) quad(rect[0], rect[1], rect[2], rect[3], 0x24221ee6);
         uint32_t color = choice->enabled ? (hot ? 0xf5f1e6ff : 0x24221eff) : 0x24221e66;
-        text(choice->label, rect[0] + 9.0f, rect[1] + 7.0f, 1.5f, color, 0);
+        dtx_text(choice->label, rect[0] + 9.0f, rect[1] + 7.0f, color, 0);
         if (i + 1 < p->choice_count) {
             line(rect[0], rect[3], rect[2], rect[3], 1.0f, 0x24221e22);
         }
@@ -286,7 +190,10 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
     view_h = height > 1 ? height : 1;
     memcpy(vp, matrix, sizeof(vp));
     vcount = 0;
-    text_count = 0;
+    if (text_ready) {
+        sdtx_canvas((float)view_w / DTX_SCALE, (float)view_h / DTX_SCALE);
+        sdtx_origin(0.0f, 0.0f);
+    }
 
     int level = plan_active_floor();
     float fy = plan_level();
@@ -323,12 +230,12 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
         float psx, psy;
         project(player[0], player[1] + 1.15f, player[2], &psx, &psy);
         bool player_visible = psx > -1e8f;
-        float player_w = text_width("CLAIRE", 1.5f);
+        float player_w = dtx_width("CLAIRE");
         if (player_visible && placed_count < MAX_LABELS) {
             placed[placed_count][0] = psx + 15 - 4;
             placed[placed_count][1] = psy - 5 - 3;
             placed[placed_count][2] = psx + 15 + player_w + 4;
-            placed[placed_count][3] = psy - 5 + RPD_FONT_H * 1.5f + 3;
+            placed[placed_count][3] = psy - 5 + DTX_CELL + 3;
             placed_count++;
         }
         int rooms = plan_room_count();
@@ -340,11 +247,11 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
             if (sx < 18 || sy < 18 || sx > view_w - 18 || sy > view_h - 18) continue;
             const char *name = plan_room_name_at(i);
             if (!name || !*name) continue;
-            float w = text_width(name, 1.8f);
+            float w = dtx_width(name);
             float x0 = sx - w * 0.5f - 4;
             float y0 = sy - 4;
             float x1 = x0 + w + 8;
-            float y1 = y0 + RPD_FONT_H * 1.8f + 8;
+            float y1 = y0 + DTX_CELL + 8;
             bool clash = false;
             for (int k = 0; k < placed_count; k++) {
                 if (x0 < placed[k][2] && x1 > placed[k][0] && y0 < placed[k][3] && y1 > placed[k][1]) {
@@ -358,9 +265,9 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
                 placed[placed_count][2] = x1; placed[placed_count][3] = y1;
                 placed_count++;
             }
-            text(name, sx - w * 0.5f, sy, 1.8f, 0x4a4842f0, 1);
+            dtx_text(name, sx - w * 0.5f, sy, 0x4a4842f0, 1);
         }
-        if (player_visible) text("CLAIRE", psx + 15, psy - 5, 1.5f, 0x9b3d78ff, 1);
+        if (player_visible) dtx_text("CLAIRE", psx + 15.0f, psy - 5.0f, 0x9b3d78ff, 1);
     }
 
     if (ortho) draw_items();
@@ -370,7 +277,7 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
         char buf[32];
         if (fps >= 0.5f) snprintf(buf, sizeof(buf), "FPS %d", (int)(fps + 0.5f));
         else snprintf(buf, sizeof(buf), "FPS --");
-        text(buf, (float)view_w - text_width(buf, 1.6f) - 390.0f, 16.0f, 1.6f, 0x4a4842f0, 1);
+        dtx_text(buf, (float)view_w - dtx_width(buf) - 390.0f, 16.0f, 0x4a4842f0, 1);
     }
     if (vcount <= 0) return;
 }
@@ -383,31 +290,15 @@ void overlay_upload(void) {
         .dst = { .buffer = vbuf, .offset = 0 },
         .size = used,
     });
-    if (text_count > 0) {
-        size_t text_used = (size_t)text_count * sizeof(text_vertex);
-        sg_write_buffer_transient(&(sg_write_buffer_desc){
-            .src = { .data = { .ptr = text_verts, .size = text_used }, .offset = 0 },
-            .dst = { .buffer = text_vbuf, .offset = 0 },
-            .size = text_used,
-        });
-    }
 }
 
 void overlay_draw(void) {
-    if (vcount <= 0) return;
-    sg_apply_pipeline(pip);
-    sg_apply_bindings(&(sg_bindings){ .vertex_buffers[0] = vbuf });
-    u_view_t view = { { (float)view_w, (float)view_h, 0.0f, 0.0f } };
-    sg_apply_uniforms(UB_u_view, &(sg_range){ .ptr = &view, .size = sizeof(view) });
-    if (vcount > 0) sg_draw(0, vcount, 1);
-    if (text_count > 0) {
-        sg_apply_pipeline(text_pip);
-        sg_apply_bindings(&(sg_bindings){
-            .vertex_buffers[0] = text_vbuf,
-            .views[0] = font_view,
-            .samplers[0] = font_sampler,
-        });
+    if (vcount > 0) {
+        sg_apply_pipeline(pip);
+        sg_apply_bindings(&(sg_bindings){ .vertex_buffers[0] = vbuf });
+        u_view_t view = { { (float)view_w, (float)view_h, 0.0f, 0.0f } };
         sg_apply_uniforms(UB_u_view, &(sg_range){ .ptr = &view, .size = sizeof(view) });
-        sg_draw(0, text_count, 1);
+        sg_draw(0, vcount, 1);
     }
+    if (text_ready) sdtx_draw();
 }

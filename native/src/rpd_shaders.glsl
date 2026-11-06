@@ -189,38 +189,7 @@ void main() {
 }
 @end
 
-@vs overlay_text_vs
-layout(binding=0) uniform u_view {
-    vec4 viewport;
-} view;
-layout(location=0) in vec2 pos;
-layout(location=1) in vec2 uv;
-layout(location=2) in vec4 color;
-out vec2 v_uv;
-out vec4 v_color;
-void main() {
-    gl_Position = vec4(pos.x / view.viewport.x * 2.0 - 1.0, 1.0 - pos.y / view.viewport.y * 2.0, 0.0, 1.0);
-    v_uv = uv;
-    v_color = color;
-}
-@end
-
-@fs overlay_text_fs
-precision highp float;
-layout(binding=0) uniform texture2D u_font;
-layout(binding=0) uniform sampler u_font_smp;
-in vec2 v_uv;
-in vec4 v_color;
-out vec4 frag_color;
-void main() {
-    float a = texture(sampler2D(u_font, u_font_smp), v_uv).r;
-    if (a < 0.5) discard;
-    frag_color = vec4(v_color.rgb, v_color.a);
-}
-@end
-
 @program solid solid_vs solid_fs
 @program marker marker_vs marker_fs
 @program composite composite_vs composite_fs
 @program overlay overlay_vs overlay_fs
-@program overlay_text overlay_text_vs overlay_text_fs

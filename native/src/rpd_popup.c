@@ -3,11 +3,12 @@
 #include <stdio.h>
 #include <string.h>
 
-#define POPUP_WIDTH 236.0f
+#define POPUP_WIDTH 300.0f
 #define POPUP_ROW_HEIGHT 28.0f
 #define POPUP_PAD 8.0f
 #define POPUP_MESSAGE_HEIGHT 22.0f
 #define POPUP_GAP 18.0f
+#define POPUP_RIGHT_INSET 380.0f
 
 static popup_t g_popup;
 static int g_view_w = 1;
@@ -64,8 +65,11 @@ void popup_layout(float *x0, float *y0, float *w, float *h) {
     if (g_popup.message[0]) height += POPUP_MESSAGE_HEIGHT;
     float x = g_popup.anchor[0];
     float y = g_popup.anchor[1];
-    if (x + POPUP_WIDTH + POPUP_GAP > (float)g_view_w) x = g_popup.anchor[0] - POPUP_WIDTH - POPUP_GAP;
+    float right = (float)g_view_w - POPUP_RIGHT_INSET;
+    if (right < POPUP_WIDTH + POPUP_GAP * 2.0f) right = (float)g_view_w;
+    if (x + POPUP_WIDTH + POPUP_GAP > right) x = g_popup.anchor[0] - POPUP_WIDTH - POPUP_GAP;
     if (x < POPUP_GAP) x = POPUP_GAP;
+    if (x + POPUP_WIDTH > right) x = right - POPUP_WIDTH;
     if (y + height > (float)g_view_h - POPUP_GAP) y = (float)g_view_h - height - POPUP_GAP;
     if (y < POPUP_GAP) y = POPUP_GAP;
     *x0 = x;

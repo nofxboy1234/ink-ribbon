@@ -152,6 +152,25 @@ static void update_ortho_blend(float dt) {
     g_rpd.camera.distance = g_rpd.saved_distance + (ortho_distance - g_rpd.saved_distance) * e;
 }
 
+static bool sdtx_ready;
+
+static void ensure_sdtx(void) {
+    if (sdtx_ready) return;
+    sg_swapchain sc = sglue_swapchain();
+    if (sc.invalid || sc.color_format == SG_PIXELFORMAT_NONE) return;
+    sdtx_setup(&(sdtx_desc_t){
+        .fonts = { [0] = sdtx_font_kc853() },
+        .logger.func = slog_func,
+        .context = {
+            .color_format = sc.color_format,
+            .depth_format = sc.depth_format,
+            .sample_count = sc.sample_count,
+        },
+    });
+    sdtx_ready = true;
+    overlay_set_text_ready(1);
+}
+
 void rpd_app_frame(void) {
     float raw_dt = (float)sapp_frame_duration();
     if (raw_dt < 0.0f) raw_dt = 0.0f;
@@ -166,6 +185,7 @@ void rpd_app_frame(void) {
         fps_frames = 0;
     }
     float dt = raw_dt > 0.1f ? 0.1f : raw_dt;
+    ensure_sdtx();
     camera_update_animation(dt);
     update_ortho_blend(dt);
     if (g_rpd.scene.pending) {
@@ -216,6 +236,7 @@ void rpd_app_init(void) {
 }
 
 void rpd_app_cleanup(void) {
+    if (sdtx_ready) sdtx_shutdown();
     sg_shutdown();
     if (g_rpd.scene.data) free(g_rpd.scene.data);
 }
