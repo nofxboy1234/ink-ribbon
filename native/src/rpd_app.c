@@ -93,7 +93,11 @@ static mat4 camera_view_proj(float eye[3]) {
     float near_z = 0.2f;
     float far_z = 2400.0f;
     mat4 persp = mat4_perspective(RPD_PERSPECTIVE_FOV, aspect, near_z, far_z);
-    mat4 ortho = mat4_ortho(-half_w, half_w, -half_h, half_h, near_z, far_z);
+    const float panel_inset = 380.0f;
+    float lens_shift = panel_inset / vw;
+    persp.m[8] = lens_shift;
+    float ortho_shift = lens_shift * half_w;
+    mat4 ortho = mat4_ortho(-half_w + ortho_shift, half_w + ortho_shift, -half_h, half_h, near_z, far_z);
     mat4 proj;
     for (int i = 0; i < 16; i++) proj.m[i] = persp.m[i] * (1.0f - e) + ortho.m[i] * e;
     mat4 view = mat4_view_basis(eye, right, up, forward);

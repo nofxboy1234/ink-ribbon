@@ -731,8 +731,8 @@ async function run() {
       `window.__quest.project(${perspectiveModel[0]}, ${perspectiveModel[1]}, ${perspectiveModel[2]})`,
     );
     assert(
-      Math.hypot(perspectiveCenter.x - 700, perspectiveCenter.y - 450) < 1.5,
-      "the shared target must project to the screen centre in perspective",
+      Math.hypot(perspectiveCenter.x - 510, perspectiveCenter.y - 450) < 1.5,
+      "the shared target must project to the map-area centre in perspective",
     );
     await shot("25-3d-paper-glass");
 
@@ -755,8 +755,8 @@ async function run() {
       `window.__quest.project(${tripOrtho[0]}, ${tripOrtho[1]}, ${tripOrtho[2]})`,
     );
     assert(
-      Math.hypot(orthoCenter.x - 700, orthoCenter.y - 450) < 1.5,
-      "the shared target must project to the screen centre in ortho",
+      Math.hypot(orthoCenter.x - 510, orthoCenter.y - 450) < 1.5,
+      "the shared target must project to the map-area centre in ortho",
     );
     await cdp.key("KeyM", "m", 77);
     await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) <= 0.001", 20000);
@@ -868,8 +868,8 @@ async function run() {
       `window.__quest.project(${recenteredOrtho[0]}, ${recenteredOrtho[1]}, ${recenteredOrtho[2]})`,
     );
     assert(
-      Math.hypot(orthoRecenterCenter.x - 700, orthoRecenterCenter.y - 450) < 1.5,
-      "recentering in ortho must put the target at the screen centre",
+      Math.hypot(orthoRecenterCenter.x - 510, orthoRecenterCenter.y - 450) < 1.5,
+      "recentering in ortho must put the target at the map-area centre",
     );
     await shot("29-recenter-ortho-after");
     report.states.recenter = {
@@ -896,8 +896,8 @@ async function run() {
       "the ortho frame and the debug map scale must agree after reset",
     );
     assert(
-      Math.hypot(resetCenter.x - 700, resetCenter.y - 450) < 1.5,
-      "the reset ortho target must project to the screen centre",
+      Math.hypot(resetCenter.x - 510, resetCenter.y - 450) < 1.5,
+      "the reset ortho target must project to the map-area centre",
     );
     assert(
       JSON.stringify(await evalJson("window.__quest.debug().player")) ===
