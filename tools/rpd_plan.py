@@ -54,6 +54,12 @@ COLOUR_WALL = (232, 229, 219)
 COLOUR_CAP = (38, 38, 38)
 COLOUR_STAIR = (206, 202, 192)
 COLOUR_TREAD = (52, 52, 52)
+COLOUR_DOOR = (150, 150, 150)
+DOOR_HEIGHT = 2.15
+DOOR_THICKNESS = 0.18
+# Isolated wall fragments shorter than this are plan furniture or fixtures,
+# not partitions. Extruded with a black cap they read as specks from above.
+MIN_WALL_SPAN = 0.70
 
 # World-space stairwells taken from the decompiled navigation (two floors at a
 # time). Each entry is (x, z, lower floor label, upper floor label).
@@ -80,19 +86,33 @@ def load_plan(floor: dict) -> dict:
         a = np.full_like(b, 255)
     alpha = a > 128
     # The evilresource GIFs use a four colour palette: transparent, wall grey,
-    # black detail and the orange door block.
+    # black detail and the orange door block. Black marks are furniture, stairs
+    # and fixtures, not walls; extruding them made short black-capped stubs.
     orange = alpha & (r > 150) & (g > 90) & (g < 200) & (b < 120)
+    detail = alpha & (r < 80) & (g < 80) & (b < 80)
+    # Black detail still seals windows and door gaps, so it stays in the
+    # barrier that defines inside from outside. Only grey becomes wall volume.
     wall = alpha & ~orange
     # The plans draw walls as two hairlines around the wall thickness. Close
     # the pair into one solid wall so the paper model has real wall volumes.
     wall = cv2.morphologyEx(
         wall.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8)
     ) > 0
+    structure = cv2.morphologyEx(
+        (~detail & alpha & ~orange).astype(np.uint8), cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8)
+    ) > 0
     # The one pixel frame is not a wall.
     frame = np.zeros_like(wall)
     frame[0, :] = frame[-1, :] = True
     frame[:, 0] = frame[:, -1] = True
-    return {"alpha": alpha, "wall": wall & ~frame, "door": orange, "frame": frame}
+    return {
+        "alpha": alpha,
+        "wall": wall & ~frame,
+        "structure": structure & ~frame,
+        "detail": detail & ~frame,
+        "door": orange,
+        "frame": frame,
+    }
 
 
 def world_of(floor: dict, px: float, py: float) -> tuple[float, float]:
@@ -186,6 +206,35 @@ def thicken(box: dict, minimum: float = 0.42) -> dict:
     return box
 
 
+def door_boxes(floor: dict, door_mask: np.ndarray) -> list[dict]:
+    """Turn each yellow door rectangle into a plain grey door leaf."""
+    count, labels, stats, centroids = cv2.connectedComponentsWithStats(
+        door_mask.astype(np.uint8), 8
+    )
+    boxes: list[dict] = []
+    for index in range(1, count):
+        _, _, w, h, area = stats[index]
+        if area < 2:
+            continue
+        cx, cy = centroids[index]
+        wx, wz = world_of(floor, cx, cy)
+        width = max(w, h) / floor["s"]
+        if w >= h:
+            x0, x1 = wx - width / 2, wx + width / 2
+            z0, z1 = wz - DOOR_THICKNESS / 2, wz + DOOR_THICKNESS / 2
+        else:
+            x0, x1 = wx - DOOR_THICKNESS / 2, wx + DOOR_THICKNESS / 2
+            z0, z1 = wz - width / 2, wz + width / 2
+        boxes.append({
+            "x0": round(x0, 3), "z0": round(z0, 3),
+            "x1": round(x1, 3), "z1": round(z1, 3),
+            "y0": round(floor["level"] + 0.02, 3),
+            "y1": round(floor["level"] + DOOR_HEIGHT, 3),
+            "c": list(COLOUR_DOOR),
+        })
+    return boxes
+
+
 def build_floor_geometry(floor: dict, plan: dict) -> list[dict]:
     level = floor["level"]
     wall = plan["wall"].copy()
@@ -193,6 +242,8 @@ def build_floor_geometry(floor: dict, plan: dict) -> list[dict]:
     free, outside = free_and_outside(wall, plan["frame"])
     # Doors are free floor.
     interior = free & ~outside
+    # Black detail is not wall volume, but its footprint is still floor.
+    interior |= plan["detail"] & ~outside
     if floor["label"] == "4F":
         # The tiny clock-tower plan only draws its wall outline, so fill the
         # whole tower room inside that outline instead of the open notch.
@@ -203,7 +254,9 @@ def build_floor_geometry(floor: dict, plan: dict) -> list[dict]:
             room = np.zeros_like(wall)
             room[max(0, y0 - 1):min(room.shape[0], y1 + 2),
                  max(0, x0 - 1):min(room.shape[1], x1 + 2)] = True
-            interior = room & ~wall
+            interior = (room & ~wall) | (plan["detail"] & room)
+    structure = plan["structure"].copy()
+    structure &= ~stair_rect_mask(structure.shape, floor)
     boxes: list[dict] = []
     for rect in greedy_rects(interior):
         slab = box_from_rect(floor, rect, level - FLOOR_THICKNESS, FLOOR_THICKNESS, COLOUR_FLOOR)
@@ -213,17 +266,24 @@ def build_floor_geometry(floor: dict, plan: dict) -> list[dict]:
         slab["z0"] -= 0.04
         slab["x1"] += 0.04
         slab["z1"] += 0.04
+        # Only the top face is visible from the camera. Drawing the side faces
+        # lets a vertical normal win depth ties along the rim and becomes a
+        # dark speck once the ink pass outlines it.
+        slab["faces"] = "top"
         boxes.append(slab)
-    for rect in greedy_rects(wall):
+    for rect in greedy_rects(structure):
         # Sink the wall base into the slab so the floor top and wall bottom are
         # not coplanar; coincident horizontal faces z-fight into dark specks.
         body = thicken(box_from_rect(floor, rect, level - 0.08, WALL_HEIGHT - WALL_CAP + 0.08, COLOUR_WALL))
+        if max(body["x1"] - body["x0"], body["z1"] - body["z0"]) < MIN_WALL_SPAN:
+            continue
         boxes.append(body)
         cap = dict(body)
         cap["y0"] = round(level + WALL_HEIGHT - WALL_CAP, 3)
         cap["y1"] = round(level + WALL_HEIGHT, 3)
         cap["c"] = list(COLOUR_CAP)
         boxes.append(cap)
+    boxes += door_boxes(floor, plan["door"])
     return boxes
 
 
@@ -394,7 +454,8 @@ def main() -> int:
         boxes = build_floor_geometry(floor, plans[label])
         boxes += build_stairs(floor)
         geometry[label] = boxes
-        print(f"{label}: {len(boxes)} boxes, {len(cells)} cells", flush=True)
+        doors = sum(1 for box in boxes if box["c"] == list(COLOUR_DOOR))
+        print(f"{label}: {len(boxes)} boxes, {len(cells)} cells, {doors} doors", flush=True)
 
     # Stair ramps between floors. The lower floor owns the chain; both ends are
     # linked to the closest floor cell of their own storey.

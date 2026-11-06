@@ -157,6 +157,8 @@ def export(plan: dict) -> None:
                 (2, 3, 7), (2, 7, 6),
                 (3, 0, 4), (3, 4, 7),
             ]
+            if box.get("faces") == "top":
+                tris = [(4, 5, 6), (4, 6, 7)]
             try:
                 for tri in tris:
                     current.triangle(positions, tri, colour)
