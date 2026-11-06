@@ -211,7 +211,7 @@ int route_find_path(int count, const float *x, const float *y, const float *z,
         }
     }
     if (astar_from[goal] < 0) return 0;
-    int path[8192];
+    static int path[8192];
     int n = 0;
     int cur = goal;
     while (cur >= 0 && n < 8192) {

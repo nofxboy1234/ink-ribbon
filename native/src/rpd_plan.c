@@ -187,6 +187,7 @@ static int *route_scratch_nodes;
 static int route_scratch_capacity;
 static int *route_pull_nodes;
 static int route_pull_capacity;
+static int route_path_nodes[MAX_ROUTE];
 
 static void ensure_route_scratch(int count) {
     if (route_scratch_capacity >= count) return;
@@ -205,7 +206,7 @@ static void recompute_route(void) {
     int start = nearest_node_on(active_floor, player[0], player[1], player[2], 4.0f);
     if (start < 0) start = player_node;
     if (start < 0) return;
-    int path[MAX_ROUTE];
+    int *path = route_path_nodes;
     int path_count = 0;
     for (int w = 0; w < waypoint_count; w++) {
         int n = route_find_path(nav_count, nav_x, nav_y, nav_z, nav_first, nav_adj, nav_cost,
@@ -412,9 +413,8 @@ static int nearest_free_neighbor(int node) {
         int candidate = nav_adj[e];
         if (nav_blocked[candidate]) continue;
         if (start >= 0) {
-            int path[MAX_ROUTE];
             if (route_find_path(nav_count, nav_x, nav_y, nav_z, nav_first, nav_adj, nav_cost,
-                                nav_blocked, start, candidate, path, MAX_ROUTE) <= 0) continue;
+                                nav_blocked, start, candidate, route_path_nodes, MAX_ROUTE) <= 0) continue;
         }
         float dx = nav_x[candidate] - player[0];
         float dz = nav_z[candidate] - player[2];
