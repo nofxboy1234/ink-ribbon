@@ -135,7 +135,6 @@ void main() {
     vec4 nC = texture(sampler2D(u_normal, u_normal_smp), v_uv);
     vec4 dC = texture(sampler2D(u_depth, u_depth_smp), v_uv);
     bool marker = abs(nC.a - 0.5) < 0.2;
-    bool glass = abs(nC.a - 0.25) < 0.05;
     vec3 cL = texture(sampler2D(u_tex, u_tex_smp), v_uv - vec2(texel.x, 0.0)).rgb;
     vec3 cR = texture(sampler2D(u_tex, u_tex_smp), v_uv + vec2(texel.x, 0.0)).rgb;
     vec3 cU = texture(sampler2D(u_tex, u_tex_smp), v_uv - vec2(0.0, texel.y)).rgb;
@@ -152,6 +151,9 @@ void main() {
     if (abs(nR.a - 0.5) < 0.2) { nR = nC; cR = c; dR = dC; }
     if (abs(nU.a - 0.5) < 0.2) { nU = nC; cU = c; dU = dC; }
     if (abs(nD.a - 0.5) < 0.2) { nD = nC; cD = c; dD = dC; }
+    bool glass = abs(nC.a - 0.25) < 0.05 || abs(nL.a - 0.25) < 0.05 ||
+                 abs(nR.a - 0.25) < 0.05 || abs(nU.a - 0.25) < 0.05 ||
+                 abs(nD.a - 0.25) < 0.05;
     vec3 dx = cR - cL;
     vec3 dy = cD - cU;
     float colorEdge = smoothstep(0.14, 0.5, length(dx) + length(dy));
