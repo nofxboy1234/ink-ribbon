@@ -87,10 +87,6 @@ void input_handle_event(const sapp_event *e) {
         break;
     }
     case SAPP_EVENTTYPE_KEY_DOWN:
-        if (e->key_code == SAPP_KEYCODE_R) {
-            g_rpd.input.user_moved = false;
-            camera_reset();
-        }
         break;
     case SAPP_EVENTTYPE_UNFOCUSED:
         g_rpd.input.rotating = false;

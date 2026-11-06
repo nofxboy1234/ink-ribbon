@@ -23,7 +23,8 @@ export type PlanSession = {
   actions: {
     setFloor: (index: number) => void;
     toggleView: () => void;
-    reset: () => void;
+    clearRoute: () => void;
+    resetView: () => void;
   };
 };
 
@@ -63,6 +64,7 @@ export function usePlanSession(
     () => Array.from({ length: 8 }, () => null),
   );
   const graphRef = useRef<ReturnType<typeof buildNavGraph> | null>(null);
+  const roomsRef = useRef<Quest["rooms"]>([]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -129,6 +131,7 @@ export function usePlanSession(
         client.planSetFloors(levels, bounds);
 
         const rooms = questResponse.rooms;
+        roomsRef.current = rooms;
         const rx = new Float32Array(rooms.length);
         const ry = new Float32Array(rooms.length);
         const rz = new Float32Array(rooms.length);
@@ -234,6 +237,22 @@ export function usePlanSession(
           move: Array.from(client.planMoveState()),
           room: client.planRoom(),
           activeFloor,
+          playerFloor: (() => {
+            let best = -1;
+            let bestDistance = Infinity;
+            for (let i = 0; i < graph.count; i += 1) {
+              const distance = Math.hypot(
+                graph.x[i] - p[0],
+                graph.y[i] - p[1],
+                graph.z[i] - p[2],
+              );
+              if (distance < bestDistance) {
+                bestDistance = distance;
+                best = i;
+              }
+            }
+            return best >= 0 ? graph.floor[best] : -1;
+          })(),
         };
       },
       setFloor: (index: number) => {
@@ -351,8 +370,44 @@ export function usePlanSession(
           choices,
         };
       },
-      reset: () => client.planReset(),
+      reset: () => client.planClearRoute(),
+      clearRoute: () => client.planClearRoute(),
+      openPopupAt: (x: number, z: number) => client.openPopupAt(x, z) !== 0,
+      resetView: () => client.resetView(),
       camera: () => Array.from(client.planCamera()),
+      cameraPose: () => Array.from(client.getCamera()),
+      overlayStats: () => Array.from(client.overlayStats()),
+      rooms: () => roomsRef.current,
+      nearestCell: (x: number, z: number) => {
+        const rect = canvas.current?.getBoundingClientRect();
+        if (!rect) return null;
+        const blocked = new Set(
+          Array.from({ length: client.itemCount() }, (_, i) => client.item(i))
+            .filter((entry) => entry && !entry.taken)
+            .map((entry) => entry!.node),
+        );
+        let best = -1;
+        let bestDistance = Infinity;
+        for (let i = 0; i < graph.count; i += 1) {
+          if (graph.floor[i] !== activeFloor || blocked.has(i)) continue;
+          const distance = Math.hypot(graph.x[i] - x, graph.z[i] - z);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            best = i;
+          }
+        }
+        if (best < 0) return null;
+        return {
+          node: best,
+          world: [graph.x[best], graph.y[best], graph.z[best]],
+          screen: projectPoint(
+            [graph.x[best], graph.y[best] + 0.06, graph.z[best]],
+            client.getViewProj(),
+            rect.width,
+            rect.height,
+          ),
+        };
+      },
       checkPath: () => {
         const route = client.planRoute();
         const points = route.length / 3;
@@ -433,8 +488,11 @@ export function usePlanSession(
         clientRef.current?.setViewMode(next ? 1 : 0);
         setView2D(next);
       },
-      reset() {
-        clientRef.current?.planReset();
+      clearRoute() {
+        clientRef.current?.planClearRoute();
+      },
+      resetView() {
+        clientRef.current?.resetView();
       },
     },
   };

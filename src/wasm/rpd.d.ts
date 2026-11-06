@@ -62,6 +62,10 @@ export type RpdModule = {
     vh: number,
     floorY: number,
   ) => void;
+  _rpd_plan_clear_route: () => void;
+  _rpd_plan_open_popup: (x: number, z: number) => number;
+  _rpd_reset_view: () => void;
+  _rpd_overlay_stats: (ptr: number) => number;
 };
 
 declare const createRpdModule: (options: {

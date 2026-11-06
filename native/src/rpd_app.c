@@ -243,10 +243,15 @@ void rpd_app_cleanup(void) {
 
 static bool map_panning;
 EMSCRIPTEN_KEEPALIVE void rpd_set_view_mode(int mode);
+EMSCRIPTEN_KEEPALIVE void rpd_reset_view(void);
 
 void rpd_app_event(const sapp_event *e) {
     if (e->type == SAPP_EVENTTYPE_KEY_DOWN && e->key_code == SAPP_KEYCODE_ESCAPE) {
-        plan_reset();
+        plan_clear_route();
+        return;
+    }
+    if (e->type == SAPP_EVENTTYPE_KEY_DOWN && e->key_code == SAPP_KEYCODE_R) {
+        rpd_reset_view();
         return;
     }
     if (g_rpd.ortho_blend > 0.25f) {
@@ -311,6 +316,13 @@ EMSCRIPTEN_KEEPALIVE int rpd_plan_count(void) { return plan_count(); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_moving(void) { return plan_moving(); }
 EMSCRIPTEN_KEEPALIVE const char *rpd_plan_room(void) { return plan_room_name(); }
 EMSCRIPTEN_KEEPALIVE void rpd_plan_reset(void) { plan_reset(); }
+EMSCRIPTEN_KEEPALIVE void rpd_plan_clear_route(void) { plan_clear_route(); }
+EMSCRIPTEN_KEEPALIVE int rpd_plan_open_popup(float x, float z) { return plan_open_popup_at(x, z); }
+EMSCRIPTEN_KEEPALIVE int rpd_overlay_stats(float *out) {
+    if (!out) return -1;
+    overlay_stats(out);
+    return 0;
+}
 EMSCRIPTEN_KEEPALIVE int rpd_plan_player(float *out) {
     if (!out) return -1;
     float p[3]; plan_player(p);
@@ -328,6 +340,7 @@ EMSCRIPTEN_KEEPALIVE int rpd_item(int index, float *out) {
     out[6] = (float)item->node;
     out[7] = item->taken ? 1.0f : 0.0f;
     out[8] = (float)item->room;
+    out[9] = (float)item->floor;
     return 1;
 }
 
@@ -454,6 +467,18 @@ EMSCRIPTEN_KEEPALIVE void rpd_set_view_mode(int mode) {
     }
     g_rpd.ortho = ortho;
     camera_cancel_animation();
+}
+
+EMSCRIPTEN_KEEPALIVE void rpd_reset_view(void) {
+    camera_cancel_animation();
+    g_rpd.input.rotating = false;
+    g_rpd.input.panning = false;
+    if (g_rpd.ortho) {
+        plan_fit_camera();
+        return;
+    }
+    g_rpd.input.user_moved = false;
+    camera_reset();
 }
 
 EMSCRIPTEN_KEEPALIVE int rpd_get_view_proj(float *out) {

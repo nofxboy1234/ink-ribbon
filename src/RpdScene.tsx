@@ -19,7 +19,6 @@ export default function RpdScene({
         event.preventDefault();
         session.actions.toggleView();
       }
-      if (event.key === "Escape") session.actions.reset();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

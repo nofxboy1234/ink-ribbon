@@ -88,6 +88,7 @@ export type RpdClient = {
     node: number;
     taken: boolean;
     room: number;
+    floor: number;
     name: string;
     roomName: string;
   } | null;
@@ -100,6 +101,10 @@ export type RpdClient = {
   planRoom(): string;
   planPlayer(): Float32Array;
   planReset(): void;
+  planClearRoute(): void;
+  openPopupAt(x: number, z: number): number;
+  resetView(): void;
+  overlayStats(): Float32Array;
   debugBlend(): number;
   dispose(): void;
 };
@@ -290,14 +295,14 @@ export async function createRpdClient(options: {
       return (module as unknown as { _rpd_item_count: () => number })._rpd_item_count();
     },
     item(index) {
-      const ptr = module._malloc(9 * 4);
+      const ptr = module._malloc(10 * 4);
       const ok = (module as unknown as { _rpd_item: (i: number, p: number) => number })
         ._rpd_item(index, ptr);
       if (!ok) {
         module._free(ptr);
         return null;
       }
-      const out = new Float32Array(heap.HEAPU8.buffer, ptr, 9).slice();
+      const out = new Float32Array(heap.HEAPU8.buffer, ptr, 10).slice();
       module._free(ptr);
       const namePtr = (module as unknown as { _rpd_item_name: (i: number) => number })._rpd_item_name(index);
       const roomPtr = (module as unknown as { _rpd_item_room: (i: number) => number })._rpd_item_room(index);
@@ -311,6 +316,7 @@ export async function createRpdClient(options: {
         node: out[6],
         taken: out[7] !== 0,
         room: out[8],
+        floor: out[9],
         name: utf8(namePtr),
         roomName: utf8(roomPtr),
       };
@@ -354,6 +360,23 @@ export async function createRpdClient(options: {
     },
     planReset() {
       (module as unknown as { _rpd_plan_reset: () => void })._rpd_plan_reset();
+    },
+    planClearRoute() {
+      (module as unknown as { _rpd_plan_clear_route: () => void })._rpd_plan_clear_route();
+    },
+    openPopupAt(x, z) {
+      return (module as unknown as { _rpd_plan_open_popup: (x: number, z: number) => number })
+        ._rpd_plan_open_popup(x, z);
+    },
+    resetView() {
+      (module as unknown as { _rpd_reset_view: () => void })._rpd_reset_view();
+    },
+    overlayStats() {
+      const ptr = module._malloc(6 * 4);
+      (module as unknown as { _rpd_overlay_stats: (p: number) => number })._rpd_overlay_stats(ptr);
+      const out = new Float32Array(heap.HEAPU8.buffer, ptr, 6).slice();
+      module._free(ptr);
+      return out;
     },
     debugBlend() {
       return (module as unknown as { _rpd_debug_blend?: () => number })._rpd_debug_blend?.() ?? -1;

@@ -34,9 +34,9 @@ export default function FloorSelector({ session }: FloorSelectorProps) {
       </button>
       <button
         className="rpd-icon-button"
-        title="Reset route"
-        onClick={actions.reset}
-        aria-label="Reset route"
+        title="Reset view"
+        onClick={actions.resetView}
+        aria-label="Reset view"
       >
         ↺
       </button>
