@@ -171,13 +171,23 @@ void rpd_app_frame(void) {
     mat4 vp = camera_view_proj(eye);
     float e = blend_ease();
     float fy = plan_level();
+    bool clip = e > 0.45f;
     plan_update(raw_dt > 0.5f ? 0.5f : raw_dt, vp.m, sapp_width(), sapp_height());
     if (g_rpd.scene.loaded && g_rpd.scene.gpu_ready) {
-        bool clip = e > 0.45f;
         scene_render_floors(&g_rpd.scene, vp, eye, camera_distance(&g_rpd.camera),
                             g_rpd.scene_radius, paper_floor(), clip, fy - 0.55f, fy + 4.2f);
     }
     sg_end_pass();
+
+    if (!clip && g_rpd.scene.loaded && g_rpd.scene.gpu_ready) {
+        // Glass blends over the paper and replaces its normal and depth data.
+        // Rebuild the paper detail alone so its ink survives and glass adds none.
+        sg_begin_pass(&g_rpd.target.data_pass);
+        sg_apply_viewport(0, 0, g_rpd.target.width, g_rpd.target.height, true);
+        scene_render_paper_data(&g_rpd.scene, vp, eye, paper_floor(), false,
+                                fy - 0.55f, fy + 4.2f);
+        sg_end_pass();
+    }
 
     overlay_build(vp.m, sapp_width(), sapp_height(), e > 0.5f, fps_value);
     overlay_upload();

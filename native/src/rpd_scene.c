@@ -34,6 +34,26 @@ static sg_pipeline make_solid_pipeline(sg_shader shader) {
     return sg_make_pipeline(&pd);
 }
 
+static sg_pipeline make_data_pipeline(sg_shader shader) {
+    sg_pipeline_desc pd;
+    memset(&pd, 0, sizeof(pd));
+    pd.shader = shader;
+    pd.layout.buffers[0].stride = 16;
+    pd.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT3;
+    pd.primitive_type = SG_PRIMITIVETYPE_TRIANGLES;
+    pd.index_type = SG_INDEXTYPE_UINT32;
+    pd.cull_mode = SG_CULLMODE_NONE;
+    pd.face_winding = SG_FACEWINDING_CCW;
+    pd.sample_count = 1;
+    pd.depth.compare = SG_COMPAREFUNC_LESS_EQUAL;
+    pd.depth.write_enabled = true;
+    pd.color_count = 2;
+    pd.colors[0].pixel_format = SG_PIXELFORMAT_RGBA8;
+    pd.colors[1].pixel_format = SG_PIXELFORMAT_RGBA8;
+    pd.label = "paper-data-pipeline";
+    return sg_make_pipeline(&pd);
+}
+
 static sg_pipeline make_glass_pipeline(sg_shader shader) {
     sg_pipeline_desc pd;
     memset(&pd, 0, sizeof(pd));
@@ -187,6 +207,7 @@ fail:
 void scene_create_pipelines(scene_t *s) {
     sg_shader solid = sg_make_shader(solid_shader_desc(sg_query_backend()));
     s->solid_pip = make_solid_pipeline(solid);
+    s->paper_data_pip = make_data_pipeline(sg_make_shader(data_shader_desc(sg_query_backend())));
     s->glass_pip = make_glass_pipeline(solid);
     s->marker_pip = make_marker_pipeline(sg_make_shader(marker_shader_desc(sg_query_backend())));
 }
@@ -234,6 +255,26 @@ void scene_render_floors(scene_t *s, mat4 view_proj, const float eye[3],
         }
     }
     markers_render(s, view_proj, eye);
+}
+
+void scene_render_paper_data(scene_t *s, mat4 view_proj, const float eye[3],
+                             int paper_floor, bool clip, float clip_min, float clip_max) {
+    if (!s->gpu_ready || paper_floor < 0 || paper_floor >= s->floor_count) return;
+    solid_vs_params_t vs;
+    memcpy(vs.u_view_proj, view_proj.m, sizeof(vs.u_view_proj));
+    data_fs_params_t fs = { 0 };
+    fs.u_camera[0] = eye[0]; fs.u_camera[1] = eye[1]; fs.u_camera[2] = eye[2];
+    fs.u_clip[0] = clip_min;
+    fs.u_clip[1] = clip_max;
+    fs.u_clip[2] = clip ? 1.0f : 0.0f;
+    sg_apply_pipeline(s->paper_data_pip);
+    sg_apply_bindings(&(sg_bindings){
+        .vertex_buffers[0] = s->vbuf,
+        .index_buffer = s->tri_ibuf,
+    });
+    sg_apply_uniforms(UB_solid_vs_params, &(sg_range){ &vs, sizeof(vs) });
+    sg_apply_uniforms(UB_data_fs_params, &(sg_range){ &fs, sizeof(fs) });
+    sg_draw(s->floors[paper_floor].first_index, s->floors[paper_floor].index_count, 1);
 }
 
 int scene_floor_count(void) {

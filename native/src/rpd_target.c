@@ -118,6 +118,23 @@ void target_create(target_t *t, int width, int height) {
         .attachments.depth_stencil = t->depth_att,
         .label = "rpd-offscreen-pass",
     };
+    t->data_pass = (sg_pass){
+        .action.colors[0] = {
+            .load_action = SG_LOADACTION_CLEAR,
+            .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f },
+        },
+        .action.colors[1] = {
+            .load_action = SG_LOADACTION_CLEAR,
+            .clear_value = { 0.0f, 0.0f, 0.0f, 0.0f },
+        },
+        .action.depth = {
+            .load_action = SG_LOADACTION_LOAD,
+        },
+        .attachments.colors[0] = t->normal_att,
+        .attachments.colors[1] = t->linear_att,
+        .attachments.depth_stencil = t->depth_att,
+        .label = "rpd-paper-data-pass",
+    };
     t->dirty = false;
 }
 

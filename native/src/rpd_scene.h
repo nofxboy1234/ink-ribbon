@@ -51,6 +51,7 @@ typedef struct {
     int marker_index_count[MARKER_SHAPE_COUNT];
     sg_pipeline marker_pip;
     sg_pipeline solid_pip;
+    sg_pipeline paper_data_pip;
     sg_pipeline glass_pip;
 } scene_t;
 
@@ -59,6 +60,8 @@ bool scene_upload(scene_t *s);
 void scene_render_floors(scene_t *s, mat4 view_proj, const float eye[3],
                          float camera_distance, float scene_radius, int paper_floor,
                          bool clip, float clip_min, float clip_max);
+void scene_render_paper_data(scene_t *s, mat4 view_proj, const float eye[3],
+                             int paper_floor, bool clip, float clip_min, float clip_max);
 int scene_floor_count(void);
 mat4 marker_model(const marker_t *m);
 int scene_marker_count(void);

@@ -18,6 +18,7 @@ typedef struct {
     sg_view linear_tex_view;
     sg_sampler sampler;
     sg_pass pass;
+    sg_pass data_pass;
     sg_pipeline pip;
     sg_buffer quad;
     int width;

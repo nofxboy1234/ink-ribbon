@@ -59,6 +59,29 @@ void main() {
 }
 @end
 
+@fs data_fs
+precision highp float;
+layout(binding=2) uniform data_fs_params {
+    vec4 u_camera;
+    vec4 u_clip;
+};
+in vec3 v_world;
+in vec3 v_color;
+layout(location = 0) out vec4 frag_normal;
+layout(location = 1) out vec4 frag_depth;
+void main() {
+    if (u_clip.z > 0.5 && (v_world.y < u_clip.x || v_world.y > u_clip.y)) discard;
+    vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));
+    vec3 view = normalize(u_camera.xyz - v_world);
+    if (dot(n, view) < 0.0) n = -n;
+    frag_normal = vec4(n * 0.5 + 0.5, 1.0);
+    float scaled = clamp(length(u_camera.xyz - v_world), 0.0, 500.0) * (65535.0 / 500.0);
+    float hi = floor(scaled / 256.0);
+    float lo = scaled - hi * 256.0;
+    frag_depth = vec4(hi / 255.0, lo / 255.0, 0.0, 1.0);
+}
+@end
+
 @vs marker_vs
 layout(binding=0) uniform marker_vs_params {
     mat4 u_view_proj;
@@ -206,6 +229,7 @@ void main() {
         depthEdge = smoothstep(0.12, 0.5, max(dl, dv));
     }
     float edge = (marker || glass) ? 0.0 : max(max(colorEdge, normalEdge), depthEdge);
+    if (nC.a < 0.05) edge = 0.0;
     vec2 q = v_uv - 0.5;
     float vig = smoothstep(1.05, 0.15, length(q));
     float grain = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
@@ -238,6 +262,7 @@ void main() {
 @end
 
 @program solid solid_vs solid_fs
+@program data solid_vs data_fs
 @program marker marker_vs marker_fs
 @program composite composite_vs composite_fs
 @program overlay overlay_vs overlay_fs
