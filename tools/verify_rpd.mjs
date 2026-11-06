@@ -233,13 +233,21 @@ async function run() {
         moving: window.__quest.debug().moving,
         routePoints: window.__quest.debug().routePoints,
         move: window.__quest.debug().move,
+        playerFloor: window.__quest.debug().playerFloor,
         check: window.__quest.checkPath(),
         view: document.querySelector('.rpd-view-toggle')?.textContent.trim() ?? null,
+        cameraPose: window.__quest.cameraPose(),
+        mapCamera: window.__quest.camera(),
+        overlay: window.__quest.overlayStats(),
       };
     })()`);
     const assert = (ok, message) => {
       if (!ok) throw new Error(message);
     };
+    const evalJson = async (expression) =>
+      JSON.parse(await cdp.eval(`JSON.stringify(${expression})`));
+    const closeEnough = (a, b, tolerance = 1e-3) =>
+      a.length === b.length && a.every((value, index) => Math.abs(value - b[index]) <= tolerance);
 
     const report = { shots: [], errors: [], states: {} };
 
@@ -324,7 +332,7 @@ async function run() {
     await cdp.eval("window.__quest.addTarget(0, 4)");
     await sleep(500);
     await shot("09-waypoint");
-    await cdp.eval("window.__quest.addTarget(2, 4)");
+    await cdp.eval("window.__quest.addTarget(22, -10)");
     await sleep(500);
     await shot("10-plan");
     report.states.plan = await facts();
@@ -338,6 +346,14 @@ async function run() {
         report.states.plan.check.worst <= 0.75,
       "route leaves the walkable graph",
     );
+
+    await cdp.key("KeyM", "m", 77);
+    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) <= 0.001", 20000);
+    await sleep(250);
+    await shot("10b-route-3d");
+    await cdp.key("KeyM", "m", 77);
+    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) >= 0.999", 20000);
+    await sleep(250);
 
     const claire = JSON.parse(
       await cdp.eval("JSON.stringify(window.__quest.project(...window.__quest.debug().player))"),
@@ -354,6 +370,150 @@ async function run() {
     await shot("11-route-ortho");
     report.states.arrived = await facts();
     assert(!report.states.arrived.moving, "double clicking Claire should run the route to completion");
+    assert(report.states.arrived.plan.length === 0, "arriving should clear the waypoints");
+    assert(report.states.arrived.routePoints === 0, "arriving should clear the drawn route");
+
+    const escIdlePlayer = report.states.arrived.player;
+    await cdp.eval("window.__quest.addTarget(-30, 10)");
+    await sleep(400);
+    assert((await cdp.eval("window.__quest.debug().plan.length")) > 0, "Esc test did not add a waypoint");
+    await cdp.key("Escape", "Escape", 27);
+    await sleep(400);
+    const escIdle = await facts();
+    assert(escIdle.plan.length === 0, "Esc while idle should clear the waypoints");
+    assert(escIdle.routePoints === 0, "Esc while idle should clear the route");
+    assert(
+      JSON.stringify(escIdle.player) === JSON.stringify(escIdlePlayer),
+      "Esc while idle must not move Claire",
+    );
+    assert(
+      closeEnough(escIdle.mapCamera, report.states.arrived.mapCamera, 1e-4),
+      "Esc while idle must not move the map camera",
+    );
+    report.states.escIdle = escIdle;
+
+    await cdp.eval("window.__quest.addTarget(-30, 10)");
+    await sleep(400);
+    const movingStart = await evalJson("window.__quest.debug().player");
+    const movingClaire = await evalJson(
+      "window.__quest.project(...window.__quest.debug().player)",
+    );
+    for (let i = 0; i < 2; i += 1) {
+      await cdp.mouse("mousePressed", movingClaire.x, movingClaire.y, { clickCount: 2 });
+      await cdp.mouse("mouseReleased", movingClaire.x, movingClaire.y, { clickCount: 2 });
+    }
+    await cdp.waitFor("window.__quest.debug().moving === true", 10000);
+    await sleep(900);
+    const movingCamera = await cdp.eval("JSON.stringify(window.__quest.camera())");
+    await cdp.key("Escape", "Escape", 27);
+    await sleep(400);
+    const escMoving = await facts();
+    const pausedPlayer = escMoving.player;
+    assert(!escMoving.moving, "Esc while moving should stop Claire");
+    assert(escMoving.plan.length === 0, "Esc while moving should clear the waypoints");
+    assert(escMoving.routePoints === 0, "Esc while moving should clear the route");
+    assert(
+      Math.hypot(pausedPlayer[0] - movingStart[0], pausedPlayer[2] - movingStart[2]) > 0.5,
+      "Esc while moving must leave Claire where she stopped",
+    );
+    assert(
+      movingCamera === JSON.stringify(escMoving.mapCamera),
+      "Esc while moving must not move the map camera",
+    );
+    report.states.escMoving = escMoving;
+
+    await cdp.eval("window.__quest.setFloor(1)");
+    await sleep(300);
+    await cdp.eval("window.__quest.setFloor(0)");
+    await cdp.eval("window.__quest.setPlayer(0, 0.02, 7.5)");
+    await sleep(600);
+    const settledPlayer = await evalJson("window.__quest.debug().player");
+
+    let labelOverlap = null;
+    const rooms = await cdp.eval("window.__quest.rooms()");
+    for (const room of rooms) {
+      if (room.floor !== 0) continue;
+      if (Math.hypot(room.x - settledPlayer[0], room.z - settledPlayer[2]) < 6) continue;
+      const opened = await cdp.eval(`window.__quest.openPopupAt(${room.x}, ${room.z})`);
+      await sleep(200);
+      const stats = await cdp.eval("window.__quest.overlayStats()");
+      if (opened && stats[2] > 0) {
+        labelOverlap = { room: room.name, stats };
+        break;
+      }
+    }
+    assert(labelOverlap, "could not open a popup that reserves a room label");
+    assert(labelOverlap.stats[3] === 0, "a room label was drawn over the popup");
+    await shot("18-popup-label-overlap");
+    report.states.labelOverlap = labelOverlap;
+    await cdp.key("Escape", "Escape", 27);
+    await sleep(300);
+
+    await setFloor(0);
+    const floorOneStats = await cdp.eval("window.__quest.overlayStats()");
+    const itemFloors = (await cdp.eval("window.__quest.items()")).map((item) => item.floor);
+    assert(itemFloors.every((floor) => floor === 0), "items should carry their floor");
+    assert(floorOneStats[0] === 9, "all nine item diamonds should draw on 1F");
+    assert(floorOneStats[4] === 1, "Claire's label should draw on her own floor");
+    await setFloor(1);
+    const floorTwoStats = await cdp.eval("window.__quest.overlayStats()");
+    assert(floorTwoStats[0] === 0, "item diamonds must not draw on 2F");
+    assert(floorTwoStats[4] === 0, "Claire's label must not draw on 2F");
+    report.states.floorFilter = { floorOneStats, floorTwoStats, itemFloors };
+    await setFloor(0);
+
+    const mapBeforeReset = await evalJson("window.__quest.camera()");
+    await cdp.send("Input.dispatchMouseEvent", {
+      type: "mouseWheel",
+      x: 600,
+      y: 450,
+      deltaX: 0,
+      deltaY: -400,
+    });
+    await sleep(400);
+    const mapChanged = await evalJson("window.__quest.camera()");
+    assert(
+      Math.abs(mapChanged[2] - mapBeforeReset[2]) > 0.01,
+      "the wheel should change the ortho zoom",
+    );
+    await cdp.eval("document.querySelector('.rpd-icon-button').click()");
+    await sleep(500);
+    const mapArrowReset = await evalJson("window.__quest.camera()");
+    await cdp.mouse("mousePressed", 600, 450, { button: "middle" });
+    await cdp.mouse("mouseMoved", 680, 500, { button: "middle" });
+    await cdp.mouse("mouseReleased", 680, 500, { button: "middle" });
+    await sleep(300);
+    const mapPanChanged = await evalJson("window.__quest.camera()");
+    assert(
+      Math.abs(mapPanChanged[0] - mapArrowReset[0]) > 0.01 ||
+        Math.abs(mapPanChanged[1] - mapArrowReset[1]) > 0.01,
+      "middle drag should pan the ortho map",
+    );
+    await cdp.key("KeyR", "r", 82);
+    await sleep(500);
+    const mapKeyReset = await evalJson("window.__quest.camera()");
+    assert(
+      closeEnough(mapArrowReset, mapKeyReset, 1e-4),
+      "the arrow and R should fit the same ortho view",
+    );
+    const afterOrthoReset = await facts();
+    assert(
+      JSON.stringify(afterOrthoReset.player) === JSON.stringify(settledPlayer),
+      "resetting the ortho view must not move Claire",
+    );
+    assert(afterOrthoReset.plan.length === 0, "resetting the view must not create waypoints");
+    report.states.orthoReset = { mapChanged, mapArrowReset, mapKeyReset };
+
+    for (const [floor, name] of [
+      [0, "20-doors-1f"],
+      [1, "21-doors-2f"],
+      [2, "22-doors-3f"],
+      [4, "23-doors-b1"],
+    ]) {
+      await setFloor(floor);
+      await shot(name);
+    }
+    await setFloor(0);
 
     await cdp.key("KeyM", "m", 77);
     await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) <= 0.001", 20000);
@@ -361,6 +521,36 @@ async function run() {
     await shot("12-route-3d");
     report.states.route3d = await facts();
     assert(report.states.route3d.view === "2D", "M should return to the perspective view");
+
+    const resetPlayer = await evalJson("window.__quest.debug().player");
+    await cdp.eval("window.__rpd.setOrbit(10, 5, 10, -1.2, 0.5, 40)");
+    await sleep(500);
+    await cdp.eval("document.querySelector('.rpd-icon-button').click()");
+    await sleep(600);
+    const poseArrow = await evalJson("window.__quest.cameraPose()");
+    await cdp.eval("window.__rpd.setOrbit(10, 5, 10, -1.2, 0.5, 40)");
+    await sleep(500);
+    await cdp.key("KeyR", "r", 82);
+    await sleep(600);
+    const poseKey = await evalJson("window.__quest.cameraPose()");
+    assert(
+      closeEnough(poseArrow, poseKey, 1e-3),
+      "the arrow and R should restore the same perspective camera",
+    );
+    const afterPerspectiveReset = await facts();
+    assert(
+      JSON.stringify(afterPerspectiveReset.player) === JSON.stringify(resetPlayer),
+      "resetting the perspective view must not move Claire",
+    );
+    assert(
+      afterPerspectiveReset.plan.length === 0,
+      "resetting the perspective view must not create waypoints",
+    );
+    report.states.perspectiveReset = { poseArrow, poseKey };
+
+    await cdp.eval("window.__rpd.setOrbit(0, 2.5, 2, -0.75, 0.36, 65)");
+    await sleep(800);
+    await shot("24-3d-clean");
 
     await cdp.eval("window.__quest.setPlayer(0, 0.02, 7.5)");
     await sleep(400);

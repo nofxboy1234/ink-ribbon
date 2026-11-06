@@ -12,8 +12,15 @@
     "09-popup-hover",
     "09-waypoint",
     "10-plan",
+    "10b-route-3d",
     "11-route-ortho",
+    "18-popup-label-overlap",
+    "20-doors-1f",
+    "21-doors-2f",
+    "22-doors-3f",
+    "23-doors-b1",
     "12-route-3d",
+    "24-3d-clean",
     "13-claire-closeup",
     "14-item-popup",
     "15-inventory-3",
@@ -49,6 +56,7 @@
         0,
         0
       ],
+      "playerFloor": 0,
       "check": {
         "points": 0,
         "samples": 0,
@@ -57,7 +65,28 @@
         "nodes": 5541,
         "edges": 14760
       },
-      "view": "2D"
+      "view": "2D",
+      "cameraPose": [
+        -118.7423095703125,
+        98.4151382446289,
+        198.09800720214844,
+        2.591592788696289,
+        -0.4000000059604645,
+        1
+      ],
+      "mapCamera": [
+        17.44472885131836,
+        -8.774429321289062,
+        10.747116088867188
+      ],
+      "overlay": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     "ortho1f": {
       "floors": [
@@ -86,6 +115,7 @@
         0,
         0
       ],
+      "playerFloor": 0,
       "check": {
         "points": 0,
         "samples": 0,
@@ -94,11 +124,32 @@
         "nodes": 5541,
         "edges": 14760
       },
-      "view": "3D"
+      "view": "3D",
+      "cameraPose": [
+        17.44472885131836,
+        107.7396469116211,
+        4.194543838500977,
+        3.1415927410125732,
+        -1.4500000476837158,
+        1
+      ],
+      "mapCamera": [
+        17.44472885131836,
+        -8.774429321289062,
+        10.747116088867188
+      ],
+      "overlay": [
+        9,
+        15,
+        0,
+        0,
+        1,
+        0
+      ]
     },
     "leftDrag": {
-      "before": "[17.50990867614746,-8.731142044067383,10.735687255859375]",
-      "after": "[17.50990867614746,-8.731142044067383,10.735687255859375]"
+      "before": "[17.44472885131836,-8.774429321289062,10.747116088867188]",
+      "after": "[17.44472885131836,-8.774429321289062,10.747116088867188]"
     },
     "orthoB1": {
       "floors": [
@@ -127,6 +178,7 @@
         0,
         0
       ],
+      "playerFloor": 0,
       "check": {
         "points": 0,
         "samples": 0,
@@ -135,7 +187,28 @@
         "nodes": 5541,
         "edges": 14760
       },
-      "view": "3D"
+      "view": "3D",
+      "cameraPose": [
+        16.58966064453125,
+        102.53964233398438,
+        34.827735900878906,
+        3.1415927410125732,
+        -1.4500000476837158,
+        1
+      ],
+      "mapCamera": [
+        16.58966064453125,
+        21.8587646484375,
+        9.651963233947754
+      ],
+      "overlay": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     "plan": {
       "floors": [
@@ -161,21 +234,43 @@
         7.5
       ],
       "moving": false,
-      "routePoints": 58,
+      "routePoints": 54,
       "move": [
         0,
         0,
         0
       ],
+      "playerFloor": 0,
       "check": {
-        "points": 58,
-        "samples": 172,
+        "points": 54,
+        "samples": 406,
         "bad": 0,
-        "worst": 0.5,
+        "worst": 0.6400349176200306,
         "nodes": 5541,
         "edges": 14760
       },
-      "view": "3D"
+      "view": "3D",
+      "cameraPose": [
+        17.44472885131836,
+        107.7396469116211,
+        4.194543838500977,
+        3.1415927410125732,
+        -1.4500000476837158,
+        1
+      ],
+      "mapCamera": [
+        17.44472885131836,
+        -8.774429321289062,
+        10.747116088867188
+      ],
+      "overlay": [
+        9,
+        15,
+        0,
+        0,
+        1,
+        0
+      ]
     },
     "arrived": {
       "floors": [
@@ -189,33 +284,227 @@
       "slots": 8,
       "routeDock": false,
       "inventoryShown": true,
-      "panel": "ROUTE PLANNER\n\nMain Hall\n\nPlan has 2 steps. Double click Claire to run the route.\n\nINVENTO",
+      "panel": "ROUTE PLANNER\n\nPress Room\n\nSwitch to the 2D plan, click a cell and choose Add waypoint. Do",
       "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · middle drag to pan",
-      "plan": [
+      "plan": [],
+      "player": [
+        20.5,
+        0.09999999403953552,
+        -10.5
+      ],
+      "moving": false,
+      "routePoints": 0,
+      "move": [
+        0,
         0,
         0
       ],
-      "player": [
-        2.5,
-        0.09999999403953552,
-        3.5
-      ],
-      "moving": false,
-      "routePoints": 58,
-      "move": [
-        57,
-        58,
-        0
-      ],
+      "playerFloor": 0,
       "check": {
-        "points": 58,
-        "samples": 172,
+        "points": 0,
+        "samples": 0,
         "bad": 0,
-        "worst": 0.5,
+        "worst": 0,
         "nodes": 5541,
         "edges": 14760
       },
-      "view": "3D"
+      "view": "3D",
+      "cameraPose": [
+        17.44472885131836,
+        107.7396469116211,
+        4.194543838500977,
+        3.1415927410125732,
+        -1.4500000476837158,
+        1
+      ],
+      "mapCamera": [
+        17.44472885131836,
+        -8.774429321289062,
+        10.747116088867188
+      ],
+      "overlay": [
+        9,
+        15,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "escIdle": {
+      "floors": [
+        "4F",
+        "3F",
+        "2F",
+        "1F",
+        "B1"
+      ],
+      "active": "1F",
+      "slots": 8,
+      "routeDock": false,
+      "inventoryShown": true,
+      "panel": "ROUTE PLANNER\n\nPress Room\n\nSwitch to the 2D plan, click a cell and choose Add waypoint. Do",
+      "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · middle drag to pan",
+      "plan": [],
+      "player": [
+        20.5,
+        0.09999999403953552,
+        -10.5
+      ],
+      "moving": false,
+      "routePoints": 0,
+      "move": [
+        0,
+        0,
+        0
+      ],
+      "playerFloor": 0,
+      "check": {
+        "points": 0,
+        "samples": 0,
+        "bad": 0,
+        "worst": 0,
+        "nodes": 5541,
+        "edges": 14760
+      },
+      "view": "3D",
+      "cameraPose": [
+        17.44472885131836,
+        107.7396469116211,
+        4.194543838500977,
+        3.1415927410125732,
+        -1.4500000476837158,
+        1
+      ],
+      "mapCamera": [
+        17.44472885131836,
+        -8.774429321289062,
+        10.747116088867188
+      ],
+      "overlay": [
+        9,
+        15,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "escMoving": {
+      "floors": [
+        "4F",
+        "3F",
+        "2F",
+        "1F",
+        "B1"
+      ],
+      "active": "1F",
+      "slots": 8,
+      "routeDock": false,
+      "inventoryShown": true,
+      "panel": "ROUTE PLANNER\n\nPress Room\n\nSwitch to the 2D plan, click a cell and choose Add waypoint. Do",
+      "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · middle drag to pan",
+      "plan": [],
+      "player": [
+        19.82695770263672,
+        0.09999999403953552,
+        -10.30770206451416
+      ],
+      "moving": false,
+      "routePoints": 0,
+      "move": [
+        0,
+        0,
+        0
+      ],
+      "playerFloor": 0,
+      "check": {
+        "points": 0,
+        "samples": 0,
+        "bad": 0,
+        "worst": 0,
+        "nodes": 5541,
+        "edges": 14760
+      },
+      "view": "3D",
+      "cameraPose": [
+        17.44472885131836,
+        107.7396469116211,
+        4.194543838500977,
+        3.1415927410125732,
+        -1.4500000476837158,
+        1
+      ],
+      "mapCamera": [
+        17.44472885131836,
+        -8.774429321289062,
+        10.747116088867188
+      ],
+      "overlay": [
+        9,
+        15,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "labelOverlap": {
+      "room": "Reception - RPD",
+      "stats": [
+        9,
+        14,
+        1,
+        0,
+        1,
+        1
+      ]
+    },
+    "floorFilter": {
+      "floorOneStats": [
+        9,
+        15,
+        0,
+        0,
+        1,
+        0
+      ],
+      "floorTwoStats": [
+        0,
+        14,
+        0,
+        0,
+        0,
+        0
+      ],
+      "itemFloors": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "orthoReset": {
+      "mapChanged": [
+        18.38857078552246,
+        -9.334835052490234,
+        15.734853744506836
+      ],
+      "mapArrowReset": [
+        17.44472885131836,
+        -8.774429321289062,
+        10.747116088867188
+      ],
+      "mapKeyReset": [
+        17.44472885131836,
+        -8.774429321289062,
+        10.747116088867188
+      ]
     },
     "route3d": {
       "floors": [
@@ -229,33 +518,70 @@
       "slots": 8,
       "routeDock": false,
       "inventoryShown": true,
-      "panel": "ROUTE PLANNER\n\nMain Hall\n\nPlan has 2 steps. Double click Claire to run the route.\n\nINVENTO",
+      "panel": "ROUTE PLANNER\n\nMain Hall\n\nSwitch to the 2D plan, click a cell and choose Add waypoint. Dou",
       "mapTitle": null,
-      "plan": [
+      "plan": [],
+      "player": [
+        0,
+        0.019999999552965164,
+        7.5
+      ],
+      "moving": false,
+      "routePoints": 0,
+      "move": [
+        0,
         0,
         0
       ],
-      "player": [
-        2.5,
-        0.09999999403953552,
-        3.5
-      ],
-      "moving": false,
-      "routePoints": 58,
-      "move": [
-        57,
-        58,
-        0
-      ],
+      "playerFloor": 0,
       "check": {
-        "points": 58,
-        "samples": 172,
+        "points": 0,
+        "samples": 0,
         "bad": 0,
-        "worst": 0.5,
+        "worst": 0,
         "nodes": 5541,
         "edges": 14760
       },
-      "view": "2D"
+      "view": "2D",
+      "cameraPose": [
+        -118.7423095703125,
+        98.4151382446289,
+        198.09800720214844,
+        2.591592788696289,
+        -0.4000000059604645,
+        1
+      ],
+      "mapCamera": [
+        17.44472885131836,
+        -8.774429321289062,
+        10.747116088867188
+      ],
+      "overlay": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "perspectiveReset": {
+      "poseArrow": [
+        -118.7423095703125,
+        98.4151382446289,
+        198.09800720214844,
+        2.591592788696289,
+        -0.4000000059604645,
+        1
+      ],
+      "poseKey": [
+        -118.7423095703125,
+        98.4151382446289,
+        198.09800720214844,
+        2.591592788696289,
+        -0.4000000059604645,
+        1
+      ]
     },
     "items": [
       {
@@ -269,6 +595,7 @@
         "node": 1421,
         "taken": false,
         "room": 0,
+        "floor": 0,
         "name": "RED SPHERE",
         "roomName": "Main Hall"
       },
@@ -283,6 +610,7 @@
         "node": 1423,
         "taken": false,
         "room": 0,
+        "floor": 0,
         "name": "GREEN SPHERE",
         "roomName": "Main Hall"
       },
@@ -297,6 +625,7 @@
         "node": 1509,
         "taken": false,
         "room": 0,
+        "floor": 0,
         "name": "BLUE SPHERE",
         "roomName": "Main Hall"
       },
@@ -311,6 +640,7 @@
         "node": 1098,
         "taken": false,
         "room": 12,
+        "floor": 0,
         "name": "CYAN SPHERE",
         "roomName": "West Office"
       },
@@ -325,6 +655,7 @@
         "node": 1100,
         "taken": false,
         "room": 12,
+        "floor": 0,
         "name": "PURPLE SPHERE",
         "roomName": "West Office"
       },
@@ -339,6 +670,7 @@
         "node": 1203,
         "taken": false,
         "room": 12,
+        "floor": 0,
         "name": "PINK SPHERE",
         "roomName": "West Office"
       },
@@ -353,6 +685,7 @@
         "node": 1327,
         "taken": false,
         "room": 14,
+        "floor": 0,
         "name": "YELLOW SPHERE",
         "roomName": "East Office"
       },
@@ -367,6 +700,7 @@
         "node": 1234,
         "taken": false,
         "room": 14,
+        "floor": 0,
         "name": "ORANGE SPHERE",
         "roomName": "East Office"
       },
@@ -381,6 +715,7 @@
         "node": 1325,
         "taken": false,
         "room": 14,
+        "floor": 0,
         "name": "WHITE SPHERE",
         "roomName": "East Office"
       }
