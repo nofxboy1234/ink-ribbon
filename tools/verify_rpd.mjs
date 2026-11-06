@@ -676,6 +676,36 @@ async function run() {
     const afterRefusal = await cdp.eval("window.__quest.inventory()");
     assert(afterRefusal.filter(Boolean).length === 8, "a refused take must not change the inventory");
 
+    const orthoPanStart = await evalJson("window.__quest.cameraModel()");
+    await cdp.mouse("mousePressed", 600, 450, { button: "middle" });
+    await cdp.mouse("mouseMoved", 680, 500, { button: "middle" });
+    await cdp.mouse("mouseReleased", 680, 500, { button: "middle" });
+    await sleep(400);
+    const orthoPanEnd = await evalJson("window.__quest.cameraModel()");
+    assert(
+      Math.hypot(orthoPanEnd[0] - orthoPanStart[0], orthoPanEnd[2] - orthoPanStart[2]) > 0.01,
+      "the ortho pan must move the shared target",
+    );
+    assert(Math.abs(orthoPanEnd[3] - orthoPanStart[3]) < 1e-4, "the ortho pan must keep the shared frame");
+    await cdp.send("Input.dispatchMouseEvent", {
+      type: "mouseWheel",
+      x: 600,
+      y: 450,
+      deltaX: 0,
+      deltaY: -400,
+    });
+    await sleep(400);
+    const orthoZoomEnd = await evalJson("window.__quest.cameraModel()");
+    assert(
+      Math.abs(orthoZoomEnd[3] - orthoPanEnd[3]) > 0.01,
+      "the ortho wheel must change the shared frame",
+    );
+    assert(
+      Math.hypot(orthoZoomEnd[0] - orthoPanEnd[0], orthoZoomEnd[2] - orthoPanEnd[2]) < 1e-4,
+      "the ortho wheel must keep the shared target",
+    );
+    report.states.orthoPan = { start: orthoPanStart, pan: orthoPanEnd, zoom: orthoZoomEnd };
+
     const iconOrder = await evalJson(
       "Array.from(document.querySelectorAll('.rpd-floors .rpd-icon-button')).map((b) => b.getAttribute('aria-label'))",
     );
@@ -737,6 +767,39 @@ async function run() {
       "a 2D/3D round trip must restore the shared target, frame and saved orientation",
     );
     report.states.cameraRoundTrip = { start: tripStart, ortho: tripOrtho, back: tripBack };
+
+    const perspPanStart = await evalJson("window.__quest.cameraModel()");
+    await cdp.mouse("mousePressed", 600, 450, { button: "middle" });
+    await cdp.mouse("mouseMoved", 680, 500, { button: "middle" });
+    await cdp.mouse("mouseReleased", 680, 500, { button: "middle" });
+    await sleep(400);
+    const perspPanEnd = await evalJson("window.__quest.cameraModel()");
+    assert(
+      Math.hypot(perspPanEnd[0] - perspPanStart[0], perspPanEnd[2] - perspPanStart[2]) > 0.01,
+      "the perspective pan must move the shared target",
+    );
+    assert(
+      Math.abs(perspPanEnd[3] - perspPanStart[3]) < 1e-4,
+      "the perspective pan must keep the shared frame",
+    );
+    await cdp.send("Input.dispatchMouseEvent", {
+      type: "mouseWheel",
+      x: 600,
+      y: 450,
+      deltaX: 0,
+      deltaY: -400,
+    });
+    await sleep(400);
+    const perspZoomEnd = await evalJson("window.__quest.cameraModel()");
+    assert(
+      Math.abs(perspZoomEnd[3] - perspPanEnd[3]) > 0.01,
+      "the perspective wheel must change the shared frame",
+    );
+    assert(
+      Math.hypot(perspZoomEnd[0] - perspPanEnd[0], perspZoomEnd[2] - perspPanEnd[2]) < 1e-4,
+      "the perspective wheel must keep the shared target",
+    );
+    report.states.perspectivePan = { start: perspPanStart, pan: perspPanEnd, zoom: perspZoomEnd };
 
     await cdp.eval("window.__rpd.setOrbit(0, 2.5, 2, -0.75, 0.36, 65)");
     await sleep(400);
