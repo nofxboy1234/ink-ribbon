@@ -907,6 +907,42 @@ async function run() {
     await shot("30-reset-view");
     report.states.resetView = { model: resetModel, camera: resetCamera };
 
+    await cdp.key("KeyM", "m", 77);
+    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) <= 0.001", 20000);
+    await cdp.eval("window.__quest.setFloor(1)");
+    await sleep(400);
+    const glassMoveStart = await evalJson("window.__quest.debug().player");
+    const floorOneRooms = rooms
+      .filter((room) => room.floor === 1)
+      .sort(
+        (a, b) =>
+          Math.hypot(b.x - glassMoveStart[0], b.z - glassMoveStart[2]) -
+          Math.hypot(a.x - glassMoveStart[0], a.z - glassMoveStart[2]),
+      );
+    assert(floorOneRooms.length > 0, "expected rooms on floor 1");
+    let movingRouteReady = false;
+    for (const room of floorOneRooms) {
+      await cdp.eval(`window.__rpd.planAddTarget(${room.x}, ${room.y}, ${room.z})`);
+      await sleep(400);
+      if ((await cdp.eval("window.__rpd.planRouteCount()")) > 1) {
+        movingRouteReady = true;
+        break;
+      }
+    }
+    assert(movingRouteReady, "the moving glass test needs a route on floor 1");
+    await cdp.eval("window.__rpd.planStartMove()");
+    await cdp.waitFor("window.__quest.debug().moving === true", 10000);
+    await sleep(900);
+    const movingFloors = await evalJson("window.__quest.debugFloors()");
+    assert(
+      movingFloors[0] === 1 && movingFloors[1] === 4,
+      `a moving Claire should put her floor in paper and four floors in glass, got ${JSON.stringify(movingFloors)}`,
+    );
+    await shot("26-moving-glass");
+    report.states.movingGlass = { floors: movingFloors, player: glassMoveStart };
+    await cdp.key("Escape", "Escape", 27);
+    await sleep(400);
+
     report.states.items = items;
     report.states.inventory = await cdp.eval("window.__quest.inventory()");
     report.shots = shots;
