@@ -181,10 +181,12 @@ static void fit_camera(void) {
     fitted_floor = active_floor;
 }
 
-static void add_waypoint_node(int node);
+static void add_waypoint_node(int node); static void open_node_popup(int node);
 
 static int *route_scratch_nodes;
 static int route_scratch_capacity;
+static int *route_pull_nodes;
+static int route_pull_capacity;
 
 static void ensure_route_scratch(int count) {
     if (route_scratch_capacity >= count) return;
@@ -192,7 +194,12 @@ static void ensure_route_scratch(int count) {
     route_scratch_nodes = (int *)malloc(sizeof(int) * (size_t)count);
     route_scratch_capacity = count;
 }
-
+static void ensure_pull_scratch(int count) {
+    if (route_pull_capacity >= count) return;
+    free(route_pull_nodes);
+    route_pull_nodes = (int *)malloc(sizeof(int) * (size_t)count);
+    route_pull_capacity = count;
+}
 static void recompute_route(void) {
     route_count = 0;
     int start = nearest_node_on(active_floor, player[0], player[1], player[2], 4.0f);
@@ -213,14 +220,17 @@ static void recompute_route(void) {
         start = waypoints[w];
     }
     if (path_count <= 0) return;
-    route_count = route_smooth(path_count, route_scratch_nodes, nav_x, nav_y, nav_z, 0.08f, route, MAX_ROUTE);
+    ensure_pull_scratch(path_count);
+    int pulled = route_pull(path_count, route_scratch_nodes, nav_x, nav_y, nav_z,
+                            nav_floor, nav_kind, route_pull_nodes, MAX_ROUTE);
+    if (pulled <= 0) return;
+    route_count = route_smooth(pulled, route_pull_nodes, nav_x, nav_y, nav_z,
+                               nav_floor, nav_kind, 0.08f, route, MAX_ROUTE);
 }
-
 void plan_set_floors(int count, const float *levels, const float *bounds) {
     floor_count = count > 8 ? 8 : count;
     for (int i = 0; i < floor_count; i++) {
-        floor_levels[i] = levels[i];
-        for (int b = 0; b < 4; b++) floor_bounds[i][b] = bounds[i * 4 + b];
+        floor_levels[i] = levels[i]; for (int b = 0; b < 4; b++) floor_bounds[i][b] = bounds[i * 4 + b];
     }
     if (active_floor >= floor_count) active_floor = 0;
     fitted_floor = -1;
@@ -256,6 +266,7 @@ void plan_set_graph(int count, const float *x, const float *y, const float *z,
         memcpy(nav_adj, adjacency, sizeof(int) * (size_t)edges);
         memcpy(nav_cost, adjacency_cost, sizeof(float) * (size_t)edges);
     }
+    route_set_cells(count, nav_x, nav_z, nav_floor);
     items_reset();
     player_node = -1;
     fitted_floor = -1;
@@ -284,11 +295,9 @@ void plan_set_spawn(float x, float y, float z) {
     spawn[0] = x; spawn[1] = y; spawn[2] = z;
     int node = nearest_node_on(0, x, y, z, 12.0f);
     if (node >= 0) {
-        player[0] = nav_x[node]; player[1] = nav_y[node]; player[2] = nav_z[node];
-        player_node = node;
+        player[0] = nav_x[node]; player[1] = nav_y[node]; player[2] = nav_z[node]; player_node = node;
     } else {
-        player[0] = x; player[1] = y; player[2] = z;
-        player_node = -1;
+        player[0] = x; player[1] = y; player[2] = z; player_node = -1;
     }
     waypoint_count = 0; route_count = 0; moving = 0; hover = -1;
     popup_close();
@@ -306,6 +315,23 @@ void plan_set_floor(int index) {
     fitted_floor = -1;
     hover = -1;
     popup_close();
+    if (view_w > 1 && view_h > 1) fit_camera();
+}
+
+void plan_clear_route(void) {
+    moving = 0; waypoint_count = 0; route_count = 0;
+    move_count = 0; move_index = 0; move_t = 0;
+    popup_close();
+}
+
+int plan_open_popup_at(float x, float z) {
+    int node = nearest_node_on(active_floor, x, plan_level(), z, 4.0f);
+    if (node >= 0) open_node_popup(node);
+    return popup_is_open() ? 1 : 0;
+}
+
+void plan_fit_camera(void) {
+    fitted_floor = -1;
     if (view_w > 1 && view_h > 1) fit_camera();
 }
 
@@ -352,6 +378,8 @@ void plan_update(float dt, const float *vp, int width, int height) {
         player[0] = move_pts[(move_count - 1) * 3];
         player[1] = move_pts[(move_count - 1) * 3 + 1];
         player[2] = move_pts[(move_count - 1) * 3 + 2];
+        route_count = waypoint_count = 0;
+        move_count = move_index = 0; move_t = 0;
     }
     player_node = nearest_node_on(active_floor, player[0], player[1], player[2], 3.0f);
     markers_set_player(player[0], player[1], player[2]);
@@ -562,4 +590,11 @@ const char *plan_room_name(void) {
 }
 void plan_player(float out[3]) {
     out[0] = player[0]; out[1] = player[1]; out[2] = player[2];
+}
+int plan_player_floor(void) {
+    int best = -1; float bestd = 25.0f;
+    for (int i = 0; i < nav_count; i++) {
+        float d = dist2(nav_x[i], nav_y[i], nav_z[i], player[0], player[1], player[2]); if (d < bestd) bestd = d, best = i;
+    }
+    return best >= 0 ? nav_floor[best] : -1;
 }

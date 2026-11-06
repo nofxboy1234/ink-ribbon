@@ -6,8 +6,9 @@
 #include <string.h>
 
 #define CELL_HASH 8192
-#define ROUTE_CORNER_RADIUS 0.40f
-#define ROUTE_CURVE_STEPS 6
+#define ROUTE_CURVE_RADIUS 1.20f
+#define ROUTE_CURVE_STEPS 12
+#define ROUTE_SAMPLE_STEP 0.08f
 
 typedef struct {
     int key;
@@ -54,6 +55,13 @@ static int cell_find(int key) {
     return -1;
 }
 
+void route_set_cells(int count, const float *x, const float *z, const uint8_t *floor) {
+    cell_clear();
+    for (int i = 0; i < count; i++) {
+        cell_insert(cell_key(floor[i], (int)floorf(x[i]), (int)floorf(z[i])), i);
+    }
+}
+
 int route_filter_diagonals(int count, const float *x, const float *z, const uint8_t *floor,
                            const int *first, const int *adjacency, const float *cost,
                            int **out_first, int **out_adjacency, float **out_cost) {
@@ -68,21 +76,18 @@ int route_filter_diagonals(int count, const float *x, const float *z, const uint
         return -1;
     }
 
-    cell_clear();
-    for (int i = 0; i < count; i++) {
-        cell_insert(cell_key(floor[i], (int)lroundf(x[i]), (int)lroundf(z[i])), i);
-    }
+    route_set_cells(count, x, z, floor);
 
     int kept = 0;
     kept_first[0] = 0;
     for (int i = 0; i < count; i++) {
-        int ix = (int)lroundf(x[i]);
-        int iz = (int)lroundf(z[i]);
+        int ix = (int)floorf(x[i]);
+        int iz = (int)floorf(z[i]);
         for (int e = first[i]; e < first[i + 1]; e++) {
             int j = adjacency[e];
             if (j < 0 || j >= count) continue;
-            int jx = (int)lroundf(x[j]);
-            int jz = (int)lroundf(z[j]);
+            int jx = (int)floorf(x[j]);
+            int jz = (int)floorf(z[j]);
             if (ix != jx && iz != jz) {
                 bool side_a = cell_find(cell_key(floor[i], ix, jz)) >= 0;
                 bool side_b = cell_find(cell_key(floor[i], jx, iz)) >= 0;
@@ -228,8 +233,60 @@ static void push_point(float *out, int cap, int *written, float x, float y, floa
     (*written)++;
 }
 
+static bool cell_walkable_at(int floor, float x, float z) {
+    return cell_find(cell_key(floor, (int)floorf(x), (int)floorf(z))) >= 0;
+}
+
+static bool floor_point_walkable(int floor, float ax, float az, float bx, float bz, float *check) {
+    float dx = bx - ax;
+    float dz = bz - az;
+    float length = sqrtf(dx * dx + dz * dz);
+    int steps = (int)ceilf(length / ROUTE_SAMPLE_STEP);
+    if (steps < 1) steps = 1;
+    for (int s = 0; s <= steps; s++) {
+        float t = (float)s / (float)steps;
+        if (!cell_walkable_at(floor, ax + dx * t, az + dz * t)) {
+            *check = t;
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool segment_walkable(int a, int b,
+                             const float *x, const float *z,
+                             const uint8_t *floor, const uint8_t *kind) {
+    if (floor[a] != floor[b] || kind[a] != 0 || kind[b] != 0) return false;
+    float check = 0.0f;
+    return floor_point_walkable(floor[a], x[a], z[a], x[b], z[b], &check);
+}
+
+int route_pull(int count, const int *nodes,
+               const float *x, const float *y, const float *z,
+               const uint8_t *floor, const uint8_t *kind,
+               int *out, int cap) {
+    (void)y;
+    if (count <= 0 || cap <= 0) return 0;
+    int written = 0;
+    out[written++] = nodes[0];
+    int anchor = 0;
+    while (anchor < count - 1 && written < cap) {
+        int best = anchor + 1;
+        if (segment_walkable(nodes[anchor], nodes[best], x, z, floor, kind)) {
+            for (int j = anchor + 2; j < count; j++) {
+                if (!segment_walkable(nodes[anchor], nodes[j], x, z, floor, kind)) break;
+                best = j;
+            }
+        }
+        out[written++] = nodes[best];
+        anchor = best;
+    }
+    return written;
+}
+
 int route_smooth(int count, const int *nodes,
                  const float *x, const float *y, const float *z,
+                 const uint8_t *floor, const uint8_t *kind,
                  float lift, float *out, int cap) {
     int written = 0;
     if (count <= 0) return 0;
@@ -237,6 +294,7 @@ int route_smooth(int count, const int *nodes,
     push_point(out, cap, &written, x[first_node], y[first_node] + lift, z[first_node]);
     if (count == 1) return written;
 
+    float curve[3 * (ROUTE_CURVE_STEPS + 1)];
     for (int i = 1; i < count - 1; i++) {
         int a = nodes[i - 1], c = nodes[i], b = nodes[i + 1];
         float ax = x[a] - x[c], az = z[a] - z[c];
@@ -247,20 +305,41 @@ int route_smooth(int count, const int *nodes,
             push_point(out, cap, &written, x[c], y[c] + lift, z[c]);
             continue;
         }
-        float radius = fminf(ROUTE_CORNER_RADIUS, fminf(al, bl) * 0.4f);
+        bool flat = floor[a] == floor[c] && floor[c] == floor[b] &&
+                    kind[a] == 0 && kind[c] == 0 && kind[b] == 0;
+        float radius = fminf(ROUTE_CURVE_RADIUS, fminf(al, bl) * 0.45f);
         float p0x = x[c] + ax / al * radius;
         float p0z = z[c] + az / al * radius;
         float p2x = x[c] + bx / bl * radius;
         float p2z = z[c] + bz / bl * radius;
         float py = y[c] + lift;
+        bool rounded = flat;
+        if (rounded) {
+            for (int step = 0; step <= ROUTE_CURVE_STEPS; step++) {
+                float t = (float)step / (float)ROUTE_CURVE_STEPS;
+                float u = 1.0f - t;
+                curve[step * 3 + 0] = u * u * p0x + 2.0f * u * t * x[c] + t * t * p2x;
+                curve[step * 3 + 1] = py;
+                curve[step * 3 + 2] = u * u * p0z + 2.0f * u * t * z[c] + t * t * p2z;
+            }
+            for (int step = 1; step <= ROUTE_CURVE_STEPS && rounded; step++) {
+                float check;
+                if (!floor_point_walkable(floor[c],
+                                          curve[(step - 1) * 3], curve[(step - 1) * 3 + 2],
+                                          curve[step * 3], curve[step * 3 + 2], &check)) {
+                    rounded = false;
+                }
+            }
+        }
+        if (!rounded) {
+            push_point(out, cap, &written, p0x, py, p0z);
+            push_point(out, cap, &written, x[c], py, z[c]);
+            push_point(out, cap, &written, p2x, py, p2z);
+            continue;
+        }
         push_point(out, cap, &written, p0x, py, p0z);
         for (int step = 1; step <= ROUTE_CURVE_STEPS; step++) {
-            float t = (float)step / (float)ROUTE_CURVE_STEPS;
-            float u = 1.0f - t;
-            push_point(out, cap, &written,
-                       u * u * p0x + 2.0f * u * t * x[c] + t * t * p2x,
-                       py,
-                       u * u * p0z + 2.0f * u * t * z[c] + t * t * p2z);
+            push_point(out, cap, &written, curve[step * 3], curve[step * 3 + 1], curve[step * 3 + 2]);
         }
     }
     int last = nodes[count - 1];

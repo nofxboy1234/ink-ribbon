@@ -10,6 +10,9 @@ void plan_set_rooms(int count, const float *x, const float *y, const float *z,
                     const uint8_t *floor, const char *names, int names_len, const int *offsets);
 void plan_set_spawn(float x, float y, float z);
 void plan_set_floor(int index);
+void plan_clear_route(void);
+int plan_open_popup_at(float x, float z);
+void plan_fit_camera(void);
 void plan_reset(void);
 
 void plan_update(float dt, const float *view_proj, int width, int height);
@@ -39,6 +42,7 @@ float plan_move_t(void);
 const float *plan_route(void);
 const char *plan_room_name(void);
 void plan_player(float out[3]);
+int plan_player_floor(void);
 int plan_room_count(void);
 const char *plan_room_name_at(int index);
 float plan_room_x(int index);

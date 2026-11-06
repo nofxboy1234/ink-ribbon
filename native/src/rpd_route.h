@@ -10,6 +10,14 @@ int route_find_path(int count, const float *x, const float *y, const float *z,
                     const int *first, const int *adjacency, const float *cost,
                     const uint8_t *blocked, int start, int goal, int *out, int cap);
 
+void route_set_cells(int count, const float *x, const float *z, const uint8_t *floor);
+
+int route_pull(int count, const int *nodes,
+               const float *x, const float *y, const float *z,
+               const uint8_t *floor, const uint8_t *kind,
+               int *out, int cap);
+
 int route_smooth(int count, const int *nodes,
                  const float *x, const float *y, const float *z,
+                 const uint8_t *floor, const uint8_t *kind,
                  float lift, float *out, int cap);
