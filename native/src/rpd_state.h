@@ -16,15 +16,6 @@ typedef struct {
     bool map_mode;
     bool ortho;
     float ortho_blend;
-    float ortho_center[2];
-    float ortho_scale;
-    float ortho_floor_y;
-    float ortho_viewport[2];
-    bool ortho_saved;
-    float saved_target[3];
-    float saved_yaw;
-    float saved_pitch;
-    float saved_distance;
     input_t input;
 } rpd_state_t;
 

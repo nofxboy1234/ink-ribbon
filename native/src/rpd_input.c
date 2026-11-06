@@ -60,7 +60,7 @@ void input_handle_event(const sapp_event *e) {
     case SAPP_EVENTTYPE_MOUSE_SCROLL:
         camera_cancel_animation();
         g_rpd.input.user_moved = true;
-        g_rpd.camera.distance = fminf(700.0f, fmaxf(8.0f, g_rpd.camera.distance * powf(0.9f, e->scroll_y)));
+        camera_zoom(&g_rpd.camera, e->scroll_y);
         break;
     case SAPP_EVENTTYPE_TOUCHES_BEGAN:
     case SAPP_EVENTTYPE_TOUCHES_MOVED:

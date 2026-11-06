@@ -18,18 +18,18 @@ click her.
 
 | Input | Action |
 |---|---|
-| `M` or the 3D/2D button | Animate between the perspective building and the top-down orthographic plan |
-| Right drag | Orbit the perspective camera |
-| Middle drag | Pan the perspective camera |
-| Scroll wheel | Zoom (perspective camera or plan) |
-| Middle drag (plan) | Pan the plan |
-| Floor buttons | Choose 4F, 3F, 2F, 1F or B1; the plan clips to that storey |
+| `M` or the 3D/2D button | Hold the shared target and frame while the orientation slerps and the projections blend |
+| Right drag | Orbit the saved perspective orientation |
+| Middle drag | Pan the shared target in either view |
+| Scroll wheel | Zoom the shared frame in either view |
+| Floor buttons | Choose 4F, 3F, 2F, 1F or B1; the plan fits and clips to that storey |
 | Click a room cell or stair | Open the routing popup, then choose Add waypoint, Take, or Walk next to it |
 | Double click Claire | Run the committed route |
 | `F` | Frame Claire |
 | `Escape` | Pause and clear the route |
 | `Space` | Move the camera to the hovered cell |
-| `R` | Reset the perspective camera |
+| `R` | Reset the active view |
+| `C` or the target button | Smoothly recenter the shared target on the top of Claire's capsule |
 
 Routing only works in the plan view. The perspective view mirrors the same
 route, waypoint cells and moving capsule without letting you place waypoints by
@@ -89,25 +89,32 @@ the walkable cells.
 ## Renderer
 
 The C renderer in `native/src/` still draws one indexed mesh through
-`rpd_scene.c`. Marker geometry lives in `rpd_markers.c`; the scene loader
-accepts RPDW version 4 with any number of floors.
+`rpd_scene.c`. The loader records an index range per RPDW floor; the renderer
+draws the selected floor in paper and the other floors in glass. Marker geometry
+lives in `rpd_markers.c`; the scene loader accepts RPDW version 4 with any number
+of floors.
 
-- `native/src/rpd_shaders.glsl` holds the paper shader, the ink composite, the
-  marker shader and both overlay stages. `native/build.sh` runs `sokol-shdc` to
-  generate `native/gen/rpd_shaders_gen.h` for the GLES3/WebGL2 backend. The
-  solid fragment shader is albedo times a soft key/fill/hemisphere term, with
-  no fog and no glass.
+- `native/src/rpd_shaders.glsl` holds the paper and glass shader, the ink
+  composite, the marker shader and both overlay stages. `native/build.sh` runs
+  `sokol-shdc` to generate `native/gen/rpd_shaders_gen.h` for the GLES3/WebGL2
+  backend. The solid fragment shader picks the paper or the old glass look from
+  a uniform style flag.
 - The offscreen target carries a second RGBA8 attachment with the view-space
   normal. The composite pass inks both colour discontinuities and normal
   discontinuities, so wall corners get a line even when two faces are shaded
-  almost identically. Marker pixels write a sentinel normal so Claire stays
-  outline-free. The result sits on warm off-white stock with a slight vignette
-  and grain.
-- `rpd_app.c` keeps one camera. `M` stores the perspective pose, flies it to a
-  top-down pose over the active floor and blends the perspective and
-  orthographic matrices with a smoothstep, so the switch is an animation rather
-  than a cut. The floor clip ends below the next storey's slab so the floor
-  above cannot hide the plan.
+  almost identically. Paper pixels write a full alpha; glass pixels write a
+  quarter alpha, which the composite reads as a style mask and keeps ink-free.
+  Marker pixels write a sentinel normal so Claire stays outline-free. The result
+  sits on warm off-white stock with a slight vignette and grain.
+- `rpd_app.c` keeps one camera: a shared world target, a shared frame in world
+  units, and the saved perspective yaw and pitch. Perspective distance and the
+  orthographic half-height both derive from the frame, so both projections are
+  real and the target stays at the screen centre. `M` slerps the orientation to
+  top-down and back while blending the projections; the target and frame never
+  move. `R` resets the active view: the perspective camera returns to its
+  default orientation and framing, and ortho fits the active floor. `C` animates
+  the shared target to the top of Claire's capsule. The floor clip ends below the
+  next storey's slab so the floor above cannot hide the plan.
 - The player marker is a capsule (`MARKER_CAPSULE`). `rpd_set_player_position`
   lifts it by half its height so it stands on the floor. The route overlay is
   drawn in screen space from the live view-projection matrix, so the same
@@ -117,13 +124,13 @@ accepts RPDW version 4 with any number of floors.
 
 React + TypeScript on Void owns only the chrome: the brand header, the floor
 selector and view toggle, the route planner with the 2x4 inventory, the plan
-title and the loading status. The plan camera fit and pan/zoom, pointer picking,
-the green hover cell, cyan waypoint cells, the glowing route, the room and
-Claire labels, the routing popup, nine sphere items, A* waypoints and Claire's
-movement are drawn and calculated in C. `src/session/usePlanSession.ts` loads the
-assets, sends the nav graph and room table into C once, and polls the plan
-count, current room and inventory at 4 Hz. No per-frame React state drives the
-map.
+title and the loading status. The shared camera target and frame, floor fit,
+pan/zoom, pointer picking, the green hover cell, cyan waypoint cells, the glowing
+route, the room and Claire labels, the routing popup, nine sphere items, A*
+waypoints and Claire's movement are drawn and calculated in C.
+`src/session/usePlanSession.ts` loads the assets, sends the nav graph and room
+table into C once, and polls the plan count, current room, active floor and
+inventory at 4 Hz. No per-frame React state drives the map.
 
 The right panel shows a 2×4 inventory grid. Each filled slot shows the colour of
 the sphere Claire took. Items block their nav cell until taken. A routing popup
@@ -198,17 +205,17 @@ public/rpd/nav.json        five-floor walkable graph and floor bounds
 public/rpd/rpd.bin         RPDW v4 paper model (five floors)
 public/rpd/rpd.json        asset metadata: floors, bounds, triangle count
 public/rpd/quest.json      room names, doors and links (items are not rendered)
-native/src/rpd_app.c       camera blend, ortho clip and frame loop
-native/src/rpd_scene.c     scene loading and rendering
+native/src/rpd_app.c       shared camera, view transition, recenter and frame loop
+native/src/rpd_scene.c     scene loading and per-floor paper/glass rendering
 native/src/rpd_markers.c   marker shapes (capsule, cube, pyramid, cylinder, door)
-native/src/rpd_shaders.glsl  shdc source for the paper, marker and overlay shaders
+native/src/rpd_shaders.glsl  shdc source for the paper, glass, marker and overlay shaders
 native/src/rpd_route.c     diagonal edge filter, A* and bezier route smoothing
 native/src/rpd_items.c     item placement, blocked nodes and the eight-slot inventory
 native/src/rpd_popup.c     routing popup state, layout and hit testing
 src/nav.ts                 nav graph construction at the load boundary
 src/session/usePlanSession.ts  asset load, C data handoff, plan-state polling
 native/src/rpd_overlay.c   screen-space hover, waypoints, route and labels
-native/src/rpd_plan.c      A* waypoints, picking, map camera and movement
+native/src/rpd_plan.c      waypoints, picking, shared camera fit and movement
 native/src/rpd_font.h      generated 5x7 label font
 src/ui/QuestPanel.tsx      route instructions and the polled 2×4 inventory
 ```

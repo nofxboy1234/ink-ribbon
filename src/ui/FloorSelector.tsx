@@ -40,6 +40,15 @@ export default function FloorSelector({ session }: FloorSelectorProps) {
       >
         ↺
       </button>
+      <button
+        className="rpd-icon-button rpd-recenter-button"
+        data-recenter="true"
+        title="Recenter on Claire (C)"
+        onClick={actions.recenter}
+        aria-label="Recenter on Claire"
+      >
+        ◎
+      </button>
     </section>
   );
 }

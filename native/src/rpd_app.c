@@ -16,8 +16,9 @@
 
 rpd_state_t g_rpd;
 
-#define ORTHO_PITCH 1.45f
 #define BLEND_DURATION 0.7f
+#define RECENTER_DURATION 0.45f
+#define CLAIRE_CAPSULE_TOP 1.7f
 
 static void reset_orbit_camera(void) {
     const bounds_t *b = &g_rpd.scene.bounds;
@@ -25,19 +26,21 @@ static void reset_orbit_camera(void) {
     float dx = b->max[0] - b->min[0];
     float dy = b->max[1] - b->min[1];
     int w = sapp_width() > 0 ? sapp_width() : 1600;
+    float distance;
     if (g_rpd.scene_radius < 30.0f) {
         g_rpd.camera.target[0] = 0.0f;
         g_rpd.camera.target[1] = 2.5f;
         g_rpd.camera.target[2] = 4.0f;
         g_rpd.camera.yaw = 0.0f;
         g_rpd.camera.pitch = 0.05f;
-        g_rpd.camera.distance = 14.0f;
+        distance = 14.0f;
     } else {
         g_rpd.camera.yaw = -0.55f;
         g_rpd.camera.pitch = 0.40f;
         g_rpd.camera.target[1] = b->min[1] + 0.40f * dy;
-        g_rpd.camera.distance = 3.6f * g_rpd.scene_radius * fmaxf(1.0f, 900.0f / (float)w);
+        distance = 3.6f * g_rpd.scene_radius * fmaxf(1.0f, 900.0f / (float)w);
     }
+    g_rpd.camera.frame = camera_frame_from_distance(distance);
 }
 
 void camera_cancel_animation(void) {
@@ -52,7 +55,7 @@ void camera_update_animation(float dt) {
     float s = t * t * (3.0f - 2.0f * t);
     for (int i = 0; i < 3; i++)
         g_rpd.camera.target[i] = a->from_target[i] + (a->to_target[i] - a->from_target[i]) * s;
-    g_rpd.camera.distance = a->from_distance + (a->to_distance - a->from_distance) * s;
+    g_rpd.camera.frame = a->from_frame + (a->to_frame - a->from_frame) * s;
     if (t >= 1.0f) a->active = false;
 }
 
@@ -68,34 +71,6 @@ void camera_reset(void) {
     reset_orbit_camera();
 }
 
-static mat4 perspective_view_proj(float eye[3]) {
-    camera_eye(&g_rpd.camera, eye);
-    mat4 proj = mat4_perspective(0.62f, (float)sapp_width() / (float)sapp_height(), 0.2f, 1600.0f);
-    // Lens shift so the building sits in the free area left of the side panel.
-    proj.m[8] = 0.26f;
-    mat4 view = mat4_look_at(eye, g_rpd.camera.target, (float[3]){ 0.0f, 1.0f, 0.0f });
-    return mat4_mul(proj, view);
-}
-
-static mat4 ortho_view_proj(float eye[3]) {
-    float vw = (float)(sapp_width() > 0 ? sapp_width() : 1600);
-    float vh = (float)(sapp_height() > 0 ? sapp_height() : 900);
-    float scale = plan_map_scale() > 0.5f ? plan_map_scale() : 8.0f;
-    float half_w = vw / (2.0f * scale);
-    float half_h = vh / (2.0f * scale);
-    float cx = plan_map_cx();
-    float cz = plan_map_cz();
-    float fy = plan_level();
-    eye[0] = cx;
-    eye[1] = fy + 80.0f;
-    eye[2] = cz;
-    float aim[3] = { cx, fy, cz };
-    float up[3] = { 0.0f, 0.0f, -1.0f };
-    mat4 proj = mat4_ortho(-half_w, half_w, -half_h, half_h, 0.1f, 200.0f);
-    mat4 view = mat4_look_at(eye, aim, up);
-    return mat4_mul(proj, view);
-}
-
 static float blend_ease(void) {
     float t = g_rpd.ortho_blend;
     if (t < 0.0f) t = 0.0f;
@@ -103,24 +78,26 @@ static float blend_ease(void) {
     return t * t * (3.0f - 2.0f * t);
 }
 
-static mat4 blended_view_proj(float eye[3]) {
-    float persp_eye[3];
-    mat4 persp = perspective_view_proj(persp_eye);
-    float ortho_eye[3];
-    mat4 ortho = ortho_view_proj(ortho_eye);
+static mat4 camera_view_proj(float eye[3]) {
     float e = blend_ease();
-    if (e <= 0.0001f) {
-        memcpy(eye, persp_eye, sizeof(persp_eye));
-        return persp;
-    }
-    if (e >= 0.9999f) {
-        memcpy(eye, ortho_eye, sizeof(ortho_eye));
-        return ortho;
-    }
-    mat4 out;
-    for (int i = 0; i < 16; i++) out.m[i] = persp.m[i] * (1.0f - e) + ortho.m[i] * e;
-    for (int i = 0; i < 3; i++) eye[i] = persp_eye[i] * (1.0f - e) + ortho_eye[i] * e;
-    return out;
+    float right[3], up[3], forward[3];
+    camera_basis(&g_rpd.camera, e, right, up, forward);
+    float distance = camera_distance(&g_rpd.camera);
+    for (int i = 0; i < 3; i++) eye[i] = g_rpd.camera.target[i] - forward[i] * distance;
+
+    float vw = (float)(sapp_width() > 0 ? sapp_width() : 1600);
+    float vh = (float)(sapp_height() > 0 ? sapp_height() : 900);
+    float aspect = vw / vh;
+    float half_h = 0.5f * g_rpd.camera.frame;
+    float half_w = half_h * aspect;
+    float near_z = 0.2f;
+    float far_z = 2400.0f;
+    mat4 persp = mat4_perspective(RPD_PERSPECTIVE_FOV, aspect, near_z, far_z);
+    mat4 ortho = mat4_ortho(-half_w, half_w, -half_h, half_h, near_z, far_z);
+    mat4 proj;
+    for (int i = 0; i < 16; i++) proj.m[i] = persp.m[i] * (1.0f - e) + ortho.m[i] * e;
+    mat4 view = mat4_view_basis(eye, right, up, forward);
+    return mat4_mul(proj, view);
 }
 
 static void update_ortho_blend(float dt) {
@@ -128,28 +105,15 @@ static void update_ortho_blend(float dt) {
     float step = dt / BLEND_DURATION;
     if (g_rpd.ortho_blend < target) g_rpd.ortho_blend = fminf(target, g_rpd.ortho_blend + step);
     else if (g_rpd.ortho_blend > target) g_rpd.ortho_blend = fmaxf(target, g_rpd.ortho_blend - step);
-    if (!g_rpd.ortho && g_rpd.ortho_blend <= 0.001f) {
-        if (g_rpd.ortho_saved) {
-            memcpy(g_rpd.camera.target, g_rpd.saved_target, sizeof(g_rpd.saved_target));
-            g_rpd.camera.yaw = g_rpd.saved_yaw;
-            g_rpd.camera.pitch = g_rpd.saved_pitch;
-            g_rpd.camera.distance = g_rpd.saved_distance;
-            g_rpd.ortho_saved = false;
-        }
-        return;
+}
+
+static int paper_floor(void) {
+    int floor = plan_active_floor();
+    if (!g_rpd.ortho && plan_moving()) {
+        int moving_floor = plan_player_floor();
+        if (moving_floor >= 0) floor = moving_floor;
     }
-    float e = blend_ease();
-    if (!g_rpd.ortho_saved) return;
-    float cx = plan_map_cx();
-    float cz = plan_map_cz();
-    float fy = plan_level();
-    g_rpd.camera.target[0] = g_rpd.saved_target[0] + (cx - g_rpd.saved_target[0]) * e;
-    g_rpd.camera.target[1] = g_rpd.saved_target[1] + (fy + 0.9f - g_rpd.saved_target[1]) * e;
-    g_rpd.camera.target[2] = g_rpd.saved_target[2] + (cz - g_rpd.saved_target[2]) * e;
-    g_rpd.camera.yaw = g_rpd.saved_yaw + (0.0f - g_rpd.saved_yaw) * e;
-    g_rpd.camera.pitch = g_rpd.saved_pitch + (ORTHO_PITCH - g_rpd.saved_pitch) * e;
-    float ortho_distance = fmaxf(90.0f, g_rpd.scene_radius * 1.6f);
-    g_rpd.camera.distance = g_rpd.saved_distance + (ortho_distance - g_rpd.saved_distance) * e;
+    return floor;
 }
 
 static bool sdtx_ready;
@@ -200,13 +164,14 @@ void rpd_app_frame(void) {
     sg_apply_viewport(0, 0, g_rpd.target.width, g_rpd.target.height, true);
 
     float eye[3];
-    mat4 vp = blended_view_proj(eye);
+    mat4 vp = camera_view_proj(eye);
     float e = blend_ease();
     float fy = plan_level();
     plan_update(raw_dt > 0.5f ? 0.5f : raw_dt, vp.m, sapp_width(), sapp_height());
     if (g_rpd.scene.loaded && g_rpd.scene.gpu_ready) {
         bool clip = e > 0.45f;
-        scene_render_matrix(&g_rpd.scene, vp, eye, clip, fy - 0.55f, fy + 4.2f);
+        scene_render_floors(&g_rpd.scene, vp, eye, camera_distance(&g_rpd.camera),
+                            g_rpd.scene_radius, paper_floor(), clip, fy - 0.55f, fy + 4.2f);
     }
     sg_end_pass();
 
@@ -229,10 +194,8 @@ void rpd_app_init(void) {
     g_rpd.target.dirty = true;
     g_rpd.camera.yaw = -0.55f;
     g_rpd.camera.pitch = 0.40f;
-    g_rpd.camera.distance = 150.0f;
+    g_rpd.camera.frame = camera_frame_from_distance(150.0f);
     g_rpd.camera.target[1] = 10.0f;
-    g_rpd.ortho_scale = 8.0f;
-    g_rpd.ortho_floor_y = 0.0f;
 }
 
 void rpd_app_cleanup(void) {
@@ -244,6 +207,7 @@ void rpd_app_cleanup(void) {
 static bool map_panning;
 EMSCRIPTEN_KEEPALIVE void rpd_set_view_mode(int mode);
 EMSCRIPTEN_KEEPALIVE void rpd_reset_view(void);
+EMSCRIPTEN_KEEPALIVE void rpd_recenter(void);
 
 void rpd_app_event(const sapp_event *e) {
     if (e->type == SAPP_EVENTTYPE_KEY_DOWN && e->key_code == SAPP_KEYCODE_ESCAPE) {
@@ -252,6 +216,10 @@ void rpd_app_event(const sapp_event *e) {
     }
     if (e->type == SAPP_EVENTTYPE_KEY_DOWN && e->key_code == SAPP_KEYCODE_R) {
         rpd_reset_view();
+        return;
+    }
+    if (e->type == SAPP_EVENTTYPE_KEY_DOWN && e->key_code == SAPP_KEYCODE_C) {
+        rpd_recenter();
         return;
     }
     if (g_rpd.ortho_blend > 0.25f) {
@@ -313,6 +281,7 @@ EMSCRIPTEN_KEEPALIVE int rpd_plan_move_state(float *out) {
     return 0;
 }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_count(void) { return plan_count(); }
+EMSCRIPTEN_KEEPALIVE int rpd_plan_active_floor(void) { return plan_active_floor(); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_moving(void) { return plan_moving(); }
 EMSCRIPTEN_KEEPALIVE const char *rpd_plan_room(void) { return plan_room_name(); }
 EMSCRIPTEN_KEEPALIVE void rpd_plan_reset(void) { plan_reset(); }
@@ -407,7 +376,7 @@ EMSCRIPTEN_KEEPALIVE const char *rpd_popup_message(void) {
 EMSCRIPTEN_KEEPALIVE int rpd_get_camera(float *out) {
     if (!out) return -1;
     float eye[3];
-    camera_eye(&g_rpd.camera, eye);
+    camera_eye(&g_rpd.camera, blend_ease(), eye);
     out[0] = eye[0];
     out[1] = eye[1];
     out[2] = eye[2];
@@ -415,6 +384,40 @@ EMSCRIPTEN_KEEPALIVE int rpd_get_camera(float *out) {
     out[4] = -g_rpd.camera.pitch;
     out[5] = 1.0f;
     return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_get_camera_model(float *out) {
+    if (!out) return -1;
+    out[0] = g_rpd.camera.target[0];
+    out[1] = g_rpd.camera.target[1];
+    out[2] = g_rpd.camera.target[2];
+    out[3] = g_rpd.camera.frame;
+    out[4] = g_rpd.camera.yaw;
+    out[5] = g_rpd.camera.pitch;
+    float right[3], up[3], forward[3];
+    camera_basis(&g_rpd.camera, blend_ease(), right, up, forward);
+    float down = fminf(1.0f, fmaxf(-1.0f, -forward[1]));
+    out[6] = asinf(down);
+    out[7] = g_rpd.ortho_blend;
+    out[8] = camera_distance(&g_rpd.camera);
+    return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_debug_floors(float *out) {
+    if (!out) return -1;
+    int paper = paper_floor();
+    out[0] = (float)paper;
+    int count = 0;
+    int total = scene_floor_count();
+    if (!g_rpd.ortho) {
+        for (int i = 0; i < total; i++) {
+            if (i == paper) continue;
+            out[2 + count] = (float)i;
+            count++;
+        }
+    }
+    out[1] = (float)count;
+    return count;
 }
 
 EMSCRIPTEN_KEEPALIVE int rpd_set_orbit(float tx, float ty, float tz, float yaw, float pitch, float distance) {
@@ -425,7 +428,7 @@ EMSCRIPTEN_KEEPALIVE int rpd_set_orbit(float tx, float ty, float tz, float yaw, 
     g_rpd.camera.target[2] = tz;
     g_rpd.camera.yaw = yaw;
     g_rpd.camera.pitch = fminf(1.45f, fmaxf(0.08f, pitch));
-    g_rpd.camera.distance = fminf(700.0f, fmaxf(8.0f, distance));
+    g_rpd.camera.frame = camera_frame_from_distance(fminf(700.0f, fmaxf(8.0f, distance)));
     camera_cancel_animation();
     g_rpd.input.rotating = false;
     g_rpd.input.panning = false;
@@ -442,10 +445,10 @@ EMSCRIPTEN_KEEPALIVE int rpd_animate_orbit(float tx, float ty, float tz,
     a->to_target[0] = tx;
     a->to_target[1] = ty;
     a->to_target[2] = tz;
-    a->from_distance = g_rpd.camera.distance;
-    a->to_distance = distance < 0.0f
-        ? g_rpd.camera.distance
-        : fminf(700.0f, fmaxf(8.0f, distance));
+    a->from_frame = g_rpd.camera.frame;
+    a->to_frame = distance < 0.0f
+        ? g_rpd.camera.frame
+        : camera_frame_from_distance(fminf(700.0f, fmaxf(8.0f, distance)));
     a->elapsed = 0.0f;
     a->duration = fminf(2.0f, fmaxf(0.05f, duration));
     a->active = true;
@@ -455,16 +458,30 @@ EMSCRIPTEN_KEEPALIVE int rpd_animate_orbit(float tx, float ty, float tz,
     return 0;
 }
 
+EMSCRIPTEN_KEEPALIVE void rpd_recenter(void) {
+    float player[3];
+    plan_player(player);
+    int floor = plan_player_floor();
+    if (floor < 0) floor = plan_active_floor();
+    orbit_anim_t *a = &g_rpd.orbit;
+    memcpy(a->from_target, g_rpd.camera.target, sizeof(a->from_target));
+    a->from_frame = g_rpd.camera.frame;
+    if (g_rpd.ortho) plan_set_floor(floor);
+    a->to_target[0] = player[0];
+    a->to_target[1] = player[1] + CLAIRE_CAPSULE_TOP;
+    a->to_target[2] = player[2];
+    a->to_frame = a->from_frame;
+    a->elapsed = 0.0f;
+    a->duration = RECENTER_DURATION;
+    a->active = true;
+    g_rpd.input.rotating = false;
+    g_rpd.input.panning = false;
+    g_rpd.input.user_moved = true;
+}
+
 EMSCRIPTEN_KEEPALIVE void rpd_set_view_mode(int mode) {
     bool ortho = mode != 0;
     if (ortho == g_rpd.ortho) return;
-    if (ortho) {
-        memcpy(g_rpd.saved_target, g_rpd.camera.target, sizeof(g_rpd.saved_target));
-        g_rpd.saved_yaw = g_rpd.camera.yaw;
-        g_rpd.saved_pitch = g_rpd.camera.pitch;
-        g_rpd.saved_distance = g_rpd.camera.distance;
-        g_rpd.ortho_saved = true;
-    }
     g_rpd.ortho = ortho;
     camera_cancel_animation();
 }
@@ -484,7 +501,7 @@ EMSCRIPTEN_KEEPALIVE void rpd_reset_view(void) {
 EMSCRIPTEN_KEEPALIVE int rpd_get_view_proj(float *out) {
     if (!out) return -1;
     float eye[3];
-    mat4 vp = blended_view_proj(eye);
+    mat4 vp = camera_view_proj(eye);
     memcpy(out, vp.m, sizeof(vp.m));
     return 0;
 }

@@ -8,6 +8,7 @@
 #include "rpd_sokol.h"
 
 #define MAX_MARKERS 256
+#define MAX_SCENE_FLOORS 8
 
 enum {
     MARKER_SPHERE,
@@ -28,6 +29,11 @@ typedef struct {
 } marker_t;
 
 typedef struct {
+    int first_index;
+    int index_count;
+} scene_floor_range_t;
+
+typedef struct {
     bool loaded;
     bool pending;
     bool gpu_ready;
@@ -35,6 +41,8 @@ typedef struct {
     size_t size;
     int vertex_count;
     int triangle_count;
+    int floor_count;
+    scene_floor_range_t floors[MAX_SCENE_FLOORS];
     bounds_t bounds;
     sg_buffer vbuf;
     sg_buffer tri_ibuf;
@@ -43,11 +51,15 @@ typedef struct {
     int marker_index_count[MARKER_SHAPE_COUNT];
     sg_pipeline marker_pip;
     sg_pipeline solid_pip;
+    sg_pipeline glass_pip;
 } scene_t;
 
 void scene_create_pipelines(scene_t *s);
 bool scene_upload(scene_t *s);
-void scene_render_matrix(scene_t *s, mat4 view_proj, const float eye[3], bool clip, float clip_min, float clip_max);
+void scene_render_floors(scene_t *s, mat4 view_proj, const float eye[3],
+                         float camera_distance, float scene_radius, int paper_floor,
+                         bool clip, float clip_min, float clip_max);
+int scene_floor_count(void);
 mat4 marker_model(const marker_t *m);
 int scene_marker_count(void);
 const marker_t *scene_marker(int index);

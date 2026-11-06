@@ -29,14 +29,6 @@ export type RpdClient = {
   markerCount(): number;
   setPlayerPosition(x: number, y: number, z: number): void;
   setViewMode(mode: number): void;
-  setMapCamera(
-    cx: number,
-    cz: number,
-    scale: number,
-    vw: number,
-    vh: number,
-    floorY: number,
-  ): void;
   planSetFloors(levels: Float32Array, bounds: Float32Array): void;
   planSetGraph(
     count: number,
@@ -61,6 +53,7 @@ export type RpdClient = {
   planSetSpawn(x: number, y: number, z: number): void;
   planSetPlayer(x: number, y: number, z: number): void;
   planSetFloor(index: number): void;
+  planActiveFloor(): number;
   planStartMove(): void;
   planAddTarget(x: number, y: number, z: number): void;
   planCamera(): Float32Array;
@@ -104,6 +97,9 @@ export type RpdClient = {
   planClearRoute(): void;
   openPopupAt(x: number, z: number): number;
   resetView(): void;
+  recenter(): void;
+  cameraModel(): Float32Array;
+  debugFloors(): Float32Array;
   overlayStats(): Float32Array;
   debugBlend(): number;
   dispose(): void;
@@ -178,9 +174,6 @@ export async function createRpdClient(options: {
     setViewMode(mode) {
       module._rpd_set_view_mode(mode);
     },
-    setMapCamera(cx, cz, scale, vw, vh, floorY) {
-      module._rpd_map_set_camera(cx, cz, scale, vw, vh, floorY);
-    },
     planSetFloors(levels, bounds) {
       const lp = module._malloc(levels.byteLength);
       const bp = module._malloc(bounds.byteLength);
@@ -233,6 +226,9 @@ export async function createRpdClient(options: {
     },
     planSetFloor(index) {
       (module as unknown as { _rpd_plan_set_floor: (i: number) => void })._rpd_plan_set_floor(index);
+    },
+    planActiveFloor() {
+      return (module as unknown as { _rpd_plan_active_floor: () => number })._rpd_plan_active_floor();
     },
     planStartMove() {
       (module as unknown as { _rpd_plan_start_move: () => void })._rpd_plan_start_move();
@@ -370,6 +366,23 @@ export async function createRpdClient(options: {
     },
     resetView() {
       (module as unknown as { _rpd_reset_view: () => void })._rpd_reset_view();
+    },
+    recenter() {
+      (module as unknown as { _rpd_recenter: () => void })._rpd_recenter();
+    },
+    cameraModel() {
+      const ptr = module._malloc(9 * 4);
+      (module as unknown as { _rpd_get_camera_model: (p: number) => number })._rpd_get_camera_model(ptr);
+      const out = new Float32Array(heap.HEAPU8.buffer, ptr, 9).slice();
+      module._free(ptr);
+      return out;
+    },
+    debugFloors() {
+      const ptr = module._malloc(10 * 4);
+      (module as unknown as { _rpd_debug_floors: (p: number) => number })._rpd_debug_floors(ptr);
+      const out = new Float32Array(heap.HEAPU8.buffer, ptr, 10).slice();
+      module._free(ptr);
+      return out;
     },
     overlayStats() {
       const ptr = module._malloc(6 * 4);

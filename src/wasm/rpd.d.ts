@@ -54,17 +54,13 @@ export type RpdModule = {
   _rpd_item_room: (index: number) => number;
   _rpd_inventory_count: () => number;
   _rpd_inventory: (ptr: number, cap: number) => number;
-  _rpd_map_set_camera: (
-    cx: number,
-    cz: number,
-    scale: number,
-    vw: number,
-    vh: number,
-    floorY: number,
-  ) => void;
+  _rpd_plan_active_floor: () => number;
   _rpd_plan_clear_route: () => void;
   _rpd_plan_open_popup: (x: number, z: number) => number;
   _rpd_reset_view: () => void;
+  _rpd_recenter: () => void;
+  _rpd_get_camera_model: (ptr: number) => number;
+  _rpd_debug_floors: (ptr: number) => number;
   _rpd_overlay_stats: (ptr: number) => number;
 };
 

@@ -9,6 +9,7 @@
 #include "rpd_markers.h"
 #include "rpd_popup.h"
 #include "rpd_route.h"
+#include "rpd_state.h"
 
 #define MAX_WAYPOINTS 32
 #define MAX_ROUTE 8192
@@ -47,8 +48,6 @@ static int hover = -1;
 
 static float view_proj[16];
 static int view_w, view_h;
-static float map_cx, map_cz, map_scale = 8.0f;
-static int fitted_floor = -1;
 
 static float dist2(float ax, float ay, float az, float bx, float by, float bz) {
     float dx = ax - bx, dy = (ay - by) * 1.4f, dz = az - bz;
@@ -170,15 +169,12 @@ static void fit_camera(void) {
     int plot_h = view_h - top - bottom;
     if (plot_w < 120) plot_w = 120;
     if (plot_h < 120) plot_h = 120;
-    map_scale = fminf((float)plot_w / spanx, (float)plot_h / spanz);
-    if (map_scale < 1.0f) map_scale = 1.0f;
-    float cx = 0.5f * (minx + maxx);
-    float cz = 0.5f * (minz + maxz);
-    float plot_cx = (float)(left + plot_w / 2);
-    float plot_cy = (float)(top + plot_h / 2);
-    map_cx = cx - (plot_cx - view_w * 0.5f) / map_scale;
-    map_cz = cz - (plot_cy - view_h * 0.5f) / map_scale;
-    fitted_floor = active_floor;
+    float scale = fminf((float)plot_w / spanx, (float)plot_h / spanz);
+    if (scale < 1.0f) scale = 1.0f;
+    g_rpd.camera.frame = (float)view_h / scale;
+    g_rpd.camera.target[0] = 0.5f * (minx + maxx);
+    g_rpd.camera.target[1] = plan_level();
+    g_rpd.camera.target[2] = 0.5f * (minz + maxz);
 }
 
 static void add_waypoint_node(int node); static void open_node_popup(int node);
@@ -234,7 +230,6 @@ void plan_set_floors(int count, const float *levels, const float *bounds) {
         floor_levels[i] = levels[i]; for (int b = 0; b < 4; b++) floor_bounds[i][b] = bounds[i * 4 + b];
     }
     if (active_floor >= floor_count) active_floor = 0;
-    fitted_floor = -1;
 }
 
 void plan_set_graph(int count, const float *x, const float *y, const float *z,
@@ -270,7 +265,6 @@ void plan_set_graph(int count, const float *x, const float *y, const float *z,
     route_set_cells(count, nav_x, nav_z, nav_floor);
     items_reset();
     player_node = -1;
-    fitted_floor = -1;
 }
 
 void plan_set_rooms(int count, const float *x, const float *y, const float *z,
@@ -313,10 +307,9 @@ void plan_set_floor(int index) {
     if (index < 0) index = 0;
     if (floor_count > 0 && index >= floor_count) index = floor_count - 1;
     active_floor = index;
-    fitted_floor = -1;
     hover = -1;
     popup_close();
-    if (view_w > 1 && view_h > 1) fit_camera();
+    if (g_rpd.ortho && view_w > 1 && view_h > 1) fit_camera();
 }
 
 void plan_clear_route(void) {
@@ -332,7 +325,6 @@ int plan_open_popup_at(float x, float z) {
 }
 
 void plan_fit_camera(void) {
-    fitted_floor = -1;
     if (view_w > 1 && view_h > 1) fit_camera();
 }
 
@@ -346,7 +338,6 @@ void plan_update(float dt, const float *vp, int width, int height) {
     view_w = width;
     view_h = height;
     popup_set_viewport(view_w, view_h);
-    if (fitted_floor != active_floor) fit_camera();
     if (!moving) {
         return;
     }
@@ -542,26 +533,26 @@ void plan_start_move(void) {
 }
 
 void plan_pan(float dx, float dy) {
-    map_cx -= dx / map_scale;
-    map_cz -= dy / map_scale;
+    float vh = (float)(view_h > 1 ? view_h : 900);
+    camera_pan_ortho(&g_rpd.camera, dx, dy, vh);
+    g_rpd.orbit.active = false;
 }
 
 void plan_zoom(float x, float y, float amount) {
-    float wx = map_cx + (x - view_w * 0.5f) / map_scale;
-    float wz = map_cz + (y - view_h * 0.5f) / map_scale;
-    float next = map_scale * powf(1.1f, amount);
-    if (next < 2.5f) next = 2.5f;
-    if (next > 42.0f) next = 42.0f;
-    map_scale = next;
-    map_cx = wx - (x - view_w * 0.5f) / map_scale;
-    map_cz = wz - (y - view_h * 0.5f) / map_scale;
+    (void)x;
+    (void)y;
+    camera_zoom(&g_rpd.camera, amount);
+    g_rpd.orbit.active = false;
 }
 
 int plan_active_floor(void) { return active_floor; }
 float plan_level(void) { return (active_floor >= 0 && active_floor < floor_count) ? floor_levels[active_floor] : 0.0f; }
-float plan_map_cx(void) { return map_cx; }
-float plan_map_cz(void) { return map_cz; }
-float plan_map_scale(void) { return map_scale; }
+float plan_map_cx(void) { return g_rpd.camera.target[0]; }
+float plan_map_cz(void) { return g_rpd.camera.target[2]; }
+float plan_map_scale(void) {
+    float vh = (float)(view_h > 1 ? view_h : 900);
+    return vh / fmaxf(0.01f, g_rpd.camera.frame);
+}
 int plan_count(void) { return waypoint_count; }
 int plan_moving(void) { return moving; }
 int plan_hover(void) { return hover; }

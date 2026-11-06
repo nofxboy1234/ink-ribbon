@@ -25,6 +25,7 @@ export type PlanSession = {
     toggleView: () => void;
     clearRoute: () => void;
     resetView: () => void;
+    recenter: () => void;
   };
 };
 
@@ -199,6 +200,8 @@ export function usePlanSession(
           setPlanCount((current) => (current === count ? current : count));
           setMoving((current) => (current === isMoving ? current : isMoving));
           setRoom((current) => (current === nextRoom ? current : nextRoom));
+          const nativeFloor = clientRef.current.planActiveFloor();
+          setActiveFloor((current) => (current === nativeFloor ? current : nativeFloor));
           setInventory((current) => {
             const same = nextInventory.every((slot, index) => {
               const previous = current[index];
@@ -374,8 +377,11 @@ export function usePlanSession(
       clearRoute: () => client.planClearRoute(),
       openPopupAt: (x: number, z: number) => client.openPopupAt(x, z) !== 0,
       resetView: () => client.resetView(),
+      recenter: () => client.recenter(),
       camera: () => Array.from(client.planCamera()),
       cameraPose: () => Array.from(client.getCamera()),
+      cameraModel: () => Array.from(client.cameraModel()),
+      debugFloors: () => Array.from(client.debugFloors()),
       overlayStats: () => Array.from(client.overlayStats()),
       rooms: () => roomsRef.current,
       nearestCell: (x: number, z: number) => {
@@ -493,6 +499,9 @@ export function usePlanSession(
       },
       resetView() {
         clientRef.current?.resetView();
+      },
+      recenter() {
+        clientRef.current?.recenter();
       },
     },
   };

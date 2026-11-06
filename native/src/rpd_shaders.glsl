@@ -19,6 +19,7 @@ layout(binding=1) uniform solid_fs_params {
     vec4 u_camera;
     vec4 u_fog;
     vec4 u_clip;
+    vec4 u_style;
 };
 in vec3 v_world;
 in vec3 v_color;
@@ -30,13 +31,27 @@ void main() {
     vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));
     vec3 view = normalize(u_camera.xyz - v_world);
     if (dot(n, view) < 0.0) n = -n;
+    float dist = length(u_camera.xyz - v_world);
+    if (u_style.x > 0.5) {
+        float key = max(dot(n, normalize(vec3(0.42, 0.82, 0.38))), 0.0);
+        float fill = max(dot(n, normalize(vec3(-0.55, 0.35, -0.65))), 0.0);
+        float hemi = 0.5 + 0.5 * n.y;
+        float near = 1.0 - smoothstep(u_camera.w, u_fog.x, dist);
+        float fres = pow(1.0 - max(dot(n, view), 0.0), 2.0);
+        float light = 0.55 + 0.35 * key + 0.10 * hemi;
+        vec3 glass = vec3(0.95, 0.96, 0.97) * light;
+        float alpha = (0.30 + 0.35 * fres) * (0.45 + 0.55 * near);
+        frag_color = vec4(glass, alpha);
+        frag_normal = vec4(n * 0.5 + 0.5, 0.25);
+        frag_depth = vec4(0.0, 0.0, 0.0, 0.25);
+        return;
+    }
     float key = max(dot(n, normalize(vec3(0.36, 0.88, 0.30))), 0.0);
     float fill = max(dot(n, normalize(vec3(-0.55, 0.32, -0.62))), 0.0);
     float hemi = 0.5 + 0.5 * n.y;
     float shade = 0.80 + 0.14 * key + 0.04 * fill + 0.02 * hemi;
     frag_color = vec4(v_color * shade, 1.0);
     frag_normal = vec4(n * 0.5 + 0.5, 1.0);
-    float dist = length(u_camera.xyz - v_world);
     float scaled = clamp(dist, 0.0, 500.0) * (65535.0 / 500.0);
     float hi = floor(scaled / 256.0);
     float lo = scaled - hi * 256.0;
@@ -120,6 +135,7 @@ void main() {
     vec4 nC = texture(sampler2D(u_normal, u_normal_smp), v_uv);
     vec4 dC = texture(sampler2D(u_depth, u_depth_smp), v_uv);
     bool marker = abs(nC.a - 0.5) < 0.2;
+    bool glass = abs(nC.a - 0.25) < 0.05;
     vec3 cL = texture(sampler2D(u_tex, u_tex_smp), v_uv - vec2(texel.x, 0.0)).rgb;
     vec3 cR = texture(sampler2D(u_tex, u_tex_smp), v_uv + vec2(texel.x, 0.0)).rgb;
     vec3 cU = texture(sampler2D(u_tex, u_tex_smp), v_uv - vec2(0.0, texel.y)).rgb;
@@ -157,7 +173,7 @@ void main() {
         float dv = abs(2.0 * zC - zU - zD);
         depthEdge = smoothstep(0.12, 0.5, max(dl, dv));
     }
-    float edge = marker ? 0.0 : max(max(colorEdge, normalEdge), depthEdge);
+    float edge = (marker || glass) ? 0.0 : max(max(colorEdge, normalEdge), depthEdge);
     vec2 q = v_uv - 0.5;
     float vig = smoothstep(1.05, 0.15, length(q));
     float grain = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
