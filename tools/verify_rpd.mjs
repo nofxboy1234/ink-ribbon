@@ -3,6 +3,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync,
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { inflateSync } from "node:zlib";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const update = process.argv.includes("--update");
@@ -16,6 +17,77 @@ const imageThreshold = 0.001;
 
 mkdirSync(baselineDir, { recursive: true });
 mkdirSync(currentDir, { recursive: true });
+
+const mapArea = { x0: 0, y0: 140, x1: 1020, y1: 820 };
+
+function readPng(path) {
+  const file = readFileSync(path);
+  let at = 8;
+  let width = 0;
+  let height = 0;
+  let colorType = 0;
+  const chunks = [];
+  while (at < file.length) {
+    const length = file.readUInt32BE(at);
+    const type = file.toString("ascii", at + 4, at + 8);
+    const body = file.subarray(at + 8, at + 8 + length);
+    if (type === "IHDR") {
+      width = body.readUInt32BE(0);
+      height = body.readUInt32BE(4);
+      colorType = body[9];
+      if (body[8] !== 8 || body[12] !== 0) throw new Error(`${path}: unsupported PNG depth or interlace`);
+    } else if (type === "IDAT") {
+      chunks.push(body);
+    } else if (type === "IEND") {
+      break;
+    }
+    at += length + 12;
+  }
+  const channels = colorType === 6 ? 4 : colorType === 2 ? 3 : 0;
+  if (!channels) throw new Error(`${path}: unsupported PNG colour type ${colorType}`);
+  const raw = inflateSync(Buffer.concat(chunks));
+  const stride = width * channels;
+  const pixels = Buffer.alloc(width * height * channels);
+  for (let y = 0; y < height; y += 1) {
+    const filter = raw[y * (stride + 1)];
+    const row = raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1));
+    const out = pixels.subarray(y * stride, (y + 1) * stride);
+    const prev = y > 0 ? pixels.subarray((y - 1) * stride, y * stride) : null;
+    for (let x = 0; x < stride; x += 1) {
+      const a = x >= channels ? out[x - channels] : 0;
+      const b = prev ? prev[x] : 0;
+      const c = prev && x >= channels ? prev[x - channels] : 0;
+      let value = row[x];
+      if (filter === 1) value += a;
+      else if (filter === 2) value += b;
+      else if (filter === 3) value += (a + b) >> 1;
+      else if (filter === 4) {
+        const p = a + b - c;
+        const pa = Math.abs(p - a);
+        const pb = Math.abs(p - b);
+        const pc = Math.abs(p - c);
+        value += pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+      }
+      out[x] = value & 0xff;
+    }
+  }
+  return { width, height, channels, pixels };
+}
+
+function colouredPixels(path) {
+  const { width, height, channels, pixels } = readPng(path);
+  let count = 0;
+  for (let y = mapArea.y0; y < Math.min(height, mapArea.y1); y += 1) {
+    for (let x = mapArea.x0; x < Math.min(width, mapArea.x1); x += 1) {
+      const at = (y * width + x) * channels;
+      const r = pixels[at];
+      const g = pixels[at + 1];
+      const b = pixels[at + 2];
+      if (Math.max(r, g, b) - Math.min(r, g, b) > 60) count += 1;
+    }
+  }
+  return count;
+}
 
 function waitForHttp(url, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
@@ -207,12 +279,12 @@ async function run() {
     );
 
     const shots = [];
+    const shotPath = (name) => join(update ? baselineDir : currentDir, `${name}.png`);
     const shot = async (name) => {
       await cdp.eval(
         "document.querySelectorAll('.rpd-fps,.rpd-toast').forEach((e) => (e.style.visibility = 'hidden'))",
       );
-      const path = join(update ? baselineDir : currentDir, `${name}.png`);
-      await cdp.screenshot(path);
+      await cdp.screenshot(shotPath(name));
       shots.push(name);
     };
     const setFloor = async (floor) => {
@@ -461,7 +533,18 @@ async function run() {
     const floorTwoStats = await cdp.eval("window.__quest.overlayStats()");
     assert(floorTwoStats[0] === 0, "item diamonds must not draw on 2F");
     assert(floorTwoStats[4] === 0, "Claire's label must not draw on 2F");
-    report.states.floorFilter = { floorOneStats, floorTwoStats, itemFloors };
+    const basementPixels = colouredPixels(shotPath("06-ortho-b1"));
+    const topFloorPixels = colouredPixels(shotPath("04-ortho-3f"));
+    const floorOnePixels = colouredPixels(shotPath("07-ortho-1f-clean"));
+    assert(basementPixels === 0, `floor markers must not draw on B1, found ${basementPixels} coloured pixels`);
+    assert(topFloorPixels === 0, `floor markers must not draw on 3F, found ${topFloorPixels} coloured pixels`);
+    assert(floorOnePixels > 0, "floor markers must draw on their own floor");
+    report.states.floorFilter = {
+      floorOneStats,
+      floorTwoStats,
+      itemFloors,
+      markerPixels: { floorOne: floorOnePixels, topFloor: topFloorPixels, basement: basementPixels },
+    };
     await setFloor(0);
 
     const mapBeforeReset = await evalJson("window.__quest.camera()");
