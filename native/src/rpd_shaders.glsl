@@ -147,13 +147,43 @@ void main() {
     vec4 dR = texture(sampler2D(u_depth, u_depth_smp), v_uv + vec2(texel.x, 0.0));
     vec4 dU = texture(sampler2D(u_depth, u_depth_smp), v_uv - vec2(0.0, texel.y));
     vec4 dD = texture(sampler2D(u_depth, u_depth_smp), v_uv + vec2(0.0, texel.y));
+    vec4 nUL = texture(sampler2D(u_normal, u_normal_smp), v_uv + texel * vec2(-1.0, -1.0));
+    vec4 nUL2 = texture(sampler2D(u_normal, u_normal_smp), v_uv + texel * vec2(-2.0, -2.0));
+    vec4 nUR2 = texture(sampler2D(u_normal, u_normal_smp), v_uv + texel * vec2( 2.0, -2.0));
+    vec4 nDL2 = texture(sampler2D(u_normal, u_normal_smp), v_uv + texel * vec2(-2.0,  2.0));
+    vec4 nDR2 = texture(sampler2D(u_normal, u_normal_smp), v_uv + texel * vec2( 2.0,  2.0));
+    vec4 nL2 = texture(sampler2D(u_normal, u_normal_smp), v_uv + texel * vec2(-2.0, 0.0));
+    vec4 nR2 = texture(sampler2D(u_normal, u_normal_smp), v_uv + texel * vec2( 2.0, 0.0));
+    vec4 nU2 = texture(sampler2D(u_normal, u_normal_smp), v_uv + texel * vec2( 0.0, -2.0));
+    vec4 nD2 = texture(sampler2D(u_normal, u_normal_smp), v_uv + texel * vec2( 0.0,  2.0));
+    vec4 nUR = texture(sampler2D(u_normal, u_normal_smp), v_uv + texel * vec2( 1.0, -1.0));
+    vec4 nDL = texture(sampler2D(u_normal, u_normal_smp), v_uv + texel * vec2(-1.0,  1.0));
+    vec4 nDR = texture(sampler2D(u_normal, u_normal_smp), v_uv + texel * vec2( 1.0,  1.0));
     if (abs(nL.a - 0.5) < 0.2) { nL = nC; cL = c; dL = dC; }
     if (abs(nR.a - 0.5) < 0.2) { nR = nC; cR = c; dR = dC; }
     if (abs(nU.a - 0.5) < 0.2) { nU = nC; cU = c; dU = dC; }
     if (abs(nD.a - 0.5) < 0.2) { nD = nC; cD = c; dD = dC; }
+    if (abs(nUL.a - 0.5) < 0.2) nUL = nC;
+    if (abs(nUR.a - 0.5) < 0.2) nUR = nC;
+    if (abs(nDL.a - 0.5) < 0.2) nDL = nC;
+    if (abs(nDR.a - 0.5) < 0.2) nDR = nC;
+    if (abs(nUL2.a - 0.5) < 0.2) nUL2 = nC;
+    if (abs(nUR2.a - 0.5) < 0.2) nUR2 = nC;
+    if (abs(nDL2.a - 0.5) < 0.2) nDL2 = nC;
+    if (abs(nDR2.a - 0.5) < 0.2) nDR2 = nC;
+    if (abs(nL2.a - 0.5) < 0.2) nL2 = nC;
+    if (abs(nR2.a - 0.5) < 0.2) nR2 = nC;
+    if (abs(nU2.a - 0.5) < 0.2) nU2 = nC;
+    if (abs(nD2.a - 0.5) < 0.2) nD2 = nC;
     bool glass = abs(nC.a - 0.25) < 0.05 || abs(nL.a - 0.25) < 0.05 ||
                  abs(nR.a - 0.25) < 0.05 || abs(nU.a - 0.25) < 0.05 ||
-                 abs(nD.a - 0.25) < 0.05;
+                 abs(nD.a - 0.25) < 0.05 || abs(nUL.a - 0.25) < 0.05 ||
+                 abs(nUR.a - 0.25) < 0.05 || abs(nDL.a - 0.25) < 0.05 ||
+                 abs(nDR.a - 0.25) < 0.05 || abs(nUL2.a - 0.25) < 0.05 ||
+                 abs(nUR2.a - 0.25) < 0.05 || abs(nDL2.a - 0.25) < 0.05 ||
+                 abs(nDR2.a - 0.25) < 0.05 || abs(nL2.a - 0.25) < 0.05 ||
+                 abs(nR2.a - 0.25) < 0.05 || abs(nU2.a - 0.25) < 0.05 ||
+                 abs(nD2.a - 0.25) < 0.05;
     vec3 dx = cR - cL;
     vec3 dy = cD - cU;
     float colorEdge = smoothstep(0.14, 0.5, length(dx) + length(dy));
