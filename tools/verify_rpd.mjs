@@ -238,6 +238,8 @@ async function run() {
         view: document.querySelector('.rpd-view-toggle')?.textContent.trim() ?? null,
         cameraPose: window.__quest.cameraPose(),
         mapCamera: window.__quest.camera(),
+        cameraModel: window.__quest.cameraModel(),
+        floorRoles: window.__quest.debugFloors(),
         overlay: window.__quest.overlayStats(),
       };
     })()`);
@@ -673,6 +675,174 @@ async function run() {
     assert(!(await cdp.eval("window.__quest.items()"))[8].taken, "the ninth item must stay on the floor");
     const afterRefusal = await cdp.eval("window.__quest.inventory()");
     assert(afterRefusal.filter(Boolean).length === 8, "a refused take must not change the inventory");
+
+    const iconOrder = await evalJson(
+      "Array.from(document.querySelectorAll('.rpd-floors .rpd-icon-button')).map((b) => b.getAttribute('aria-label'))",
+    );
+    assert(
+      iconOrder.length === 2 &&
+        iconOrder[0] === "Reset view" &&
+        iconOrder[1] === "Recenter on Claire",
+      "the recenter button must sit immediately right of the reset arrow",
+    );
+
+    await cdp.key("KeyM", "m", 77);
+    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) <= 0.001", 20000);
+    await setFloor(0);
+    await cdp.eval("window.__rpd.setOrbit(0, 2.5, 2, -0.75, 0.36, 65)");
+    await sleep(800);
+    const glassFloors = await evalJson("window.__quest.debugFloors()");
+    assert(
+      glassFloors[0] === 0 && glassFloors[1] === 4,
+      `perspective should draw floor 0 in paper and four glass floors, got ${JSON.stringify(glassFloors)}`,
+    );
+    const perspectiveModel = await evalJson("window.__quest.cameraModel()");
+    const perspectiveCenter = await evalJson(
+      `window.__quest.project(${perspectiveModel[0]}, ${perspectiveModel[1]}, ${perspectiveModel[2]})`,
+    );
+    assert(
+      Math.hypot(perspectiveCenter.x - 700, perspectiveCenter.y - 450) < 1.5,
+      "the shared target must project to the screen centre in perspective",
+    );
+    await shot("25-3d-paper-glass");
+
+    await cdp.eval("window.__rpd.setOrbit(5, 3, 7, -0.9, 0.4, 50)");
+    await sleep(400);
+    const tripStart = await evalJson("window.__quest.cameraModel()");
+    await cdp.key("KeyM", "m", 77);
+    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) >= 0.999", 20000);
+    await sleep(300);
+    const tripOrtho = await evalJson("window.__quest.cameraModel()");
+    assert(
+      closeEnough(tripStart.slice(0, 6), tripOrtho.slice(0, 6), 1e-4),
+      "switching to ortho must hold the shared target, frame and saved orientation",
+    );
+    assert(
+      Math.abs(tripOrtho[6] - Math.PI / 2) < 0.02,
+      "the orthographic orientation must be top-down",
+    );
+    const orthoCenter = await evalJson(
+      `window.__quest.project(${tripOrtho[0]}, ${tripOrtho[1]}, ${tripOrtho[2]})`,
+    );
+    assert(
+      Math.hypot(orthoCenter.x - 700, orthoCenter.y - 450) < 1.5,
+      "the shared target must project to the screen centre in ortho",
+    );
+    await cdp.key("KeyM", "m", 77);
+    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) <= 0.001", 20000);
+    await sleep(300);
+    const tripBack = await evalJson("window.__quest.cameraModel()");
+    assert(
+      closeEnough(tripStart.slice(0, 6), tripBack.slice(0, 6), 1e-4),
+      "a 2D/3D round trip must restore the shared target, frame and saved orientation",
+    );
+    report.states.cameraRoundTrip = { start: tripStart, ortho: tripOrtho, back: tripBack };
+
+    await cdp.eval("window.__rpd.setOrbit(0, 2.5, 2, -0.75, 0.36, 65)");
+    await sleep(400);
+    const recenterPlayer = await evalJson("window.__quest.debug().player");
+    const recenterFrame = (await evalJson("window.__quest.cameraModel()"))[3];
+    await shot("28-recenter-3d-before");
+    await cdp.eval("document.querySelector('.rpd-recenter-button').click()");
+    await cdp.waitFor(
+      `(() => { const m = window.__quest.cameraModel(); return Math.hypot(m[0] - ${recenterPlayer[0]}, m[1] - ${recenterPlayer[1] + 1.7}, m[2] - ${recenterPlayer[2]}) < 0.08; })()`,
+      20000,
+    );
+    await sleep(300);
+    const recentered3d = await evalJson("window.__quest.cameraModel()");
+    assert(
+      Math.abs(recentered3d[3] - recenterFrame) < 0.01,
+      "recentering must keep the shared frame",
+    );
+    assert(
+      JSON.stringify(await evalJson("window.__quest.debug().player")) ===
+        JSON.stringify(recenterPlayer),
+      "recentering must not move Claire",
+    );
+    await shot("28-recenter-3d-after");
+
+    await cdp.eval("window.__rpd.setOrbit(0, 2.5, 2, -0.75, 0.36, 65)");
+    await sleep(400);
+    await cdp.key("KeyC", "c", 67);
+    await cdp.waitFor(
+      `(() => { const m = window.__quest.cameraModel(); return Math.hypot(m[0] - ${recenterPlayer[0]}, m[1] - ${recenterPlayer[1] + 1.7}, m[2] - ${recenterPlayer[2]}) < 0.08; })()`,
+      20000,
+    );
+
+    await cdp.key("KeyM", "m", 77);
+    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) >= 0.999", 20000);
+    await setFloor(1);
+    const floorCell = JSON.parse(await cdp.eval("JSON.stringify(window.__quest.walkableCell())"));
+    assert(floorCell, "could not find a floor 1 cell for the recenter follow");
+    await setFloor(0);
+    await cdp.eval(
+      `window.__quest.setPlayer(${floorCell.world[0]}, ${floorCell.world[1]}, ${floorCell.world[2]})`,
+    );
+    await sleep(500);
+    const orthoPlayer = await evalJson("window.__quest.debug().player");
+    const orthoPlayerFloor = await evalJson("window.__quest.debug().playerFloor");
+    assert(orthoPlayerFloor === 1, "the recenter test needs Claire on floor 1");
+    const orthoFrameBefore = (await evalJson("window.__quest.cameraModel()"))[3];
+    await shot("29-recenter-ortho-before");
+    await cdp.eval("document.querySelector('.rpd-recenter-button').click()");
+    await cdp.waitFor(
+      `(() => { const m = window.__quest.cameraModel(); return Math.hypot(m[0] - ${orthoPlayer[0]}, m[2] - ${orthoPlayer[2]}) < 0.08; })()`,
+      20000,
+    );
+    await cdp.waitFor("window.__quest.debug().activeFloor === 1", 10000);
+    await sleep(300);
+    const recenteredOrtho = await evalJson("window.__quest.cameraModel()");
+    assert(
+      Math.abs(recenteredOrtho[3] - orthoFrameBefore) < 0.01,
+      "recentering in ortho must keep the shared frame",
+    );
+    assert(
+      JSON.stringify(await evalJson("window.__quest.debug().player")) ===
+        JSON.stringify(orthoPlayer),
+      "ortho recentering must not move Claire",
+    );
+    const orthoRecenterCenter = await evalJson(
+      `window.__quest.project(${recenteredOrtho[0]}, ${recenteredOrtho[1]}, ${recenteredOrtho[2]})`,
+    );
+    assert(
+      Math.hypot(orthoRecenterCenter.x - 700, orthoRecenterCenter.y - 450) < 1.5,
+      "recentering in ortho must put the target at the screen centre",
+    );
+    await shot("29-recenter-ortho-after");
+    report.states.recenter = {
+      perspective: recentered3d,
+      ortho: recenteredOrtho,
+      floorBefore: 0,
+      floorAfter: 1,
+    };
+
+    await cdp.eval("document.querySelector('.rpd-icon-button').click()");
+    await sleep(600);
+    const resetModel = await evalJson("window.__quest.cameraModel()");
+    const resetCamera = await evalJson("window.__quest.camera()");
+    const resetCenter = await evalJson(
+      `window.__quest.project(${resetModel[0]}, ${resetModel[1]}, ${resetModel[2]})`,
+    );
+    assert(
+      Math.abs(resetModel[0] - resetCamera[0]) < 1e-4 &&
+        Math.abs(resetModel[2] - resetCamera[1]) < 1e-4,
+      "resetting ortho must fit the active floor around the shared target",
+    );
+    assert(
+      Math.abs(resetModel[3] - 900 / resetCamera[2]) < 0.01,
+      "the ortho frame and the debug map scale must agree after reset",
+    );
+    assert(
+      Math.hypot(resetCenter.x - 700, resetCenter.y - 450) < 1.5,
+      "the reset ortho target must project to the screen centre",
+    );
+    assert(
+      JSON.stringify(await evalJson("window.__quest.debug().player")) ===
+        JSON.stringify(orthoPlayer),
+      "resetting the view must not move Claire",
+    );
+    await shot("30-reset-view");
+    report.states.resetView = { model: resetModel, camera: resetCamera };
 
     report.states.items = items;
     report.states.inventory = await cdp.eval("window.__quest.inventory()");
