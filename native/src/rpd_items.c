@@ -158,6 +158,7 @@ bool items_place(int nav_count, const float *x, const float *y, const float *z,
                 item->z = z[node];
                 item->node = node;
                 item->room = room;
+                item->floor = floor[node];
                 item->marker = -1;
                 item->taken = false;
                 item->name = ITEM_NAMES[item_index];

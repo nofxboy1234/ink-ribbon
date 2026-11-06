@@ -30,6 +30,12 @@ static int view_w = 1, view_h = 1;
 static int fps_visible = 1;
 static int text_ready = 1;
 static float vp[16];
+static int stat_items;
+static int stat_labels;
+static int stat_blocked;
+static int stat_clashes;
+static int stat_player_label;
+static int stat_popup;
 
 static const uint8_t *col(uint32_t c) {
     static uint8_t out[4];
@@ -134,14 +140,31 @@ void overlay_init(void) {
     });
 }
 
+static bool rects_overlap(const float *a, const float *b) {
+    return a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
+}
+
+void overlay_stats(float *out) {
+    if (!out) return;
+    out[0] = (float)stat_items;
+    out[1] = (float)stat_labels;
+    out[2] = (float)stat_blocked;
+    out[3] = (float)stat_clashes;
+    out[4] = (float)stat_player_label;
+    out[5] = (float)stat_popup;
+}
+
 static void draw_items(void) {
     int count = items_count();
+    int level = plan_active_floor();
     for (int i = 0; i < count; i++) {
         const item_t *item = items_get(i);
         if (!item || item->taken) continue;
+        if (item->floor != level) continue;
         float sx, sy;
         project(item->x, item->y, item->z, &sx, &sy);
         if (sx < -1e8f) continue;
+        stat_items++;
         uint8_t r = (uint8_t)(item->r * 255.0f);
         uint8_t g = (uint8_t)(item->g * 255.0f);
         uint8_t b = (uint8_t)(item->b * 255.0f);
@@ -190,6 +213,12 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
     view_h = height > 1 ? height : 1;
     memcpy(vp, matrix, sizeof(vp));
     vcount = 0;
+    stat_items = 0;
+    stat_labels = 0;
+    stat_blocked = 0;
+    stat_clashes = 0;
+    stat_player_label = 0;
+    stat_popup = popup_is_open() ? 1 : 0;
     if (text_ready) {
         sdtx_canvas((float)view_w / DTX_SCALE, (float)view_h / DTX_SCALE);
         sdtx_origin(0.0f, 0.0f);
@@ -225,18 +254,37 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
     if (ortho) {
         float placed[MAX_LABELS][4];
         int placed_count = 0;
+        float popup_rect[4] = { 0, 0, 0, 0 };
+        bool popup_open = popup_is_open();
+        if (popup_open) {
+            float w, h;
+            popup_layout(&popup_rect[0], &popup_rect[1], &w, &h);
+            popup_rect[2] = popup_rect[0] + w;
+            popup_rect[3] = popup_rect[1] + h;
+            placed[placed_count][0] = popup_rect[0];
+            placed[placed_count][1] = popup_rect[1];
+            placed[placed_count][2] = popup_rect[2];
+            placed[placed_count][3] = popup_rect[3];
+            placed_count++;
+        }
         float player[3];
         plan_player(player);
         float psx, psy;
         project(player[0], player[1] + 1.15f, player[2], &psx, &psy);
-        bool player_visible = psx > -1e8f;
+        bool player_visible = psx > -1e8f && plan_player_floor() == level;
         float player_w = dtx_width("CLAIRE");
-        if (player_visible && placed_count < MAX_LABELS) {
-            placed[placed_count][0] = psx + 15 - 4;
-            placed[placed_count][1] = psy - 5 - 3;
-            placed[placed_count][2] = psx + 15 + player_w + 4;
-            placed[placed_count][3] = psy - 5 + DTX_CELL + 3;
-            placed_count++;
+        float player_rect[4] = {
+            psx + 15 - 4, psy - 5 - 3,
+            psx + 15 + player_w + 4, psy - 5 + DTX_CELL + 3,
+        };
+        if (player_visible) {
+            if (popup_open && rects_overlap(player_rect, popup_rect)) {
+                player_visible = false;
+                stat_blocked++;
+            } else if (placed_count < MAX_LABELS) {
+                memcpy(placed[placed_count], player_rect, sizeof(player_rect));
+                placed_count++;
+            }
         }
         int rooms = plan_room_count();
         for (int i = 0; i < rooms; i++) {
@@ -252,22 +300,32 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
             float y0 = sy - 4;
             float x1 = x0 + w + 8;
             float y1 = y0 + DTX_CELL + 8;
+            float label_rect[4] = { x0, y0, x1, y1 };
             bool clash = false;
             for (int k = 0; k < placed_count; k++) {
-                if (x0 < placed[k][2] && x1 > placed[k][0] && y0 < placed[k][3] && y1 > placed[k][1]) {
+                if (rects_overlap(label_rect, placed[k])) {
                     clash = true;
                     break;
                 }
             }
-            if (clash) continue;
+            if (clash) {
+                if (popup_open && rects_overlap(label_rect, popup_rect)) stat_blocked++;
+                continue;
+            }
             if (placed_count < MAX_LABELS) {
-                placed[placed_count][0] = x0; placed[placed_count][1] = y0;
-                placed[placed_count][2] = x1; placed[placed_count][3] = y1;
+                memcpy(placed[placed_count], label_rect, sizeof(label_rect));
                 placed_count++;
             }
             dtx_text(name, sx - w * 0.5f, sy, 0x4a4842f0, 1);
+            stat_labels++;
+            if (popup_open && rects_overlap(label_rect, popup_rect)) stat_clashes++;
         }
-        if (player_visible) dtx_text("CLAIRE", psx + 15.0f, psy - 5.0f, 0x9b3d78ff, 1);
+        if (player_visible) {
+            dtx_text("CLAIRE", psx + 15.0f, psy - 5.0f, 0x9b3d78ff, 1);
+            stat_player_label++;
+            stat_labels++;
+            if (popup_open && rects_overlap(player_rect, popup_rect)) stat_clashes++;
+        }
     }
 
     if (ortho) draw_items();

@@ -12,6 +12,7 @@ typedef struct {
     int node;
     int room;
     int marker;
+    uint8_t floor;
     bool taken;
     const char *name;
 } item_t;
