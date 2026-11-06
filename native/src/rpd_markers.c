@@ -255,14 +255,17 @@ void markers_create(scene_t *s) {
     create_markers(s);
 }
 
-void markers_render(scene_t *s, mat4 view_proj, const float eye[3]) {
+void markers_render(scene_t *s, mat4 view_proj, const float eye[3], float marker_floor) {
     if (g_marker_count <= 0) return;
     sg_apply_pipeline(s->marker_pip);
     marker_fs_params_t mf = { 0 };
     mf.u_camera[0] = eye[0]; mf.u_camera[1] = eye[1]; mf.u_camera[2] = eye[2];
+    // The storeys sit 5.2 apart; a marker belongs to the nearest floor.
+    bool floor_filter = marker_floor > MARKER_FLOOR_ANY;
     for (int i = 0; i < g_marker_count; i++) {
         const marker_t *m = &g_markers[i];
         if (!m->visible) continue;
+        if (floor_filter && fabsf(m->y - marker_floor) > 2.6f) continue;
         if (m->shape < 0 || m->shape >= MARKER_SHAPE_COUNT) continue;
         if (s->marker_index_count[m->shape] <= 0) continue;
         marker_vs_params_t mv;

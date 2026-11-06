@@ -228,7 +228,7 @@ static void draw_scene_range(scene_t *s, sg_pipeline pip,
 
 void scene_render_floors(scene_t *s, mat4 view_proj, const float eye[3],
                          float camera_distance, float scene_radius, int paper_floor,
-                         bool clip, float clip_min, float clip_max) {
+                         bool clip, float clip_min, float clip_max, float marker_floor) {
     solid_vs_params_t vs;
     memcpy(vs.u_view_proj, view_proj.m, sizeof(vs.u_view_proj));
     solid_fs_params_t fs = { 0 };
@@ -254,7 +254,7 @@ void scene_render_floors(scene_t *s, mat4 view_proj, const float eye[3],
                              s->floors[i].index_count);
         }
     }
-    markers_render(s, view_proj, eye);
+    markers_render(s, view_proj, eye, marker_floor);
 }
 
 void scene_render_paper_data(scene_t *s, mat4 view_proj, const float eye[3],

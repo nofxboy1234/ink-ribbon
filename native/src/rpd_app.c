@@ -175,7 +175,8 @@ void rpd_app_frame(void) {
     plan_update(raw_dt > 0.5f ? 0.5f : raw_dt, vp.m, sapp_width(), sapp_height());
     if (g_rpd.scene.loaded && g_rpd.scene.gpu_ready) {
         scene_render_floors(&g_rpd.scene, vp, eye, camera_distance(&g_rpd.camera),
-                            g_rpd.scene_radius, paper_floor(), clip, fy - 0.55f, fy + 4.2f);
+                            g_rpd.scene_radius, paper_floor(), clip, fy - 0.55f, fy + 4.2f,
+                            g_rpd.ortho ? fy : MARKER_FLOOR_ANY);
     }
     sg_end_pass();
 

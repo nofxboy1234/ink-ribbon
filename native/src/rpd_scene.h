@@ -55,11 +55,13 @@ typedef struct {
     sg_pipeline glass_pip;
 } scene_t;
 
+#define MARKER_FLOOR_ANY (-1.0e30f)
+
 void scene_create_pipelines(scene_t *s);
 bool scene_upload(scene_t *s);
 void scene_render_floors(scene_t *s, mat4 view_proj, const float eye[3],
                          float camera_distance, float scene_radius, int paper_floor,
-                         bool clip, float clip_min, float clip_max);
+                         bool clip, float clip_min, float clip_max, float marker_floor);
 void scene_render_paper_data(scene_t *s, mat4 view_proj, const float eye[3],
                              int paper_floor, bool clip, float clip_min, float clip_max);
 int scene_floor_count(void);
