@@ -551,9 +551,9 @@
       "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · middle drag to pan",
       "plan": [],
       "player": [
-        19.265932083129883,
+        19.826940536499023,
         0.09999999403953552,
-        -10.147409439086914
+        -10.307697296142578
       ],
       "moving": false,
       "routePoints": 0,
@@ -655,7 +655,12 @@
         0,
         0,
         0
-      ]
+      ],
+      "markerPixels": {
+        "floorOne": 1092,
+        "topFloor": 0,
+        "basement": 0
+      }
     },
     "orthoReset": {
       "mapChanged": [
