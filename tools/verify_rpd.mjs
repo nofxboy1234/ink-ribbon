@@ -437,7 +437,7 @@ async function run() {
       if (room.floor !== 0) continue;
       if (Math.hypot(room.x - settledPlayer[0], room.z - settledPlayer[2]) < 6) continue;
       const opened = await cdp.eval(`window.__quest.openPopupAt(${room.x}, ${room.z})`);
-      await sleep(200);
+      await sleep(700);
       const stats = await cdp.eval("window.__quest.overlayStats()");
       if (opened && stats[2] > 0) {
         labelOverlap = { room: room.name, stats };
