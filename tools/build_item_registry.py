@@ -125,8 +125,10 @@ def classify(section: str, prefix: str, line: str) -> str | None:
         return "contents"
     if prefix.endswith("obtained when the") and "is solved" in line:
         return "hidden_by_target"
+    if prefix.endswith("obtained when the") and "is processed" in line:
+        return "film_source"
     if prefix.endswith("processed in the") or prefix.endswith("processed in"):
-        return "hint"
+        return "processed_in"
     if section in ("unlocked by", "requires", "repaired with"):
         return "requires"
     if section in ("contents", "content"):
@@ -142,11 +144,27 @@ def carryable(category: str) -> bool:
     return category in CARRY or category in ("Film", "Area Map")
 
 
-def action_for(category: str, requires: list[int], contents: list[int]) -> str:
+def claire_only(description: str | None) -> bool:
+    return bool(
+        description
+        and re.search(r"cannot be (?:opened|unlocked) (?:while|when) playing as claire", description, re.I)
+    )
+
+
+def action_for(
+    category: str,
+    requires: list[int],
+    contents: list[int],
+    title: str,
+    code: str | None,
+    description: str | None,
+) -> str:
+    if title == "One-Way Door" or claire_only(description):
+        return "none"
     if category in CONTAINERS:
         return "open"
     if category == "Lock":
-        if contents:
+        if code or contents:
             return "open"
         if requires:
             return "unlock"
@@ -166,6 +184,29 @@ def action_for(category: str, requires: list[int], contents: list[int]) -> str:
     if category in CARRY or category == "Lock":
         return "take"
     return "none"
+
+
+def code_for(row: dict, description: str | None) -> str | None:
+    """The MapGenie prose code, kept as one canonical string for the DEV entry."""
+    if not description:
+        return None
+    if row["category"] == "Safe":
+        turns = re.findall(r"-\s*(Left|Right)\s+(\d+)", description)
+        if turns:
+            return " ".join(f"{'L' if turn == 'Left' else 'R'}{number}" for turn, number in turns)
+    if row["title"] == "Dial Lock":
+        match = re.search(r"^\*\*Unlocked By:\*\*\s*([A-Z](?:-[A-Z])+)\s*$", description, re.M)
+        if match:
+            return match.group(1)
+    return None
+
+
+def blocks_route(row: dict) -> bool:
+    return (
+        row["category"] in ("Lock", "Puzzle")
+        and row["title"].endswith("Door")
+        and row["action"] in ("unlock", "open", "solve")
+    )
 
 
 def main() -> None:
@@ -218,6 +259,10 @@ def main() -> None:
             "opens": [],
             "hidden_by": None,
             "links": [],
+            "blocks": False,
+            "code": None,
+            "external_requires": [],
+            "synthetic": False,
         }
         rows.append(row)
         by_id[row["id"]] = row
@@ -238,7 +283,13 @@ def main() -> None:
                 row["links"].append({"section": section or "body", "id": target_id, "title": title})
                 continue
             if target_id not in known:
-                unresolved.append({"from": row["id"], "to": target_id, "title": title, "relation": relation, "reason": "not in the RPD marker set"})
+                if relation == "film_source":
+                    row["external_requires"].append(
+                        {"id": target_id, "title": title, "source": "outside the RPD marker set"}
+                    )
+                    relations.append((target_id, row["id"], "processed_in"))
+                else:
+                    unresolved.append({"from": row["id"], "to": target_id, "title": title, "relation": relation, "reason": "not in the RPD marker set"})
                 continue
             target = by_id[target_id]
             if relation == "inside_container":
@@ -253,6 +304,14 @@ def main() -> None:
                 target["contents"].append(row["id"])
                 row["hidden_by"] = target_id
                 relations.append((target_id, row["id"], "contents"))
+            elif relation == "film_source":
+                row["requires"].append(target_id)
+                relations.append((target_id, row["id"], "processed_in"))
+            elif relation == "processed_in":
+                row["requires_open"].append(target_id)
+                target["contents"].append(row["id"])
+                row["hidden_by"] = target_id
+                relations.append((target_id, row["id"], "processed_in"))
             elif relation == "requires":
                 if carryable(target["category"]):
                     row["requires"].append(target_id)
@@ -286,12 +345,62 @@ def main() -> None:
                     parent[0]["contents"].append(row["id"])
                 relations.append((parent[0]["id"], row["id"], "contents"))
 
+    car_key = by_title.get("Car Key", [None])[0]
+    car_key_description = (locations.get(car_key["id"]) or {}).get("description") if car_key else None
+    if (
+        car_key
+        and car_key["hidden_by"] is None
+        and car_key_description
+        and car_key_description.lower().startswith("inside the box")
+    ):
+        box_id = 544635000
+        box = {
+            "id": box_id,
+            "title": "Car Key Box",
+            "category": "Item Box",
+            "category_slug": "item_box",
+            "floor": car_key["floor"],
+            "x": car_key["x"],
+            "y": car_key["y"],
+            "z": car_key["z"],
+            "on_floor": False,
+            "on_door": False,
+            "on_stair": False,
+            "nearest_nav": car_key["nearest_nav"],
+            "placement": "fixture",
+            "model": None,
+            "icon": "item_box",
+            "action": "open",
+            "requires": [],
+            "requires_open": [],
+            "contents": [car_key["id"]],
+            "opens": [],
+            "hidden_by": None,
+            "links": [],
+            "blocks": False,
+            "code": None,
+            "external_requires": [],
+            "synthetic": True,
+        }
+        rows.append(box)
+        by_id[box_id] = box
+        by_title.setdefault("Car Key Box", []).append(box)
+        car_key["hidden_by"] = box_id
+        relations.append((box_id, car_key["id"], "contents"))
+
     for row in rows:
+        description = (locations.get(row["id"]) or {}).get("description")
         row["requires"] = sorted(set(row["requires"]))
         row["requires_open"] = sorted(set(row["requires_open"]))
         row["contents"] = sorted(set(row["contents"]))
         row["opens"] = sorted(set(row["opens"]))
-        row["action"] = action_for(row["category"], row["requires"], row["contents"])
+        external = {entry["id"]: entry for entry in row["external_requires"]}
+        row["external_requires"] = [external[key] for key in sorted(external)]
+        row["code"] = code_for(row, description)
+        row["action"] = action_for(
+            row["category"], row["requires"], row["contents"], row["title"], row["code"], description
+        )
+        row["blocks"] = blocks_route(row)
 
     action_counts: dict[str, int] = {name: 0 for name in ACTIONS}
     for row in rows:
@@ -310,12 +419,17 @@ def main() -> None:
             "api": f"mapgenie map 878 descriptions sha256:{digest}",
         },
         "actions": sorted(ACTIONS),
+        "block_radius": 1.0,
         "stats": {
             "items": len(rows),
             "modelled": modelled,
             "hidden_contents": hidden,
             "gated": gated,
             "actions": action_counts,
+            "blocking_doors": sum(1 for row in rows if row["blocks"]),
+            "coded_locks": sum(1 for row in rows if row["code"]),
+            "external_requires": sum(len(row["external_requires"]) for row in rows),
+            "synthetic": sum(1 for row in rows if row["synthetic"]),
             "relations": len(relations),
             "unresolved_links": len(unresolved),
         },

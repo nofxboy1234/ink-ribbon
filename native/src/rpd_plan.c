@@ -6,7 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "rpd_item_gate.h"
 #include "rpd_items.h"
+#include "rpd_nearest.h"
 #include "rpd_markers.h"
 #include "rpd_popup.h"
 #include "rpd_route.h"
@@ -50,40 +52,15 @@ static int hover = -1;
 static float view_proj[16];
 static int view_w, view_h;
 
-static float dist2(float ax, float ay, float az, float bx, float by, float bz) {
-    float dx = ax - bx, dy = (ay - by) * 1.4f, dz = az - bz;
-    return dx * dx + dy * dy + dz * dz;
-}
-
 static int nearest_node_on(int floor, float x, float y, float z, float maxd) {
-    int best = -1;
-    float bestd = maxd * maxd;
-    for (int i = 0; i < nav_count; i++) {
-        if (nav_floor[i] != floor) continue;
-        if (nav_blocked[i]) continue;
-        float d = dist2(nav_x[i], nav_y[i], nav_z[i], x, y, z);
-        if (d < bestd) { bestd = d; best = i; }
-    }
-    return best;
+    return nearest_floor_node(nav_count, nav_x, nav_y, nav_z, nav_floor, nav_blocked,
+                              floor, x, y, z, maxd);
 }
 
 static int nearest_room(void) {
-    if (room_count <= 0) return -1;
     int floor = player_node >= 0 ? nav_floor[player_node] : active_floor;
-    int best = -1;
-    float bestd = 1e30f;
-    for (int i = 0; i < room_count; i++) {
-        if (room_floor[i] != floor) continue;
-        float d = dist2(room_x[i], room_y[i], room_z[i], player[0], player[1], player[2]);
-        if (d < bestd) { bestd = d; best = i; }
-    }
-    if (best < 0) {
-        for (int i = 0; i < room_count; i++) {
-            float d = dist2(room_x[i], room_y[i], room_z[i], player[0], player[1], player[2]);
-            if (d < bestd) { bestd = d; best = i; }
-        }
-    }
-    return best;
+    return nearest_room_index(room_count, room_x, room_y, room_z, room_floor, floor,
+                              player[0], player[1], player[2]);
 }
 
 static void project(float x, float y, float z, float *sx, float *sy, float *depth) {
@@ -222,6 +199,17 @@ static void recompute_route(void) {
     route_count = route_smooth(pulled, route_pull_nodes, nav_x, nav_y, nav_z,
                                nav_floor, nav_kind, 0.08f, route, MAX_ROUTE);
 }
+void plan_refresh_blocks(void) {
+    if (!nav_blocked || nav_count <= 0) return;
+    item_gate_refresh(nav_count, nav_x, nav_z, nav_floor, nav_blocked);
+    item_gate_retarget(nav_count, nav_x, nav_y, nav_z, nav_floor, nav_blocked);
+    if (waypoint_count > 0) recompute_route();
+}
+
+int plan_item_blocked_count(int index) {
+    return item_gate_blocked_count(index, nav_count, nav_x, nav_z, nav_floor, nav_blocked);
+}
+
 void plan_set_floors(int count, const float *levels, const float *bounds) {
     floor_count = count > 8 ? 8 : count;
     for (int i = 0; i < floor_count; i++) {
@@ -297,6 +285,7 @@ void plan_set_spawn(float x, float y, float z) {
     markers_ensure_player(player[0], player[1], player[2]);
     items_place(nav_count, nav_x, nav_y, nav_z, nav_floor);
     items_sync_markers();
+    plan_refresh_blocks();
 }
 
 void plan_set_floor(int index) {
@@ -427,6 +416,20 @@ static void open_item_popup(int item) {
         popup_add_choice(POPUP_ACTION_ACT, label, false);
         return;
     }
+    if (items_missing_external(item) >= 0) {
+        popup_set_message("OUTSIDE THE MAP");
+        char label[48];
+        snprintf(label, sizeof(label), "%s - NEEDS THE FILM", verb);
+        popup_add_choice(POPUP_ACTION_ACT, label, false);
+        return;
+    }
+    if (items_has_code(item)) {
+        popup_set_message("CODE REQUIRED");
+        char label[48];
+        snprintf(label, sizeof(label), "%s - CODE REQUIRED", verb);
+        popup_add_choice(POPUP_ACTION_ACT, label, false);
+        return;
+    }
     if (entry->def->action == RPD_ACTION_TAKE && items_inventory_count() >= INVENTORY_SLOTS) {
         popup_set_message("INVENTORY FULL");
         popup_add_choice(POPUP_ACTION_ACT, "TAKE - INVENTORY FULL", false);
@@ -463,6 +466,7 @@ static void popup_execute(popup_action_t action) {
         }
     } else if (action == POPUP_ACTION_TAKE || action == POPUP_ACTION_ACT) {
         items_act(chosen.item);
+        plan_refresh_blocks();
     }
 }
 
@@ -524,6 +528,8 @@ static void add_waypoint_node(int node) {
 void plan_add_target(float x, float y, float z) {
     add_waypoint_node(nearest_node_on(active_floor, x, y, z, 4.0f));
 }
+
+void plan_add_target_node(int node) { add_waypoint_node(node); }
 
 void plan_start_move(void) {
     popup_close();
@@ -588,7 +594,7 @@ void plan_player(float out[3]) {
 int plan_player_floor(void) {
     int best = -1; float bestd = 25.0f;
     for (int i = 0; i < nav_count; i++) {
-        float d = dist2(nav_x[i], nav_y[i], nav_z[i], player[0], player[1], player[2]); if (d < bestd) bestd = d, best = i;
+        float d = nearest_dist2(nav_x[i], nav_y[i], nav_z[i], player[0], player[1], player[2]); if (d < bestd) bestd = d, best = i;
     }
     return best >= 0 ? nav_floor[best] : -1;
 }

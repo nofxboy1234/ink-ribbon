@@ -8,6 +8,7 @@
 #define RPD_MAX_REQUIRES_OPEN 8
 #define RPD_MAX_CONTENTS 4
 #define RPD_MAX_OPENS 12
+#define RPD_MAX_EXTERNAL 2
 
 // The action a MapGenie category earns. A pickup is carried in one of the
 // eight inventory slots; a key item is an ordinary pickup, so keys compete for
@@ -46,6 +47,7 @@ typedef struct {
     uint8_t action;
     uint8_t placement;
     uint8_t flags;
+    uint8_t blocks;
     int16_t hidden_by;
     int16_t requires[RPD_MAX_REQUIRES];
     uint8_t requires_count;
@@ -55,6 +57,9 @@ typedef struct {
     uint8_t contents_count;
     int16_t opens[RPD_MAX_OPENS];
     uint8_t opens_count;
+    int32_t external_requires[RPD_MAX_EXTERNAL];
+    uint8_t external_count;
+    const char *code;
 } rpd_item_def_t;
 
 typedef struct {
@@ -63,6 +68,7 @@ typedef struct {
     item_state_t state;
     int marker;
     int approach_node;
+    float approach_x, approach_y, approach_z;
     float r, g, b;
 } item_t;
 
@@ -76,6 +82,7 @@ void items_reset(void);
 bool items_place(int nav_count, const float *x, const float *y, const float *z,
                  const uint8_t *floor);
 void items_sync_markers(void);
+void items_set_approach(int index, int node, float x, float y, float z);
 int items_count(void);
 int items_registry_count(void);
 const item_t *items_get(int index);
@@ -94,5 +101,10 @@ int items_pick(int floor, float x, float z, float radius);
 int items_index_for_id(int id);
 int items_missing_requirement(int index);
 int items_missing_open(int index);
+int items_missing_external(int index);
+int items_enter_code(int index, const char *entry);
+int items_grant_external(int id);
+int items_external_carried(int id);
+int items_has_code(int index);
 const char *items_action_label(int index);
 int items_action_kind(int index);

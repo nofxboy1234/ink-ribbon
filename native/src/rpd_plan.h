@@ -11,6 +11,8 @@ void plan_set_rooms(int count, const float *x, const float *y, const float *z,
 void plan_set_spawn(float x, float y, float z);
 void plan_set_floor(int index);
 void plan_clear_route(void);
+void plan_refresh_blocks(void);
+int plan_item_blocked_count(int index);
 int plan_open_popup_at(float x, float z);
 void plan_fit_camera(void);
 void plan_reset(void);
@@ -23,6 +25,7 @@ void plan_zoom(float x, float y, float amount);
 void plan_start_move(void);
 void plan_set_player(float x, float y, float z);
 void plan_add_target(float x, float y, float z);
+void plan_add_target_node(int node);
 
 int plan_active_floor(void);
 float plan_level(void);

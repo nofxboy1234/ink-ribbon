@@ -335,6 +335,7 @@ export function usePlanSession(
       },
       setPlayer: (x: number, y: number, z: number) => client.planSetPlayer(x, y, z),
       addTarget: (x: number, z: number) => client.planAddTarget(x, 0, z),
+      addTargetNode: (node: number) => client.planAddTargetNode(node),
       items: () => {
         const out = [];
         for (let i = 0; i < client.itemCount(); i += 1) {
@@ -366,6 +367,10 @@ export function usePlanSession(
         return -1;
       },
       actItem: (index: number) => client.itemAct(index),
+      enterCode: (index: number, code: string) => client.itemEnterCode(index, code),
+      grantExternal: (id: number) => client.itemGrantExternal(id),
+      itemBlocked: (index: number) => client.itemBlocked(index),
+      itemHasCode: (index: number) => client.itemHasCode(index),
       itemHint: (index: number) => client.itemHint(index),
       standAt: (index: number) => {
         const item = client.item(index);

@@ -16,22 +16,27 @@
     "unlock",
     "use"
   ],
+  "block_radius": 1.0,
   "stats": {
-    "items": 270,
+    "items": 271,
     "modelled": 173,
-    "hidden_contents": 12,
-    "gated": 32,
+    "hidden_contents": 17,
+    "gated": 36,
     "actions": {
       "none": 59,
       "take": 119,
-      "unlock": 21,
-      "open": 10,
+      "unlock": 20,
+      "open": 12,
       "solve": 8,
       "read": 31,
       "use": 15,
       "inspect": 7
     },
-    "relations": 81,
+    "blocking_doors": 14,
+    "coded_locks": 4,
+    "external_requires": 1,
+    "synthetic": 1,
+    "relations": 90,
     "unresolved_links": 1
   },
   "unresolved": [
@@ -66,7 +71,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544420,
@@ -90,7 +99,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544658,
@@ -114,7 +127,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544404,
@@ -140,7 +157,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544405,
@@ -166,7 +187,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544406,
@@ -192,7 +217,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544407,
@@ -218,7 +247,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": true,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544409,
@@ -244,7 +277,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": true,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544439,
@@ -270,7 +307,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": true,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544447,
@@ -298,7 +339,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544453,
@@ -322,7 +367,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544454,
@@ -348,7 +397,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": true,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544479,
@@ -380,7 +433,11 @@
           "id": 544588,
           "title": "Locker Room Code"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": "C-A-P",
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544481,
@@ -406,7 +463,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544491,
@@ -432,7 +493,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544496,
@@ -458,7 +523,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": true,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544497,
@@ -476,7 +545,7 @@
       "placement": "floor",
       "model": null,
       "icon": "lock",
-      "action": "unlock",
+      "action": "none",
       "requires": [
         544564
       ],
@@ -484,7 +553,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544506,
@@ -510,7 +583,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": true,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544521,
@@ -534,7 +611,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544523,
@@ -560,7 +641,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": true,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544529,
@@ -586,7 +671,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": true,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544532,
@@ -612,7 +701,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544544,
@@ -641,7 +734,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544556,
@@ -659,7 +756,7 @@
       "placement": "fixture",
       "model": null,
       "icon": "lock",
-      "action": "none",
+      "action": "open",
       "requires": [],
       "requires_open": [],
       "contents": [],
@@ -671,7 +768,11 @@
           "id": 544470,
           "title": "3F Locker"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": "D-C-M",
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544562,
@@ -697,7 +798,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": true,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544570,
@@ -721,7 +826,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544571,
@@ -747,7 +856,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": true,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544581,
@@ -773,7 +886,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544582,
@@ -799,7 +916,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": true,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544592,
@@ -825,7 +946,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544597,
@@ -854,7 +979,11 @@
       ],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544627,
@@ -880,7 +1009,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544631,
@@ -906,7 +1039,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": true,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544632,
@@ -930,7 +1067,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544637,
@@ -956,7 +1097,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": true,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544640,
@@ -980,7 +1125,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544644,
@@ -1004,7 +1153,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544685,
@@ -1028,7 +1181,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544686,
@@ -1052,7 +1209,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 545844,
@@ -1080,7 +1241,11 @@
       ],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544431,
@@ -1106,7 +1271,11 @@
       ],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544490,
@@ -1138,7 +1307,11 @@
           "id": 544572,
           "title": "S.T.A.R.S Badge"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544500,
@@ -1164,7 +1337,11 @@
       ],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544508,
@@ -1190,7 +1367,11 @@
       ],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544517,
@@ -1228,7 +1409,11 @@
           "id": 544504,
           "title": "Red Book (Art Object)"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544604,
@@ -1266,7 +1451,11 @@
           "id": 544493,
           "title": "Spare Key"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544665,
@@ -1304,7 +1493,11 @@
           "id": 544672,
           "title": "Power Panel Part"
         }
-      ]
+      ],
+      "blocks": true,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 545830,
@@ -1364,7 +1557,11 @@
           "id": 544539,
           "title": "Power Panel Part"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544448,
@@ -1394,7 +1591,11 @@
           "id": 544837,
           "title": "Underground Facility Arrival"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544779,
@@ -1424,7 +1625,11 @@
           "id": 544791,
           "title": "1F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544780,
@@ -1454,7 +1659,11 @@
           "id": 544796,
           "title": "1F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544781,
@@ -1484,7 +1693,11 @@
           "id": 544795,
           "title": "1F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544782,
@@ -1514,7 +1727,11 @@
           "id": 544792,
           "title": "1F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544783,
@@ -1544,7 +1761,11 @@
           "id": 544793,
           "title": "1F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544784,
@@ -1574,7 +1795,11 @@
           "id": 544794,
           "title": "1F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544785,
@@ -1604,7 +1829,11 @@
           "id": 544804,
           "title": "2F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544786,
@@ -1634,7 +1863,11 @@
           "id": 544801,
           "title": "2F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544787,
@@ -1664,7 +1897,11 @@
           "id": 544798,
           "title": "2F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544788,
@@ -1694,7 +1931,11 @@
           "id": 544803,
           "title": "2F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544789,
@@ -1724,7 +1965,11 @@
           "id": 544799,
           "title": "2F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544790,
@@ -1754,7 +1999,11 @@
           "id": 544800,
           "title": "2F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544791,
@@ -1784,7 +2033,11 @@
           "id": 544779,
           "title": "2F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544792,
@@ -1814,7 +2067,11 @@
           "id": 544782,
           "title": "2F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544793,
@@ -1844,7 +2101,11 @@
           "id": 544783,
           "title": "2F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544794,
@@ -1874,7 +2135,11 @@
           "id": 544784,
           "title": "2F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544795,
@@ -1904,7 +2169,11 @@
           "id": 544781,
           "title": "2F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544796,
@@ -1934,7 +2203,11 @@
           "id": 544780,
           "title": "2F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544797,
@@ -1964,7 +2237,11 @@
           "id": 544802,
           "title": "3F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544798,
@@ -1994,7 +2271,11 @@
           "id": 544787,
           "title": "3F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544799,
@@ -2024,7 +2305,11 @@
           "id": 544789,
           "title": "3F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544800,
@@ -2054,7 +2339,11 @@
           "id": 544790,
           "title": "3F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544801,
@@ -2084,7 +2373,11 @@
           "id": 544786,
           "title": "3F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544802,
@@ -2119,7 +2412,11 @@
           "id": 544797,
           "title": "4F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544803,
@@ -2149,7 +2446,11 @@
           "id": 544788,
           "title": "3F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544804,
@@ -2179,7 +2480,11 @@
           "id": 544785,
           "title": "3F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544805,
@@ -2209,7 +2514,11 @@
           "id": 544806,
           "title": "Underground Facility"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544807,
@@ -2239,7 +2548,11 @@
           "id": 544808,
           "title": "2F"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544808,
@@ -2269,7 +2582,11 @@
           "id": 544807,
           "title": "B1"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 545835,
@@ -2299,7 +2616,11 @@
           "id": 545836,
           "title": "Orphanage"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544401,
@@ -2323,7 +2644,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544464,
@@ -2347,7 +2672,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544659,
@@ -2371,7 +2700,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544458,
@@ -2395,7 +2728,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544498,
@@ -2419,7 +2756,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544630,
@@ -2443,7 +2784,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544393,
@@ -2467,7 +2812,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544441,
@@ -2491,7 +2840,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544457,
@@ -2515,7 +2868,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544463,
@@ -2539,7 +2896,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544469,
@@ -2558,18 +2919,20 @@
       "model": "file_document",
       "icon": "file",
       "action": "read",
-      "requires": [],
-      "requires_open": [],
+      "requires": [
+        544601
+      ],
+      "requires_open": [
+        544468
+      ],
       "contents": [],
       "opens": [],
-      "hidden_by": null,
-      "links": [
-        {
-          "section": "body",
-          "id": 544601,
-          "title": "Film: \"Commemorative\""
-        }
-      ]
+      "hidden_by": 544468,
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544470,
@@ -2588,18 +2951,20 @@
       "model": "file_document",
       "icon": "file",
       "action": "read",
-      "requires": [],
-      "requires_open": [],
+      "requires": [
+        544650
+      ],
+      "requires_open": [
+        544468
+      ],
       "contents": [],
       "opens": [],
-      "hidden_by": null,
-      "links": [
-        {
-          "section": "body",
-          "id": 544650,
-          "title": "Film: \"3F Locker\""
-        }
-      ]
+      "hidden_by": 544468,
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544471,
@@ -2619,17 +2984,23 @@
       "icon": "file",
       "action": "read",
       "requires": [],
-      "requires_open": [],
+      "requires_open": [
+        544468
+      ],
       "contents": [],
       "opens": [],
-      "hidden_by": null,
-      "links": [
+      "hidden_by": 544468,
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [
         {
-          "section": "body",
           "id": 545948,
-          "title": "Film: \"Hiding Place\""
+          "title": "Film: \"Hiding Place\"",
+          "source": "outside the RPD marker set"
         }
-      ]
+      ],
+      "synthetic": false
     },
     {
       "id": 544472,
@@ -2648,18 +3019,20 @@
       "model": "file_document",
       "icon": "file",
       "action": "read",
-      "requires": [],
-      "requires_open": [],
+      "requires": [
+        544487
+      ],
+      "requires_open": [
+        544468
+      ],
       "contents": [],
       "opens": [],
-      "hidden_by": null,
-      "links": [
-        {
-          "section": "body",
-          "id": 544487,
-          "title": "Film: \"Rising Rookie\""
-        }
-      ]
+      "hidden_by": 544468,
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544475,
@@ -2683,7 +3056,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544486,
@@ -2707,7 +3084,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544512,
@@ -2731,7 +3112,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544519,
@@ -2755,7 +3140,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544538,
@@ -2779,7 +3168,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544551,
@@ -2803,7 +3196,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544553,
@@ -2827,7 +3224,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544560,
@@ -2851,7 +3252,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544594,
@@ -2875,7 +3280,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544629,
@@ -2899,7 +3308,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544634,
@@ -2923,7 +3336,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544636,
@@ -2947,7 +3364,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544646,
@@ -2971,7 +3392,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544657,
@@ -2995,7 +3420,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544661,
@@ -3019,7 +3448,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544663,
@@ -3043,7 +3476,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544668,
@@ -3067,7 +3504,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544683,
@@ -3091,7 +3532,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544684,
@@ -3115,7 +3560,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544687,
@@ -3139,7 +3588,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544487,
@@ -3163,7 +3616,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544601,
@@ -3187,7 +3644,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544650,
@@ -3211,7 +3672,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544595,
@@ -3235,7 +3700,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544680,
@@ -3259,7 +3728,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": 544679,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544408,
@@ -3287,7 +3760,11 @@
         544439
       ],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544477,
@@ -3313,7 +3790,11 @@
         544604
       ],
       "hidden_by": 544476,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544485,
@@ -3345,7 +3826,11 @@
           "id": 544586,
           "title": "Detonator (No Battery)"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544493,
@@ -3371,7 +3856,11 @@
         544604
       ],
       "hidden_by": 544494,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544501,
@@ -3397,7 +3886,11 @@
         544447
       ],
       "hidden_by": 544500,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544504,
@@ -3423,7 +3916,11 @@
         544517
       ],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544509,
@@ -3449,7 +3946,11 @@
         544447
       ],
       "hidden_by": 544508,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544516,
@@ -3475,7 +3976,11 @@
         544517
       ],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544518,
@@ -3510,7 +4015,11 @@
           "id": 544572,
           "title": "S.T.A.R.S Badge"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544520,
@@ -3536,7 +4045,11 @@
         544597
       ],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544530,
@@ -3562,7 +4075,11 @@
         545830
       ],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544539,
@@ -3588,7 +4105,11 @@
         544665
       ],
       "hidden_by": 545830,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544543,
@@ -3614,7 +4135,11 @@
         544447
       ],
       "hidden_by": 544431,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544555,
@@ -3642,7 +4167,11 @@
         544582
       ],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544559,
@@ -3668,7 +4197,11 @@
         545830
       ],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544564,
@@ -3694,7 +4227,11 @@
         544481
       ],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544565,
@@ -3720,7 +4257,11 @@
         544405
       ],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544572,
@@ -3752,7 +4293,11 @@
           "id": 544518,
           "title": "Red Jewel"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544586,
@@ -3784,7 +4329,11 @@
           "id": 544485,
           "title": "Battery"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544635,
@@ -3809,8 +4358,12 @@
       "opens": [
         545844
       ],
-      "hidden_by": null,
-      "links": []
+      "hidden_by": 544635000,
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544648,
@@ -3838,7 +4391,11 @@
         544637
       ],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544664,
@@ -3867,7 +4424,11 @@
         544571
       ],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544672,
@@ -3893,7 +4454,11 @@
         544665
       ],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544677,
@@ -3919,7 +4484,11 @@
         544581
       ],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 545877,
@@ -3945,7 +4514,11 @@
         544627
       ],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544522,
@@ -3969,7 +4542,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544545,
@@ -3993,7 +4570,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544639,
@@ -4017,7 +4598,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544673,
@@ -4041,7 +4626,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544689,
@@ -4065,7 +4654,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 546138,
@@ -4089,7 +4682,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544476,
@@ -4115,7 +4712,11 @@
       ],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544494,
@@ -4141,7 +4742,11 @@
       ],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544513,
@@ -4173,7 +4778,11 @@
           "id": 544668,
           "title": "Confiscation Report"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": "L6 R2 L11",
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544679,
@@ -4205,7 +4814,11 @@
           "id": 544486,
           "title": "Internal Memo"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": "L9 R15 L7",
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544561,
@@ -4229,7 +4842,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544599,
@@ -4253,7 +4870,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": 544597,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 545843,
@@ -4277,7 +4898,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": 545844,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544652,
@@ -4301,7 +4926,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544674,
@@ -4325,7 +4954,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": 544513,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544691,
@@ -4360,7 +4993,11 @@
           "id": 544686,
           "title": "Right Lock"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 553287,
@@ -4390,7 +5027,11 @@
           "id": 544471,
           "title": "Hiding Place"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544489,
@@ -4414,7 +5055,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544534,
@@ -4438,7 +5083,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544567,
@@ -4462,7 +5111,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544590,
@@ -4486,7 +5139,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544647,
@@ -4510,7 +5167,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544478,
@@ -4534,7 +5195,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544480,
@@ -4564,7 +5229,11 @@
           "id": 544479,
           "title": "Dial Lock"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544483,
@@ -4588,7 +5257,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544488,
@@ -4612,7 +5285,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544536,
@@ -4636,7 +5313,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544596,
@@ -4660,7 +5341,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544598,
@@ -4684,7 +5369,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": 544597,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544638,
@@ -4708,7 +5397,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544676,
@@ -4732,7 +5425,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544410,
@@ -4756,7 +5453,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544436,
@@ -4780,7 +5481,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544443,
@@ -4804,7 +5509,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544451,
@@ -4828,7 +5537,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544456,
@@ -4852,7 +5565,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544460,
@@ -4876,7 +5593,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544473,
@@ -4900,7 +5621,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544503,
@@ -4924,7 +5649,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544507,
@@ -4948,7 +5677,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544526,
@@ -4972,7 +5705,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544533,
@@ -4996,7 +5733,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544547,
@@ -5020,7 +5761,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544557,
@@ -5044,7 +5789,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544569,
@@ -5068,7 +5817,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544573,
@@ -5092,7 +5845,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544600,
@@ -5116,7 +5873,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544681,
@@ -5140,7 +5901,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544403,
@@ -5164,7 +5929,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544466,
@@ -5188,7 +5957,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544568,
@@ -5212,7 +5985,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544662,
@@ -5236,7 +6013,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544667,
@@ -5260,7 +6041,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544678,
@@ -5284,7 +6069,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544445,
@@ -5314,7 +6103,11 @@
           "id": 544441,
           "title": "Officer's Notebook"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544502,
@@ -5338,7 +6131,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544602,
@@ -5362,7 +6159,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544671,
@@ -5386,7 +6187,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 553486,
@@ -5416,7 +6221,11 @@
           "id": 544471,
           "title": "Hiding Place"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544554,
@@ -5440,7 +6249,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544660,
@@ -5464,7 +6277,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544411,
@@ -5488,7 +6305,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544442,
@@ -5512,7 +6333,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544461,
@@ -5536,7 +6361,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544515,
@@ -5560,7 +6389,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544535,
@@ -5584,7 +6417,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544549,
@@ -5608,7 +6445,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544593,
@@ -5632,7 +6473,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544528,
@@ -5656,7 +6501,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544531,
@@ -5680,7 +6529,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544641,
@@ -5704,7 +6557,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544651,
@@ -5728,7 +6585,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544400,
@@ -5752,7 +6613,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544438,
@@ -5776,7 +6641,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544492,
@@ -5800,7 +6669,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544450,
@@ -5824,7 +6697,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544462,
@@ -5848,7 +6725,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544511,
@@ -5872,7 +6753,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544524,
@@ -5896,7 +6781,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544537,
@@ -5920,7 +6809,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544574,
@@ -5944,7 +6837,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544575,
@@ -5968,7 +6865,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544589,
@@ -5992,7 +6893,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544656,
@@ -6016,7 +6921,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 545879,
@@ -6040,7 +6949,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544465,
@@ -6064,7 +6977,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544482,
@@ -6088,7 +7005,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544495,
@@ -6112,7 +7033,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544499,
@@ -6136,7 +7061,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544546,
@@ -6160,7 +7089,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544550,
@@ -6184,7 +7117,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544566,
@@ -6208,7 +7145,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544603,
@@ -6232,7 +7173,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544670,
@@ -6256,7 +7201,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544682,
@@ -6280,7 +7229,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544584,
@@ -6304,7 +7257,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544605,
@@ -6328,7 +7285,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544642,
@@ -6352,7 +7313,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544653,
@@ -6376,7 +7341,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544666,
@@ -6400,7 +7369,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544467,
@@ -6424,7 +7397,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544474,
@@ -6448,7 +7425,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544484,
@@ -6472,7 +7453,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544525,
@@ -6496,7 +7481,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544645,
@@ -6520,7 +7509,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544649,
@@ -6544,7 +7537,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544688,
@@ -6568,7 +7565,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544398,
@@ -6592,7 +7593,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544437,
@@ -6616,7 +7621,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544459,
@@ -6640,7 +7649,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544468,
@@ -6661,10 +7674,19 @@
       "action": "use",
       "requires": [],
       "requires_open": [],
-      "contents": [],
+      "contents": [
+        544469,
+        544470,
+        544471,
+        544472
+      ],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544527,
@@ -6694,7 +7716,11 @@
           "id": 544576,
           "title": "Water Valve Lever"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544541,
@@ -6724,7 +7750,11 @@
           "id": 544559,
           "title": "Small Gear"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544542,
@@ -6754,7 +7784,11 @@
           "id": 544530,
           "title": "Large Gear"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544548,
@@ -6784,7 +7818,11 @@
           "id": 544544,
           "title": "Explosive Barricade"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544558,
@@ -6814,7 +7852,11 @@
           "id": 544530,
           "title": "Large Gear"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544576,
@@ -6844,7 +7886,11 @@
           "id": 544527,
           "title": "Water Valve Lever"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544588,
@@ -6874,7 +7920,11 @@
           "id": 544479,
           "title": "Dial Lock"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544654,
@@ -6904,7 +7954,11 @@
           "id": 544807,
           "title": "elevator"
         }
-      ]
+      ],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544412,
@@ -6928,7 +7982,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544413,
@@ -6952,7 +8010,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544414,
@@ -6976,7 +8038,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544415,
@@ -7000,7 +8066,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544416,
@@ -7024,7 +8094,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544417,
@@ -7048,7 +8122,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544418,
@@ -7072,7 +8150,11 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
     },
     {
       "id": 544419,
@@ -7096,7 +8178,41 @@
       "contents": [],
       "opens": [],
       "hidden_by": null,
-      "links": []
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": false
+    },
+    {
+      "id": 544635000,
+      "title": "Car Key Box",
+      "category": "Item Box",
+      "category_slug": "item_box",
+      "floor": 4,
+      "x": 23.411,
+      "y": -5.2,
+      "z": 12.936,
+      "on_floor": false,
+      "on_door": false,
+      "on_stair": false,
+      "nearest_nav": 1.91,
+      "placement": "fixture",
+      "model": null,
+      "icon": "item_box",
+      "action": "open",
+      "requires": [],
+      "requires_open": [],
+      "contents": [
+        544635
+      ],
+      "opens": [],
+      "hidden_by": null,
+      "links": [],
+      "blocks": false,
+      "code": null,
+      "external_requires": [],
+      "synthetic": true
     }
   ]
 }

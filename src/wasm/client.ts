@@ -62,6 +62,7 @@ export type RpdClient = {
   planActiveFloor(): number;
   planStartMove(): void;
   planAddTarget(x: number, y: number, z: number): void;
+  planAddTargetNode(node: number): void;
   planCamera(): Float32Array;
   planRouteCount(): number;
   planRoute(): Float32Array;
@@ -101,6 +102,10 @@ export type RpdClient = {
   itemAction(index: number): string;
   itemHint(index: number): string;
   itemAct(index: number): number;
+  itemEnterCode(index: number, code: string): number;
+  itemGrantExternal(id: number): number;
+  itemHasCode(index: number): boolean;
+  itemBlocked(index: number): number;
   itemIndexForId(id: number): number;
   inventoryItem(slot: number): number;
   inventoryIcon(slot: number): string;
@@ -292,6 +297,10 @@ export async function createRpdClient(options: {
     planAddTarget(x, y, z) {
       (module as unknown as { _rpd_plan_add_target: (x: number, y: number, z: number) => void })._rpd_plan_add_target(x, y, z);
     },
+    planAddTargetNode(node) {
+      (module as unknown as { _rpd_plan_add_target_node: (n: number) => void })
+        ._rpd_plan_add_target_node(node);
+    },
     planCamera() {
       const ptr = module._malloc(3 * 4);
       (module as unknown as { _rpd_plan_camera: (p: number) => number })._rpd_plan_camera(ptr);
@@ -390,6 +399,29 @@ export async function createRpdClient(options: {
     },
     itemAct(index) {
       return (module as unknown as { _rpd_item_act: (i: number) => number })._rpd_item_act(index);
+    },
+    itemEnterCode(index, code) {
+      const encoded = new TextEncoder().encode(code);
+      const ptr = module._malloc(encoded.byteLength + 1);
+      heap.HEAPU8.set(encoded, ptr);
+      heap.HEAPU8[ptr + encoded.byteLength] = 0;
+      const result = (module as unknown as { _rpd_item_enter_code: (i: number, c: number) => number })
+        ._rpd_item_enter_code(index, ptr);
+      module._free(ptr);
+      return result;
+    },
+    itemGrantExternal(id) {
+      return (module as unknown as { _rpd_item_grant_external: (id: number) => number })
+        ._rpd_item_grant_external(id);
+    },
+    itemHasCode(index) {
+      return (
+        module as unknown as { _rpd_item_has_code: (i: number) => number }
+      )._rpd_item_has_code(index) !== 0;
+    },
+    itemBlocked(index) {
+      return (module as unknown as { _rpd_plan_item_blocked: (i: number) => number })
+        ._rpd_plan_item_blocked(index);
     },
     itemIndexForId(id) {
       return (module as unknown as { _rpd_item_index_for_id: (id: number) => number })._rpd_item_index_for_id(id);

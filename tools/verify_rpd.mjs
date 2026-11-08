@@ -527,7 +527,7 @@ async function run() {
     await cdp.eval("window.__quest.setPlayer(0, 0.02, 7.5)");
     await sleep(400);
     const registry = await cdp.eval("window.__quest.items()");
-    assert(registry.length === 270, `expected 270 registry items, got ${registry.length}`);
+    assert(registry.length === 271, `expected 271 registry items, got ${registry.length}`);
     assert(
       registry.every((item) => item.floor >= 0 && item.floor <= 4 && item.name),
       "every registry item should carry a floor and a title",
@@ -666,7 +666,7 @@ async function run() {
     await shot("13-claire-closeup");
 
     const items = await cdp.eval("window.__quest.items()");
-    assert(items.length === 270, `expected 270 registry items, got ${items.length}`);
+    assert(items.length === 271, `expected 271 registry items, got ${items.length}`);
     const byName = (name) => items.findIndex((entry) => entry.name === name);
 
     // The 72 extracted models must upload, texture and draw in both views.
@@ -691,9 +691,11 @@ async function run() {
     // Key gating: the car trunk refuses until the car key sits in a slot.
     const trunk = byName("Car Trunk");
     const carKey = byName("Car Key");
+    const carKeyBox = byName("Car Key Box");
     const jmb = byName("JMB Hp3");
-    assert(trunk >= 0 && carKey >= 0 && jmb >= 0, "the car trunk chain is missing");
+    assert(trunk >= 0 && carKey >= 0 && carKeyBox >= 0 && jmb >= 0, "the car trunk chain is missing");
     assert((await cdp.eval("window.__quest.items()"))[jmb].hidden, "trunk contents should start hidden");
+    assert((await cdp.eval("window.__quest.items()"))[carKey].hidden, "the car key should start inside its box");
     await setFloor(4);
     await cdp.eval(`window.__quest.standAt(${trunk})`);
     await sleep(400);
@@ -711,6 +713,11 @@ async function run() {
     );
     assert(!(await cdp.eval("window.__quest.items()"))[trunk].taken, "the refused trunk must stay closed");
 
+    await cdp.eval(`window.__quest.standAt(${carKeyBox})`);
+    await sleep(300);
+    assert((await cdp.eval(`window.__quest.actItem(${carKeyBox})`)) === 0, "the car key box could not be opened");
+    await sleep(300);
+    assert(!(await cdp.eval("window.__quest.items()"))[carKey].hidden, "opening the box did not reveal the car key");
     await cdp.eval(`window.__quest.standAt(${carKey})`);
     await sleep(300);
     assert((await cdp.eval(`window.__quest.actItem(${carKey})`)) === 0, "the car key could not be taken");
@@ -739,6 +746,17 @@ async function run() {
     await sleep(500);
     await shot("35-box-open");
 
+    const lockedDoors = items
+      .map((entry, index) => ({ entry, index }))
+      .filter(({ entry }) => entry.name.endsWith("Door") && (entry.action === 2 || entry.action === 4));
+    assert(lockedDoors.length === 14, `expected 14 mapped locked doors, got ${lockedDoors.length}`);
+    for (const { entry, index } of lockedDoors) {
+      assert(
+        (await cdp.eval(`window.__quest.itemBlocked(${index})`)) > 0,
+        `${entry.name} does not block the nav graph`,
+      );
+    }
+
     const door = items.findIndex((entry) => entry.name === "Diamond Door" && entry.floor === 4);
     const diamondKey = items.findIndex((entry) => entry.name === "Diamond Key");
     assert(door >= 0 && diamondKey >= 0, "the diamond door chain is missing");
@@ -762,6 +780,97 @@ async function run() {
       (entry) => entry.name === "Spare Key" && entry.hidden,
     ).length;
     assert(hiddenSpareAfter < hiddenSpareBefore, "opening the safe did not reveal what it hides");
+
+    // A locked Spade Door cuts the route to the room behind it until the key
+    // turns the lock.
+    const spadeDoor = items.findIndex((entry) => entry.name === "Spade Door" && entry.floor === 0);
+    const spadeKey = items.findIndex((entry) => entry.name === "Spade Key");
+    assert(spadeDoor >= 0 && spadeKey >= 0, "the spade door chain is missing");
+    await setFloor(0);
+    await cdp.eval("window.__quest.setPlayer(0, 0.02, 7.5)");
+    await cdp.eval("window.__quest.reset()");
+    await sleep(400);
+    assert((await cdp.eval(`window.__quest.itemBlocked(${spadeDoor})`)) > 0, "the spade door does not block the route");
+    // Node 902 is the west threshold cell of the 1F Spade Door.
+    await cdp.eval("window.__quest.addTargetNode(902)");
+    await sleep(500);
+    const lockedRoute = await cdp.eval("window.__quest.debug().routePoints");
+    assert(lockedRoute === 0, `a route crossed the locked spade door with ${lockedRoute} points`);
+    await shot("36-door-route-locked");
+    await cdp.eval(`window.__quest.standAt(${spadeKey})`);
+    assert((await cdp.eval(`window.__quest.actItem(${spadeKey})`)) === 0, "the spade key could not be taken");
+    await cdp.eval(`window.__quest.standAt(${spadeDoor})`);
+    assert((await cdp.eval(`window.__quest.actItem(${spadeDoor})`)) === 0, "the spade door did not unlock");
+    assert((await cdp.eval(`window.__quest.itemBlocked(${spadeDoor})`)) === 0, "the unlocked spade door still blocks the route");
+    await cdp.eval("window.__quest.setPlayer(0, 0.02, 7.5)");
+    await cdp.eval("window.__quest.reset()");
+    await sleep(300);
+    await cdp.eval("window.__quest.addTargetNode(902)");
+    await sleep(500);
+    const unlockedRoute = await cdp.eval("window.__quest.debug().routePoints");
+    assert(unlockedRoute > 1, "the route behind the unlocked spade door did not build");
+    await shot("37-door-route-unlocked");
+    report.states.doorRoute = { lockedRoute, unlockedRoute };
+
+    // A film carried to the Darkroom Sink reveals its file; the Sewers film is
+    // outside the mapped world, so the DEV grant stands in for carrying it.
+    const film = items.findIndex((entry) => entry.name === 'Film: "Commemorative"');
+    const photo = items.findIndex((entry) => entry.name === "Commemorative Photo");
+    const sink = items.findIndex((entry) => entry.name === "Darkroom Sink");
+    const hiding = items.findIndex((entry) => entry.name === "Hiding Place");
+    assert(film >= 0 && photo >= 0 && sink >= 0 && hiding >= 0, "the film chain is missing");
+    await setFloor(0);
+    assert((await cdp.eval("window.__quest.items()"))[photo].hidden, "the file should wait for processing");
+    assert((await cdp.eval("window.__quest.items()"))[hiding].hidden, "the Hiding Place file should start hidden");
+    await cdp.eval(`window.__quest.standAt(${film})`);
+    assert((await cdp.eval(`window.__quest.actItem(${film})`)) === 0, "the film could not be taken");
+    assert((await cdp.eval("window.__quest.items()"))[photo].hidden, "carrying the film alone revealed the file");
+    await cdp.eval(`window.__quest.standAt(${sink})`);
+    assert((await cdp.eval(`window.__quest.actItem(${sink})`)) === 0, "the Darkroom Sink could not be used");
+    await sleep(300);
+    const processed = await cdp.eval("window.__quest.items()");
+    assert(!processed[photo].hidden, "processing the film did not reveal its file");
+    assert(!processed[hiding].hidden, "processing did not reveal the Hiding Place file");
+    await cdp.eval(`window.__quest.standAt(${photo})`);
+    await cdp.eval(`window.__quest.openPopupAt(${items[photo].x}, ${items[photo].z})`);
+    await sleep(400);
+    await shot("38-film-file");
+    await cdp.key("Escape", "Escape", 27);
+    assert((await cdp.eval(`window.__quest.actItem(${photo})`)) === 0, "the processed film file could not be read");
+    await cdp.eval(`window.__quest.standAt(${hiding})`);
+    assert((await cdp.eval(`window.__quest.actItem(${hiding})`)) === -2, "the Sewers film gate was ignored");
+    assert((await cdp.eval("window.__quest.grantExternal(545948)")) === 0, "the DEV external film grant failed");
+    assert((await cdp.eval(`window.__quest.actItem(${hiding})`)) === 0, "the Hiding Place file did not open after the film");
+    report.states.film = { film, photo, sink, hiding };
+
+    // Safe and dial-lock codes come from the MapGenie prose and are entered
+    // through the DEV API, not a keypad UI.
+    const dial = items.findIndex((entry) => entry.name === "Dial Lock" && entry.floor === 1);
+    const codedSafe = items.findIndex((entry) => entry.name === "Safe" && entry.floor === 0);
+    assert(dial >= 0 && codedSafe >= 0, "the coded locks are missing");
+    await setFloor(1);
+    assert((await cdp.eval(`window.__quest.itemHasCode(${dial})`)) === true, "the dial lock lost its code");
+    assert((await cdp.eval(`window.__quest.actItem(${dial})`)) === -5, "the dial lock opened without a code");
+    assert((await cdp.eval(`window.__quest.enterCode(${dial}, "C-A-P")`)) === 0, "the dial lock code C-A-P failed");
+    await setFloor(0);
+    assert((await cdp.eval(`window.__quest.itemHasCode(${codedSafe})`)) === true, "the safe lost its code");
+    assert((await cdp.eval(`window.__quest.enterCode(${codedSafe}, "L9 R15 L6")`)) === -6, "a wrong safe code was accepted");
+    const hipPouchBefore = (await cdp.eval("window.__quest.items()")).filter(
+      (entry) => entry.name === "Hip Pouch" && entry.hidden,
+    ).length;
+    await cdp.eval(`window.__quest.standAt(${codedSafe})`);
+    await cdp.eval(`window.__quest.openPopupAt(${items[codedSafe].x}, ${items[codedSafe].z})`);
+    await sleep(400);
+    const codePopup = await cdp.eval("window.__quest.popup()");
+    assert(codePopup.message === "CODE REQUIRED", `expected Code required, got ${codePopup.message}`);
+    await shot("39-code-lock");
+    await cdp.key("Escape", "Escape", 27);
+    assert((await cdp.eval(`window.__quest.enterCode(${codedSafe}, "L9 R15 L7")`)) === 0, "the safe code L9 R15 L7 failed");
+    const hipPouchAfter = (await cdp.eval("window.__quest.items()")).filter(
+      (entry) => entry.name === "Hip Pouch" && entry.hidden,
+    ).length;
+    assert(hipPouchAfter < hipPouchBefore, "the coded safe did not reveal its contents");
+    report.states.codes = { dial, codedSafe };
 
     // A distant item offers Walk next and still routes there.
     await setFloor(0);

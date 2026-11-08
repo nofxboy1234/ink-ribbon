@@ -2,6 +2,7 @@
 
 #include "rpd_item_render.h"
 #include "rpd_items.h"
+#include "rpd_plan.h"
 #include "rpd_sokol.h"
 
 EMSCRIPTEN_KEEPALIVE int rpd_load_item_models(const uint8_t *data, int size) {
@@ -53,6 +54,8 @@ EMSCRIPTEN_KEEPALIVE const char *rpd_item_hint(int index) {
         const item_t *required = items_get(missing);
         if (required) return required->def->title;
     }
+    if (items_missing_external(index) >= 0) return "OUTSIDE THE MAP";
+    if (items_has_code(index)) return "CODE REQUIRED";
     if (items_hidden(index)) return "HIDDEN";
     if (items_inventory_count() >= INVENTORY_SLOTS && items_action_kind(index) == RPD_ACTION_TAKE)
         return "INVENTORY FULL";
@@ -60,7 +63,29 @@ EMSCRIPTEN_KEEPALIVE const char *rpd_item_hint(int index) {
 }
 
 EMSCRIPTEN_KEEPALIVE int rpd_item_act(int index) {
-    return items_act(index);
+    int result = items_act(index);
+    plan_refresh_blocks();
+    return result;
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_item_enter_code(int index, const char *code) {
+    int result = items_enter_code(index, code);
+    plan_refresh_blocks();
+    return result;
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_item_grant_external(int id) {
+    int result = items_grant_external(id);
+    plan_refresh_blocks();
+    return result;
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_item_has_code(int index) {
+    return items_has_code(index);
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_plan_item_blocked(int index) {
+    return plan_item_blocked_count(index);
 }
 
 EMSCRIPTEN_KEEPALIVE int rpd_item_index_for_id(int id) {
