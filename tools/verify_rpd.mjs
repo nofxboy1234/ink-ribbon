@@ -791,8 +791,8 @@ async function run() {
     await cdp.eval("window.__quest.reset()");
     await sleep(400);
     assert((await cdp.eval(`window.__quest.itemBlocked(${spadeDoor})`)) > 0, "the spade door does not block the route");
-    // Node 902 is the west threshold cell of the 1F Spade Door.
-    await cdp.eval("window.__quest.addTargetNode(902)");
+    // Node 1347 is the west threshold cell of the 1F Spade Door.
+    await cdp.eval("window.__quest.addTargetNode(1347)");
     await sleep(500);
     const lockedRoute = await cdp.eval("window.__quest.debug().routePoints");
     assert(lockedRoute === 0, `a route crossed the locked spade door with ${lockedRoute} points`);
@@ -805,12 +805,39 @@ async function run() {
     await cdp.eval("window.__quest.setPlayer(0, 0.02, 7.5)");
     await cdp.eval("window.__quest.reset()");
     await sleep(300);
-    await cdp.eval("window.__quest.addTargetNode(902)");
+    await cdp.eval("window.__quest.addTargetNode(1347)");
     await sleep(500);
     const unlockedRoute = await cdp.eval("window.__quest.debug().routePoints");
     assert(unlockedRoute > 1, "the route behind the unlocked spade door did not build");
     await shot("37-door-route-unlocked");
     report.states.doorRoute = { lockedRoute, unlockedRoute };
+
+    // The 1F Chained Door threshold is node 1953. It must refuse a route and
+    // stay locked until the Bolt Cutters are held.
+    const chainedDoor = byName("Chained Door");
+    const boltCutters = byName("Bolt Cutters");
+    assert(chainedDoor >= 0 && boltCutters >= 0, "the chained door chain is missing");
+    await cdp.eval("window.__quest.setPlayer(0, 0.02, 7.5)");
+    await cdp.eval("window.__quest.reset()");
+    await sleep(300);
+    assert((await cdp.eval(`window.__quest.itemBlocked(${chainedDoor})`)) > 0, "the chained door does not block the route");
+    await cdp.eval("window.__quest.addTargetNode(1953)");
+    await sleep(500);
+    const chainedLockedRoute = await cdp.eval("window.__quest.debug().routePoints");
+    assert(chainedLockedRoute === 0, `a route crossed the locked chained door with ${chainedLockedRoute} points`);
+    await cdp.eval(`window.__quest.standAt(${boltCutters})`);
+    assert((await cdp.eval(`window.__quest.actItem(${boltCutters})`)) === 0, "the bolt cutters could not be taken");
+    await cdp.eval(`window.__quest.standAt(${chainedDoor})`);
+    assert((await cdp.eval(`window.__quest.actItem(${chainedDoor})`)) === 0, "the chained door did not unlock");
+    assert((await cdp.eval(`window.__quest.itemBlocked(${chainedDoor})`)) === 0, "the unlocked chained door still blocks the route");
+    await cdp.eval("window.__quest.setPlayer(0, 0.02, 7.5)");
+    await cdp.eval("window.__quest.reset()");
+    await sleep(300);
+    await cdp.eval("window.__quest.addTargetNode(1953)");
+    await sleep(500);
+    const chainedUnlockedRoute = await cdp.eval("window.__quest.debug().routePoints");
+    assert(chainedUnlockedRoute > 1, "the route through the unlocked chained door did not build");
+    report.states.chainedDoorRoute = { locked: chainedLockedRoute, unlocked: chainedUnlockedRoute };
 
     // A film carried to the Darkroom Sink reveals its file; the Sewers film is
     // outside the mapped world, so the DEV grant stands in for carrying it.

@@ -328,7 +328,12 @@ def nav_cells(floor: dict, plan: dict) -> tuple[list[dict], dict[tuple[int, int]
     s = floor["s"]
     half = 0.5
     # The lattice is anchored on whole metres in world space.
+    # np.where returns (row, column), which is (z, x) in plan pixels. Only the
+    # 1F lattice is corrected here: the other floors keep the legacy extent
+    # until their per-floor cell indices are rebased into the shared graph.
     xs, zs = np.where(walk)
+    if floor["index"] == 0:
+        xs, zs = zs, xs
     if len(xs) == 0:
         return [], {}
     wx = (xs - floor["ox"]) / s
