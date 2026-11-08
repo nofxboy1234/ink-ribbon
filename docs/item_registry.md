@@ -1,8 +1,9 @@
 # The RPD item registry
 
-The RPD sokol map owns every MapGenie B1-4F marker as one registry row. A row
-joins the mapped world pose, the extracted 3D model, the icon and the typed
-action, so no code path branches on a hand-written item name.
+The RPD sokol map owns every MapGenie B1-4F marker as one registry row, plus
+the Car Key box that MapGenie describes but does not plot. A row joins the
+mapped world pose, the extracted 3D model, the icon and the typed action, so
+no code path branches on a hand-written item name. The registry has 271 rows.
 
 ## Build
 
@@ -35,7 +36,11 @@ regenerates on every wasm build. The JSON is committed; the C header is not.
   "requires_open": [],
   "contents": [545843],
   "opens": [],
-  "hidden_by": null
+  "hidden_by": null,
+  "blocks": false,
+  "code": null,
+  "external_requires": [],
+  "synthetic": false
 }
 ```
 
@@ -45,6 +50,13 @@ open or unlocked first. `contents` are revealed when this row opens or is
 solved; each content row starts with `hidden_by` pointing back at its container.
 `opens` is the reverse index, filled from both the `**Unlocks:**` sections and
 the `**Unlocked By:**` links so a key knows what it opens.
+
+`blocks` marks a door that closes the nav graph at its threshold cells until
+its state is open, unlocked or used. `block_radius` is 1.0 m and lives at the
+top of the registry. `code` is the MapGenie prose code for a safe or dial lock.
+`external_requires` lists a carrying requirement from outside the mapped
+floors, such as the Sewers Hiding Place film. `synthetic` marks the authored
+Car Key box.
 
 ## Action kinds
 
@@ -69,9 +81,15 @@ whose key is not in a slot stays shut with `<KEY> - NEEDS KEY` disabled.
   Nothing snaps to a nav node. `items_place` only records the nearest node per
   floor as the walk-next target.
 - Items never block the nav graph. Reach is a 2.5 m distance to the item
-  coordinate, so the 87 off-nav markers and the 72 off-floor/door/stair markers
-  stay interactable. Those rows keep `placement: "fixture"`; they render at the
+  coordinate, or 1.5 m to the row's walk-next node, so the off-nav markers stay
+  interactable. Those rows keep `placement: "fixture"`; they render at the
   mapped spot with the same transform.
+- A locked door blocks every nav node within `block_radius` of its mapped
+  pose on its floor. The obstacle clears when `items_act` moves the door to
+  `UNLOCKED` or `OPEN`. While the door is closed, its walk-next target moves to
+  the nearest open cell, so Claire can stand outside the threshold and turn the
+  lock. A door whose threshold cells have no open node within 8 m stays
+  unreachable and is reported by `npm run check:items`.
 - Modelled rows draw the extracted mesh in perspective and on their own floor
   in ortho. A model scales by `metres_per_unit` clamped to 0.55-1.6 m so keys
   stay readable at building scale. The model pivot is the manifest base centre,
@@ -96,18 +114,35 @@ every `locationIds=` link by its bold section or the words before the link:
 - `Unlocks` / `Used To` on a carryable -> the target gains `requires` and the
   source gains `opens`.
 - `Obtained when [X] is solved` -> X gains the row in `contents`.
+- `Obtained when the [Film] is processed in the [Darkroom Sink]` -> the file
+  gains the film in `requires`, the sink in `requires_open` and the sink in
+  `hidden_by`. The sink gains the file in `contents`, so using the sink reveals
+  the file and the film must still be carried to read it. A film outside the
+  marker set goes in `external_requires`.
+- A dial lock's `**Unlocked By:** C-A-P` line and a safe's `Combination:`
+  bullets become `code`, with the bullets written as `L9 R15 L7`.
+- `One-Way Door` and a description that says it cannot be opened while playing
+  as Claire stay `none`. Claire A cannot use those locks, so they never become
+  an action.
 
 Links that point outside the RPD marker set stay in `unresolved` rather than
 being dropped, for example the Underground Facility case opened by the
-S.T.A.R.S Badge, and the Sewers Hiding Place film.
+S.T.A.R.S Badge. A film outside the marker set goes in `external_requires`
+instead, and `rpd_item_grant_external` records it as carried.
 
 ## Known gaps
 
-- Safe and dial-lock combinations are flavour: the open action does not require
-  the combination file, because the API carries the code as prose and not as an
-  item relation.
-- The one-way doors, chained doors with no parsed key, and cut rooms stay
-  `none`. They render but offer no action.
-- Film processing is not modelled as a state change. Files tied to a film are
-  `hidden_by` their container only when the API links the container; a film in
-  the inventory does not unlock a redirect.
+- Safe and dial-lock codes are enforced through the DEV entry
+  `rpd_item_enter_code`, not a keypad UI. `items_act` refuses a coded lock with
+  `-5`, a wrong code returns `-6`, and a matching code opens the lock and
+  reveals its contents. The verification run checks both outcomes.
+- The one-way doors and the Claire-only doors stay `none`. Claire A cannot use
+  them, so they render without an action and never block a route.
+- The 1F Darkroom chain is a real state change. A file stays hidden until the
+  sink is used, and reading it requires the matching film in a slot. The
+  Hiding Place film is in the Sewers, so `external_requires` records it and the
+  DEV grant stands in for carrying it across areas.
+- The 1F Chained Door at (30.0, 1.4) sits in a two-node nav pocket with no open
+  cell within 8 m. It is marked as a blocker but can never be unlocked from the
+  route graph. `npm run check:items` reports it as a warning and still proves
+  every gate key that a reachable gate needs.

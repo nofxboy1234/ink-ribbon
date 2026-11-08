@@ -126,16 +126,17 @@ React + TypeScript on Void owns only the chrome: the brand header, the floor
 selector and view toggle, the route planner with the 2x4 inventory, the plan
 title and the loading status. The shared camera target and frame, floor fit,
 pan/zoom, pointer picking, the green hover cell, cyan waypoint cells, the glowing
-route, the room and Claire labels, the routing popup, nine sphere items, A*
+route, the room and Claire labels, the routing popup, the item registry, A*
 waypoints and Claire's movement are drawn and calculated in C.
 `src/session/usePlanSession.ts` loads the assets, sends the nav graph and room
 table into C once, and polls the plan count, current room, active floor and
 inventory at 4 Hz. No per-frame React state drives the map.
 
-The right panel shows a 2×4 inventory grid. Each filled slot shows the colour of
-the sphere Claire took. Items block their nav cell until taken. A routing popup
-offers Add waypoint on a walkable cell, and Take or Walk next to it on an item
-cell. A double click on Claire's capsule starts the run.
+The right panel shows a 2×4 inventory grid. Each filled slot shows the icon of
+the item Claire carries. Locked doors block their nav threshold until the key is
+in a slot, and code locks take the MapGenie code. A routing popup offers Add
+waypoint on a walkable cell, and Take or Walk next to it on an item cell. A
+double click on Claire's capsule starts the run.
 
 ## Run it
 
@@ -204,7 +205,7 @@ public/rpd/plan.json       box geometry for the Blender model
 public/rpd/nav.json        five-floor walkable graph and floor bounds
 public/rpd/rpd.bin         RPDW v4 paper model (five floors)
 public/rpd/rpd.json        asset metadata: floors, bounds, triangle count
-public/rpd/quest.json      room names, doors and links (items are not rendered)
+public/rpd/quest.json      room names, doors and links (items live in the registry)
 native/src/rpd_app.c       shared camera, view transition, recenter and frame loop
 native/src/rpd_scene.c     scene loading and per-floor paper/glass rendering
 native/src/rpd_markers.c   marker shapes (capsule, cube, pyramid, cylinder, door)
