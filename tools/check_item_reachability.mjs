@@ -89,17 +89,26 @@ function reachable(opened) {
   return seen;
 }
 
+const ITEM_REACH = 2.5;
+
+function distance2(ax, ay, az, bx, by, bz) {
+  const dx = ax - bx;
+  const dy = (ay - by) * 1.4;
+  const dz = az - bz;
+  return dx * dx + dy * dy + dz * dz;
+}
+
 function inReach(item, seen) {
   const approach = approaches.get(item.id);
   if (approach >= 0 && seen[approach]) return true;
-  // A locked door retargets its walk-next cell outside the blocked threshold,
-  // so any reachable cell within its 8 m retarget radius unlocks it.
-  const reach = item.blocks ? 8 : 2.5;
+  // Unlocking is an item action, so the player must stand within the item's
+  // interaction reach. The 8 m walk-next retarget only picks the cell to walk
+  // to; it does not put the door in range.
   for (let i = 0; i < count; i++) {
     if (!seen[i] || nodes[i].floor !== item.floor) continue;
-    const dx = nodes[i].x - item.x;
-    const dz = nodes[i].z - item.z;
-    if (dx * dx + dz * dz <= reach * reach) return true;
+    if (distance2(nodes[i].x, nodes[i].y, nodes[i].z, item.x, item.y, item.z) <= ITEM_REACH * ITEM_REACH) {
+      return true;
+    }
   }
   return false;
 }
@@ -107,6 +116,7 @@ function inReach(item, seen) {
 const external = items.filter((item) => item.external_requires.length > 0);
 const obtained = new Set();
 const opened = new Set();
+const openOrder = [];
 let changed = true;
 while (changed) {
   changed = false;
@@ -126,6 +136,7 @@ while (changed) {
     } else {
       continue;
     }
+    openOrder.push(item.id);
     changed = true;
   }
 }
@@ -145,6 +156,65 @@ for (const gate of gates) {
     if (opened.has(id)) continue;
     failures.push(`${gate.title} (${gate.id}) needs ${byId.get(id)?.title ?? id} open, which never opens`);
   }
+}
+
+function nearestReachable(item, seen) {
+  let best = Infinity;
+  for (let i = 0; i < count; i++) {
+    if (!seen[i] || nodes[i].floor !== item.floor) continue;
+    const distance = distance2(nodes[i].x, nodes[i].y, nodes[i].z, item.x, item.y, item.z);
+    if (distance < best) best = distance;
+  }
+  return best;
+}
+
+function threshold(item, seen) {
+  let total = 0;
+  let reachableCells = 0;
+  for (let i = 0; i < count; i++) {
+    if (nodes[i].floor !== item.floor) continue;
+    const dx = nodes[i].x - item.x;
+    const dz = nodes[i].z - item.z;
+    if (dx * dx + dz * dz > radius * radius) continue;
+    total += 1;
+    if (seen[i]) reachableCells += 1;
+  }
+  return { total, reachable: reachableCells };
+}
+
+const openIndex = new Map(openOrder.map((id, index) => [id, index]));
+for (const door of items.filter((item) => item.blocks)) {
+  const at = openIndex.get(door.id);
+  if (at === undefined) continue;
+  const before = new Set(openOrder.slice(0, at));
+  const lockedSeen = reachable(before);
+  const locked = threshold(door, lockedSeen);
+  if (locked.total === 0) {
+    failures.push(`${door.title} (${door.id}) blocks no nav cells`);
+  } else if (locked.reachable !== 0) {
+    failures.push(`${door.title} (${door.id}) does not block its threshold while locked`);
+  }
+  const nearest = nearestReachable(door, lockedSeen);
+  if (nearest > ITEM_REACH * ITEM_REACH) {
+    failures.push(
+      `${door.title} (${door.id}) has no reachable cell within ${ITEM_REACH} m while locked (nearest ${Math.sqrt(nearest).toFixed(2)} m)`,
+    );
+  }
+  for (const id of door.requires) {
+    if (before.has(id)) continue;
+    failures.push(`${door.title} (${door.id}) opened without ${byId.get(id)?.title ?? id}`);
+  }
+  const after = new Set(before);
+  after.add(door.id);
+  if (threshold(door, reachable(after)).reachable === 0) {
+    failures.push(`${door.title} (${door.id}) does not reopen its threshold when unlocked`);
+  }
+}
+
+const boltCutters = openIndex.get(544408);
+const chainedDoor = openIndex.get(544407);
+if (boltCutters !== undefined && chainedDoor !== undefined && boltCutters > chainedDoor) {
+  failures.push("Chained Door (544407) opened before the Bolt Cutters (544408)");
 }
 
 const unreachableDoors = items.filter((item) => item.blocks && !opened.has(item.id));
