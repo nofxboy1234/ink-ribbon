@@ -14,6 +14,7 @@ typedef enum {
     POPUP_ACTION_WAYPOINT,
     POPUP_ACTION_TAKE,
     POPUP_ACTION_WALK_NEXT,
+    POPUP_ACTION_ACT,
 } popup_action_t;
 
 typedef struct {

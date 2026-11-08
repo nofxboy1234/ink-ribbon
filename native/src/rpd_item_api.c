@@ -1,0 +1,84 @@
+#include <emscripten/emscripten.h>
+
+#include "rpd_item_render.h"
+#include "rpd_items.h"
+#include "rpd_sokol.h"
+
+EMSCRIPTEN_KEEPALIVE int rpd_load_item_models(const uint8_t *data, int size) {
+    if (!data || size <= 0) return -1;
+    return item_render_upload(data, (size_t)size) ? 0 : -1;
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_item_material_count(void) {
+    return item_render_material_count();
+}
+
+EMSCRIPTEN_KEEPALIVE const char *rpd_item_material_albedo(int material) {
+    return item_render_material_albedo(material);
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_item_texture(int material, const uint8_t *rgba, int width, int height) {
+    if (!rgba || width <= 0 || height <= 0) return -1;
+    item_render_texture(material, rgba, width, height);
+    return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_item_model_count(void) {
+    return item_render_model_count();
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_item_upload_error(void) {
+    return item_render_last_error();
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_item_render_stats(float *out) {
+    if (!out) return -1;
+    item_render_stats(out);
+    return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE const char *rpd_item_icon(int index) {
+    const item_t *item = items_get(index);
+    return item ? item->def->icon : "";
+}
+
+EMSCRIPTEN_KEEPALIVE const char *rpd_item_action(int index) {
+    return items_action_label(index);
+}
+
+EMSCRIPTEN_KEEPALIVE const char *rpd_item_hint(int index) {
+    int missing = items_missing_requirement(index);
+    if (missing < 0) missing = items_missing_open(index);
+    if (missing >= 0) {
+        const item_t *required = items_get(missing);
+        if (required) return required->def->title;
+    }
+    if (items_hidden(index)) return "HIDDEN";
+    if (items_inventory_count() >= INVENTORY_SLOTS && items_action_kind(index) == RPD_ACTION_TAKE)
+        return "INVENTORY FULL";
+    return "";
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_item_act(int index) {
+    return items_act(index);
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_item_index_for_id(int id) {
+    return items_index_for_id(id);
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_item_available(int index) {
+    return items_available(index);
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_inventory_item(int slot) {
+    const inventory_slot_t *slots = items_inventory();
+    if (slot < 0 || slot >= INVENTORY_SLOTS || !slots[slot].filled) return -1;
+    return slots[slot].item;
+}
+
+EMSCRIPTEN_KEEPALIVE const char *rpd_inventory_icon(int slot) {
+    int item = rpd_inventory_item(slot);
+    return item >= 0 ? rpd_item_icon(item) : "";
+}
+

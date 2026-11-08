@@ -1,238 +1,302 @@
 #include "rpd_items.h"
 
 #include <math.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 
 #include "rpd_markers.h"
 
-typedef struct {
-    int node;
-    float distance;
-} item_candidate_t;
+#include "rpd_item_registry.h"
 
-static item_t g_items[ITEM_COUNT];
+#define ITEM_REACH 2.5f
+#define ITEM_MARKER_LIFT 0.45f
+
+static item_t g_items[RPD_ITEM_COUNT];
 static inventory_slot_t g_inventory[INVENTORY_SLOTS];
 static int g_inventory_count;
 static bool g_placed;
 
-static const unsigned char ITEM_COLOURS[ITEM_COUNT][3] = {
-    { 255, 85, 85 },
-    { 80, 250, 123 },
-    { 98, 114, 164 },
-    { 139, 233, 253 },
-    { 189, 147, 249 },
-    { 255, 121, 198 },
-    { 241, 250, 140 },
-    { 255, 184, 108 },
-    { 248, 248, 242 },
+typedef struct {
+    float r, g, b;
+} colour_t;
+
+static const colour_t ACTION_COLOURS[RPD_ACTION_INSPECT + 1] = {
+    { 0.55f, 0.55f, 0.55f },
+    { 0.43f, 0.90f, 0.55f },
+    { 0.95f, 0.62f, 0.32f },
+    { 0.95f, 0.82f, 0.36f },
+    { 0.72f, 0.55f, 0.98f },
+    { 0.38f, 0.66f, 0.95f },
+    { 0.36f, 0.85f, 0.88f },
+    { 0.95f, 0.45f, 0.72f },
 };
 
-static const char *ITEM_NAMES[ITEM_COUNT] = {
-    "RED SPHERE",
-    "GREEN SPHERE",
-    "BLUE SPHERE",
-    "CYAN SPHERE",
-    "PURPLE SPHERE",
-    "PINK SPHERE",
-    "YELLOW SPHERE",
-    "ORANGE SPHERE",
-    "WHITE SPHERE",
+static const char *ACTION_VERBS[RPD_ACTION_INSPECT + 1] = {
+    "", "TAKE", "UNLOCK", "OPEN", "SOLVE", "READ", "USE", "INSPECT",
 };
 
-static int compare_candidate(const void *a, const void *b) {
-    const item_candidate_t *ca = (const item_candidate_t *)a;
-    const item_candidate_t *cb = (const item_candidate_t *)b;
-    if (ca->distance < cb->distance) return -1;
-    if (ca->distance > cb->distance) return 1;
-    return ca->node - cb->node;
+static int item_in_inventory(int index) {
+    for (int slot = 0; slot < INVENTORY_SLOTS; slot++) {
+        if (g_inventory[slot].filled && g_inventory[slot].item == index) return slot;
+    }
+    return -1;
 }
 
-static int node_degree(const int *first, int node) {
-    return first[node + 1] - first[node];
+static bool item_is_open(int index) {
+    if (index < 0 || index >= RPD_ITEM_COUNT) return true;
+    item_state_t state = g_items[index].state;
+    return state == ITEM_OPEN || state == ITEM_UNLOCKED || state == ITEM_TAKEN;
 }
 
 void items_reset(void) {
-    memset(g_items, 0, sizeof(g_items));
     memset(g_inventory, 0, sizeof(g_inventory));
     g_inventory_count = 0;
     g_placed = false;
-    for (int i = 0; i < ITEM_COUNT; i++) {
-        g_items[i].node = -1;
-        g_items[i].room = -1;
-        g_items[i].marker = -1;
+    for (int i = 0; i < RPD_ITEM_COUNT; i++) {
+        const rpd_item_def_t *def = &RPD_ITEM_DEFS[i];
+        item_t *item = &g_items[i];
+        item->def = def;
+        item->index = i;
+        item->state = def->hidden_by >= 0 ? ITEM_HIDDEN : ITEM_PRESENT;
+        item->marker = -1;
+        item->approach_node = -1;
+        const colour_t *colour = &ACTION_COLOURS[def->action <= RPD_ACTION_INSPECT ? def->action : 0];
+        item->r = colour->r;
+        item->g = colour->g;
+        item->b = colour->b;
     }
 }
 
+static float dist2(float ax, float ay, float az, float bx, float by, float bz) {
+    float dx = ax - bx, dy = (ay - by) * 1.4f, dz = az - bz;
+    return dx * dx + dy * dy + dz * dz;
+}
+
 bool items_place(int nav_count, const float *x, const float *y, const float *z,
-                 const uint8_t *floor, const uint8_t *kind,
-                 const int *first, const int *adjacency,
-                 int room_count, const float *rx, const float *rz,
-                 const uint8_t *rfloor, const float *spawn) {
-    (void)adjacency;
+                 const uint8_t *floor) {
     if (g_placed) return true;
-    if (nav_count <= 0 || room_count <= 0) return false;
-
-    int room_order[64];
-    int room_total = room_count < 64 ? room_count : 64;
-    int picked_rooms = 0;
-    for (int i = 0; i < room_count; i++) {
-        if (rfloor[i] != 0) continue;
-        float dx = rx[i] - spawn[0];
-        float dz = rz[i] - spawn[2];
-        float distance = dx * dx + dz * dz;
-        int at = picked_rooms;
-        while (at > 0) {
-            int prev = room_order[at - 1];
-            float pdx = rx[prev] - spawn[0];
-            float pdz = rz[prev] - spawn[2];
-            if (pdx * pdx + pdz * pdz <= distance) break;
-            room_order[at] = prev;
-            at--;
+    if (nav_count <= 0) return false;
+    for (int i = 0; i < RPD_ITEM_COUNT; i++) {
+        const rpd_item_def_t *def = &RPD_ITEM_DEFS[i];
+        int best = -1;
+        float bestd = 1e30f;
+        for (int n = 0; n < nav_count; n++) {
+            if (floor[n] != def->floor) continue;
+            float d = dist2(x[n], y[n], z[n], def->x, def->y, def->z);
+            if (d < bestd) { bestd = d; best = n; }
         }
-        if (at < room_total) {
-            room_order[at] = i;
-            picked_rooms++;
-            if (picked_rooms > room_total) picked_rooms = room_total;
-            if (picked_rooms > 3) picked_rooms = 3;
-        }
+        g_items[i].approach_node = best;
     }
-    if (picked_rooms < 3) return false;
-
-    unsigned char *used = (unsigned char *)calloc((size_t)nav_count, sizeof(unsigned char));
-    item_candidate_t *candidates = (item_candidate_t *)malloc(sizeof(item_candidate_t) * (size_t)nav_count);
-    if (!used || !candidates) {
-        free(used);
-        free(candidates);
-        return false;
-    }
-
-    int spawn_node = -1;
-    float spawn_best = 1e30f;
-    for (int i = 0; i < nav_count; i++) {
-        if (floor[i] != 0) continue;
-        float dx = x[i] - spawn[0];
-        float dz = z[i] - spawn[2];
-        float d = dx * dx + dz * dz;
-        if (d < spawn_best) { spawn_best = d; spawn_node = i; }
-    }
-    if (spawn_node >= 0) used[spawn_node] = 1;
-
-    int item_index = 0;
-    for (int r = 0; r < 3 && item_index < ITEM_COUNT; r++) {
-        int room = room_order[r];
-        int count = 0;
-        for (int i = 0; i < nav_count; i++) {
-            if (floor[i] != 0 || kind[i] != 0 || used[i]) continue;
-            float dx = x[i] - rx[room];
-            float dz = z[i] - rz[room];
-            candidates[count].node = i;
-            candidates[count].distance = dx * dx + dz * dz;
-            count++;
-        }
-        qsort(candidates, (size_t)count, sizeof(item_candidate_t), compare_candidate);
-
-        int placed_in_room = 0;
-        for (int pass = 0; pass < 3 && placed_in_room < 3; pass++) {
-            float separation = pass == 0 ? 2.0f : (pass == 1 ? 1.1f : 0.0f);
-            int min_degree = pass == 0 ? 3 : 2;
-            for (int c = 0; c < count && placed_in_room < 3; c++) {
-                int node = candidates[c].node;
-                if (used[node]) continue;
-                if (node_degree(first, node) < min_degree) continue;
-                bool too_close = false;
-                for (int p = 0; p < item_index; p++) {
-                    if (g_items[p].room != room) continue;
-                    float dx = x[node] - g_items[p].x;
-                    float dz = z[node] - g_items[p].z;
-                    if (dx * dx + dz * dz < separation * separation) {
-                        too_close = true;
-                        break;
-                    }
-                }
-                if (too_close) continue;
-                used[node] = 1;
-                item_t *item = &g_items[item_index];
-                item->x = x[node];
-                item->y = y[node] + 0.48f;
-                item->z = z[node];
-                item->node = node;
-                item->room = room;
-                item->floor = floor[node];
-                item->marker = -1;
-                item->taken = false;
-                item->name = ITEM_NAMES[item_index];
-                item->r = (float)ITEM_COLOURS[item_index][0] / 255.0f;
-                item->g = (float)ITEM_COLOURS[item_index][1] / 255.0f;
-                item->b = (float)ITEM_COLOURS[item_index][2] / 255.0f;
-                item_index++;
-                placed_in_room++;
-            }
-        }
-    }
-
-    free(used);
-    free(candidates);
-    if (item_index < ITEM_COUNT) return false;
     g_placed = true;
     return true;
 }
 
+static void sync_marker(int index) {
+    item_t *item = &g_items[index];
+    if (item->state != ITEM_PRESENT) {
+        if (item->marker >= 0) rpd_marker_set_visible(item->marker, 0);
+        if (item->marker < 0) item->marker = -1;
+        return;
+    }
+    if (item->marker >= 0) {
+        rpd_marker_set_visible(item->marker, 1);
+        return;
+    }
+    item->marker = rpd_marker_add(MARKER_SPHERE, item->def->x,
+                                  item->def->y + ITEM_MARKER_LIFT, item->def->z, 0.55f,
+                                  (int)(item->r * 255.0f), (int)(item->g * 255.0f),
+                                  (int)(item->b * 255.0f));
+}
+
 void items_sync_markers(void) {
     if (!g_placed) return;
-    for (int i = 0; i < ITEM_COUNT; i++) {
-        item_t *item = &g_items[i];
-        if (item->taken) {
-            if (item->marker >= 0) rpd_marker_set_visible(item->marker, 0);
-            continue;
-        }
-        item->marker = rpd_marker_add(MARKER_SPHERE, item->x, item->y, item->z, 0.9f,
-                                      ITEM_COLOURS[i][0], ITEM_COLOURS[i][1], ITEM_COLOURS[i][2]);
+    for (int i = 0; i < RPD_ITEM_COUNT; i++) {
+        const item_t *item = &g_items[i];
+        // Modelled items are drawn as meshes; the marker is the 3D stand-in
+        // for the fixtures MapGenie left without a model.
+        if (item->def->model != NULL && item->state == ITEM_PRESENT) continue;
+        sync_marker(i);
     }
 }
 
-int items_count(void) { return g_placed ? ITEM_COUNT : 0; }
+int items_count(void) {
+    return g_placed ? RPD_ITEM_COUNT : 0;
+}
+
+int items_registry_count(void) {
+    return RPD_ITEM_COUNT;
+}
 
 const item_t *items_get(int index) {
-    if (index < 0 || index >= ITEM_COUNT) return NULL;
+    if (!g_placed || index < 0 || index >= RPD_ITEM_COUNT) return NULL;
     return &g_items[index];
+}
+
+const rpd_item_def_t *items_def(int index) {
+    if (index < 0 || index >= RPD_ITEM_COUNT) return NULL;
+    return &RPD_ITEM_DEFS[index];
 }
 
 int items_at_node(int node) {
     if (!g_placed) return -1;
-    for (int i = 0; i < ITEM_COUNT; i++) {
-        if (!g_items[i].taken && g_items[i].node == node) return i;
+    for (int i = 0; i < RPD_ITEM_COUNT; i++) {
+        if (g_items[i].state != ITEM_PRESENT) continue;
+        if (g_items[i].approach_node == node) return i;
     }
     return -1;
 }
 
 bool items_node_blocked(int node) {
-    return items_at_node(node) >= 0;
+    (void)node;
+    // A marker never blocks the nav graph. Reach is checked against the item
+    // coordinate, so off-nav fixtures stay interactable without editing paths.
+    return false;
 }
 
 int items_room(int index) {
-    if (index < 0 || index >= ITEM_COUNT) return -1;
-    return g_items[index].room;
+    (void)index;
+    return -1;
 }
 
-int items_inventory_count(void) { return g_inventory_count; }
+int items_inventory_count(void) {
+    return g_inventory_count;
+}
 
-const inventory_slot_t *items_inventory(void) { return g_inventory; }
+const inventory_slot_t *items_inventory(void) {
+    return g_inventory;
+}
 
-int items_take(int index) {
-    if (index < 0 || index >= ITEM_COUNT || g_items[index].taken) return -2;
-    if (g_inventory_count >= INVENTORY_SLOTS) return -1;
+int items_missing_requirement(int index) {
+    if (index < 0 || index >= RPD_ITEM_COUNT) return -1;
+    const rpd_item_def_t *def = &RPD_ITEM_DEFS[index];
+    for (int i = 0; i < def->requires_count; i++) {
+        int required = def->requires[i];
+        if (item_in_inventory(required) < 0) return required;
+    }
+    return -1;
+}
+
+int items_missing_open(int index) {
+    if (index < 0 || index >= RPD_ITEM_COUNT) return -1;
+    const rpd_item_def_t *def = &RPD_ITEM_DEFS[index];
+    for (int i = 0; i < def->requires_open_count; i++) {
+        int required = def->requires_open[i];
+        if (!item_is_open(required)) return required;
+    }
+    return -1;
+}
+
+int items_available(int index) {
+    if (index < 0 || index >= RPD_ITEM_COUNT) return 0;
+    const item_t *item = &g_items[index];
+    if (item->state != ITEM_PRESENT || item->def->action == RPD_ACTION_NONE) return 0;
+    if (items_missing_requirement(index) >= 0) return 0;
+    if (items_missing_open(index) >= 0) return 0;
+    if (item->def->action == RPD_ACTION_TAKE && g_inventory_count >= INVENTORY_SLOTS) return 0;
+    return 1;
+}
+
+int items_hidden(int index) {
+    if (index < 0 || index >= RPD_ITEM_COUNT) return 1;
+    return g_items[index].state == ITEM_HIDDEN ? 1 : 0;
+}
+
+int items_in_range(int index, float x, float y, float z) {
+    if (index < 0 || index >= RPD_ITEM_COUNT) return 0;
+    const rpd_item_def_t *def = &RPD_ITEM_DEFS[index];
+    return dist2(x, y, z, def->x, def->y, def->z) <= ITEM_REACH * ITEM_REACH;
+}
+
+int items_pick(int floor, float x, float z, float radius) {
+    int best = -1;
+    float bestd = radius * radius;
+    for (int i = 0; i < RPD_ITEM_COUNT; i++) {
+        const item_t *item = &g_items[i];
+        if (item->state != ITEM_PRESENT) continue;
+        if (item->def->floor != floor) continue;
+        float dx = item->def->x - x;
+        float dz = item->def->z - z;
+        float d = dx * dx + dz * dz;
+        if (d < bestd) { bestd = d; best = i; }
+    }
+    return best;
+}
+
+int items_index_for_id(int id) {
+    for (int i = 0; i < RPD_ITEM_COUNT; i++) {
+        if (RPD_ITEM_DEFS[i].id == id) return i;
+    }
+    return -1;
+}
+
+static void reveal_contents(int index) {
+    const rpd_item_def_t *def = &RPD_ITEM_DEFS[index];
+    for (int i = 0; i < def->contents_count; i++) {
+        int content = def->contents[i];
+        if (content < 0 || content >= RPD_ITEM_COUNT) continue;
+        if (g_items[content].state == ITEM_HIDDEN) {
+            g_items[content].state = ITEM_PRESENT;
+            g_items[content].marker = -1;
+            sync_marker(content);
+        }
+    }
+}
+
+static int place_in_inventory(int index) {
     int slot = 0;
     while (slot < INVENTORY_SLOTS && g_inventory[slot].filled) slot++;
     if (slot >= INVENTORY_SLOTS) return -1;
-    item_t *item = &g_items[index];
+    const item_t *item = &g_items[index];
     g_inventory[slot].filled = true;
     g_inventory[slot].r = item->r;
     g_inventory[slot].g = item->g;
     g_inventory[slot].b = item->b;
     g_inventory[slot].item = index;
     g_inventory_count++;
-    item->taken = true;
+    return slot;
+}
+
+int items_take(int index) {
+    return items_act(index);
+}
+
+int items_act(int index) {
+    if (index < 0 || index >= RPD_ITEM_COUNT) return -3;
+    item_t *item = &g_items[index];
+    if (item->state == ITEM_HIDDEN) return -4;
+    if (item->state != ITEM_PRESENT) return -3;
+    const rpd_action_t action = (rpd_action_t)item->def->action;
+    if (action == RPD_ACTION_NONE) return -3;
+    if (items_missing_requirement(index) >= 0) return -2;
+    if (items_missing_open(index) >= 0) return -2;
+    if (action == RPD_ACTION_TAKE) {
+        if (g_inventory_count >= INVENTORY_SLOTS) return -1;
+        if (place_in_inventory(index) < 0) return -1;
+        item->state = ITEM_TAKEN;
+    } else if (action == RPD_ACTION_UNLOCK) {
+        item->state = ITEM_UNLOCKED;
+    } else if (action == RPD_ACTION_READ) {
+        item->state = ITEM_READ;
+    } else if (action == RPD_ACTION_INSPECT) {
+        item->state = ITEM_INSPECTED;
+    } else if (action == RPD_ACTION_USE) {
+        item->state = ITEM_USED;
+    } else {
+        item->state = ITEM_OPEN;
+    }
+    reveal_contents(index);
     if (item->marker >= 0) rpd_marker_set_visible(item->marker, 0);
     return 0;
+}
+
+const char *items_action_label(int index) {
+    if (index < 0 || index >= RPD_ITEM_COUNT) return "";
+    int action = RPD_ITEM_DEFS[index].action;
+    if (action < 0 || action > RPD_ACTION_INSPECT) return "";
+    return ACTION_VERBS[action];
+}
+
+int items_action_kind(int index) {
+    if (index < 0 || index >= RPD_ITEM_COUNT) return RPD_ACTION_NONE;
+    return RPD_ITEM_DEFS[index].action;
 }

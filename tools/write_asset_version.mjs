@@ -5,7 +5,16 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const rpd = join(root, "public", "rpd");
-const files = ["rpd.bin", "nav.json", "quest.json", "rpd.wasm"];
+const files = [
+  "rpd.bin",
+  "nav.json",
+  "quest.json",
+  "rpd.wasm",
+  "item_models.bin",
+  "item_models.json",
+  "item_registry.json",
+  "icons.json",
+];
 const hash = createHash("sha256");
 for (const file of files) {
   hash.update(file);

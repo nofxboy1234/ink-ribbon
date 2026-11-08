@@ -2,6 +2,7 @@
 
 #include <emscripten/emscripten.h>
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -52,10 +53,6 @@ static int view_w, view_h;
 static float dist2(float ax, float ay, float az, float bx, float by, float bz) {
     float dx = ax - bx, dy = (ay - by) * 1.4f, dz = az - bz;
     return dx * dx + dy * dy + dz * dz;
-}
-
-static void sync_blocked_nodes(void) {
-    for (int i = 0; i < nav_count; i++) nav_blocked[i] = items_node_blocked(i) ? 1 : 0;
 }
 
 static int nearest_node_on(int floor, float x, float y, float z, float maxd) {
@@ -178,6 +175,7 @@ static void fit_camera(void) {
 }
 
 static void add_waypoint_node(int node); static void open_node_popup(int node);
+static void open_item_popup(int item);
 
 static int *route_scratch_nodes;
 static int route_scratch_capacity;
@@ -297,10 +295,8 @@ void plan_set_spawn(float x, float y, float z) {
     waypoint_count = 0; route_count = 0; moving = 0; hover = -1;
     popup_close();
     markers_ensure_player(player[0], player[1], player[2]);
-    items_place(nav_count, nav_x, nav_y, nav_z, nav_floor, nav_kind,
-                nav_first, nav_adj, room_count, room_x, room_z, room_floor, spawn);
+    items_place(nav_count, nav_x, nav_y, nav_z, nav_floor);
     items_sync_markers();
-    sync_blocked_nodes();
 }
 
 void plan_set_floor(int index) {
@@ -319,8 +315,12 @@ void plan_clear_route(void) {
 }
 
 int plan_open_popup_at(float x, float z) {
-    int node = nearest_node_on(active_floor, x, plan_level(), z, 4.0f);
-    if (node >= 0) open_node_popup(node);
+    int item = items_pick(active_floor, x, z, 1.0f);
+    if (item >= 0) open_item_popup(item);
+    else {
+        int node = nearest_node_on(active_floor, x, plan_level(), z, 4.0f);
+        if (node >= 0) open_node_popup(node);
+    }
     return popup_is_open() ? 1 : 0;
 }
 
@@ -387,63 +387,55 @@ void plan_pointer_move(float x, float y) {
     hover = pick_cell(x, y);
 }
 
-static bool player_adjacent(int node) {
-    if (player_node < 0) return false;
-    for (int e = nav_first[node]; e < nav_first[node + 1]; e++) {
-        if (nav_adj[e] == player_node) return true;
-    }
-    return false;
-}
-
-static int nearest_free_neighbor(int node) {
+static int pick_item_screen(float px, float py) {
     int best = -1;
-    float best_distance = 1e30f;
-    int start = player_node;
-    if (start < 0) start = nearest_node_on(active_floor, player[0], player[1], player[2], 4.0f);
-    for (int e = nav_first[node]; e < nav_first[node + 1]; e++) {
-        int candidate = nav_adj[e];
-        if (nav_blocked[candidate]) continue;
-        if (start >= 0) {
-            if (route_find_path(nav_count, nav_x, nav_y, nav_z, nav_first, nav_adj, nav_cost,
-                                nav_blocked, start, candidate, route_path_nodes, MAX_ROUTE) <= 0) continue;
-        }
-        float dx = nav_x[candidate] - player[0];
-        float dz = nav_z[candidate] - player[2];
-        float distance = dx * dx + dz * dz;
-        if (distance < best_distance) {
-            best_distance = distance;
-            best = candidate;
-        }
+    float best_distance = 14.0f;
+    for (int i = 0; i < items_count(); i++) {
+        const item_t *item = items_get(i);
+        if (!item || item->state != ITEM_PRESENT) continue;
+        if (item->def->floor != active_floor) continue;
+        float sx, sy, depth;
+        project(item->def->x, item->def->y + 0.45f, item->def->z, &sx, &sy, &depth);
+        if (sx < -1e8f) continue;
+        float distance = sqrtf((sx - px) * (sx - px) + (sy - py) * (sy - py));
+        if (distance < best_distance) { best_distance = distance; best = i; }
     }
     return best;
 }
 
-static void open_item_popup(int node, int item) {
+static void open_item_popup(int item) {
     const item_t *entry = items_get(item);
     if (!entry) return;
     float sx, sy, depth;
-    project(nav_x[node], nav_y[node] + 0.45f, nav_z[node], &sx, &sy, &depth);
+    project(entry->def->x, entry->def->y + 0.45f, entry->def->z, &sx, &sy, &depth);
     if (sx < -1e8f) return;
-    popup_open(node, item, sx + 26.0f, sy - 10.0f);
-    popup_set_message(entry->name);
-    if (player_adjacent(node)) {
-        bool full = items_inventory_count() >= INVENTORY_SLOTS;
-        if (full) {
-            popup_set_message("INVENTORY FULL");
-            popup_add_choice(POPUP_ACTION_TAKE, "TAKE - INVENTORY FULL", false);
-        } else {
-            popup_add_choice(POPUP_ACTION_TAKE, "TAKE", true);
-        }
-    } else {
+    popup_open(-1, item, sx + 26.0f, sy - 10.0f);
+    popup_set_message(entry->def->title);
+    const char *verb = items_action_label(item);
+    if (!items_in_range(item, player[0], player[1], player[2])) {
         popup_add_choice(POPUP_ACTION_WALK_NEXT, "WALK NEXT TO IT", true);
+        return;
     }
+    int missing = items_missing_requirement(item);
+    int missing_open = items_missing_open(item);
+    int blocker = missing >= 0 ? missing : missing_open;
+    if (blocker >= 0) {
+        const item_t *required = items_get(blocker);
+        popup_set_message(required ? required->def->title : "LOCKED");
+        char label[48];
+        snprintf(label, sizeof(label), "%s - NEEDS KEY", verb);
+        popup_add_choice(POPUP_ACTION_ACT, label, false);
+        return;
+    }
+    if (entry->def->action == RPD_ACTION_TAKE && items_inventory_count() >= INVENTORY_SLOTS) {
+        popup_set_message("INVENTORY FULL");
+        popup_add_choice(POPUP_ACTION_ACT, "TAKE - INVENTORY FULL", false);
+        return;
+    }
+    popup_add_choice(POPUP_ACTION_ACT, verb, items_available(item) != 0);
 }
 
 static void open_node_popup(int node) {
-    if (items_at_node(node) >= 0) {
-        open_item_popup(node, items_at_node(node));
-        return;
-    }
     float sx, sy, depth;
     project(nav_x[node], nav_y[node] + 0.06f, nav_z[node], &sx, &sy, &depth);
     if (sx < -1e8f) return;
@@ -458,9 +450,19 @@ static void popup_execute(popup_action_t action) {
     if (action == POPUP_ACTION_WAYPOINT) {
         add_waypoint_node(chosen.node);
     } else if (action == POPUP_ACTION_WALK_NEXT) {
-        add_waypoint_node(nearest_free_neighbor(chosen.node));
-    } else if (action == POPUP_ACTION_TAKE) {
-        if (items_take(chosen.item) == 0) sync_blocked_nodes();
+        if (chosen.item >= 0) {
+            const item_t *entry = items_get(chosen.item);
+            int node = -1;
+            if (entry) {
+                node = entry->approach_node;
+                if (node < 0)
+                    node = nearest_node_on(entry->def->floor, entry->def->x, entry->def->y,
+                                           entry->def->z, 8.0f);
+            }
+            add_waypoint_node(node);
+        }
+    } else if (action == POPUP_ACTION_TAKE || action == POPUP_ACTION_ACT) {
+        items_act(chosen.item);
     }
 }
 
@@ -478,12 +480,13 @@ void plan_pointer_down(float x, float y) {
         popup_close();
         return;
     }
-    int node = pick_cell(x, y);
-    if (node >= 0 && items_at_node(node) >= 0) {
-        open_node_popup(node);
+    int item = pick_item_screen(x, y);
+    if (item >= 0) {
+        open_item_popup(item);
         last_player_click = -1.0;
         return;
     }
+    int node = pick_cell(x, y);
     float sx, sy, depth;
     project(player[0], player[1] + 0.9f, player[2], &sx, &sy, &depth);
     float distance = sqrtf((sx - x) * (sx - x) + (sy - y) * (sy - y));

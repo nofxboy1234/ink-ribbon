@@ -7,7 +7,7 @@ type QuestPanelProps = {
 const SLOTS = 8;
 
 export default function QuestPanel({ session }: QuestPanelProps) {
-  const { planCount, moving, room, inventory } = session.state;
+  const { planCount, moving, room, inventory, icons } = session.state;
   const note = moving
     ? "Claire is moving along the route."
     : planCount === 0
@@ -30,13 +30,27 @@ export default function QuestPanel({ session }: QuestPanelProps) {
       <div className="rpd-inventory" data-empty={inventory.every((slot) => slot === null)}>
         {Array.from({ length: SLOTS }, (_, index) => {
           const slot = inventory[index];
+          const icon = slot ? icons[slot.icon] : undefined;
+          const style = icon
+            ? {
+                backgroundImage: "url(/rpd/icons_atlas.png)",
+                backgroundSize: "800% 500%",
+                backgroundPosition: `${(icon.column / 7) * 100}% ${(icon.row / 4) * 100}%`,
+                backgroundRepeat: "no-repeat",
+                imageRendering: "pixelated" as const,
+              }
+            : slot
+              ? { background: `rgb(${slot.r} ${slot.g} ${slot.b})` }
+              : undefined;
           return (
             <span
               className="rpd-slot"
               key={index}
               data-filled={slot !== null}
-              style={slot ? { background: `rgb(${slot.r} ${slot.g} ${slot.b})` } : undefined}
-              aria-label={slot ? `Filled slot ${index + 1}` : `Empty slot ${index + 1}`}
+              data-name={slot?.name ?? ""}
+              style={style}
+              title={slot?.name ?? undefined}
+              aria-label={slot ? slot.name : `Empty slot ${index + 1}`}
             />
           );
         })}
@@ -51,8 +65,8 @@ export default function QuestPanel({ session }: QuestPanelProps) {
           <span>Waypoint</span>
         </div>
         <p className="rpd-legend-note">
-          Click a cell, choose Add waypoint or take an item, then double click Claire to run the
-          route.
+          Click an item to take, unlock, open or read it. Keys must be in the eight slots before a
+          lock opens. Then double click Claire to run the route.
         </p>
       </div>
     </aside>

@@ -8,6 +8,7 @@
 
 #include "rpd_app.h"
 #include "rpd_input.h"
+#include "rpd_item_render.h"
 #include "rpd_items.h"
 #include "rpd_overlay.h"
 #include "rpd_plan.h"
@@ -161,6 +162,7 @@ void rpd_app_frame(void) {
         g_rpd.scene.loaded = scene_upload(&g_rpd.scene);
         if (g_rpd.scene.loaded) camera_reset();
     }
+    item_render_tick();
     if (g_rpd.target.dirty || g_rpd.target.width != sapp_width() || g_rpd.target.height != sapp_height())
         target_create(&g_rpd.target, sapp_width(), sapp_height());
 
@@ -177,6 +179,8 @@ void rpd_app_frame(void) {
         scene_render_floors(&g_rpd.scene, vp, eye, camera_distance(&g_rpd.camera),
                             g_rpd.scene_radius, paper_floor(), clip, fy - 0.55f, fy + 4.2f,
                             g_rpd.ortho ? fy : MARKER_FLOOR_ANY);
+        item_render_models(vp, eye, g_rpd.ortho, plan_active_floor(), clip,
+                           fy - 0.55f, fy + 4.2f);
     }
     sg_end_pass();
 
@@ -204,6 +208,7 @@ void rpd_app_init(void) {
         .logger = { .func = slog_func },
     });
     scene_create_pipelines(&g_rpd.scene);
+    item_render_create_pipelines();
     overlay_init();
     target_create_composite(&g_rpd.target);
     g_rpd.target.dirty = true;
@@ -319,22 +324,30 @@ EMSCRIPTEN_KEEPALIVE int rpd_item_count(void) { return items_count(); }
 EMSCRIPTEN_KEEPALIVE int rpd_item(int index, float *out) {
     const item_t *item = items_get(index);
     if (!item || !out) return 0;
-    out[0] = item->x; out[1] = item->y; out[2] = item->z;
+    const rpd_item_def_t *def = item->def;
+    out[0] = def->x; out[1] = def->y; out[2] = def->z;
     out[3] = item->r; out[4] = item->g; out[5] = item->b;
-    out[6] = (float)item->node;
-    out[7] = item->taken ? 1.0f : 0.0f;
-    out[8] = (float)item->room;
-    out[9] = (float)item->floor;
+    out[6] = (float)item->approach_node;
+    out[7] = item->state == ITEM_TAKEN ? 1.0f : 0.0f;
+    out[8] = -1.0f;
+    out[9] = (float)def->floor;
+    out[10] = (float)item->state;
+    out[11] = (float)def->action;
+    out[12] = (float)items_hidden(index);
+    out[13] = (float)items_available(index);
+    out[14] = def->model ? 1.0f : 0.0f;
+    out[15] = (float)def->flags;
     return 1;
 }
 
 EMSCRIPTEN_KEEPALIVE const char *rpd_item_name(int index) {
     const item_t *item = items_get(index);
-    return item ? item->name : "";
+    return item ? item->def->title : "";
 }
 
 EMSCRIPTEN_KEEPALIVE const char *rpd_item_room(int index) {
-    return plan_room_name_at(items_room(index));
+    (void)index;
+    return "";
 }
 
 EMSCRIPTEN_KEEPALIVE int rpd_inventory_count(void) { return items_inventory_count(); }

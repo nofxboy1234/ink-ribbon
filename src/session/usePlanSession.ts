@@ -5,6 +5,16 @@ import type { Floor, Quest, Vec3 } from "../quest";
 import { createRpdClient, type RpdClient } from "../wasm/client";
 import { CACHE_VERSION, fetchScene } from "./scene";
 
+export type InventoryEntry = {
+  name: string;
+  icon: string;
+  r: number;
+  g: number;
+  b: number;
+};
+
+export type IconAtlas = Record<string, { column: number; row: number }>;
+
 export type PlanSession = {
   state: {
     loaded: boolean;
@@ -16,7 +26,8 @@ export type PlanSession = {
     planCount: number;
     moving: boolean;
     room: string;
-    inventory: ({ r: number; g: number; b: number } | null)[];
+    inventory: (InventoryEntry | null)[];
+    icons: IconAtlas;
   };
   ref: { canvas: RefObject<HTMLCanvasElement | null> };
   set: { activeFloor: (index: number) => void };
@@ -46,6 +57,37 @@ function projectPoint(
   };
 }
 
+async function uploadItemTextures(client: RpdClient, version: string): Promise<void> {
+  const count = client.itemMaterialCount();
+  if (count <= 0) return;
+  const jobs = Array.from({ length: count }, (_, material) => {
+    const path = client.itemMaterialAlbedo(material);
+    if (!path) return Promise.resolve();
+    return (async () => {
+      const response = await fetch(`/rpd/${path}?v=${version}`);
+      if (!response.ok) return;
+      const bitmap = await createImageBitmap(await response.blob());
+      const canvas =
+        typeof OffscreenCanvas !== "undefined"
+          ? new OffscreenCanvas(bitmap.width, bitmap.height)
+          : Object.assign(document.createElement("canvas"), {
+              width: bitmap.width,
+              height: bitmap.height,
+            });
+      const context = canvas.getContext("2d") as
+        | CanvasRenderingContext2D
+        | OffscreenCanvasRenderingContext2D
+        | null;
+      if (!context) return;
+      context.drawImage(bitmap, 0, 0);
+      const image = context.getImageData(0, 0, bitmap.width, bitmap.height);
+      client.itemTexture(material, new Uint8Array(image.data.buffer), image.width, image.height);
+      bitmap.close?.();
+    })().catch(() => {});
+  });
+  await Promise.all(jobs);
+}
+
 export function usePlanSession(
   assetUrl = "/rpd/rpd.bin",
   onLoaded?: (client: RpdClient, graph: ReturnType<typeof buildNavGraph>) => void,
@@ -61,9 +103,10 @@ export function usePlanSession(
   const [planCount, setPlanCount] = useState(0);
   const [moving, setMoving] = useState(false);
   const [room, setRoom] = useState("RPD");
-  const [inventory, setInventory] = useState<({ r: number; g: number; b: number } | null)[]>(
-    () => Array.from({ length: 8 }, () => null),
+  const [inventory, setInventory] = useState<(InventoryEntry | null)[]>(() =>
+    Array.from({ length: 8 }, () => null),
   );
+  const [icons, setIcons] = useState<IconAtlas>({});
   const graphRef = useRef<ReturnType<typeof buildNavGraph> | null>(null);
   const roomsRef = useRef<Quest["rooms"]>([]);
 
@@ -84,7 +127,7 @@ export function usePlanSession(
             if (parsed.version) version = parsed.version;
           }
         } catch {}
-        const [asset, questResponse, navResponse, client] = await Promise.all([
+        const [asset, questResponse, navResponse, iconsResponse, client] = await Promise.all([
           fetchScene(`${assetUrl}?v=${version}`, controller.signal, (fraction) => {
             if (!disposed) setProgress(fraction);
           }),
@@ -100,6 +143,11 @@ export function usePlanSession(
               return response.json() as Promise<NavFile>;
             },
           ),
+          fetch(`/rpd/icons.json?v=${version}`, { signal: controller.signal, cache: "no-store" })
+            .then((response) => (response.ok ? response.json() : { icons: {} }))
+            .catch(() => ({ icons: {} })) as Promise<{
+            icons: Record<string, { atlas_rect: [number, number, number, number] }>;
+          }>,
           createRpdClient({
             canvas: canvas.current as HTMLCanvasElement,
             locateFile: (path: string) => `/rpd/${path}?v=${version}`,
@@ -109,11 +157,25 @@ export function usePlanSession(
           client.dispose();
           return;
         }
+        const atlas: IconAtlas = {};
+        for (const [name, entry] of Object.entries(iconsResponse.icons ?? {})) {
+          const [x, y] = entry.atlas_rect ?? [0, 0];
+          atlas[name] = { column: Math.round(x / 64), row: Math.round(y / 64) };
+        }
+        setIcons(atlas);
         clientRef.current = client;
         if (import.meta.env.DEV) {
           (window as unknown as { __rpd?: RpdClient }).__rpd = client;
         }
         if (client.loadScene(asset) !== 0) throw new Error("the RPD scene could not be loaded");
+        const modelsResponse = await fetch(`/rpd/item_models.bin?v=${version}`, {
+          signal: controller.signal,
+        }).catch(() => null);
+        if (modelsResponse?.ok) {
+          client.loadItemModels(new Uint8Array(await modelsResponse.arrayBuffer()));
+          await uploadItemTextures(client, version);
+        }
+        if (disposed) return;
         const graph = buildNavGraph(navResponse);
         graphRef.current = graph;
         const maxFloor = graph.floors.reduce((top, floor) => Math.max(top, floor.index), 0);
@@ -188,15 +250,18 @@ export function usePlanSession(
           const isMoving = clientRef.current.planMoving() !== 0;
           const nextRoom = clientRef.current.planRoom();
           const slots = clientRef.current.inventory();
-          const nextInventory = Array.from({ length: 8 }, (_, index) =>
-            slots[index * 4] !== 0
-              ? {
-                  r: Math.round(slots[index * 4 + 1] * 255),
-                  g: Math.round(slots[index * 4 + 2] * 255),
-                  b: Math.round(slots[index * 4 + 3] * 255),
-                }
-              : null,
-          );
+          const nextInventory = Array.from({ length: 8 }, (_, index) => {
+            if (slots[index * 4] === 0) return null;
+            const itemIndex = clientRef.current!.inventoryItem(index);
+            const item = itemIndex >= 0 ? clientRef.current!.item(itemIndex) : null;
+            return {
+              name: item?.name ?? "",
+              icon: clientRef.current!.inventoryIcon(index),
+              r: Math.round(slots[index * 4 + 1] * 255),
+              g: Math.round(slots[index * 4 + 2] * 255),
+              b: Math.round(slots[index * 4 + 3] * 255),
+            };
+          });
           setPlanCount((current) => (current === count ? current : count));
           setMoving((current) => (current === isMoving ? current : isMoving));
           setRoom((current) => (current === nextRoom ? current : nextRoom));
@@ -206,7 +271,13 @@ export function usePlanSession(
             const same = nextInventory.every((slot, index) => {
               const previous = current[index];
               if (!slot || !previous) return slot === previous;
-              return slot.r === previous.r && slot.g === previous.g && slot.b === previous.b;
+              return (
+                slot.name === previous.name &&
+                slot.icon === previous.icon &&
+                slot.r === previous.r &&
+                slot.g === previous.g &&
+                slot.b === previous.b
+              );
             });
             return same ? current : nextInventory;
           });
@@ -274,42 +345,38 @@ export function usePlanSession(
       },
       inventory: () => {
         const slots = client.inventory();
-        return Array.from({ length: 8 }, (_, index) =>
-          slots[index * 4] !== 0
-            ? {
-                r: Math.round(slots[index * 4 + 1] * 255),
-                g: Math.round(slots[index * 4 + 2] * 255),
-                b: Math.round(slots[index * 4 + 3] * 255),
-              }
-            : null,
-        );
+        return Array.from({ length: 8 }, (_, index) => {
+          if (slots[index * 4] === 0) return null;
+          const itemIndex = client.inventoryItem(index);
+          const item = itemIndex >= 0 ? client.item(itemIndex) : null;
+          return {
+            name: item?.name ?? "",
+            icon: client.inventoryIcon(index),
+            r: Math.round(slots[index * 4 + 1] * 255),
+            g: Math.round(slots[index * 4 + 2] * 255),
+            b: Math.round(slots[index * 4 + 3] * 255),
+          };
+        });
+      },
+      itemByName: (title: string) => {
+        for (let i = 0; i < client.itemCount(); i += 1) {
+          const item = client.item(i);
+          if (item?.name === title) return i;
+        }
+        return -1;
+      },
+      actItem: (index: number) => client.itemAct(index),
+      itemHint: (index: number) => client.itemHint(index),
+      standAt: (index: number) => {
+        const item = client.item(index);
+        if (!item) return false;
+        client.planSetPlayer(item.x + 0.9, item.y, item.z);
+        return true;
       },
       standNextTo: (index: number) => {
         const item = client.item(index);
         if (!item) return false;
-        const blocked = new Set(
-          Array.from({ length: client.itemCount() }, (_, i) => client.item(i))
-            .filter((entry) => entry && !entry.taken)
-            .map((entry) => entry!.node),
-        );
-        const player = client.planPlayer();
-        let best = -1;
-        let bestDistance = Infinity;
-        for (let e = graph.first[item.node]; e < graph.first[item.node + 1]; e += 1) {
-          const candidate = graph.adjacency[e];
-          if (blocked.has(candidate)) continue;
-          const distance = Math.hypot(
-            graph.x[candidate] - player[0],
-            graph.y[candidate] - player[1],
-            graph.z[candidate] - player[2],
-          );
-          if (distance < bestDistance) {
-            bestDistance = distance;
-            best = candidate;
-          }
-        }
-        if (best < 0) return false;
-        client.planSetPlayer(graph.x[best], graph.y[best], graph.z[best]);
+        client.planSetPlayer(item.x + 0.9, item.y, item.z);
         return true;
       },
       walkableCell: () => {
@@ -322,7 +389,13 @@ export function usePlanSession(
         if (!rect) return null;
         const playerArray = client.planPlayer();
         const player: Vec3 = [playerArray[0], playerArray[1], playerArray[2]];
-        const playerScreen = projectPoint(player, client.getViewProj(), rect.width, rect.height);
+        const viewProj = client.getViewProj();
+        const playerScreen = projectPoint(player, viewProj, rect.width, rect.height);
+        const itemScreens = Array.from({ length: client.itemCount() }, (_, index) => {
+          const item = client.item(index);
+          if (!item || item.hidden || item.floor !== activeFloor) return null;
+          return projectPoint([item.x, item.y + 0.45, item.z], viewProj, rect.width, rect.height);
+        }).filter(Boolean);
         let best = -1;
         let bestDistance = Infinity;
         for (let i = 0; i < graph.count; i += 1) {
@@ -330,11 +403,14 @@ export function usePlanSession(
           if (playerScreen) {
             const screen = projectPoint(
               [graph.x[i], graph.y[i] + 0.06, graph.z[i]],
-              client.getViewProj(),
+              viewProj,
               rect.width,
               rect.height,
             );
             if (screen && Math.hypot(screen.x - playerScreen.x, screen.y - playerScreen.y) < 90) {
+              continue;
+            }
+            if (screen && itemScreens.some((item) => item && Math.hypot(screen.x - item.x, screen.y - item.y) < 26)) {
               continue;
             }
           }
@@ -382,6 +458,7 @@ export function usePlanSession(
       cameraPose: () => Array.from(client.getCamera()),
       cameraModel: () => Array.from(client.cameraModel()),
       debugFloors: () => Array.from(client.debugFloors()),
+      itemModels: () => Array.from(client.itemRenderStats()),
       overlayStats: () => Array.from(client.overlayStats()),
       rooms: () => roomsRef.current,
       nearestCell: (x: number, z: number) => {
@@ -481,7 +558,7 @@ export function usePlanSession(
   }, [loaded, activeFloor]);
 
   return {
-    state: { loaded, error, progress, floors, activeFloor, view2D, planCount, moving, room, inventory },
+    state: { loaded, error, progress, floors, activeFloor, view2D, planCount, moving, room, inventory, icons },
     ref: { canvas },
     set: { activeFloor: setActiveFloor },
     actions: {

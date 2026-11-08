@@ -159,10 +159,13 @@ static void draw_items(void) {
     int level = plan_active_floor();
     for (int i = 0; i < count; i++) {
         const item_t *item = items_get(i);
-        if (!item || item->taken) continue;
-        if (item->floor != level) continue;
+        if (!item || item->state != ITEM_PRESENT) continue;
+        if (item->def->floor != level) continue;
+        // A modelled item is already drawn in 3D; the diamond is the ortho
+        // stand-in for the fixtures that have no model.
+        if (item->def->model != NULL) continue;
         float sx, sy;
-        project(item->x, item->y, item->z, &sx, &sy);
+        project(item->def->x, item->def->y, item->def->z, &sx, &sy);
         if (sx < -1e8f) continue;
         stat_items++;
         uint8_t r = (uint8_t)(item->r * 255.0f);
