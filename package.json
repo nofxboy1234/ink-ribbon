@@ -19,6 +19,7 @@
     "deploy": "void deploy --platform cloudflare",
     "nav:build": "blender -b -P tools/rpd_nav.py",
     "verify:rpd": "node tools/verify_rpd.mjs",
+    "check:items": "node tools/check_item_reachability.mjs",
     "check:structure": "node tools/check_structure.mjs",
     "plan:build": "uv run --with numpy --with scipy --with opencv-python-headless python tools/rpd_plan.py && blender -b -P tools/plan_scene.py && node tools/write_asset_version.mjs",
     "asset:version": "node tools/write_asset_version.mjs",
