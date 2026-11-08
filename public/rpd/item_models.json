@@ -1,0 +1,6775 @@
+{
+  "version": 1,
+  "asset": "item_models.bin",
+  "texture_dir": "item_models",
+  "texture_size": 192,
+  "units": {
+    "source": "metre",
+    "source_up_axis": "y",
+    "normalised": "largest bounding axis is 1.0",
+    "orientation": "source mesh yaw, Y up; no billboard or facing applied",
+    "pivot": "source bounds centre on x and z, minimum y",
+    "metres_per_unit": "multiply by a model's metres_per_unit to recover source metres",
+    "restore_source": "p * metres_per_unit + pivot_source"
+  },
+  "layout": {
+    "vertex_stride": 20,
+    "position": "u16 x3, decoded with bounds.origin and quant_scale",
+    "normal": "i16 x4, xyz divided by 32767",
+    "uv": "u16 x2, IEEE half floats, V origin top-left",
+    "alpha": "albedo alpha is constant; textures are decoded opaque",
+    "index": "u16 unless index_size is 4"
+  },
+  "stats": {
+    "models": 72,
+    "materials": 74,
+    "textures": 72,
+    "items": 134,
+    "items_mapped": 88,
+    "vertices": 149762,
+    "triangles": 181018,
+    "bytes": 4108520
+  },
+  "models": {
+    "key_spade": {
+      "title": "Spade Key",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_103_spadekey01a/sm73_103_spadekey01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_103_spadekey01a/sm73_103_spadekey01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        0
+      ],
+      "geometry": {
+        "vertex_offset": 27156,
+        "vertex_count": 1116,
+        "index_offset": 49476,
+        "index_count": 4746,
+        "index_size": 2,
+        "primitive_offset": 7808,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 2496,
+            "material": 0
+          },
+          {
+            "index_start": 2496,
+            "index_count": 1920,
+            "material": 0
+          },
+          {
+            "index_start": 4416,
+            "index_count": 330,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.13016,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.130159,
+            0.069902,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.017035,
+            -0.004574,
+            -0.073483
+          ],
+          "max": [
+            0.017035,
+            0.004574,
+            0.057392
+          ]
+        }
+      },
+      "pivot_source": [
+        0.0,
+        -0.004574,
+        -0.008045
+      ],
+      "metres_per_unit": 0.130875,
+      "triangles": 1582
+    },
+    "key_heart": {
+      "title": "Heart Key",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_404_heartkey01a/sm73_404_heartkey01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_404_heartkey01a/sm73_404_heartkey01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        1
+      ],
+      "geometry": {
+        "vertex_offset": 58968,
+        "vertex_count": 1000,
+        "index_offset": 78968,
+        "index_count": 4404,
+        "index_size": 2,
+        "primitive_offset": 7856,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 1590,
+            "material": 0
+          },
+          {
+            "index_start": 1590,
+            "index_count": 2436,
+            "material": 0
+          },
+          {
+            "index_start": 4026,
+            "index_count": 378,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.150817,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.150824,
+            0.075944,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.017284,
+            -0.004352,
+            -0.057166
+          ],
+          "max": [
+            0.017284,
+            0.004352,
+            0.057434
+          ]
+        }
+      },
+      "pivot_source": [
+        0.0,
+        -0.004352,
+        0.000134
+      ],
+      "metres_per_unit": 0.1146,
+      "triangles": 1468
+    },
+    "key_club": {
+      "title": "Club Key",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_300_clubkey01a/sm73_300_clubkey01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_300_clubkey01a/sm73_300_clubkey01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        2
+      ],
+      "geometry": {
+        "vertex_offset": 87776,
+        "vertex_count": 1125,
+        "index_offset": 110276,
+        "index_count": 4584,
+        "index_size": 2,
+        "primitive_offset": 7904,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 4584,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.129215,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.129212,
+            0.072129,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.015415,
+            -0.004303,
+            -0.061906
+          ],
+          "max": [
+            0.015415,
+            0.004303,
+            0.057392
+          ]
+        }
+      },
+      "pivot_source": [
+        0.0,
+        -0.004303,
+        -0.002257
+      ],
+      "metres_per_unit": 0.119299,
+      "triangles": 1528
+    },
+    "key_diamond": {
+      "title": "Diamond Key",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_140_diakey01a/sm73_140_diakey01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_140_diakey01a/sm73_140_diakey01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        3
+      ],
+      "geometry": {
+        "vertex_offset": 119444,
+        "vertex_count": 852,
+        "index_offset": 136484,
+        "index_count": 4050,
+        "index_size": 2,
+        "primitive_offset": 7920,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 1800,
+            "material": 0
+          },
+          {
+            "index_start": 1800,
+            "index_count": 1920,
+            "material": 0
+          },
+          {
+            "index_start": 3720,
+            "index_count": 330,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.112527,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.112528,
+            0.07129,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.013688,
+            -0.004336,
+            -0.064251
+          ],
+          "max": [
+            0.013688,
+            0.004336,
+            0.057392
+          ]
+        }
+      },
+      "pivot_source": [
+        0.0,
+        -0.004336,
+        -0.003429
+      ],
+      "metres_per_unit": 0.121644,
+      "triangles": 1350
+    },
+    "key_car": {
+      "title": "Car Key",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_141_carkey01a/sm73_141_carkey01a_00md.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_141_carkey01a/sm73_141_carkey01a_00md_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        4,
+        4
+      ],
+      "geometry": {
+        "vertex_offset": 144584,
+        "vertex_count": 2629,
+        "index_offset": 197164,
+        "index_count": 12858,
+        "index_size": 2,
+        "primitive_offset": 7968,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 309,
+            "material": 0
+          },
+          {
+            "index_start": 309,
+            "index_count": 189,
+            "material": 1
+          },
+          {
+            "index_start": 498,
+            "index_count": 12360,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.17949,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.179493,
+            0.192874,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.025886,
+            -0.011955,
+            -0.051634
+          ],
+          "max": [
+            0.025619,
+            0.015718,
+            0.091842
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.000133,
+        -0.011955,
+        0.020104
+      ],
+      "metres_per_unit": 0.143476,
+      "triangles": 4286
+    },
+    "key_spare": {
+      "title": "Spare Key",
+      "category": "Key Item",
+      "status": "approximate",
+      "note": "Old-key model; the RPD spare key shares the same simple key shape.",
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm75/sm75_022_oldkey01a/sm75_022_oldkey01a_00md.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm75/sm75_022_oldkey01a/sm75_022_oldkey01a_00md_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        5
+      ],
+      "geometry": {
+        "vertex_offset": 222880,
+        "vertex_count": 2187,
+        "index_offset": 266620,
+        "index_count": 8166,
+        "index_size": 2,
+        "primitive_offset": 8016,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 8166,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.17654,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.176538,
+            0.078676,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.033781,
+            -0.007528,
+            -0.109076
+          ],
+          "max": [
+            0.033781,
+            0.007527,
+            0.082272
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.0,
+        -0.007528,
+        -0.013402
+      ],
+      "metres_per_unit": 0.191348,
+      "triangles": 2722
+    },
+    "key_card_parking": {
+      "title": "Parking Garage Key Card",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_104_cardkeylv101a/sm73_104_cardkeylv101a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_104_cardkeylv101a/sm73_104_cardkeylv101a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        6
+      ],
+      "geometry": {
+        "vertex_offset": 282952,
+        "vertex_count": 80,
+        "index_offset": 284552,
+        "index_count": 180,
+        "index_size": 2,
+        "primitive_offset": 8032,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 180,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.313953
+          ],
+          "max": [
+            0.5,
+            0.011902,
+            0.313955
+          ]
+        },
+        "source": {
+          "min": [
+            -0.043,
+            -0.000512,
+            -0.027
+          ],
+          "max": [
+            0.043,
+            0.000512,
+            0.027
+          ]
+        }
+      },
+      "pivot_source": [
+        0.0,
+        -0.000512,
+        0.0
+      ],
+      "metres_per_unit": 0.086,
+      "triangles": 60
+    },
+    "key_card_weapons": {
+      "title": "Weapons Locker Key Card",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_105_cardkeylv201a/sm73_105_cardkeylv201a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_105_cardkeylv201a/sm73_105_cardkeylv201a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        7
+      ],
+      "geometry": {
+        "vertex_offset": 284912,
+        "vertex_count": 289,
+        "index_offset": 290692,
+        "index_count": 912,
+        "index_size": 2,
+        "primitive_offset": 8048,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 912,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.313953
+          ],
+          "max": [
+            0.5,
+            0.033722,
+            0.313955
+          ]
+        },
+        "source": {
+          "min": [
+            -0.043,
+            -0.002388,
+            -0.027
+          ],
+          "max": [
+            0.043,
+            0.000512,
+            0.027
+          ]
+        }
+      },
+      "pivot_source": [
+        0.0,
+        -0.002388,
+        0.0
+      ],
+      "metres_per_unit": 0.086,
+      "triangles": 304
+    },
+    "bolt_cutters": {
+      "title": "Bolt Cutters",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_726_chaincutter01a/sm73_726_chaincutter01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_726_chaincutter01a/sm73_726_chaincutter01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        8
+      ],
+      "geometry": {
+        "vertex_offset": 292516,
+        "vertex_count": 4151,
+        "index_offset": 375536,
+        "index_count": 19836,
+        "index_size": 2,
+        "primitive_offset": 8064,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 984,
+            "material": 0
+          },
+          {
+            "index_start": 984,
+            "index_count": 984,
+            "material": 0
+          },
+          {
+            "index_start": 1968,
+            "index_count": 672,
+            "material": 0
+          },
+          {
+            "index_start": 2640,
+            "index_count": 672,
+            "material": 0
+          },
+          {
+            "index_start": 3312,
+            "index_count": 606,
+            "material": 0
+          },
+          {
+            "index_start": 3918,
+            "index_count": 606,
+            "material": 0
+          },
+          {
+            "index_start": 4524,
+            "index_count": 600,
+            "material": 0
+          },
+          {
+            "index_start": 5124,
+            "index_count": 600,
+            "material": 0
+          },
+          {
+            "index_start": 5724,
+            "index_count": 600,
+            "material": 0
+          },
+          {
+            "index_start": 6324,
+            "index_count": 2544,
+            "material": 0
+          },
+          {
+            "index_start": 8868,
+            "index_count": 2172,
+            "material": 0
+          },
+          {
+            "index_start": 11040,
+            "index_count": 4434,
+            "material": 0
+          },
+          {
+            "index_start": 15474,
+            "index_count": 4362,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.133994,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.134,
+            0.058061,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.070607,
+            -0.01531,
+            -0.249653
+          ],
+          "max": [
+            0.070727,
+            0.01531,
+            0.277735
+          ]
+        }
+      },
+      "pivot_source": [
+        6e-05,
+        -0.01531,
+        0.014041
+      ],
+      "metres_per_unit": 0.527388,
+      "triangles": 6612
+    },
+    "fuse_main": {
+      "title": "Fuse (Main Hall)",
+      "category": "Key Item",
+      "status": "exact",
+      "note": "Glass cartridge fuse; its albedo is labelled Main Hall and Break Room hallway shutter.",
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_722_laboratoryfuse01a/sm73_722_laboratoryfuse01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_722_laboratoryfuse01a/sm73_722_laboratoryfuse01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        9
+      ],
+      "geometry": {
+        "vertex_offset": 415208,
+        "vertex_count": 259,
+        "index_offset": 420388,
+        "index_count": 1212,
+        "index_size": 2,
+        "primitive_offset": 8272,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 1152,
+            "material": 0
+          },
+          {
+            "index_start": 1152,
+            "index_count": 60,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.090311,
+            0.0,
+            -0.090311
+          ],
+          "max": [
+            0.09031,
+            1.0,
+            0.09031
+          ]
+        },
+        "source": {
+          "min": [
+            -0.016256,
+            -0.09,
+            -0.016256
+          ],
+          "max": [
+            0.016256,
+            0.09,
+            0.016256
+          ]
+        }
+      },
+      "pivot_source": [
+        0.0,
+        -0.09,
+        -0.0
+      ],
+      "metres_per_unit": 0.18,
+      "triangles": 404
+    },
+    "valve_handle": {
+      "title": "Valve Handle",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_107_valvehandle01a/sm73_107_valvehandle01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_107_valvehandle01a/sm73_107_valvehandle01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        10
+      ],
+      "geometry": {
+        "vertex_offset": 422812,
+        "vertex_count": 856,
+        "index_offset": 439932,
+        "index_count": 3804,
+        "index_size": 2,
+        "primitive_offset": 8304,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 3438,
+            "material": 0
+          },
+          {
+            "index_start": 3438,
+            "index_count": 186,
+            "material": 0
+          },
+          {
+            "index_start": 3624,
+            "index_count": 180,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.304218
+          ],
+          "max": [
+            0.5,
+            0.999329,
+            0.30422
+          ]
+        },
+        "source": {
+          "min": [
+            -0.11246,
+            -0.112384,
+            -0.05
+          ],
+          "max": [
+            0.11246,
+            0.112385,
+            0.08685
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.0,
+        -0.112384,
+        0.018425
+      ],
+      "metres_per_unit": 0.22492,
+      "triangles": 1268
+    },
+    "valve_handle_square": {
+      "title": "Square Valve Handle",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_411_valvehandle02a/sm73_411_valvehandle02a_00md.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_411_valvehandle02a/sm73_411_valvehandle02a_00md_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        11
+      ],
+      "geometry": {
+        "vertex_offset": 447540,
+        "vertex_count": 1850,
+        "index_offset": 484540,
+        "index_count": 5400,
+        "index_size": 2,
+        "primitive_offset": 8352,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 2520,
+            "material": 0
+          },
+          {
+            "index_start": 2520,
+            "index_count": 2556,
+            "material": 0
+          },
+          {
+            "index_start": 5076,
+            "index_count": 324,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.087544
+          ],
+          "max": [
+            0.5,
+            0.970748,
+            0.087538
+          ]
+        },
+        "source": {
+          "min": [
+            -0.201555,
+            0.000515,
+            -0.034221
+          ],
+          "max": [
+            0.18934,
+            0.379974,
+            0.034221
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.006108,
+        0.000515,
+        -0.0
+      ],
+      "metres_per_unit": 0.390896,
+      "triangles": 1800
+    },
+    "jack_handle": {
+      "title": "Mechanic Jack Handle",
+      "category": "Key Item",
+      "status": "approximate",
+      "note": "Jack driver head plus grip; the drivergrip mesh alone ships with a black debug material.",
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_130_driverheadplus01a/sm73_130_driverheadplus01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_130_driverheadplus01a/sm73_130_driverheadplus01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        12
+      ],
+      "geometry": {
+        "vertex_offset": 495340,
+        "vertex_count": 235,
+        "index_offset": 500040,
+        "index_count": 1164,
+        "index_size": 2,
+        "primitive_offset": 8400,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 1164,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.044744,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.04475,
+            0.077501,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.003121,
+            -0.002653,
+            -0.03528
+          ],
+          "max": [
+            0.003031,
+            0.002675,
+            0.033469
+          ]
+        }
+      },
+      "pivot_source": [
+        -4.5e-05,
+        -0.002653,
+        -0.000905
+      ],
+      "metres_per_unit": 0.068749,
+      "triangles": 388
+    },
+    "stars_badge": {
+      "title": "S.T.A.R.S Badge",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_108_starsbadge01a/sm73_108_starsbadge01a_00md.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_108_starsbadge01a/sm73_108_starsbadge01a_00md_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        13
+      ],
+      "geometry": {
+        "vertex_offset": 502368,
+        "vertex_count": 964,
+        "index_offset": 521648,
+        "index_count": 3906,
+        "index_size": 2,
+        "primitive_offset": 8416,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 2442,
+            "material": 0
+          },
+          {
+            "index_start": 2442,
+            "index_count": 1464,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.361468,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.361474,
+            0.198337,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.032614,
+            -0.005667,
+            -0.046982
+          ],
+          "max": [
+            0.032614,
+            0.012227,
+            0.043244
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.0,
+        -0.005667,
+        -0.001869
+      ],
+      "metres_per_unit": 0.090226,
+      "triangles": 1302
+    },
+    "detonator": {
+      "title": "Detonator (No Battery)",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm6x_event/sm69/sm69_029_detonator/sm69_029_detonator.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm6x_event/sm69/sm69_029_detonator/sm69_029_detonator_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        14
+      ],
+      "geometry": {
+        "vertex_offset": 529460,
+        "vertex_count": 1078,
+        "index_offset": 551020,
+        "index_count": 2586,
+        "index_size": 2,
+        "primitive_offset": 8448,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 2586,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.164305,
+            0.0,
+            -0.080415
+          ],
+          "max": [
+            0.164298,
+            1.0,
+            0.080415
+          ]
+        },
+        "source": {
+          "min": [
+            -0.024819,
+            -0.041304,
+            -0.010882
+          ],
+          "max": [
+            0.021508,
+            0.099675,
+            0.011792
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.001655,
+        -0.041304,
+        0.000455
+      ],
+      "metres_per_unit": 0.140979,
+      "triangles": 862
+    },
+    "medallion_unicorn": {
+      "title": "Unicorn Medallion",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_102_unicornmedal01a/sm73_102_unicornmedal01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_102_unicornmedal01a/sm73_102_unicornmedal01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        15
+      ],
+      "geometry": {
+        "vertex_offset": 556192,
+        "vertex_count": 1003,
+        "index_offset": 576252,
+        "index_count": 4038,
+        "index_size": 2,
+        "primitive_offset": 8464,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 4038,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.085213
+          ],
+          "max": [
+            0.5,
+            1.0,
+            0.085215
+          ]
+        },
+        "source": {
+          "min": [
+            -0.082032,
+            -0.080157,
+            -0.007509
+          ],
+          "max": [
+            0.077974,
+            0.079849,
+            0.019761
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.002029,
+        -0.080157,
+        0.006126
+      ],
+      "metres_per_unit": 0.160006,
+      "triangles": 1346
+    },
+    "medallion_lion": {
+      "title": "Lion Medallion",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_139_virginmedal01a/sm73_139_virginmedal01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_139_virginmedal01a/sm73_139_virginmedal01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        16
+      ],
+      "geometry": {
+        "vertex_offset": 584328,
+        "vertex_count": 2303,
+        "index_offset": 630388,
+        "index_count": 9882,
+        "index_size": 2,
+        "primitive_offset": 8480,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 9882,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.104246
+          ],
+          "max": [
+            0.5,
+            0.997208,
+            0.104238
+          ]
+        },
+        "source": {
+          "min": [
+            -0.085845,
+            -0.080031,
+            -0.011669
+          ],
+          "max": [
+            0.075424,
+            0.080788,
+            0.021954
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.005211,
+        -0.080031,
+        0.005142
+      ],
+      "metres_per_unit": 0.161269,
+      "triangles": 3294
+    },
+    "medallion_maiden": {
+      "title": "Maiden Medallion",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_145_virginmedal02a/sm73_145_virginmedal02a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_145_virginmedal02a/sm73_145_virginmedal02a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        17
+      ],
+      "geometry": {
+        "vertex_offset": 650152,
+        "vertex_count": 1585,
+        "index_offset": 681852,
+        "index_count": 7269,
+        "index_size": 2,
+        "primitive_offset": 8496,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 498,
+            "material": 0
+          },
+          {
+            "index_start": 498,
+            "index_count": 3012,
+            "material": 0
+          },
+          {
+            "index_start": 3510,
+            "index_count": 2469,
+            "material": 0
+          },
+          {
+            "index_start": 5979,
+            "index_count": 138,
+            "material": 0
+          },
+          {
+            "index_start": 6117,
+            "index_count": 1152,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.082745
+          ],
+          "max": [
+            0.5,
+            1.0,
+            0.082739
+          ]
+        },
+        "source": {
+          "min": [
+            -0.082868,
+            -0.08057,
+            -0.010881
+          ],
+          "max": [
+            0.077138,
+            0.079435,
+            0.015598
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.002865,
+        -0.08057,
+        0.002359
+      ],
+      "metres_per_unit": 0.160006,
+      "triangles": 2423
+    },
+    "gear_large": {
+      "title": "Large Gear",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_152_gear01a/sm73_152_gear01a_00md.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_152_gear01a/sm73_152_gear01a_00md_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        18
+      ],
+      "geometry": {
+        "vertex_offset": 696392,
+        "vertex_count": 1730,
+        "index_offset": 730992,
+        "index_count": 3642,
+        "index_size": 2,
+        "primitive_offset": 8576,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 3642,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.259211,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.259214,
+            0.998703,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.110485,
+            -0.206153,
+            -0.206723
+          ],
+          "max": [
+            0.103686,
+            0.206434,
+            0.2064
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.0034,
+        -0.206153,
+        -0.000162
+      ],
+      "metres_per_unit": 0.413123,
+      "triangles": 1214
+    },
+    "gear_small": {
+      "title": "Small Gear",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_151_gearsmal01a/sm73_151_gearsmal01a_00md.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_151_gearsmal01a/sm73_151_gearsmal01a_00md_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        19
+      ],
+      "geometry": {
+        "vertex_offset": 738276,
+        "vertex_count": 2174,
+        "index_offset": 781756,
+        "index_count": 5970,
+        "index_size": 2,
+        "primitive_offset": 8592,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 5970,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.436518,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.436511,
+            0.999832,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.071247,
+            -0.089851,
+            -0.089866
+          ],
+          "max": [
+            0.085666,
+            0.089851,
+            0.089866
+          ]
+        }
+      },
+      "pivot_source": [
+        0.007209,
+        -0.089851,
+        0.0
+      ],
+      "metres_per_unit": 0.179732,
+      "triangles": 1990
+    },
+    "battery": {
+      "title": "Battery",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_204_9vbattery01a/sm70_204_9vbattery01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_204_9vbattery01a/sm70_204_9vbattery01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        20
+      ],
+      "geometry": {
+        "vertex_offset": 793696,
+        "vertex_count": 1088,
+        "index_offset": 815456,
+        "index_count": 4512,
+        "index_size": 2,
+        "primitive_offset": 8608,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 1476,
+            "material": 0
+          },
+          {
+            "index_start": 1476,
+            "index_count": 24,
+            "material": 0
+          },
+          {
+            "index_start": 1500,
+            "index_count": 2292,
+            "material": 0
+          },
+          {
+            "index_start": 3792,
+            "index_count": 720,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.267804,
+            0.0,
+            -0.195436
+          ],
+          "max": [
+            0.267803,
+            1.0,
+            0.195439
+          ]
+        },
+        "source": {
+          "min": [
+            -0.016535,
+            -0.028874,
+            -0.012011
+          ],
+          "max": [
+            0.016534,
+            0.032865,
+            0.012122
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.0,
+        -0.028874,
+        5.5e-05
+      ],
+      "metres_per_unit": 0.06174,
+      "triangles": 1504
+    },
+    "condenser": {
+      "title": "Power Panel Part",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_142_condenser01a/sm73_142_condenser01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_142_condenser01a/sm73_142_condenser01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        21
+      ],
+      "geometry": {
+        "vertex_offset": 824480,
+        "vertex_count": 2139,
+        "index_offset": 867260,
+        "index_count": 8271,
+        "index_size": 2,
+        "primitive_offset": 8672,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 8271,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.174945
+          ],
+          "max": [
+            0.5,
+            0.960113,
+            0.174944
+          ]
+        },
+        "source": {
+          "min": [
+            -0.289349,
+            -0.000531,
+            -0.100608
+          ],
+          "max": [
+            0.285735,
+            0.551618,
+            0.100608
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.001807,
+        -0.000531,
+        0.0
+      ],
+      "metres_per_unit": 0.575084,
+      "triangles": 2757
+    },
+    "red_book": {
+      "title": "Red Book (Art Object)",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_135_statuebook01a/sm73_135_statuebook01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_135_statuebook01a/sm73_135_statuebook01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        22
+      ],
+      "geometry": {
+        "vertex_offset": 883804,
+        "vertex_count": 255,
+        "index_offset": 888904,
+        "index_count": 1086,
+        "index_size": 2,
+        "primitive_offset": 8688,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 1086,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.403692,
+            0.0,
+            -0.253683
+          ],
+          "max": [
+            0.403693,
+            1.0,
+            0.253679
+          ]
+        },
+        "source": {
+          "min": [
+            -0.107139,
+            -0.132698,
+            -0.067327
+          ],
+          "max": [
+            0.107139,
+            0.132699,
+            0.067327
+          ]
+        }
+      },
+      "pivot_source": [
+        0.0,
+        -0.132698,
+        -0.0
+      ],
+      "metres_per_unit": 0.265397,
+      "triangles": 362
+    },
+    "red_jewel": {
+      "title": "Red Jewel",
+      "category": "Key Item",
+      "status": "approximate",
+      "note": "Shared Env_Jewelry master material; tinted red in the manifest.",
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_111_virginheart01a/sm73_111_virginheart01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_111_virginheart01a/sm73_111_virginheart01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        23
+      ],
+      "geometry": {
+        "vertex_offset": 891076,
+        "vertex_count": 6398,
+        "index_offset": 1019036,
+        "index_count": 36672,
+        "index_size": 2,
+        "primitive_offset": 8704,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 36672,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.330815,
+            0.0,
+            -0.186724
+          ],
+          "max": [
+            0.330816,
+            1.0,
+            0.186725
+          ]
+        },
+        "source": {
+          "min": [
+            -0.030093,
+            -0.045484,
+            -0.027422
+          ],
+          "max": [
+            0.030093,
+            0.045484,
+            0.006549
+          ]
+        }
+      },
+      "pivot_source": [
+        0.0,
+        -0.045484,
+        -0.010437
+      ],
+      "metres_per_unit": 0.090967,
+      "triangles": 12224
+    },
+    "statue_arm": {
+      "title": "Statue's Left Arm",
+      "category": "Key Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_136_statuehand01a/sm73_136_statuehand01a_00md.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_136_statuehand01a/sm73_136_statuehand01a_00md_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        24
+      ],
+      "geometry": {
+        "vertex_offset": 1092380,
+        "vertex_count": 386,
+        "index_offset": 1100100,
+        "index_count": 1824,
+        "index_size": 2,
+        "primitive_offset": 8720,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 1824,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.295186
+          ],
+          "max": [
+            0.5,
+            0.955474,
+            0.295186
+          ]
+        },
+        "source": {
+          "min": [
+            -0.295748,
+            -0.090119,
+            -0.122351
+          ],
+          "max": [
+            0.000849,
+            0.193271,
+            0.052752
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.14745,
+        -0.090119,
+        -0.034799
+      ],
+      "metres_per_unit": 0.296598,
+      "triangles": 608
+    },
+    "herb_green": {
+      "title": "Green Herb",
+      "category": "Green Herb",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_051_greenherbitem01a/sm70_051_greenherbitem01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_051_greenherbitem01a/sm70_051_greenherbitem01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        25,
+        26
+      ],
+      "geometry": {
+        "vertex_offset": 1103748,
+        "vertex_count": 938,
+        "index_offset": 1122508,
+        "index_count": 3546,
+        "index_size": 2,
+        "primitive_offset": 8736,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 2382,
+            "material": 1
+          },
+          {
+            "index_start": 2382,
+            "index_count": 1164,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.311996
+          ],
+          "max": [
+            0.5,
+            0.633906,
+            0.311991
+          ]
+        },
+        "source": {
+          "min": [
+            -0.225079,
+            -0.207688,
+            -0.175289
+          ],
+          "max": [
+            0.330323,
+            0.144382,
+            0.171278
+          ]
+        }
+      },
+      "pivot_source": [
+        0.052622,
+        -0.207688,
+        -0.002006
+      ],
+      "metres_per_unit": 0.555403,
+      "triangles": 1182
+    },
+    "herb_red": {
+      "title": "Red Herb",
+      "category": "Red Herb",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_052_redherbitem01a/sm70_052_redherbitem01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_052_redherbitem01a/sm70_052_redherbitem01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        26,
+        26
+      ],
+      "geometry": {
+        "vertex_offset": 1129600,
+        "vertex_count": 4521,
+        "index_offset": 1220020,
+        "index_count": 14952,
+        "index_size": 2,
+        "primitive_offset": 8768,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 2382,
+            "material": 1
+          },
+          {
+            "index_start": 2382,
+            "index_count": 12570,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.182627
+          ],
+          "max": [
+            0.5,
+            0.33254,
+            0.182628
+          ]
+        },
+        "source": {
+          "min": [
+            -0.234793,
+            -0.120047,
+            -0.123251
+          ],
+          "max": [
+            0.401295,
+            0.091476,
+            0.109083
+          ]
+        }
+      },
+      "pivot_source": [
+        0.083251,
+        -0.120047,
+        -0.007084
+      ],
+      "metres_per_unit": 0.636088,
+      "triangles": 4984
+    },
+    "herb_blue": {
+      "title": "Blue Herb",
+      "category": "Blue Herb",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_053_blueherbitem01a/sm70_053_blueherbitem01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_053_blueherbitem01a/sm70_053_blueherbitem01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        27,
+        27
+      ],
+      "geometry": {
+        "vertex_offset": 1249924,
+        "vertex_count": 4948,
+        "index_offset": 1348884,
+        "index_count": 15609,
+        "index_size": 2,
+        "primitive_offset": 8800,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 13245,
+            "material": 1
+          },
+          {
+            "index_start": 13245,
+            "index_count": 2364,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.161054
+          ],
+          "max": [
+            0.5,
+            0.370092,
+            0.161048
+          ]
+        },
+        "source": {
+          "min": [
+            -0.243087,
+            -0.135848,
+            -0.075693
+          ],
+          "max": [
+            0.360013,
+            0.087359,
+            0.11857
+          ]
+        }
+      },
+      "pivot_source": [
+        0.058463,
+        -0.135848,
+        0.021438
+      ],
+      "metres_per_unit": 0.603099,
+      "triangles": 5203
+    },
+    "spray_firstaid": {
+      "title": "First Aid Spray",
+      "category": "First Aid Spray",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_000_emergencyspray01a/sm70_000_emergencyspray01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_000_emergencyspray01a/sm70_000_emergencyspray01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        28
+      ],
+      "geometry": {
+        "vertex_offset": 1380104,
+        "vertex_count": 702,
+        "index_offset": 1394144,
+        "index_count": 2856,
+        "index_size": 2,
+        "primitive_offset": 8832,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 2514,
+            "material": 0
+          },
+          {
+            "index_start": 2514,
+            "index_count": 30,
+            "material": 0
+          },
+          {
+            "index_start": 2544,
+            "index_count": 228,
+            "material": 0
+          },
+          {
+            "index_start": 2772,
+            "index_count": 84,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.156301,
+            0.0,
+            -0.156301
+          ],
+          "max": [
+            0.156295,
+            1.0,
+            0.156295
+          ]
+        },
+        "source": {
+          "min": [
+            -0.031408,
+            -0.0,
+            -0.031408
+          ],
+          "max": [
+            0.031408,
+            0.200944,
+            0.031408
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.0,
+        -0.0,
+        0.0
+      ],
+      "metres_per_unit": 0.200944,
+      "triangles": 952
+    },
+    "gunpowder": {
+      "title": "Gunpowder",
+      "category": "Gunpowder",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_205_gunpowder01a/sm70_205_gunpowder01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_205_gunpowder01a/sm70_205_gunpowder01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        29,
+        30
+      ],
+      "geometry": {
+        "vertex_offset": 1399856,
+        "vertex_count": 4122,
+        "index_offset": 1482296,
+        "index_count": 16089,
+        "index_size": 2,
+        "primitive_offset": 8896,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 12702,
+            "material": 1
+          },
+          {
+            "index_start": 12702,
+            "index_count": 3387,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.198117,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.198114,
+            0.425391,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.020592,
+            -0.001258,
+            -0.042778
+          ],
+          "max": [
+            0.020592,
+            0.042956,
+            0.06116
+          ]
+        }
+      },
+      "pivot_source": [
+        0.0,
+        -0.001258,
+        0.009191
+      ],
+      "metres_per_unit": 0.103938,
+      "triangles": 5363
+    },
+    "gunpowder_large": {
+      "title": "Gunpowder (Large)",
+      "category": "Gunpowder",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_206_gunpowder01b/sm70_206_gunpowder01b_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_206_gunpowder01b/sm70_206_gunpowder01b_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        30,
+        30,
+        29
+      ],
+      "geometry": {
+        "vertex_offset": 1514476,
+        "vertex_count": 4470,
+        "index_offset": 1603876,
+        "index_count": 19800,
+        "index_size": 2,
+        "primitive_offset": 8928,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 12492,
+            "material": 0
+          },
+          {
+            "index_start": 12492,
+            "index_count": 4248,
+            "material": 2
+          },
+          {
+            "index_start": 16740,
+            "index_count": 3060,
+            "material": 1
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.205369,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.205374,
+            0.411048,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.027114,
+            0.000333,
+            -0.112378
+          ],
+          "max": [
+            0.070875,
+            0.098395,
+            0.12619
+          ]
+        }
+      },
+      "pivot_source": [
+        0.021881,
+        0.000333,
+        0.006906
+      ],
+      "metres_per_unit": 0.238567,
+      "triangles": 6600
+    },
+    "gunpowder_high": {
+      "title": "High-Grade Gunpowder (White)",
+      "category": "High-Grade Gunpowder",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_208_strengtheningwhite01a/sm70_208_strengtheningwhite01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_208_strengtheningwhite01a/sm70_208_strengtheningwhite01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        31
+      ],
+      "geometry": {
+        "vertex_offset": 1643476,
+        "vertex_count": 1660,
+        "index_offset": 1676676,
+        "index_count": 8616,
+        "index_size": 2,
+        "primitive_offset": 8976,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 8616,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.455077,
+            0.0,
+            -0.455076
+          ],
+          "max": [
+            0.455078,
+            1.0,
+            0.455079
+          ]
+        },
+        "source": {
+          "min": [
+            -0.019423,
+            -0.000228,
+            -0.019423
+          ],
+          "max": [
+            0.019423,
+            0.042454,
+            0.019423
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.0,
+        -0.000228,
+        0.0
+      ],
+      "metres_per_unit": 0.042681,
+      "triangles": 2872
+    },
+    "ink_ribbon": {
+      "title": "Ink Ribbon",
+      "category": "Ink Ribbon",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_201_inkribbon01a/sm70_201_inkribbon01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_201_inkribbon01a/sm70_201_inkribbon01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        32
+      ],
+      "geometry": {
+        "vertex_offset": 1693908,
+        "vertex_count": 580,
+        "index_offset": 1705508,
+        "index_count": 2868,
+        "index_size": 2,
+        "primitive_offset": 8992,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 2868,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.5,
+            0.309224,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.06896,
+            0.000136,
+            -0.06896
+          ],
+          "max": [
+            0.068959,
+            0.042783,
+            0.068959
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.0,
+        0.000136,
+        -0.0
+      ],
+      "metres_per_unit": 0.137919,
+      "triangles": 956
+    },
+    "ammo_handgun": {
+      "title": "Handgun Ammo",
+      "category": "Handgun Ammo",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_100_handgun_bullet01a/sm70_100_handgun_bullet01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_100_handgun_bullet01a/sm70_100_handgun_bullet01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        33
+      ],
+      "geometry": {
+        "vertex_offset": 1711244,
+        "vertex_count": 2076,
+        "index_offset": 1752764,
+        "index_count": 5742,
+        "index_size": 2,
+        "primitive_offset": 9008,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 5238,
+            "material": 0
+          },
+          {
+            "index_start": 5238,
+            "index_count": 504,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.272818,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.272814,
+            0.196796,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.039327,
+            0.001218,
+            -0.089843
+          ],
+          "max": [
+            0.082158,
+            0.045034,
+            0.132806
+          ]
+        }
+      },
+      "pivot_source": [
+        0.021416,
+        0.001218,
+        0.021481
+      ],
+      "metres_per_unit": 0.222649,
+      "triangles": 1914
+    },
+    "ammo_smg": {
+      "title": "Submachine Gun Ammo",
+      "category": "SMG Ammo",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_102_submachinegun_bullet01a/sm70_102_submachinegun_bullet01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_102_submachinegun_bullet01a/sm70_102_submachinegun_bullet01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        34
+      ],
+      "geometry": {
+        "vertex_offset": 1764248,
+        "vertex_count": 4381,
+        "index_offset": 1851868,
+        "index_count": 13398,
+        "index_size": 2,
+        "primitive_offset": 9040,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 13398,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.182628,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.182628,
+            0.198138,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.044338,
+            2.3e-05,
+            -0.090242
+          ],
+          "max": [
+            0.044278,
+            0.048095,
+            0.152372
+          ]
+        }
+      },
+      "pivot_source": [
+        -3e-05,
+        2.3e-05,
+        0.031065
+      ],
+      "metres_per_unit": 0.242614,
+      "triangles": 4466
+    },
+    "ammo_needle": {
+      "title": "Needle Cartridges",
+      "category": "Needle Cartridges",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_109_sparkshotbulleta/sm70_109_sparkshotbulleta.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_109_sparkshotbulleta/sm70_109_sparkshotbulleta_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        35
+      ],
+      "geometry": {
+        "vertex_offset": 1878664,
+        "vertex_count": 1178,
+        "index_offset": 1902224,
+        "index_count": 5172,
+        "index_size": 2,
+        "primitive_offset": 9056,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 5172,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.162751
+          ],
+          "max": [
+            0.5,
+            0.855833,
+            0.162755
+          ]
+        },
+        "source": {
+          "min": [
+            -0.064139,
+            0.000534,
+            -0.01807
+          ],
+          "max": [
+            0.068874,
+            0.114371,
+            0.025225
+          ]
+        }
+      },
+      "pivot_source": [
+        0.002368,
+        0.000534,
+        0.003578
+      ],
+      "metres_per_unit": 0.133012,
+      "triangles": 1724
+    },
+    "ammo_flame": {
+      "title": "Flame Rounds",
+      "category": "Grenade Rounds",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_108_grenadelauncher_firebullet01a/sm70_108_grenadelauncher_firebullet01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm70/sm70_108_grenadelauncher_firebullet01a/sm70_108_grenadelauncher_firebullet01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        36
+      ],
+      "geometry": {
+        "vertex_offset": 1912568,
+        "vertex_count": 2852,
+        "index_offset": 1969608,
+        "index_count": 7896,
+        "index_size": 2,
+        "primitive_offset": 9072,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 7896,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.435024,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.43503,
+            0.97258,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.092633,
+            -0.000109,
+            -0.119574
+          ],
+          "max": [
+            0.092636,
+            0.206994,
+            0.093366
+          ]
+        }
+      },
+      "pivot_source": [
+        1e-06,
+        -0.000109,
+        -0.013104
+      ],
+      "metres_per_unit": 0.212941,
+      "triangles": 2632
+    },
+    "grenade_flash": {
+      "title": "Flash Grenade",
+      "category": "Flash Grenade",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/sectionroot/character/weapon/wp6300/wp6300_flash.mesh.2109108288",
+        "material": "natives/stm/sectionroot/character/weapon/wp6300/wp6300_flash.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        37
+      ],
+      "geometry": {
+        "vertex_offset": 1985400,
+        "vertex_count": 1575,
+        "index_offset": 2016900,
+        "index_count": 5682,
+        "index_size": 2,
+        "primitive_offset": 9088,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 1824,
+            "material": 0
+          },
+          {
+            "index_start": 1824,
+            "index_count": 3858,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.199514,
+            0.0,
+            -0.179554
+          ],
+          "max": [
+            0.199509,
+            1.0,
+            0.179551
+          ]
+        },
+        "source": {
+          "min": [
+            -0.040854,
+            -0.06528,
+            -0.035321
+          ],
+          "max": [
+            0.025396,
+            0.10075,
+            0.024302
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.007729,
+        -0.06528,
+        -0.005509
+      ],
+      "metres_per_unit": 0.16603,
+      "triangles": 1894
+    },
+    "grenade_hand": {
+      "title": "Hand Grenade",
+      "category": "Hand Grenade",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/sectionroot/character/weapon/wp6200/wp6200_grenade.mesh.2109108288",
+        "material": "natives/stm/sectionroot/character/weapon/wp6200/wp6200_grenade.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        38
+      ],
+      "geometry": {
+        "vertex_offset": 2028264,
+        "vertex_count": 1388,
+        "index_offset": 2056024,
+        "index_count": 5922,
+        "index_size": 2,
+        "primitive_offset": 9120,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 3372,
+            "material": 0
+          },
+          {
+            "index_start": 3372,
+            "index_count": 2550,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.313252,
+            0.0,
+            -0.295236
+          ],
+          "max": [
+            0.313253,
+            1.0,
+            0.295242
+          ]
+        },
+        "source": {
+          "min": [
+            -0.042626,
+            -0.049013,
+            -0.037443
+          ],
+          "max": [
+            0.036837,
+            0.077824,
+            0.03745
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.002895,
+        -0.049013,
+        4e-06
+      ],
+      "metres_per_unit": 0.126837,
+      "triangles": 1974
+    },
+    "knife": {
+      "title": "Combat Knife",
+      "category": "Knife",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/sectionroot/character/weapon/wp4500/wp4500_combatknife.mesh.2109108288",
+        "material": "natives/stm/sectionroot/character/weapon/wp4500/wp4500_combatknife.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        39,
+        40
+      ],
+      "geometry": {
+        "vertex_offset": 2067868,
+        "vertex_count": 8587,
+        "index_offset": 2239608,
+        "index_count": 32019,
+        "index_size": 2,
+        "primitive_offset": 9152,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 6915,
+            "material": 0
+          },
+          {
+            "index_start": 6915,
+            "index_count": 7053,
+            "material": 0
+          },
+          {
+            "index_start": 13968,
+            "index_count": 7221,
+            "material": 0
+          },
+          {
+            "index_start": 21189,
+            "index_count": 4749,
+            "material": 0
+          },
+          {
+            "index_start": 25938,
+            "index_count": 6081,
+            "material": 1
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.072625,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.072626,
+            0.227787,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.025573,
+            -0.034749,
+            -0.080019
+          ],
+          "max": [
+            0.029948,
+            0.052322,
+            0.302227
+          ]
+        }
+      },
+      "pivot_source": [
+        0.002187,
+        -0.034749,
+        0.111104
+      ],
+      "metres_per_unit": 0.382246,
+      "triangles": 10673
+    },
+    "board_wood": {
+      "title": "Wooden Boards",
+      "category": "Wooden Boards",
+      "status": "family",
+      "note": "Loose board from the set dressing library; the pickup is a stack of identical boards.",
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm2x_artifactlocation/sm26/sm26_022_woodboard01a/sm26_022_woodboard01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm2x_artifactlocation/sm26/sm26_022_woodboard01a/sm26_022_woodboard01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        41,
+        42
+      ],
+      "geometry": {
+        "vertex_offset": 2303648,
+        "vertex_count": 80,
+        "index_offset": 2305248,
+        "index_count": 204,
+        "index_size": 2,
+        "primitive_offset": 9232,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 204,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.249554,
+            0.0,
+            -0.011267
+          ],
+          "max": [
+            0.249554,
+            1.0,
+            0.011271
+          ]
+        },
+        "source": {
+          "min": [
+            -0.498572,
+            -0.001807,
+            -0.023438
+          ],
+          "max": [
+            0.498459,
+            1.995821,
+            0.021577
+          ]
+        }
+      },
+      "pivot_source": [
+        -5.6e-05,
+        -0.001807,
+        -0.00093
+      ],
+      "metres_per_unit": 1.997628,
+      "triangles": 68
+    },
+    "tape_vhs": {
+      "title": "Videotape",
+      "category": "Item",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_405_videotape01a/sm73_405_videotape01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_405_videotape01a/sm73_405_videotape01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        43,
+        44
+      ],
+      "geometry": {
+        "vertex_offset": 2305656,
+        "vertex_count": 1609,
+        "index_offset": 2337836,
+        "index_count": 5019,
+        "index_size": 2,
+        "primitive_offset": 9248,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 4983,
+            "material": 1
+          },
+          {
+            "index_start": 4983,
+            "index_count": 36,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.362018
+          ],
+          "max": [
+            0.5,
+            0.188327,
+            0.362023
+          ]
+        },
+        "source": {
+          "min": [
+            -0.033108,
+            -0.006415,
+            -0.024
+          ],
+          "max": [
+            0.033325,
+            0.006096,
+            0.0241
+          ]
+        }
+      },
+      "pivot_source": [
+        0.000108,
+        -0.006415,
+        5e-05
+      ],
+      "metres_per_unit": 0.066433,
+      "triangles": 1673
+    },
+    "film_a": {
+      "title": "Film (A)",
+      "category": "Film",
+      "status": "exact",
+      "note": "Canister label reads Hiding Place.",
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm72/sm72_200_photofilma01a/sm72_200_photofilma01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm72/sm72_200_photofilma01a/sm72_200_photofilma01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        44
+      ],
+      "geometry": {
+        "vertex_offset": 2347876,
+        "vertex_count": 656,
+        "index_offset": 2360996,
+        "index_count": 1830,
+        "index_size": 2,
+        "primitive_offset": 9280,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 210,
+            "material": 0
+          },
+          {
+            "index_start": 210,
+            "index_count": 1494,
+            "material": 0
+          },
+          {
+            "index_start": 1704,
+            "index_count": 126,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.315114,
+            0.0,
+            -0.280441
+          ],
+          "max": [
+            0.315114,
+            1.0,
+            0.280435
+          ]
+        },
+        "source": {
+          "min": [
+            -0.011411,
+            7e-06,
+            -0.011009
+          ],
+          "max": [
+            0.01357,
+            0.039644,
+            0.011223
+          ]
+        }
+      },
+      "pivot_source": [
+        0.00108,
+        7e-06,
+        0.000107
+      ],
+      "metres_per_unit": 0.039637,
+      "triangles": 610
+    },
+    "film_b": {
+      "title": "Film (B)",
+      "category": "Film",
+      "status": "exact",
+      "note": "Canister label reads Rising Rookie.",
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm72/sm72_201_photofilmb01a/sm72_201_photofilmb01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm72/sm72_201_photofilmb01a/sm72_201_photofilmb01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        44
+      ],
+      "geometry": {
+        "vertex_offset": 2364656,
+        "vertex_count": 656,
+        "index_offset": 2377776,
+        "index_count": 1830,
+        "index_size": 2,
+        "primitive_offset": 9328,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 210,
+            "material": 0
+          },
+          {
+            "index_start": 210,
+            "index_count": 1494,
+            "material": 0
+          },
+          {
+            "index_start": 1704,
+            "index_count": 126,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.31523,
+            0.0,
+            -0.280379
+          ],
+          "max": [
+            0.315227,
+            1.0,
+            0.280375
+          ]
+        },
+        "source": {
+          "min": [
+            -0.01142,
+            7e-06,
+            -0.011009
+          ],
+          "max": [
+            0.01357,
+            0.039644,
+            0.011218
+          ]
+        }
+      },
+      "pivot_source": [
+        0.001075,
+        7e-06,
+        0.000104
+      ],
+      "metres_per_unit": 0.039637,
+      "triangles": 610
+    },
+    "film_c": {
+      "title": "Film (C)",
+      "category": "Film",
+      "status": "exact",
+      "note": "Canister label reads Commemorative.",
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm72/sm72_202_photofilmc01a/sm72_202_photofilmc01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm72/sm72_202_photofilmc01a/sm72_202_photofilmc01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        44
+      ],
+      "geometry": {
+        "vertex_offset": 2381436,
+        "vertex_count": 656,
+        "index_offset": 2394556,
+        "index_count": 1830,
+        "index_size": 2,
+        "primitive_offset": 9376,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 210,
+            "material": 0
+          },
+          {
+            "index_start": 210,
+            "index_count": 1494,
+            "material": 0
+          },
+          {
+            "index_start": 1704,
+            "index_count": 126,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.312826,
+            0.0,
+            -0.281181
+          ],
+          "max": [
+            0.312824,
+            1.0,
+            0.281175
+          ]
+        },
+        "source": {
+          "min": [
+            -0.011229,
+            7e-06,
+            -0.011009
+          ],
+          "max": [
+            0.01357,
+            0.039644,
+            0.011281
+          ]
+        }
+      },
+      "pivot_source": [
+        0.00117,
+        7e-06,
+        0.000136
+      ],
+      "metres_per_unit": 0.039637,
+      "triangles": 610
+    },
+    "film_d": {
+      "title": "Film (D)",
+      "category": "Film",
+      "status": "exact",
+      "note": "Canister label reads 3F Locker.",
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm72/sm72_203_photofilmd01a/sm72_203_photofilmd01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm72/sm72_203_photofilmd01a/sm72_203_photofilmd01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        44
+      ],
+      "geometry": {
+        "vertex_offset": 2398216,
+        "vertex_count": 656,
+        "index_offset": 2411336,
+        "index_count": 1830,
+        "index_size": 2,
+        "primitive_offset": 9424,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 210,
+            "material": 0
+          },
+          {
+            "index_start": 210,
+            "index_count": 1494,
+            "material": 0
+          },
+          {
+            "index_start": 1704,
+            "index_count": 126,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.313974,
+            0.0,
+            -0.285135
+          ],
+          "max": [
+            0.31398,
+            1.0,
+            0.28514
+          ]
+        },
+        "source": {
+          "min": [
+            -0.01132,
+            7e-06,
+            -0.011009
+          ],
+          "max": [
+            0.01357,
+            0.039644,
+            0.011595
+          ]
+        }
+      },
+      "pivot_source": [
+        0.001125,
+        7e-06,
+        0.000293
+      ],
+      "metres_per_unit": 0.039637,
+      "triangles": 610
+    },
+    "weapon_gm79": {
+      "title": "GM 79",
+      "category": "Weapon",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/sectionroot/character/weapon/wp4100/wp4100_grenadelauncher.mesh.2109108288",
+        "material": "natives/stm/sectionroot/character/weapon/wp4100/wp4100_grenadelauncher_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        45
+      ],
+      "geometry": {
+        "vertex_offset": 2414996,
+        "vertex_count": 6656,
+        "index_offset": 2548116,
+        "index_count": 27768,
+        "index_size": 2,
+        "primitive_offset": 9472,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 13296,
+            "material": 0
+          },
+          {
+            "index_start": 13296,
+            "index_count": 3780,
+            "material": 0
+          },
+          {
+            "index_start": 17076,
+            "index_count": 9690,
+            "material": 0
+          },
+          {
+            "index_start": 26766,
+            "index_count": 1002,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.048788,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.048793,
+            0.304311,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.032963,
+            -0.073778,
+            -0.302517
+          ],
+          "max": [
+            0.04034,
+            0.154836,
+            0.448722
+          ]
+        }
+      },
+      "pivot_source": [
+        0.003689,
+        -0.073778,
+        0.073102
+      ],
+      "metres_per_unit": 0.75124,
+      "triangles": 9256
+    },
+    "weapon_jmb_hp3": {
+      "title": "JMB Hp3",
+      "category": "Weapon",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/sectionroot/character/weapon/wp0200/wp0200_browningh.mesh.2109108288",
+        "material": "natives/stm/sectionroot/character/weapon/wp0200/wp0200_browningh.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        46,
+        47,
+        48
+      ],
+      "geometry": {
+        "vertex_offset": 2603652,
+        "vertex_count": 6084,
+        "index_offset": 2725332,
+        "index_count": 21534,
+        "index_size": 2,
+        "primitive_offset": 9536,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 15510,
+            "material": 0
+          },
+          {
+            "index_start": 15510,
+            "index_count": 3372,
+            "material": 2
+          },
+          {
+            "index_start": 18882,
+            "index_count": 1284,
+            "material": 0
+          },
+          {
+            "index_start": 20166,
+            "index_count": 1368,
+            "material": 1
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.098281,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.098286,
+            0.898634,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.019552,
+            -0.09903,
+            -0.034341
+          ],
+          "max": [
+            0.021285,
+            0.087666,
+            0.173413
+          ]
+        }
+      },
+      "pivot_source": [
+        0.000866,
+        -0.09903,
+        0.069536
+      ],
+      "metres_per_unit": 0.207754,
+      "triangles": 7178
+    },
+    "weapon_mq11": {
+      "title": "MQ 11",
+      "category": "Weapon",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/sectionroot/character/weapon/wp2100/wp2100_submachinegun.mesh.2109108288",
+        "material": "natives/stm/sectionroot/character/weapon/wp2100/wp2100_submachinegun_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        49
+      ],
+      "geometry": {
+        "vertex_offset": 2768400,
+        "vertex_count": 5349,
+        "index_offset": 2875380,
+        "index_count": 21402,
+        "index_size": 2,
+        "primitive_offset": 9600,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 18336,
+            "material": 0
+          },
+          {
+            "index_start": 18336,
+            "index_count": 1440,
+            "material": 0
+          },
+          {
+            "index_start": 19776,
+            "index_count": 1626,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.033874,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.033876,
+            0.427726,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.02001,
+            -0.164862,
+            -0.326546
+          ],
+          "max": [
+            0.022642,
+            0.104428,
+            0.303036
+          ]
+        }
+      },
+      "pivot_source": [
+        0.001316,
+        -0.164862,
+        -0.011755
+      ],
+      "metres_per_unit": 0.629582,
+      "triangles": 7134
+    },
+    "upgrade_mag_hp3": {
+      "title": "High-Capacity Mag. (JMB Hp3)",
+      "category": "Weapon Upgrade",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm71/sm71_907_browninghlongmagazine/sm71_907_browninghlongmagazine.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm71/sm71_907_browninghlongmagazine/sm71_907_browninghlongmagazine_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        48,
+        33
+      ],
+      "geometry": {
+        "vertex_offset": 2918184,
+        "vertex_count": 483,
+        "index_offset": 2927844,
+        "index_count": 1704,
+        "index_size": 2,
+        "primitive_offset": 9648,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 1368,
+            "material": 1
+          },
+          {
+            "index_start": 1368,
+            "index_count": 336,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.112279,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.112273,
+            0.146654,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.014878,
+            0.001209,
+            -0.075298
+          ],
+          "max": [
+            0.023392,
+            0.026202,
+            0.095126
+          ]
+        }
+      },
+      "pivot_source": [
+        0.004257,
+        0.001209,
+        0.009914
+      ],
+      "metres_per_unit": 0.170424,
+      "triangles": 568
+    },
+    "upgrade_mag_mq11": {
+      "title": "High-Capacity Mag. (MQ 11)",
+      "category": "Weapon Upgrade",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm71/sm71_911_submgpartsmagazine/sm71_911_submgpartsmagazine_00.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm71/sm71_911_submgpartsmagazine/sm71_911_submgpartsmagazine_00_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        50,
+        34
+      ],
+      "geometry": {
+        "vertex_offset": 2931252,
+        "vertex_count": 625,
+        "index_offset": 2943752,
+        "index_count": 2472,
+        "index_size": 2,
+        "primitive_offset": 9680,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 1626,
+            "material": 1
+          },
+          {
+            "index_start": 1626,
+            "index_count": 846,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.076651
+          ],
+          "max": [
+            0.5,
+            0.129808,
+            0.076657
+          ]
+        },
+        "source": {
+          "min": [
+            -0.106528,
+            0.000162,
+            -0.01441
+          ],
+          "max": [
+            0.109031,
+            0.028144,
+            0.018635
+          ]
+        }
+      },
+      "pivot_source": [
+        0.001251,
+        0.000162,
+        0.002113
+      ],
+      "metres_per_unit": 0.21556,
+      "triangles": 824
+    },
+    "upgrade_stock_gm79": {
+      "title": "Shoulder Stock (GM 79)",
+      "category": "Weapon Upgrade",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm71/sm71_917_grenadelauncherstock/sm71_917_grenadelauncherstock_00.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm71/sm71_917_grenadelauncherstock/sm71_917_grenadelauncherstock_00_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        45
+      ],
+      "geometry": {
+        "vertex_offset": 2948696,
+        "vertex_count": 2330,
+        "index_offset": 2995296,
+        "index_count": 9858,
+        "index_size": 2,
+        "primitive_offset": 9712,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 9858,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.283075,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.28308,
+            0.114672,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.097389,
+            0.000579,
+            -0.229352
+          ],
+          "max": [
+            0.118475,
+            0.044299,
+            0.151932
+          ]
+        }
+      },
+      "pivot_source": [
+        0.010543,
+        0.000579,
+        -0.03871
+      ],
+      "metres_per_unit": 0.381284,
+      "triangles": 3286
+    },
+    "upgrade_speed_loader": {
+      "title": "Speed Loader (SLS 60)",
+      "category": "Weapon Upgrade",
+      "status": "approximate",
+      "note": "Lady Smith power-up part; the speed loader is the same small cylinder part.",
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm71/sm71_906_ladysmithpowerup/sm71_906_ladysmithpowerup.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm71/sm71_906_ladysmithpowerup/sm71_906_ladysmithpowerup_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        51
+      ],
+      "geometry": {
+        "vertex_offset": 3015012,
+        "vertex_count": 2055,
+        "index_offset": 3056112,
+        "index_count": 7398,
+        "index_size": 2,
+        "primitive_offset": 9728,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 7398,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.346203,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.346206,
+            0.254398,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.049826,
+            0.000156,
+            -0.069256
+          ],
+          "max": [
+            0.065693,
+            0.042599,
+            0.097581
+          ]
+        }
+      },
+      "pivot_source": [
+        0.007933,
+        0.000156,
+        0.014162
+      ],
+      "metres_per_unit": 0.166837,
+      "triangles": 2466
+    },
+    "map_police_1f": {
+      "title": "Police Station 1F Map",
+      "category": "Area Map",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_100_mappolice01a/sm74_100_mappolice01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_100_mappolice01a/sm74_100_mappolice01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        52
+      ],
+      "geometry": {
+        "vertex_offset": 3070908,
+        "vertex_count": 128,
+        "index_offset": 3073468,
+        "index_count": 534,
+        "index_size": 2,
+        "primitive_offset": 9744,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 534,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.015523
+          ],
+          "max": [
+            0.5,
+            0.658061,
+            0.015529
+          ]
+        },
+        "source": {
+          "min": [
+            -0.567437,
+            -0.396582,
+            -0.007321
+          ],
+          "max": [
+            0.625461,
+            0.38842,
+            0.029713
+          ]
+        }
+      },
+      "pivot_source": [
+        0.029012,
+        -0.396582,
+        0.011196
+      ],
+      "metres_per_unit": 1.192898,
+      "triangles": 178
+    },
+    "map_b1": {
+      "title": "Police Station B1 Map",
+      "category": "Area Map",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_101_mapunderground01a/sm74_101_mapunderground01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_101_mapunderground01a/sm74_101_mapunderground01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        53
+      ],
+      "geometry": {
+        "vertex_offset": 3074536,
+        "vertex_count": 158,
+        "index_offset": 3077696,
+        "index_count": 468,
+        "index_size": 2,
+        "primitive_offset": 9760,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 468,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.244168,
+            0.0,
+            -0.021843
+          ],
+          "max": [
+            0.244166,
+            1.0,
+            0.021843
+          ]
+        },
+        "source": {
+          "min": [
+            -0.096577,
+            -0.176519,
+            0.02668
+          ],
+          "max": [
+            0.100702,
+            0.227462,
+            0.044328
+          ]
+        }
+      },
+      "pivot_source": [
+        0.002062,
+        -0.176519,
+        0.035504
+      ],
+      "metres_per_unit": 0.403981,
+      "triangles": 156
+    },
+    "map_upper": {
+      "title": "Police Station Upper Floors Map",
+      "category": "Area Map",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_110_mapupperpolice01a/sm74_110_mapupperpolice01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_110_mapupperpolice01a/sm74_110_mapupperpolice01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        54
+      ],
+      "geometry": {
+        "vertex_offset": 3078632,
+        "vertex_count": 268,
+        "index_offset": 3083992,
+        "index_count": 1104,
+        "index_size": 2,
+        "primitive_offset": 9776,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 1104,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.18021
+          ],
+          "max": [
+            0.5,
+            0.707057,
+            0.180208
+          ]
+        },
+        "source": {
+          "min": [
+            -0.510641,
+            -0.355108,
+            0.010658
+          ],
+          "max": [
+            0.354708,
+            0.256739,
+            0.322547
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.077967,
+        -0.355108,
+        0.166602
+      ],
+      "metres_per_unit": 0.865349,
+      "triangles": 368
+    },
+    "mr_raccoon": {
+      "title": "Mr. Raccoon",
+      "category": "Mr Raccoon",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_063_raccoonfigure01a/sm74_063_raccoonfigure01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_063_raccoonfigure01a/sm74_063_raccoonfigure01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        55
+      ],
+      "geometry": {
+        "vertex_offset": 3086200,
+        "vertex_count": 12,
+        "index_offset": 3086440,
+        "index_count": 30,
+        "index_size": 2,
+        "primitive_offset": 9792,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 30,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.345274,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.345273,
+            0.051545,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.088681,
+            0.000379,
+            -0.12041
+          ],
+          "max": [
+            0.088681,
+            0.01362,
+            0.136432
+          ]
+        }
+      },
+      "pivot_source": [
+        0.0,
+        0.000379,
+        0.008011
+      ],
+      "metres_per_unit": 0.256843,
+      "triangles": 10
+    },
+    "hip_pouch": {
+      "title": "Hip Pouch",
+      "category": "Hip Pouch",
+      "status": "approximate",
+      "note": "Claire's side pack model; the hip pouch shares the pouch silhouette.",
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_200_clairesbag01a/sm74_200_clairesbag01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_200_clairesbag01a/sm74_200_clairesbag01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        56
+      ],
+      "geometry": {
+        "vertex_offset": 3086500,
+        "vertex_count": 6397,
+        "index_offset": 3214440,
+        "index_count": 23946,
+        "index_size": 2,
+        "primitive_offset": 9808,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 15954,
+            "material": 0
+          },
+          {
+            "index_start": 15954,
+            "index_count": 7992,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.458389,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.458388,
+            0.576394,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.120085,
+            -0.011346,
+            -0.218342
+          ],
+          "max": [
+            0.194959,
+            0.186729,
+            0.1253
+          ]
+        }
+      },
+      "pivot_source": [
+        0.037437,
+        -0.011346,
+        -0.046521
+      ],
+      "metres_per_unit": 0.343642,
+      "triangles": 7982
+    },
+    "jewelry_box": {
+      "title": "Jewelry Box",
+      "category": "Item",
+      "status": "approximate",
+      "note": "Shared Env_Jewelry material is tinted by a JewelryColor parameter that this pack does not evaluate, so the box renders neutral metal.",
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_112_bluejewelrybox01a/sm73_112_bluejewelrybox01a_00md.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm73/sm73_112_bluejewelrybox01a/sm73_112_bluejewelrybox01a_00md_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        57,
+        58
+      ],
+      "geometry": {
+        "vertex_offset": 3262332,
+        "vertex_count": 4525,
+        "index_offset": 3352832,
+        "index_count": 12258,
+        "index_size": 2,
+        "primitive_offset": 9840,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 10722,
+            "material": 1
+          },
+          {
+            "index_start": 10722,
+            "index_count": 1536,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.340402
+          ],
+          "max": [
+            0.5,
+            0.582422,
+            0.340409
+          ]
+        },
+        "source": {
+          "min": [
+            -0.134647,
+            0.001965,
+            -0.091668
+          ],
+          "max": [
+            0.134647,
+            0.15881,
+            0.091668
+          ]
+        }
+      },
+      "pivot_source": [
+        0.0,
+        0.001965,
+        0.0
+      ],
+      "metres_per_unit": 0.269295,
+      "triangles": 4086
+    },
+    "item_box": {
+      "title": "Item Box",
+      "category": "Item Box",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm4x_gimmick/sm41/sm41_011_itemlocker01a/sm41_011_itemlocker01a_01md.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm4x_gimmick/sm41/sm41_011_itemlocker01a/sm41_011_itemlocker01a_01md_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        59,
+        60
+      ],
+      "geometry": {
+        "vertex_offset": 3377348,
+        "vertex_count": 2886,
+        "index_offset": 3435068,
+        "index_count": 8064,
+        "index_size": 2,
+        "primitive_offset": 9872,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 1284,
+            "material": 0
+          },
+          {
+            "index_start": 1284,
+            "index_count": 4086,
+            "material": 1
+          },
+          {
+            "index_start": 5370,
+            "index_count": 2694,
+            "material": 1
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.388321
+          ],
+          "max": [
+            0.5,
+            0.692027,
+            0.388318
+          ]
+        },
+        "source": {
+          "min": [
+            -0.704273,
+            -0.004098,
+            -0.537325
+          ],
+          "max": [
+            0.704273,
+            0.970644,
+            0.55661
+          ]
+        }
+      },
+      "pivot_source": [
+        0.0,
+        -0.004098,
+        0.009643
+      ],
+      "metres_per_unit": 1.408546,
+      "triangles": 2688
+    },
+    "typewriter": {
+      "title": "Typewriter",
+      "category": "Typewriter",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm4x_gimmick/sm41/sm41_000_typewriter01a/sm41_000_typewriter01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm4x_gimmick/sm41/sm41_000_typewriter01a/sm41_000_typewriter01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        61,
+        62
+      ],
+      "geometry": {
+        "vertex_offset": 3451196,
+        "vertex_count": 18255,
+        "index_offset": 3816296,
+        "index_count": 45873,
+        "index_size": 2,
+        "primitive_offset": 9920,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 17202,
+            "material": 1
+          },
+          {
+            "index_start": 17202,
+            "index_count": 25887,
+            "material": 0
+          },
+          {
+            "index_start": 43089,
+            "index_count": 2784,
+            "material": 1
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.491022,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.491018,
+            0.547768,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.23764,
+            -0.0,
+            -0.222929
+          ],
+          "max": [
+            0.21731,
+            0.253763,
+            0.240339
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.010165,
+        -0.0,
+        0.008705
+      ],
+      "metres_per_unit": 0.463268,
+      "triangles": 15291
+    },
+    "safe": {
+      "title": "Safe",
+      "category": "Safe",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm4x_gimmick/sm44/sm44_003_safebox01a/sm44_003_safebox01a_00md.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm4x_gimmick/sm44/sm44_003_safebox01a/sm44_003_safebox01a_00md_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        63,
+        63
+      ],
+      "geometry": {
+        "vertex_offset": 3908044,
+        "vertex_count": 744,
+        "index_offset": 3922924,
+        "index_count": 2439,
+        "index_size": 2,
+        "primitive_offset": 9968,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 360,
+            "material": 0
+          },
+          {
+            "index_start": 360,
+            "index_count": 1791,
+            "material": 0
+          },
+          {
+            "index_start": 2151,
+            "index_count": 288,
+            "material": 1
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.433158,
+            0.0,
+            -0.349865
+          ],
+          "max": [
+            0.433158,
+            1.0,
+            0.349868
+          ]
+        },
+        "source": {
+          "min": [
+            -0.673564,
+            0.0,
+            -0.562082
+          ],
+          "max": [
+            0.097375,
+            0.889906,
+            0.060613
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.288094,
+        0.0,
+        -0.250735
+      ],
+      "metres_per_unit": 0.889906,
+      "triangles": 813
+    },
+    "portable_safe": {
+      "title": "Portable Safe",
+      "category": "Safe",
+      "status": "exact",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm77/sm77_002_portablesafe01a/sm77_002_portablesafe01a_00md.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm77/sm77_002_portablesafe01a/sm77_002_portablesafe01a_00md_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64
+      ],
+      "geometry": {
+        "vertex_offset": 3927804,
+        "vertex_count": 5617,
+        "index_offset": 4040144,
+        "index_count": 19014,
+        "index_size": 2,
+        "primitive_offset": 10016,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 6534,
+            "material": 16
+          },
+          {
+            "index_start": 6534,
+            "index_count": 780,
+            "material": 15
+          },
+          {
+            "index_start": 7314,
+            "index_count": 780,
+            "material": 14
+          },
+          {
+            "index_start": 8094,
+            "index_count": 780,
+            "material": 13
+          },
+          {
+            "index_start": 8874,
+            "index_count": 780,
+            "material": 12
+          },
+          {
+            "index_start": 9654,
+            "index_count": 780,
+            "material": 11
+          },
+          {
+            "index_start": 10434,
+            "index_count": 780,
+            "material": 10
+          },
+          {
+            "index_start": 11214,
+            "index_count": 780,
+            "material": 9
+          },
+          {
+            "index_start": 11994,
+            "index_count": 780,
+            "material": 0
+          },
+          {
+            "index_start": 12774,
+            "index_count": 780,
+            "material": 1
+          },
+          {
+            "index_start": 13554,
+            "index_count": 780,
+            "material": 2
+          },
+          {
+            "index_start": 14334,
+            "index_count": 780,
+            "material": 3
+          },
+          {
+            "index_start": 15114,
+            "index_count": 780,
+            "material": 4
+          },
+          {
+            "index_start": 15894,
+            "index_count": 780,
+            "material": 5
+          },
+          {
+            "index_start": 16674,
+            "index_count": 780,
+            "material": 6
+          },
+          {
+            "index_start": 17454,
+            "index_count": 780,
+            "material": 7
+          },
+          {
+            "index_start": 18234,
+            "index_count": 780,
+            "material": 8
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.240383,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.240383,
+            0.202914,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.042217,
+            -0.002069,
+            -0.040461
+          ],
+          "max": [
+            0.042217,
+            0.033569,
+            0.135163
+          ]
+        }
+      },
+      "pivot_source": [
+        0.0,
+        -0.002069,
+        0.047351
+      ],
+      "metres_per_unit": 0.175624,
+      "triangles": 6338
+    },
+    "file_document": {
+      "title": "Document",
+      "category": "File",
+      "status": "family",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_004_document01a/sm74_004_document01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_004_document01a/sm74_004_document01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        65
+      ],
+      "geometry": {
+        "vertex_offset": 4078172,
+        "vertex_count": 36,
+        "index_offset": 4078892,
+        "index_count": 84,
+        "index_size": 2,
+        "primitive_offset": 10288,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 84,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.428,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.428001,
+            0.022614,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.171886,
+            -0.002712,
+            -0.162523
+          ],
+          "max": [
+            0.136734,
+            0.005442,
+            0.198015
+          ]
+        }
+      },
+      "pivot_source": [
+        -0.017576,
+        -0.002712,
+        0.017746
+      ],
+      "metres_per_unit": 0.360538,
+      "triangles": 28
+    },
+    "file_rpd_document": {
+      "title": "RPD Document",
+      "category": "File",
+      "status": "family",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_001_rpddocument01a/sm74_001_rpddocument01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_001_rpddocument01a/sm74_001_rpddocument01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        66
+      ],
+      "geometry": {
+        "vertex_offset": 4079060,
+        "vertex_count": 12,
+        "index_offset": 4079300,
+        "index_count": 30,
+        "index_size": 2,
+        "primitive_offset": 10304,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 30,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.325,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.325004,
+            0.050004,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.11375,
+            -0.00875,
+            -0.175
+          ],
+          "max": [
+            0.11375,
+            0.00875,
+            0.175
+          ]
+        }
+      },
+      "pivot_source": [
+        0.0,
+        -0.00875,
+        0.0
+      ],
+      "metres_per_unit": 0.35,
+      "triangles": 10
+    },
+    "file_diary": {
+      "title": "Diary",
+      "category": "File",
+      "status": "family",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_003_diary01a/sm74_003_diary01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_003_diary01a/sm74_003_diary01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        67
+      ],
+      "geometry": {
+        "vertex_offset": 4079360,
+        "vertex_count": 580,
+        "index_offset": 4090960,
+        "index_count": 2010,
+        "index_size": 2,
+        "primitive_offset": 10320,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 2010,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.401036
+          ],
+          "max": [
+            0.5,
+            0.059403,
+            0.40104
+          ]
+        },
+        "source": {
+          "min": [
+            -0.186388,
+            0.000212,
+            -0.150253
+          ],
+          "max": [
+            0.188274,
+            0.022468,
+            0.150253
+          ]
+        }
+      },
+      "pivot_source": [
+        0.000943,
+        0.000212,
+        -0.0
+      ],
+      "metres_per_unit": 0.374662,
+      "triangles": 670
+    },
+    "file_pamphlet": {
+      "title": "Pamphlet",
+      "category": "File",
+      "status": "family",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_005_pamphlet01a/sm74_005_pamphlet01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_005_pamphlet01a/sm74_005_pamphlet01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        68
+      ],
+      "geometry": {
+        "vertex_offset": 4094980,
+        "vertex_count": 141,
+        "index_offset": 4097800,
+        "index_count": 360,
+        "index_size": 2,
+        "primitive_offset": 10336,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 360,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.355536,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.355534,
+            0.008194,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.088867,
+            0.0,
+            -0.124976
+          ],
+          "max": [
+            0.088867,
+            0.002048,
+            0.124976
+          ]
+        }
+      },
+      "pivot_source": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "metres_per_unit": 0.249952,
+      "triangles": 120
+    },
+    "file_guide": {
+      "title": "Guide Pamphlet",
+      "category": "File",
+      "status": "family",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_006_guidepamphlet01a/sm74_006_guidepamphlet01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_006_guidepamphlet01a/sm74_006_guidepamphlet01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        69
+      ],
+      "geometry": {
+        "vertex_offset": 4098520,
+        "vertex_count": 107,
+        "index_offset": 4100660,
+        "index_count": 264,
+        "index_size": 2,
+        "primitive_offset": 10352,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 264,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.350212,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.350207,
+            0.011063,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.086206,
+            -0.001383,
+            -0.124976
+          ],
+          "max": [
+            0.088867,
+            0.001383,
+            0.124976
+          ]
+        }
+      },
+      "pivot_source": [
+        0.00133,
+        -0.001383,
+        0.0
+      ],
+      "metres_per_unit": 0.249952,
+      "triangles": 88
+    },
+    "file_memo": {
+      "title": "Memo",
+      "category": "File",
+      "status": "family",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_008_memo01a/sm74_008_memo01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_008_memo01a/sm74_008_memo01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        70
+      ],
+      "geometry": {
+        "vertex_offset": 4101188,
+        "vertex_count": 42,
+        "index_offset": 4102028,
+        "index_count": 114,
+        "index_size": 2,
+        "primitive_offset": 10368,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 114,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.30164
+          ],
+          "max": [
+            0.5,
+            0.085451,
+            0.301641
+          ]
+        },
+        "source": {
+          "min": [
+            -0.058596,
+            0.001777,
+            -0.036317
+          ],
+          "max": [
+            0.061849,
+            0.012068,
+            0.036345
+          ]
+        }
+      },
+      "pivot_source": [
+        0.001626,
+        0.001777,
+        1.4e-05
+      ],
+      "metres_per_unit": 0.120445,
+      "triangles": 38
+    },
+    "file_raccoon_monthly": {
+      "title": "Raccoon Monthly",
+      "category": "File",
+      "status": "family",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_009_raccoonmonthly01a/sm74_009_raccoonmonthly01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_009_raccoonmonthly01a/sm74_009_raccoonmonthly01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        71
+      ],
+      "geometry": {
+        "vertex_offset": 4102256,
+        "vertex_count": 98,
+        "index_offset": 4104216,
+        "index_count": 252,
+        "index_size": 2,
+        "primitive_offset": 10384,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 252,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.5,
+            0.0,
+            -0.343832
+          ],
+          "max": [
+            0.5,
+            0.013352,
+            0.343831
+          ]
+        },
+        "source": {
+          "min": [
+            -0.232929,
+            0.0,
+            -0.160177
+          ],
+          "max": [
+            0.232929,
+            0.006219,
+            0.160177
+          ]
+        }
+      },
+      "pivot_source": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "metres_per_unit": 0.465857,
+      "triangles": 84
+    },
+    "file_report": {
+      "title": "Report",
+      "category": "File",
+      "status": "family",
+      "note": null,
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_011_report01a/sm74_011_report01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_011_report01a/sm74_011_report01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        72
+      ],
+      "geometry": {
+        "vertex_offset": 4104720,
+        "vertex_count": 12,
+        "index_offset": 4104960,
+        "index_count": 30,
+        "index_size": 2,
+        "primitive_offset": 10400,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 30,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.325,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.325004,
+            0.015229,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.11375,
+            -0.003914,
+            -0.175
+          ],
+          "max": [
+            0.11375,
+            0.001414,
+            0.175
+          ]
+        }
+      },
+      "pivot_source": [
+        0.0,
+        -0.003914,
+        0.0
+      ],
+      "metres_per_unit": 0.35,
+      "triangles": 10
+    },
+    "file_letter": {
+      "title": "Letter",
+      "category": "File",
+      "status": "family",
+      "note": "Sewer Co pamphlet paper sheet reused as the letter silhouette.",
+      "source": {
+        "mesh": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_010_sewercopamphlet01a/sm74_010_sewercopamphlet01a_00ms.mesh.2109108288",
+        "material": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_010_sewercopamphlet01a/sm74_010_sewercopamphlet01a_00ms_mat.mdf2.21",
+        "lod": 0
+      },
+      "materials": [
+        73
+      ],
+      "geometry": {
+        "vertex_offset": 4105020,
+        "vertex_count": 139,
+        "index_offset": 4107800,
+        "index_count": 360,
+        "index_size": 2,
+        "primitive_offset": 10416,
+        "primitives": [
+          {
+            "index_start": 0,
+            "index_count": 360,
+            "material": 0
+          }
+        ]
+      },
+      "bounds": {
+        "normalised": {
+          "min": [
+            -0.355536,
+            0.0,
+            -0.5
+          ],
+          "max": [
+            0.355534,
+            0.017899,
+            0.5
+          ]
+        },
+        "source": {
+          "min": [
+            -0.088867,
+            -0.002238,
+            -0.124976
+          ],
+          "max": [
+            0.088867,
+            0.002238,
+            0.124976
+          ]
+        }
+      },
+      "pivot_source": [
+        0.0,
+        -0.002238,
+        0.0
+      ],
+      "metres_per_unit": 0.249952,
+      "triangles": 120
+    }
+  },
+  "materials": [
+    {
+      "albedo": "item_models/sm73_103_spadekey01a_a_albm.png",
+      "albedo_size": [
+        256,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_103_spadekey01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_103_spadekey01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm73_404_heartkey01a_a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_404_heartkey01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_404_heartkey01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm73_300_clubkey01a_a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_300_clubkey01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_300_clubkey01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm73_140_diakey01a_a_albm.png",
+      "albedo_size": [
+        512,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_140_diakey01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_140_diakey01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm73_141_carkey01a_a_albm.png",
+      "albedo_size": [
+        1024,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_141_carkey01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_141_carkey01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm75_022_oldkey01a_a_albm.png",
+      "albedo_size": [
+        1024,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm75_022_oldkey01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm75_022_oldkey01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm70_104_cardkeylv101a_a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm70_104_cardkeylv101a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm70_104_cardkeylv101a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm73_105_cardkeylv201a_a_albm.png",
+      "albedo_size": [
+        256,
+        256
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_105_cardkeylv201a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_105_cardkeylv201a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm73_726_chaincutter01a_a_albm.png",
+      "albedo_size": [
+        1024,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_726_chaincutter01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_726_chaincutter01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm73_723_laboratoryfuse02a_a_albm.png",
+      "albedo_size": [
+        1024,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_723_laboratoryfuse02a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_723_laboratoryfuse02a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm73_107_valvehandle01a_a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_107_valvehandle01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_107_valvehandle01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm73_411_valvehandle02a_a_albm.png",
+      "albedo_size": [
+        1024,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_411_valvehandle02a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_411_valvehandle02a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm73_129_drivergrip01a_a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_129_drivergrip01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_129_drivergrip01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm73_108_starsbadge01a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_108_starsbadge01a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_108_starsbadge01a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm69_029_detonator_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm69_029_detonator_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm69_029_detonator_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm73_102_unicornmedal01a_a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_102_unicornmedal01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_102_unicornmedal01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm73_139_virginmedal01a_a_albm.png",
+      "albedo_size": [
+        1024,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_139_virginmedal01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_139_virginmedal01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm73_145_virginmedal02a_a_albm.png",
+      "albedo_size": [
+        1024,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_145_virginmedal02a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_145_virginmedal02a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm73_152_gear01a_a_albm.png",
+      "albedo_size": [
+        512,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_152_gear01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_152_gear01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm73_151_gearsmal01a_a_albm.png",
+      "albedo_size": [
+        512,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_151_gearsmal01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_151_gearsmal01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm70_204_9vbattery01a_a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm70_204_9vbattery01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm70_204_9vbattery01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm73_142_condenser01a_a_albm.png",
+      "albedo_size": [
+        1024,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_142_condenser01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_142_condenser01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm73_135_statuebook01a_a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_135_statuebook01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_135_statuebook01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/env_jewelry_alb.png",
+      "albedo_size": [
+        256,
+        128
+      ],
+      "albedo_source": "natives/stm/mastermaterial/textures/env_jewelry/env_jewelry_alb.tex.34",
+      "normal_source": "natives/stm/mastermaterial/textures/env_jewelry/env_jewelry_nrm.tex.34",
+      "base_color": [
+        0.78,
+        0.05,
+        0.06,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm41_022_statue01a_b_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm41_022_statue01a_b_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm41_022_statue01a_b_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm70_001_greenherb01a_a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm70_001_greenherb01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm70_001_greenherb01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm70_002_redherbitem01a_a_albm.png",
+      "albedo_size": [
+        1024,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm70_002_redherbitem01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm70_002_redherbitem01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm70_003_blueherb01a_a_albm.png",
+      "albedo_size": [
+        1024,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm70_003_blueherb01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm70_003_blueherb01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm70_000_emergencyspray01a_a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm70_000_emergencyspray01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm70_000_emergencyspray01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm70_205_gunpowder01a_c_albm.png",
+      "albedo_size": [
+        1024,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm70_205_gunpowder01a_c_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm70_205_gunpowder01a_c_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm70_205_gunpowder01a_b_albm.png",
+      "albedo_size": [
+        1024,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm70_205_gunpowder01a_b_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm70_205_gunpowder01a_b_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm70_207_strengtheningyellow01a_a_albm.png",
+      "albedo_size": [
+        1024,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm70_207_strengtheningyellow01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm70_207_strengtheningyellow01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm70_201_inkribbon01a_a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm70_201_inkribbon01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm70_201_inkribbon01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm70_100_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm70_100_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm70_100_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm70_102_submachinegun_bullet01a_albm.png",
+      "albedo_size": [
+        256,
+        256
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm70_102_submachinegun_bullet01a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm70_102_submachinegun_bullet01a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm70_109_sparkshotbulleta_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm70_109_sparkshotbulleta_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm70_109_sparkshotbulleta_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm70_106_grenadelauncher_acidbullet_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm70_106_grenadelauncher_acidbullet_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm70_106_grenadelauncher_acidbullet_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/wp6300_flash_albm.png",
+      "albedo_size": [
+        256,
+        256
+      ],
+      "albedo_source": "natives/stm/sectionroot/character/weapon/wp6300/wp6300_flash_albm.tex.34",
+      "normal_source": "natives/stm/sectionroot/character/weapon/wp6300/wp6300_flash_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/wp6200_grenade_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/sectionroot/character/weapon/wp6200/wp6200_grenade_albm.tex.34",
+      "normal_source": "natives/stm/sectionroot/character/weapon/wp6200/wp6200_grenade_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/wp4500_combatknife_albm.png",
+      "albedo_size": [
+        256,
+        256
+      ],
+      "albedo_source": "natives/stm/sectionroot/character/weapon/wp4500/wp4500_combatknife_albm.tex.34",
+      "normal_source": "natives/stm/sectionroot/character/weapon/wp4500/wp4500_combatknife_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/wp4500_cover_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/sectionroot/character/weapon/wp4500/wp4500_cover_albm.tex.34",
+      "normal_source": "natives/stm/sectionroot/character/weapon/wp4500/wp4500_cover_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm26_022_woodboard01a_a_albm.png",
+      "albedo_size": [
+        256,
+        256
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm26_022_woodboard01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm26_022_woodboard01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": null,
+      "albedo_size": null,
+      "albedo_source": null,
+      "normal_source": null,
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm73_405_videotape01a_a_albm.png",
+      "albedo_size": [
+        1024,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_405_videotape01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_405_videotape01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm72_200_photofilma01a_a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm72_200_photofilma01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm72_200_photofilma01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/wp4100_grenadelauncher_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/sectionroot/character/weapon/wp4100/wp4100_grenadelauncher_albm.tex.34",
+      "normal_source": "natives/stm/sectionroot/character/weapon/wp4100/wp4100_grenadelauncher_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/wp0200_browningh_albm.png",
+      "albedo_size": [
+        256,
+        256
+      ],
+      "albedo_source": "natives/stm/sectionroot/character/weapon/wp0200/wp0200_browningh_albm.tex.34",
+      "normal_source": "natives/stm/sectionroot/character/weapon/wp0200/wp0200_browningh_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/wp0500_browningcs_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/sectionroot/character/weapon/wp0500/wp0500_browningcs_albm.tex.34",
+      "normal_source": "natives/stm/sectionroot/character/weapon/wp0500/wp0500_browningcs_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/wp0200_longmag_albm.png",
+      "albedo_size": [
+        256,
+        256
+      ],
+      "albedo_source": "natives/stm/sectionroot/character/weapon/wp0200/wp0200_longmag_albm.tex.34",
+      "normal_source": "natives/stm/sectionroot/character/weapon/wp0200/wp0200_longmag_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/wp2100_submachinegun_albm.png",
+      "albedo_size": [
+        256,
+        256
+      ],
+      "albedo_source": "natives/stm/sectionroot/character/weapon/wp2100/wp2100_submachinegun_albm.tex.34",
+      "normal_source": "natives/stm/sectionroot/character/weapon/wp2100/wp2100_submachinegun_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/wp2000_submachinegun_albm.png",
+      "albedo_size": [
+        256,
+        256
+      ],
+      "albedo_source": "natives/stm/sectionroot/character/weapon/wp2000/wp2000_submachinegun_albm.tex.34",
+      "normal_source": "natives/stm/sectionroot/character/weapon/wp2000/wp2000_submachinegun_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/wp0800_powerup_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/sectionroot/character/weapon/wp0800/wp0800_powerup_albm.tex.34",
+      "normal_source": "natives/stm/sectionroot/character/weapon/wp0800/wp0800_powerup_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm74_100_mappolice01a_a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm74_100_mappolice01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm74_100_mappolice01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm74_101_mapunderground01a_a_albm.png",
+      "albedo_size": [
+        1024,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm74_101_mapunderground01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm74_101_mapunderground01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm74_110_mapupperpolice01a_a_albm.png",
+      "albedo_size": [
+        1024,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm74_110_mapupperpolice01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm74_110_mapupperpolice01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm74_063_raccoonfigure01a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm74_063_raccoonfigure01a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm74_063_raccoonfigure01a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm74_200_sidepack_albm.png",
+      "albedo_size": [
+        1024,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_200_clairesbag01a/sm74_200_sidepack_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/sm7x_item/sm74/sm74_200_clairesbag01a/sm74_200_sidepack_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm73_112_bluejewelrybox01a_a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm73_112_bluejewelrybox01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm73_113_redjewelrybox01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/env_jewelry_alb.png",
+      "albedo_size": [
+        256,
+        128
+      ],
+      "albedo_source": "natives/stm/mastermaterial/textures/env_jewelry/env_jewelry_alb.tex.34",
+      "normal_source": "natives/stm/mastermaterial/textures/env_jewelry/env_jewelry_nrm.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm41_011_itemlocker01a_a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm41_011_itemlocker01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm41_011_itemlocker01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm41_011_itemlocker01a_b_albm.png",
+      "albedo_size": [
+        1024,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm41_011_itemlocker01a_b_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm41_011_itemlocker01a_b_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm41_000_typewriter01a_a_albm.png",
+      "albedo_size": [
+        1024,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm41_000_typewriter01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm41_000_typewriter01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm41_000_typewriter01a_b_albm.png",
+      "albedo_size": [
+        1024,
+        1024
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm41_000_typewriter01a_b_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm41_000_typewriter01a_b_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm44_003_safebox01a_a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm44_003_safebox01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm44_003_safebox01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm77_002_portablesafe01a_a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm77_002_portablesafe01a_a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm77_002_portablesafe01a_a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm74_004_document01a_albm.png",
+      "albedo_size": [
+        256,
+        256
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm74_004_document01a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm74_004_document01a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm74_001_rpddocument01a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm74_001_rpddocument01a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm74_001_rpddocument01a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm74_003_diary01a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm74_003_diary01a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm74_003_diary01a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm74_005_pamphlet01a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm74_005_pamphlet01a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm74_005_pamphlet01a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm74_006_guidepamphlet01a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm74_006_guidepamphlet01a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm74_006_guidepamphlet01a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm74_008_memo01a_albm.png",
+      "albedo_size": [
+        256,
+        256
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm74_008_memo01a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm74_008_memo01a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm74_009_raccoonmonthly01a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm74_009_raccoonmonthly01a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm74_009_raccoonmonthly01a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm74_011_report01a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm74_011_report01a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm74_011_report01a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "albedo": "item_models/sm74_010_sewercopamphlet01a_albm.png",
+      "albedo_size": [
+        512,
+        512
+      ],
+      "albedo_source": "natives/stm/objectroot/setmodel/textures/sm74_010_sewercopamphlet01a_albm.tex.34",
+      "normal_source": "natives/stm/objectroot/setmodel/textures/sm74_010_sewercopamphlet01a_nrmr.tex.34",
+      "base_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    }
+  ],
+  "items": {
+    "2F Landing Area": {
+      "category": "Transition",
+      "model": null,
+      "status": "unmapped"
+    },
+    "3F Locker": {
+      "category": "File",
+      "model": "file_document",
+      "status": "family"
+    },
+    "A Message from Mr. Raccoon": {
+      "category": "File",
+      "model": "file_document",
+      "status": "family"
+    },
+    "Art Article: \"The Red Stone\"": {
+      "category": "File",
+      "model": "file_document",
+      "status": "family"
+    },
+    "Autopsy Record No. 53477": {
+      "category": "File",
+      "model": "file_report",
+      "status": "family"
+    },
+    "Battery": {
+      "category": "Key Item",
+      "model": "battery",
+      "status": "exact"
+    },
+    "Blocked Door": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Blue Herb": {
+      "category": "Blue Herb",
+      "model": "herb_blue",
+      "status": "exact"
+    },
+    "Bolt Cutters": {
+      "category": "Key Item",
+      "model": "bolt_cutters",
+      "status": "exact"
+    },
+    "Car Key": {
+      "category": "Key Item",
+      "model": "key_car",
+      "status": "exact"
+    },
+    "Car Trunk": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Card Reader": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Chained Door": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Clock Tower Puzzle": {
+      "category": "Puzzle",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Closet": {
+      "category": "Miscellaneous",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Club Door": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Combat Knife": {
+      "category": "Knife",
+      "model": "knife",
+      "status": "exact"
+    },
+    "Commemorative Photo": {
+      "category": "File",
+      "model": "file_document",
+      "status": "family"
+    },
+    "Confiscation Report": {
+      "category": "File",
+      "model": "file_report",
+      "status": "family"
+    },
+    "Copy of Emails to Chief Irons": {
+      "category": "File",
+      "model": "file_document",
+      "status": "family"
+    },
+    "Crank Handle Slot": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Darkroom Sink": {
+      "category": "Miscellaneous",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Detonator (No Battery)": {
+      "category": "Key Item",
+      "model": "detonator",
+      "status": "exact"
+    },
+    "Dial Lock": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Diamond Door": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Diamond Key": {
+      "category": "Key Item",
+      "model": "key_diamond",
+      "status": "exact"
+    },
+    "Electronically-locked Door": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Emperor Statue": {
+      "category": "Puzzle",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Equipment Disposal Notice": {
+      "category": "File",
+      "model": "file_document",
+      "status": "family"
+    },
+    "Explosive Barricade": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Film: \"3F Locker\"": {
+      "category": "Film",
+      "model": "film_d",
+      "status": "exact"
+    },
+    "Film: \"Commemorative\"": {
+      "category": "Film",
+      "model": "film_c",
+      "status": "exact"
+    },
+    "Film: \"Rising Rookie\"": {
+      "category": "Film",
+      "model": "film_b",
+      "status": "exact"
+    },
+    "First Aid Spray": {
+      "category": "First Aid Spray",
+      "model": "spray_firstaid",
+      "status": "exact"
+    },
+    "Flame Rounds": {
+      "category": "Grenade Rounds",
+      "model": "ammo_flame",
+      "status": "exact"
+    },
+    "Flash Grenade": {
+      "category": "Flash Grenade",
+      "model": "grenade_flash",
+      "status": "exact"
+    },
+    "Fuse (Main Hall)": {
+      "category": "Key Item",
+      "model": "fuse_main",
+      "status": "exact"
+    },
+    "Fusebox": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "GM 79": {
+      "category": "Weapon",
+      "model": "weapon_gm79",
+      "status": "exact"
+    },
+    "Gear Box": {
+      "category": "Miscellaneous",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Goddess Statue": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Green Herb": {
+      "category": "Green Herb",
+      "model": "herb_green",
+      "status": "exact"
+    },
+    "Guide Pamphlet": {
+      "category": "File",
+      "model": "file_guide",
+      "status": "family"
+    },
+    "Gunpowder": {
+      "category": "Gunpowder",
+      "model": "gunpowder",
+      "status": "exact"
+    },
+    "Gunpowder (Large)": {
+      "category": "Gunpowder",
+      "model": "gunpowder_large",
+      "status": "exact"
+    },
+    "Hand Grenade": {
+      "category": "Hand Grenade",
+      "model": "grenade_hand",
+      "status": "exact"
+    },
+    "Handgun Ammo": {
+      "category": "Handgun Ammo",
+      "model": "ammo_handgun",
+      "status": "exact"
+    },
+    "Heart Door": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Heart Key": {
+      "category": "Key Item",
+      "model": "key_heart",
+      "status": "exact"
+    },
+    "Hiding Place": {
+      "category": "File",
+      "model": "film_a",
+      "status": "exact"
+    },
+    "High-Capacity Mag. (JMB Hp3)": {
+      "category": "Weapon Upgrade",
+      "model": "upgrade_mag_hp3",
+      "status": "exact"
+    },
+    "High-Capacity Mag. (MQ 11)": {
+      "category": "Weapon Upgrade",
+      "model": "upgrade_mag_mq11",
+      "status": "exact"
+    },
+    "High-Grade Gunpowder (White)": {
+      "category": "High-Grade Gunpowder",
+      "model": "gunpowder_high",
+      "status": "exact"
+    },
+    "Hip Pouch": {
+      "category": "Hip Pouch",
+      "model": "hip_pouch",
+      "status": "approximate"
+    },
+    "Ink Ribbon": {
+      "category": "Ink Ribbon",
+      "model": "ink_ribbon",
+      "status": "exact"
+    },
+    "Ink Ribbon x2": {
+      "category": "Ink Ribbon",
+      "model": "ink_ribbon",
+      "status": "exact"
+    },
+    "Ink Ribbon x3": {
+      "category": "Ink Ribbon",
+      "model": "ink_ribbon",
+      "status": "exact"
+    },
+    "Internal Memo": {
+      "category": "File",
+      "model": "file_memo",
+      "status": "family"
+    },
+    "Item Box": {
+      "category": "Item Box",
+      "model": "item_box",
+      "status": "exact"
+    },
+    "JMB Hp3": {
+      "category": "Weapon",
+      "model": "weapon_jmb_hp3",
+      "status": "exact"
+    },
+    "Jack": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Large Gear": {
+      "category": "Key Item",
+      "model": "gear_large",
+      "status": "exact"
+    },
+    "Left Lock": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Letter from Best Friend": {
+      "category": "File",
+      "model": "file_letter",
+      "status": "family"
+    },
+    "Letter to S.T.A.R.S. Members": {
+      "category": "File",
+      "model": "file_letter",
+      "status": "family"
+    },
+    "Lever": {
+      "category": "Miscellaneous",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Lion Medallion": {
+      "category": "Key Item",
+      "model": "medallion_lion",
+      "status": "exact"
+    },
+    "Lion Statue": {
+      "category": "Puzzle",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Locked Door": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Locker Room Code": {
+      "category": "Miscellaneous",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Lockers Terminal": {
+      "category": "Puzzle",
+      "model": null,
+      "status": "unmapped"
+    },
+    "MQ 11 x20": {
+      "category": "Weapon",
+      "model": "weapon_mq11",
+      "status": "exact"
+    },
+    "Maiden Medallion": {
+      "category": "Key Item",
+      "model": "medallion_maiden",
+      "status": "exact"
+    },
+    "Maiden Statue": {
+      "category": "Puzzle",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Mechanic Jack Handle": {
+      "category": "Key Item",
+      "model": "jack_handle",
+      "status": "approximate"
+    },
+    "Medicinal Benefits of Herbs": {
+      "category": "File",
+      "model": "file_document",
+      "status": "family"
+    },
+    "Mr. Raccoon": {
+      "category": "Mr Raccoon",
+      "model": "mr_raccoon",
+      "status": "exact"
+    },
+    "Needle Cartridges": {
+      "category": "Needle Cartridges",
+      "model": "ammo_needle",
+      "status": "exact"
+    },
+    "Officer's Notebook": {
+      "category": "File",
+      "model": "file_diary",
+      "status": "family"
+    },
+    "One-Way Door": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Operation Report": {
+      "category": "File",
+      "model": "file_rpd_document",
+      "status": "family"
+    },
+    "PC": {
+      "category": "Puzzle",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Parking Garage Key Card": {
+      "category": "Key Item",
+      "model": "key_card_parking",
+      "status": "exact"
+    },
+    "Police Station 1F Map": {
+      "category": "Area Map",
+      "model": "map_police_1f",
+      "status": "exact"
+    },
+    "Police Station B1 Map": {
+      "category": "Area Map",
+      "model": "map_b1",
+      "status": "exact"
+    },
+    "Police Station Upper Floors Map": {
+      "category": "Area Map",
+      "model": "map_upper",
+      "status": "exact"
+    },
+    "Portable Safe": {
+      "category": "Safe",
+      "model": "portable_safe",
+      "status": "exact"
+    },
+    "Portable Safe Instructions": {
+      "category": "File",
+      "model": "file_pamphlet",
+      "status": "family"
+    },
+    "Power Panel Part": {
+      "category": "Key Item",
+      "model": "condenser",
+      "status": "exact"
+    },
+    "Raccoon Monthly, June Issue": {
+      "category": "File",
+      "model": "file_raccoon_monthly",
+      "status": "family"
+    },
+    "Record of Events": {
+      "category": "File",
+      "model": "file_report",
+      "status": "family"
+    },
+    "Red Book (Art Object)": {
+      "category": "Key Item",
+      "model": "red_book",
+      "status": "exact"
+    },
+    "Red Herb": {
+      "category": "Red Herb",
+      "model": "herb_red",
+      "status": "exact"
+    },
+    "Red Jewel": {
+      "category": "Key Item",
+      "model": "red_jewel",
+      "status": "approximate"
+    },
+    "Repair Plan": {
+      "category": "File",
+      "model": "file_document",
+      "status": "family"
+    },
+    "Repair Shop Letter": {
+      "category": "File",
+      "model": "file_letter",
+      "status": "family"
+    },
+    "Resident Evil 2 (1998) Reference": {
+      "category": "Easter Egg",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Right Lock": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Rising Rookie": {
+      "category": "File",
+      "model": "file_document",
+      "status": "family"
+    },
+    "Rookie's First Assignment": {
+      "category": "File",
+      "model": "file_diary",
+      "status": "family"
+    },
+    "S.T.A.R.S Badge": {
+      "category": "Key Item",
+      "model": "stars_badge",
+      "status": "exact"
+    },
+    "Safe": {
+      "category": "Safe",
+      "model": "safe",
+      "status": "exact"
+    },
+    "Shoulder Stock (GM 79)": {
+      "category": "Weapon Upgrade",
+      "model": "upgrade_stock_gm79",
+      "status": "exact"
+    },
+    "Small Gear": {
+      "category": "Key Item",
+      "model": "gear_small",
+      "status": "exact"
+    },
+    "Small Window": {
+      "category": "Miscellaneous",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Some Guy's Scribblings": {
+      "category": "File",
+      "model": "file_document",
+      "status": "family"
+    },
+    "Spade Door": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Spade Key": {
+      "category": "Key Item",
+      "model": "key_spade",
+      "status": "exact"
+    },
+    "Spare Key": {
+      "category": "Key Item",
+      "model": "key_spare",
+      "status": "approximate"
+    },
+    "Speed Loader (SLS 60)": {
+      "category": "Weapon Upgrade",
+      "model": "upgrade_speed_loader",
+      "status": "approximate"
+    },
+    "Statue's Left Arm": {
+      "category": "Key Item",
+      "model": "statue_arm",
+      "status": "exact"
+    },
+    "Storage Locker Terminal Memo": {
+      "category": "File",
+      "model": "file_document",
+      "status": "family"
+    },
+    "Submachine Gun Ammo": {
+      "category": "SMG Ammo",
+      "model": "ammo_smg",
+      "status": "exact"
+    },
+    "Taped Box": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Taxidermy Log": {
+      "category": "File",
+      "model": "file_document",
+      "status": "family"
+    },
+    "To 1F": {
+      "category": "Transition",
+      "model": null,
+      "status": "unmapped"
+    },
+    "To 2F": {
+      "category": "Transition",
+      "model": null,
+      "status": "unmapped"
+    },
+    "To 3F": {
+      "category": "Transition",
+      "model": null,
+      "status": "unmapped"
+    },
+    "To 4F": {
+      "category": "Transition",
+      "model": null,
+      "status": "unmapped"
+    },
+    "To B1": {
+      "category": "Transition",
+      "model": null,
+      "status": "unmapped"
+    },
+    "To Orphanage": {
+      "category": "Transition",
+      "model": null,
+      "status": "unmapped"
+    },
+    "To Underground Facility": {
+      "category": "Transition",
+      "model": null,
+      "status": "unmapped"
+    },
+    "To any survivors": {
+      "category": "File",
+      "model": "file_letter",
+      "status": "family"
+    },
+    "Typewriter": {
+      "category": "Typewriter",
+      "model": "typewriter",
+      "status": "exact"
+    },
+    "Unicorn Medallion": {
+      "category": "Key Item",
+      "model": "medallion_unicorn",
+      "status": "exact"
+    },
+    "Unicorn Statue": {
+      "category": "Puzzle",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Uses of Gunpowder": {
+      "category": "File",
+      "model": "file_document",
+      "status": "family"
+    },
+    "Valve": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Valve Handle": {
+      "category": "Key Item",
+      "model": "valve_handle",
+      "status": "exact"
+    },
+    "Water Valve Lever": {
+      "category": "Miscellaneous",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Weapons Locker": {
+      "category": "Lock",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Weapons Locker Key Card": {
+      "category": "Key Item",
+      "model": "key_card_weapons",
+      "status": "exact"
+    },
+    "Window": {
+      "category": "Window",
+      "model": null,
+      "status": "unmapped"
+    },
+    "Wooden Boards": {
+      "category": "Wooden Boards",
+      "model": "board_wood",
+      "status": "family"
+    }
+  },
+  "problems": []
+}
