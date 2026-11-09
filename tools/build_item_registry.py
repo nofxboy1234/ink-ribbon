@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Join the MapGenie markers, item models and icons into one item registry.
+"""Join the MapGenie markers and icons into one item registry.
 
 The registry is the single source of truth for every RPD B1-4F MapGenie item.
-It joins three committed assets by title and category:
+It joins two committed assets by title and category:
 
 - ``public/rpd/items_mapgenie.json``  the mapped world pose per marker
-- ``public/rpd/item_models.json``     the 3D model per MapGenie title
 - ``public/rpd/icons.json``           the icon per MapGenie title or category
 
 The typed action and its gates come from the MapGenie links in the API
@@ -38,7 +37,6 @@ import re
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RPD = ROOT / "public" / "rpd"
 MAPGENIE = RPD / "items_mapgenie.json"
-MODELS = RPD / "item_models.json"
 ICONS = RPD / "icons.json"
 OUT = RPD / "item_registry.json"
 DEFAULT_API = pathlib.Path("/tmp/mapgenie/map-878.json")
@@ -216,12 +214,10 @@ def main() -> None:
     args = parser.parse_args()
 
     marker_file = read_json(MAPGENIE)
-    model_file = read_json(MODELS)
     icon_file = read_json(ICONS)
     locations = api_locations(args.map_json)
 
     floors = {name: entry["index"] for name, entry in marker_file["floors"].items()}
-    model_items = model_file["items"]
     icon_categories = icon_file["categories"]
     icon_overrides = icon_file["items"]
 
@@ -233,7 +229,6 @@ def main() -> None:
         icon = icon_overrides.get(entry["title"])
         if not icon:
             icon = (icon_categories.get(slug(category)) or {}).get("icon")
-        model = (model_items.get(entry["title"]) or {}).get("model")
         row = {
             "id": int(entry["id"]),
             "title": entry["title"],
@@ -250,7 +245,6 @@ def main() -> None:
             "placement": "floor"
             if entry["on_floor"] or entry["on_door"] or entry["on_stair"]
             else "fixture",
-            "model": model,
             "icon": icon or "miscellaneous",
             "action": "none",
             "requires": [],
@@ -368,7 +362,6 @@ def main() -> None:
             "on_stair": False,
             "nearest_nav": car_key["nearest_nav"],
             "placement": "fixture",
-            "model": None,
             "icon": "item_box",
             "action": "open",
             "requires": [],
@@ -405,7 +398,6 @@ def main() -> None:
     action_counts: dict[str, int] = {name: 0 for name in ACTIONS}
     for row in rows:
         action_counts[row["action"]] = action_counts.get(row["action"], 0) + 1
-    modelled = sum(1 for row in rows if row["model"])
     hidden = sum(1 for row in rows if row["hidden_by"] is not None)
     gated = sum(1 for row in rows if row["requires"] or row["requires_open"])
 
@@ -414,7 +406,6 @@ def main() -> None:
         "version": 1,
         "source": {
             "mapgenie": "public/rpd/items_mapgenie.json",
-            "models": "public/rpd/item_models.json",
             "icons": "public/rpd/icons.json",
             "api": f"mapgenie map 878 descriptions sha256:{digest}",
         },
@@ -422,7 +413,6 @@ def main() -> None:
         "block_radius": 1.0,
         "stats": {
             "items": len(rows),
-            "modelled": modelled,
             "hidden_contents": hidden,
             "gated": gated,
             "actions": action_counts,

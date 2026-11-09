@@ -41,7 +41,6 @@ typedef struct {
     const char *title;
     const char *category;
     const char *icon;
-    const char *model;
     float x, y, z;
     uint8_t floor;
     uint8_t action;

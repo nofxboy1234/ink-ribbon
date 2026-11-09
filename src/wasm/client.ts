@@ -7,12 +7,6 @@ type RpdFactory = (options: {
 
 export type RpdClient = {
   loadScene(data: Uint8Array): number;
-  loadItemModels(data: Uint8Array): number;
-  itemMaterialCount(): number;
-  itemMaterialAlbedo(material: number): string;
-  itemTexture(material: number, rgba: Uint8Array, width: number, height: number): number;
-  itemRenderStats(): Float32Array;
-  itemUploadError(): number;
   getCamera(): Float32Array;
   setOrbit(tx: number, ty: number, tz: number, yaw: number, pitch: number, distance: number): number;
   animateOrbit(tx: number, ty: number, tz: number, distance: number, duration: number): number;
@@ -93,7 +87,6 @@ export type RpdClient = {
     action: number;
     hidden: boolean;
     available: boolean;
-    hasModel: boolean;
     flags: number;
     name: string;
     roomName: string;
@@ -108,7 +101,6 @@ export type RpdClient = {
   itemBlocked(index: number): number;
   itemIndexForId(id: number): number;
   inventoryItem(slot: number): number;
-  inventoryIcon(slot: number): string;
   inventoryCount(): number;
   inventory(): Float32Array;
   planMoveState(): Float32Array;
@@ -156,43 +148,6 @@ export async function createRpdClient(options: {
       const result = module._rpd_load_scene(ptr, data.byteLength);
       module._free(ptr);
       return result;
-    },
-    loadItemModels(data) {
-      const ptr = module._malloc(data.byteLength);
-      heap.HEAPU8.set(data, ptr);
-      const result = (module as unknown as { _rpd_load_item_models: (p: number, size: number) => number })
-        ._rpd_load_item_models(ptr, data.byteLength);
-      module._free(ptr);
-      return result;
-    },
-    itemMaterialCount() {
-      return (module as unknown as { _rpd_item_material_count: () => number })._rpd_item_material_count();
-    },
-    itemMaterialAlbedo(material) {
-      return utf8(
-        (module as unknown as { _rpd_item_material_albedo: (m: number) => number })
-          ._rpd_item_material_albedo(material),
-      );
-    },
-    itemTexture(material, rgba, width, height) {
-      const ptr = module._malloc(rgba.byteLength);
-      heap.HEAPU8.set(rgba, ptr);
-      const result = (module as unknown as {
-        _rpd_item_texture: (m: number, p: number, w: number, h: number) => number;
-      })._rpd_item_texture(material, ptr, width, height);
-      module._free(ptr);
-      return result;
-    },
-    itemRenderStats() {
-      const ptr = module._malloc(6 * 4);
-      (module as unknown as { _rpd_item_render_stats: (p: number) => number })
-        ._rpd_item_render_stats(ptr);
-      const out = new Float32Array(heap.HEAPU8.buffer, ptr, 6).slice();
-      module._free(ptr);
-      return out;
-    },
-    itemUploadError() {
-      return (module as unknown as { _rpd_item_upload_error: () => number })._rpd_item_upload_error();
     },
     getCamera() {
       module._rpd_get_camera(cameraPtr);
@@ -356,14 +311,14 @@ export async function createRpdClient(options: {
       return (module as unknown as { _rpd_item_count: () => number })._rpd_item_count();
     },
     item(index) {
-      const ptr = module._malloc(16 * 4);
+      const ptr = module._malloc(15 * 4);
       const ok = (module as unknown as { _rpd_item: (i: number, p: number) => number })
         ._rpd_item(index, ptr);
       if (!ok) {
         module._free(ptr);
         return null;
       }
-      const out = new Float32Array(heap.HEAPU8.buffer, ptr, 16).slice();
+      const out = new Float32Array(heap.HEAPU8.buffer, ptr, 15).slice();
       module._free(ptr);
       const namePtr = (module as unknown as { _rpd_item_name: (i: number) => number })._rpd_item_name(index);
       const roomPtr = (module as unknown as { _rpd_item_room: (i: number) => number })._rpd_item_room(index);
@@ -382,8 +337,7 @@ export async function createRpdClient(options: {
         action: out[11],
         hidden: out[12] !== 0,
         available: out[13] !== 0,
-        hasModel: out[14] !== 0,
-        flags: out[15],
+        flags: out[14],
         name: utf8(namePtr),
         roomName: utf8(roomPtr),
       };
@@ -428,9 +382,6 @@ export async function createRpdClient(options: {
     },
     inventoryItem(slot) {
       return (module as unknown as { _rpd_inventory_item: (slot: number) => number })._rpd_inventory_item(slot);
-    },
-    inventoryIcon(slot) {
-      return utf8((module as unknown as { _rpd_inventory_icon: (slot: number) => number })._rpd_inventory_icon(slot));
     },
     inventoryCount() {
       return (module as unknown as { _rpd_inventory_count: () => number })._rpd_inventory_count();

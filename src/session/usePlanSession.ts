@@ -7,13 +7,10 @@ import { CACHE_VERSION, fetchScene } from "./scene";
 
 export type InventoryEntry = {
   name: string;
-  icon: string;
   r: number;
   g: number;
   b: number;
 };
-
-export type IconAtlas = Record<string, { column: number; row: number }>;
 
 export type PlanSession = {
   state: {
@@ -27,7 +24,6 @@ export type PlanSession = {
     moving: boolean;
     room: string;
     inventory: (InventoryEntry | null)[];
-    icons: IconAtlas;
   };
   ref: { canvas: RefObject<HTMLCanvasElement | null> };
   set: { activeFloor: (index: number) => void };
@@ -57,37 +53,6 @@ function projectPoint(
   };
 }
 
-async function uploadItemTextures(client: RpdClient, version: string): Promise<void> {
-  const count = client.itemMaterialCount();
-  if (count <= 0) return;
-  const jobs = Array.from({ length: count }, (_, material) => {
-    const path = client.itemMaterialAlbedo(material);
-    if (!path) return Promise.resolve();
-    return (async () => {
-      const response = await fetch(`/rpd/${path}?v=${version}`);
-      if (!response.ok) return;
-      const bitmap = await createImageBitmap(await response.blob());
-      const canvas =
-        typeof OffscreenCanvas !== "undefined"
-          ? new OffscreenCanvas(bitmap.width, bitmap.height)
-          : Object.assign(document.createElement("canvas"), {
-              width: bitmap.width,
-              height: bitmap.height,
-            });
-      const context = canvas.getContext("2d") as
-        | CanvasRenderingContext2D
-        | OffscreenCanvasRenderingContext2D
-        | null;
-      if (!context) return;
-      context.drawImage(bitmap, 0, 0);
-      const image = context.getImageData(0, 0, bitmap.width, bitmap.height);
-      client.itemTexture(material, new Uint8Array(image.data.buffer), image.width, image.height);
-      bitmap.close?.();
-    })().catch(() => {});
-  });
-  await Promise.all(jobs);
-}
-
 export function usePlanSession(
   assetUrl = "/rpd/rpd.bin",
   onLoaded?: (client: RpdClient, graph: ReturnType<typeof buildNavGraph>) => void,
@@ -106,7 +71,6 @@ export function usePlanSession(
   const [inventory, setInventory] = useState<(InventoryEntry | null)[]>(() =>
     Array.from({ length: 8 }, () => null),
   );
-  const [icons, setIcons] = useState<IconAtlas>({});
   const graphRef = useRef<ReturnType<typeof buildNavGraph> | null>(null);
   const roomsRef = useRef<Quest["rooms"]>([]);
 
@@ -127,7 +91,7 @@ export function usePlanSession(
             if (parsed.version) version = parsed.version;
           }
         } catch {}
-        const [asset, questResponse, navResponse, iconsResponse, client] = await Promise.all([
+        const [asset, questResponse, navResponse, client] = await Promise.all([
           fetchScene(`${assetUrl}?v=${version}`, controller.signal, (fraction) => {
             if (!disposed) setProgress(fraction);
           }),
@@ -143,11 +107,6 @@ export function usePlanSession(
               return response.json() as Promise<NavFile>;
             },
           ),
-          fetch(`/rpd/icons.json?v=${version}`, { signal: controller.signal, cache: "no-store" })
-            .then((response) => (response.ok ? response.json() : { icons: {} }))
-            .catch(() => ({ icons: {} })) as Promise<{
-            icons: Record<string, { atlas_rect: [number, number, number, number] }>;
-          }>,
           createRpdClient({
             canvas: canvas.current as HTMLCanvasElement,
             locateFile: (path: string) => `/rpd/${path}?v=${version}`,
@@ -157,24 +116,11 @@ export function usePlanSession(
           client.dispose();
           return;
         }
-        const atlas: IconAtlas = {};
-        for (const [name, entry] of Object.entries(iconsResponse.icons ?? {})) {
-          const [x, y] = entry.atlas_rect ?? [0, 0];
-          atlas[name] = { column: Math.round(x / 64), row: Math.round(y / 64) };
-        }
-        setIcons(atlas);
         clientRef.current = client;
         if (import.meta.env.DEV) {
           (window as unknown as { __rpd?: RpdClient }).__rpd = client;
         }
         if (client.loadScene(asset) !== 0) throw new Error("the RPD scene could not be loaded");
-        const modelsResponse = await fetch(`/rpd/item_models.bin?v=${version}`, {
-          signal: controller.signal,
-        }).catch(() => null);
-        if (modelsResponse?.ok) {
-          client.loadItemModels(new Uint8Array(await modelsResponse.arrayBuffer()));
-          await uploadItemTextures(client, version);
-        }
         if (disposed) return;
         const graph = buildNavGraph(navResponse);
         graphRef.current = graph;
@@ -256,7 +202,6 @@ export function usePlanSession(
             const item = itemIndex >= 0 ? clientRef.current!.item(itemIndex) : null;
             return {
               name: item?.name ?? "",
-              icon: clientRef.current!.inventoryIcon(index),
               r: Math.round(slots[index * 4 + 1] * 255),
               g: Math.round(slots[index * 4 + 2] * 255),
               b: Math.round(slots[index * 4 + 3] * 255),
@@ -273,7 +218,6 @@ export function usePlanSession(
               if (!slot || !previous) return slot === previous;
               return (
                 slot.name === previous.name &&
-                slot.icon === previous.icon &&
                 slot.r === previous.r &&
                 slot.g === previous.g &&
                 slot.b === previous.b
@@ -352,7 +296,6 @@ export function usePlanSession(
           const item = itemIndex >= 0 ? client.item(itemIndex) : null;
           return {
             name: item?.name ?? "",
-            icon: client.inventoryIcon(index),
             r: Math.round(slots[index * 4 + 1] * 255),
             g: Math.round(slots[index * 4 + 2] * 255),
             b: Math.round(slots[index * 4 + 3] * 255),
@@ -463,7 +406,6 @@ export function usePlanSession(
       cameraPose: () => Array.from(client.getCamera()),
       cameraModel: () => Array.from(client.cameraModel()),
       debugFloors: () => Array.from(client.debugFloors()),
-      itemModels: () => Array.from(client.itemRenderStats()),
       overlayStats: () => Array.from(client.overlayStats()),
       rooms: () => roomsRef.current,
       nearestCell: (x: number, z: number) => {
@@ -563,7 +505,7 @@ export function usePlanSession(
   }, [loaded, activeFloor]);
 
   return {
-    state: { loaded, error, progress, floors, activeFloor, view2D, planCount, moving, room, inventory, icons },
+    state: { loaded, error, progress, floors, activeFloor, view2D, planCount, moving, room, inventory },
     ref: { canvas },
     set: { activeFloor: setActiveFloor },
     actions: {

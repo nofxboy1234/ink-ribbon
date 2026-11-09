@@ -3,12 +3,6 @@ export type RpdModule = {
   _malloc: (size: number) => number;
   _free: (ptr: number) => void;
   _rpd_load_scene: (ptr: number, size: number) => number;
-  _rpd_load_item_models: (ptr: number, size: number) => number;
-  _rpd_item_material_count: () => number;
-  _rpd_item_material_albedo: (material: number) => number;
-  _rpd_item_texture: (material: number, ptr: number, width: number, height: number) => number;
-  _rpd_item_render_stats: (ptr: number) => number;
-  _rpd_item_upload_error: () => number;
   _rpd_get_camera: (ptr: number) => number;
   _rpd_set_orbit: (
     tx: number,
@@ -64,7 +58,6 @@ export type RpdModule = {
   _rpd_item_act: (index: number) => number;
   _rpd_item_index_for_id: (id: number) => number;
   _rpd_inventory_item: (slot: number) => number;
-  _rpd_inventory_icon: (slot: number) => number;
   _rpd_inventory_count: () => number;
   _rpd_inventory: (ptr: number, cap: number) => number;
   _rpd_plan_active_floor: () => number;

@@ -134,62 +134,6 @@ void main() {
 @end
 
 
-@vs item_vs
-layout(binding=0) uniform item_vs_params {
-    mat4 u_view_proj;
-    mat4 u_model;
-};
-layout(location=0) in vec3 position;
-layout(location=1) in vec3 normal;
-layout(location=2) in vec2 uv;
-out vec3 v_world;
-out vec3 v_normal;
-out vec2 v_uv;
-void main() {
-    vec4 world = u_model * vec4(position, 1.0);
-    v_world = world.xyz;
-    v_normal = mat3(u_model) * normal;
-    v_uv = uv;
-    gl_Position = u_view_proj * world;
-}
-@end
-
-@fs item_fs
-precision highp float;
-layout(binding=1) uniform item_fs_params {
-    vec4 u_camera;
-    vec4 u_clip;
-};
-layout(binding=0) uniform texture2D u_tex;
-layout(binding=0) uniform sampler u_tex_smp;
-in vec3 v_world;
-in vec3 v_normal;
-in vec2 v_uv;
-layout(location = 0) out vec4 frag_color;
-layout(location = 1) out vec4 frag_normal;
-layout(location = 2) out vec4 frag_depth;
-void main() {
-    if (u_clip.z > 0.5 && (v_world.y < u_clip.x || v_world.y > u_clip.y)) discard;
-    vec3 albedo = texture(sampler2D(u_tex, u_tex_smp), v_uv).rgb;
-    vec3 view = normalize(u_camera.xyz - v_world);
-    vec3 n = normalize(v_normal);
-    if (dot(n, view) < 0.0) n = -n;
-    float key = max(dot(n, normalize(vec3(0.36, 0.88, 0.30))), 0.0);
-    float fill = max(dot(n, normalize(vec3(-0.55, 0.32, -0.62))), 0.0);
-    float hemi = 0.5 + 0.5 * n.y;
-    float shade = 0.62 + 0.30 * key + 0.06 * fill + 0.04 * hemi;
-    frag_color = vec4(albedo * shade, 1.0);
-    // Alpha 0.5 marks the pixel as a prop, so the composite keeps the lit
-    // albedo instead of eating a small model with an ink silhouette.
-    frag_normal = vec4(n * 0.5 + 0.5, 0.5);
-    float dist = length(u_camera.xyz - v_world);
-    float scaled = clamp(dist, 0.0, 500.0) * (65535.0 / 500.0);
-    float hi = floor(scaled / 256.0);
-    float lo = scaled - hi * 256.0;
-    frag_depth = vec4(hi / 255.0, lo / 255.0, 0.0, 0.5);
-}
-@end
-
 @vs composite_vs
 layout(location=0) in vec2 position;
 out vec2 v_uv;
@@ -321,6 +265,5 @@ void main() {
 @program solid solid_vs solid_fs
 @program data solid_vs data_fs
 @program marker marker_vs marker_fs
-@program item item_vs item_fs
 @program composite composite_vs composite_fs
 @program overlay overlay_vs overlay_fs

@@ -25,7 +25,7 @@
     "31-item-cubes-3d",
     "32-item-cubes-ortho",
     "34-key-gating",
-    "33-inventory-icon",
+    "33-inventory-square",
     "35-box-open",
     "36-door-route-locked",
     "37-door-route-unlocked",
@@ -115,7 +115,7 @@
         0.3999999761581421,
         0,
         242.1537628173828,
-        4.62708893049901e-39
+        1.197395524780913e-40
       ],
       "overlay": [
         0,
@@ -197,10 +197,10 @@
         1.570451021194458,
         1,
         242.1537628173828,
-        4.62708893049901e-39
+        1.197395524780913e-40
       ],
       "overlay": [
-        39,
+        105,
         10,
         0,
         0,
@@ -283,10 +283,10 @@
         1.570451021194458,
         1,
         145.54678344726562,
-        4.62708893049901e-39
+        1.197395524780913e-40
       ],
       "overlay": [
-        11,
+        29,
         0,
         0,
         0,
@@ -368,10 +368,10 @@
         1.570451021194458,
         1,
         130.71527099609375,
-        4.6268086708061453e-39
+        8.678241389563592e-42
       ],
       "overlay": [
-        39,
+        105,
         15,
         0,
         0,
@@ -450,10 +450,10 @@
         1.570451021194458,
         1,
         130.71527099609375,
-        4.6268086708061453e-39
+        8.678241389563592e-42
       ],
       "overlay": [
-        39,
+        105,
         15,
         0,
         0,
@@ -532,10 +532,10 @@
         1.570451021194458,
         1,
         130.71527099609375,
-        4.62708893049901e-39
+        8.958501082428556e-42
       ],
       "overlay": [
-        39,
+        105,
         15,
         0,
         0,
@@ -559,9 +559,9 @@
       "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · middle drag to pan",
       "plan": [],
       "player": [
-        20.820899963378906,
+        20.82091522216797,
         0.09999999403953552,
-        -10.330224990844727
+        -10.330228805541992
       ],
       "moving": false,
       "routePoints": 0,
@@ -614,10 +614,10 @@
         1.570451021194458,
         1,
         130.71527099609375,
-        4.62708893049901e-39
+        8.958501082428556e-42
       ],
       "overlay": [
-        39,
+        105,
         15,
         0,
         0,
@@ -628,7 +628,7 @@
     "labelOverlap": {
       "room": "Reception - RPD",
       "stats": [
-        39,
+        105,
         14,
         1,
         0,
@@ -638,7 +638,7 @@
     },
     "floorFilter": {
       "floorOneStats": [
-        39,
+        105,
         15,
         0,
         0,
@@ -646,7 +646,7 @@
         0
       ],
       "floorTwoStats": [
-        30,
+        79,
         14,
         0,
         0,
@@ -656,37 +656,37 @@
       "floorDiamonds": [
         {
           "floor": 0,
-          "drawn": 39,
-          "expected": 39,
+          "drawn": 105,
+          "expected": 105,
           "claire": 1
         },
         {
           "floor": 1,
-          "drawn": 30,
-          "expected": 30,
+          "drawn": 79,
+          "expected": 79,
           "claire": 0
         },
         {
           "floor": 2,
-          "drawn": 16,
-          "expected": 16,
+          "drawn": 38,
+          "expected": 38,
           "claire": 0
         },
         {
           "floor": 3,
-          "drawn": 2,
-          "expected": 2,
+          "drawn": 3,
+          "expected": 3,
           "claire": 0
         },
         {
           "floor": 4,
-          "drawn": 11,
-          "expected": 11,
+          "drawn": 29,
+          "expected": 29,
           "claire": 0
         }
       ],
       "markerPixels": {
-        "floorOne": 2458
+        "floorOne": 6250
       }
     },
     "orthoReset": {
@@ -777,7 +777,7 @@
         0.3999999761581421,
         0,
         130.71527099609375,
-        4.62708893049901e-39
+        8.958501082428556e-42
       ],
       "overlay": [
         0,
@@ -1018,7 +1018,6 @@
         "action": 3,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Item Box",
         "roomName": ""
@@ -1039,7 +1038,6 @@
         "action": 3,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Item Box",
         "roomName": ""
@@ -1060,7 +1058,6 @@
         "action": 3,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Item Box",
         "roomName": ""
@@ -1081,7 +1078,6 @@
         "action": 2,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "Taped Box",
         "roomName": ""
@@ -1102,7 +1098,6 @@
         "action": 2,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "Fusebox",
         "roomName": ""
@@ -1123,7 +1118,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 3,
         "name": "Blocked Door",
         "roomName": ""
@@ -1144,7 +1138,6 @@
         "action": 2,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 3,
         "name": "Chained Door",
         "roomName": ""
@@ -1165,7 +1158,6 @@
         "action": 2,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "Chained Door",
         "roomName": ""
@@ -1186,7 +1178,6 @@
         "action": 2,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 3,
         "name": "Chained Door",
         "roomName": ""
@@ -1207,7 +1198,6 @@
         "action": 2,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "Goddess Statue",
         "roomName": ""
@@ -1228,7 +1218,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 3,
         "name": "Club Door",
         "roomName": ""
@@ -1249,7 +1238,6 @@
         "action": 2,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 3,
         "name": "Heart Door",
         "roomName": ""
@@ -1270,7 +1258,6 @@
         "action": 3,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "Dial Lock",
         "roomName": ""
@@ -1291,7 +1278,6 @@
         "action": 2,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "Valve",
         "roomName": ""
@@ -1312,7 +1298,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "Electronically-locked Door",
         "roomName": ""
@@ -1333,7 +1318,6 @@
         "action": 2,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "Diamond Door",
         "roomName": ""
@@ -1354,7 +1338,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "One-Way Door",
         "roomName": ""
@@ -1375,7 +1358,6 @@
         "action": 2,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "Spade Door",
         "roomName": ""
@@ -1396,7 +1378,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 9,
         "name": "Crank Handle Slot",
         "roomName": ""
@@ -1417,7 +1398,6 @@
         "action": 2,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 3,
         "name": "Heart Door",
         "roomName": ""
@@ -1438,7 +1418,6 @@
         "action": 2,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 0,
         "name": "Heart Door",
         "roomName": ""
@@ -1459,7 +1438,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 2,
         "name": "One-Way Door",
         "roomName": ""
@@ -1480,7 +1458,6 @@
         "action": 2,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 8,
         "name": "Explosive Barricade",
         "roomName": ""
@@ -1501,7 +1478,6 @@
         "action": 3,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 0,
         "name": "Dial Lock",
         "roomName": ""
@@ -1522,7 +1498,6 @@
         "action": 2,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 3,
         "name": "Spade Door",
         "roomName": ""
@@ -1543,7 +1518,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 3,
         "name": "Club Door",
         "roomName": ""
@@ -1564,7 +1538,6 @@
         "action": 2,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 3,
         "name": "Heart Door",
         "roomName": ""
@@ -1585,7 +1558,6 @@
         "action": 2,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "Jack",
         "roomName": ""
@@ -1606,7 +1578,6 @@
         "action": 2,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 3,
         "name": "Spade Door",
         "roomName": ""
@@ -1627,7 +1598,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "One-Way Door",
         "roomName": ""
@@ -1648,7 +1618,6 @@
         "action": 3,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "Weapons Locker",
         "roomName": ""
@@ -1669,7 +1638,6 @@
         "action": 2,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 0,
         "name": "Card Reader",
         "roomName": ""
@@ -1690,7 +1658,6 @@
         "action": 2,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 3,
         "name": "Diamond Door",
         "roomName": ""
@@ -1711,7 +1678,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 0,
         "name": "Locked Door",
         "roomName": ""
@@ -1732,7 +1698,6 @@
         "action": 2,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 0,
         "name": "Diamond Door",
         "roomName": ""
@@ -1753,7 +1718,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 0,
         "name": "Locked Door",
         "roomName": ""
@@ -1774,7 +1738,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 8,
         "name": "Crank Handle Slot",
         "roomName": ""
@@ -1795,7 +1758,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "Left Lock",
         "roomName": ""
@@ -1816,7 +1778,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "Right Lock",
         "roomName": ""
@@ -1837,7 +1798,6 @@
         "action": 3,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 0,
         "name": "Car Trunk",
         "roomName": ""
@@ -1858,7 +1818,6 @@
         "action": 4,
         "hidden": false,
         "available": true,
-        "hasModel": false,
         "flags": 8,
         "name": "Maiden Statue",
         "roomName": ""
@@ -1879,7 +1838,6 @@
         "action": 4,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "PC",
         "roomName": ""
@@ -1900,7 +1858,6 @@
         "action": 4,
         "hidden": false,
         "available": true,
-        "hasModel": false,
         "flags": 1,
         "name": "Unicorn Statue",
         "roomName": ""
@@ -1921,7 +1878,6 @@
         "action": 4,
         "hidden": false,
         "available": true,
-        "hasModel": false,
         "flags": 1,
         "name": "Lion Statue",
         "roomName": ""
@@ -1942,7 +1898,6 @@
         "action": 4,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 9,
         "name": "Emperor Statue",
         "roomName": ""
@@ -1963,7 +1918,6 @@
         "action": 4,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "Lockers Terminal",
         "roomName": ""
@@ -1984,7 +1938,6 @@
         "action": 4,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "Electronically-locked Door",
         "roomName": ""
@@ -2005,7 +1958,6 @@
         "action": 4,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 8,
         "name": "Clock Tower Puzzle",
         "roomName": ""
@@ -2026,7 +1978,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "To Underground Facility",
         "roomName": ""
@@ -2047,7 +1998,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 9,
         "name": "To 1F",
         "roomName": ""
@@ -2068,7 +2018,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "To 1F",
         "roomName": ""
@@ -2089,7 +2038,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 0,
         "name": "To 1F",
         "roomName": ""
@@ -2110,7 +2058,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 9,
         "name": "To 1F",
         "roomName": ""
@@ -2131,7 +2078,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 9,
         "name": "To 1F",
         "roomName": ""
@@ -2152,7 +2098,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 8,
         "name": "To 1F",
         "roomName": ""
@@ -2173,7 +2118,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 9,
         "name": "To 2F",
         "roomName": ""
@@ -2194,7 +2138,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 8,
         "name": "To 2F",
         "roomName": ""
@@ -2215,7 +2158,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 0,
         "name": "To 2F",
         "roomName": ""
@@ -2236,7 +2178,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "To 2F",
         "roomName": ""
@@ -2257,7 +2198,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "To 2F",
         "roomName": ""
@@ -2278,7 +2218,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "To 2F",
         "roomName": ""
@@ -2299,7 +2238,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 9,
         "name": "To 2F",
         "roomName": ""
@@ -2320,7 +2258,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 9,
         "name": "To 2F",
         "roomName": ""
@@ -2341,7 +2278,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 9,
         "name": "To 2F",
         "roomName": ""
@@ -2362,7 +2298,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 0,
         "name": "To 2F",
         "roomName": ""
@@ -2383,7 +2318,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 0,
         "name": "To 2F",
         "roomName": ""
@@ -2404,7 +2338,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 8,
         "name": "To 2F",
         "roomName": ""
@@ -2425,7 +2358,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "To 3F",
         "roomName": ""
@@ -2446,7 +2378,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 0,
         "name": "To 3F",
         "roomName": ""
@@ -2467,7 +2398,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "To 3F",
         "roomName": ""
@@ -2488,7 +2418,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 0,
         "name": "To 3F",
         "roomName": ""
@@ -2509,7 +2438,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 9,
         "name": "To 3F",
         "roomName": ""
@@ -2530,7 +2458,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 8,
         "name": "To 4F",
         "roomName": ""
@@ -2551,7 +2478,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "2F Landing Area",
         "roomName": ""
@@ -2572,7 +2498,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 9,
         "name": "To 3F",
         "roomName": ""
@@ -2593,7 +2518,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 0,
         "name": "To Underground Facility",
         "roomName": ""
@@ -2614,7 +2538,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "To 2F",
         "roomName": ""
@@ -2635,7 +2558,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "To B1",
         "roomName": ""
@@ -2656,7 +2578,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "To Orphanage",
         "roomName": ""
@@ -2677,7 +2598,6 @@
         "action": 6,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Typewriter",
         "roomName": ""
@@ -2698,7 +2618,6 @@
         "action": 6,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Typewriter",
         "roomName": ""
@@ -2719,7 +2638,6 @@
         "action": 6,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Typewriter",
         "roomName": ""
@@ -2740,7 +2658,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Police Station 1F Map",
         "roomName": ""
@@ -2761,7 +2678,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Police Station Upper Floors Map",
         "roomName": ""
@@ -2782,7 +2698,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Police Station B1 Map",
         "roomName": ""
@@ -2803,7 +2718,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Letter from Best Friend",
         "roomName": ""
@@ -2824,7 +2738,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Officer's Notebook",
         "roomName": ""
@@ -2845,7 +2758,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Record of Events",
         "roomName": ""
@@ -2866,7 +2778,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Medicinal Benefits of Herbs",
         "roomName": ""
@@ -2887,7 +2798,6 @@
         "action": 5,
         "hidden": true,
         "available": false,
-        "hasModel": true,
         "flags": 1,
         "name": "Commemorative Photo",
         "roomName": ""
@@ -2908,7 +2818,6 @@
         "action": 5,
         "hidden": true,
         "available": false,
-        "hasModel": true,
         "flags": 0,
         "name": "3F Locker",
         "roomName": ""
@@ -2929,7 +2838,6 @@
         "action": 5,
         "hidden": true,
         "available": false,
-        "hasModel": true,
         "flags": 1,
         "name": "Hiding Place",
         "roomName": ""
@@ -2950,7 +2858,6 @@
         "action": 5,
         "hidden": true,
         "available": false,
-        "hasModel": true,
         "flags": 0,
         "name": "Rising Rookie",
         "roomName": ""
@@ -2971,7 +2878,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Portable Safe Instructions",
         "roomName": ""
@@ -2992,7 +2898,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Internal Memo",
         "roomName": ""
@@ -3013,7 +2918,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Guide Pamphlet",
         "roomName": ""
@@ -3034,7 +2938,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Art Article: \"The Red Stone\"",
         "roomName": ""
@@ -3055,7 +2958,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Repair Plan",
         "roomName": ""
@@ -3076,7 +2978,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "To any survivors",
         "roomName": ""
@@ -3097,7 +2998,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Some Guy's Scribblings",
         "roomName": ""
@@ -3118,7 +3018,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Letter to S.T.A.R.S. Members",
         "roomName": ""
@@ -3139,7 +3038,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Storage Locker Terminal Memo",
         "roomName": ""
@@ -3160,7 +3058,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Raccoon Monthly, June Issue",
         "roomName": ""
@@ -3181,7 +3078,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 0,
         "name": "Equipment Disposal Notice",
         "roomName": ""
@@ -3202,7 +3098,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "A Message from Mr. Raccoon",
         "roomName": ""
@@ -3223,7 +3118,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Autopsy Record No. 53477",
         "roomName": ""
@@ -3244,7 +3138,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Copy of Emails to Chief Irons",
         "roomName": ""
@@ -3265,7 +3158,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Taxidermy Log",
         "roomName": ""
@@ -3286,7 +3178,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Repair Shop Letter",
         "roomName": ""
@@ -3307,7 +3198,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Confiscation Report",
         "roomName": ""
@@ -3328,7 +3218,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Uses of Gunpowder",
         "roomName": ""
@@ -3349,7 +3238,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Rookie's First Assignment",
         "roomName": ""
@@ -3370,7 +3258,6 @@
         "action": 5,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Operation Report",
         "roomName": ""
@@ -3391,7 +3278,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Film: \"Rising Rookie\"",
         "roomName": ""
@@ -3412,7 +3298,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Film: \"Commemorative\"",
         "roomName": ""
@@ -3433,7 +3318,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Film: \"3F Locker\"",
         "roomName": ""
@@ -3454,7 +3338,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Hip Pouch",
         "roomName": ""
@@ -3475,7 +3358,6 @@
         "action": 1,
         "hidden": true,
         "available": false,
-        "hasModel": true,
         "flags": 1,
         "name": "Hip Pouch",
         "roomName": ""
@@ -3496,7 +3378,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Bolt Cutters",
         "roomName": ""
@@ -3517,7 +3398,6 @@
         "action": 1,
         "hidden": true,
         "available": false,
-        "hasModel": true,
         "flags": 1,
         "name": "Spare Key",
         "roomName": ""
@@ -3538,7 +3418,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Battery",
         "roomName": ""
@@ -3559,7 +3438,6 @@
         "action": 1,
         "hidden": true,
         "available": false,
-        "hasModel": true,
         "flags": 1,
         "name": "Spare Key",
         "roomName": ""
@@ -3580,7 +3458,6 @@
         "action": 1,
         "hidden": true,
         "available": false,
-        "hasModel": true,
         "flags": 1,
         "name": "Unicorn Medallion",
         "roomName": ""
@@ -3601,7 +3478,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Red Book (Art Object)",
         "roomName": ""
@@ -3622,7 +3498,6 @@
         "action": 1,
         "hidden": true,
         "available": false,
-        "hasModel": true,
         "flags": 1,
         "name": "Lion Medallion",
         "roomName": ""
@@ -3643,7 +3518,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Statue's Left Arm",
         "roomName": ""
@@ -3664,7 +3538,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Red Jewel",
         "roomName": ""
@@ -3685,7 +3558,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Weapons Locker Key Card",
         "roomName": ""
@@ -3706,7 +3578,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Large Gear",
         "roomName": ""
@@ -3727,7 +3598,6 @@
         "action": 1,
         "hidden": true,
         "available": false,
-        "hasModel": true,
         "flags": 8,
         "name": "Power Panel Part",
         "roomName": ""
@@ -3748,7 +3618,6 @@
         "action": 1,
         "hidden": true,
         "available": false,
-        "hasModel": true,
         "flags": 0,
         "name": "Maiden Medallion",
         "roomName": ""
@@ -3769,7 +3638,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Spade Key",
         "roomName": ""
@@ -3790,7 +3658,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Small Gear",
         "roomName": ""
@@ -3811,7 +3678,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Valve Handle",
         "roomName": ""
@@ -3832,7 +3698,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Fuse (Main Hall)",
         "roomName": ""
@@ -3853,7 +3718,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "S.T.A.R.S Badge",
         "roomName": ""
@@ -3874,7 +3738,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Detonator (No Battery)",
         "roomName": ""
@@ -3895,7 +3758,6 @@
         "action": 1,
         "hidden": true,
         "available": false,
-        "hasModel": true,
         "flags": 0,
         "name": "Car Key",
         "roomName": ""
@@ -3916,7 +3778,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Diamond Key",
         "roomName": ""
@@ -3937,7 +3798,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Heart Key",
         "roomName": ""
@@ -3958,7 +3818,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Power Panel Part",
         "roomName": ""
@@ -3979,7 +3838,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Mechanic Jack Handle",
         "roomName": ""
@@ -4000,7 +3858,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Parking Garage Key Card",
         "roomName": ""
@@ -4021,7 +3878,6 @@
         "action": 7,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Mr. Raccoon",
         "roomName": ""
@@ -4042,7 +3898,6 @@
         "action": 7,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Mr. Raccoon",
         "roomName": ""
@@ -4063,7 +3918,6 @@
         "action": 7,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Mr. Raccoon",
         "roomName": ""
@@ -4084,7 +3938,6 @@
         "action": 7,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Mr. Raccoon",
         "roomName": ""
@@ -4105,7 +3958,6 @@
         "action": 7,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Mr. Raccoon",
         "roomName": ""
@@ -4126,7 +3978,6 @@
         "action": 7,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Mr. Raccoon",
         "roomName": ""
@@ -4147,7 +3998,6 @@
         "action": 3,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Portable Safe",
         "roomName": ""
@@ -4168,7 +4018,6 @@
         "action": 3,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Portable Safe",
         "roomName": ""
@@ -4189,7 +4038,6 @@
         "action": 3,
         "hidden": false,
         "available": false,
-        "hasModel": true,
         "flags": 9,
         "name": "Safe",
         "roomName": ""
@@ -4210,7 +4058,6 @@
         "action": 3,
         "hidden": false,
         "available": false,
-        "hasModel": true,
         "flags": 1,
         "name": "Safe",
         "roomName": ""
@@ -4231,7 +4078,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "MQ 11 x20",
         "roomName": ""
@@ -4252,7 +4098,6 @@
         "action": 1,
         "hidden": true,
         "available": false,
-        "hasModel": true,
         "flags": 1,
         "name": "GM 79",
         "roomName": ""
@@ -4273,7 +4118,6 @@
         "action": 1,
         "hidden": true,
         "available": false,
-        "hasModel": true,
         "flags": 0,
         "name": "JMB Hp3",
         "roomName": ""
@@ -4294,7 +4138,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Shoulder Stock (GM 79)",
         "roomName": ""
@@ -4315,7 +4158,6 @@
         "action": 1,
         "hidden": true,
         "available": false,
-        "hasModel": true,
         "flags": 9,
         "name": "High-Capacity Mag. (JMB Hp3)",
         "roomName": ""
@@ -4336,7 +4178,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Speed Loader (SLS 60)",
         "roomName": ""
@@ -4357,7 +4198,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "High-Capacity Mag. (MQ 11)",
         "roomName": ""
@@ -4378,7 +4218,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Flash Grenade",
         "roomName": ""
@@ -4399,7 +4238,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 0,
         "name": "Flash Grenade",
         "roomName": ""
@@ -4420,7 +4258,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Flash Grenade",
         "roomName": ""
@@ -4441,7 +4278,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Flash Grenade",
         "roomName": ""
@@ -4462,7 +4298,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Flash Grenade",
         "roomName": ""
@@ -4483,7 +4318,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Flame Rounds",
         "roomName": ""
@@ -4504,7 +4338,6 @@
         "action": 1,
         "hidden": true,
         "available": false,
-        "hasModel": true,
         "flags": 0,
         "name": "Flame Rounds",
         "roomName": ""
@@ -4525,7 +4358,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Flame Rounds",
         "roomName": ""
@@ -4546,7 +4378,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Flame Rounds",
         "roomName": ""
@@ -4567,7 +4398,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Flame Rounds",
         "roomName": ""
@@ -4588,7 +4418,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Flame Rounds",
         "roomName": ""
@@ -4609,7 +4438,6 @@
         "action": 1,
         "hidden": true,
         "available": false,
-        "hasModel": true,
         "flags": 1,
         "name": "Flame Rounds",
         "roomName": ""
@@ -4630,7 +4458,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Flame Rounds",
         "roomName": ""
@@ -4651,7 +4478,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Hand Grenade",
         "roomName": ""
@@ -4672,7 +4498,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Handgun Ammo",
         "roomName": ""
@@ -4693,7 +4518,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Handgun Ammo",
         "roomName": ""
@@ -4714,7 +4538,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Handgun Ammo",
         "roomName": ""
@@ -4735,7 +4558,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Handgun Ammo",
         "roomName": ""
@@ -4756,7 +4578,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Handgun Ammo",
         "roomName": ""
@@ -4777,7 +4598,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Handgun Ammo",
         "roomName": ""
@@ -4798,7 +4618,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Handgun Ammo",
         "roomName": ""
@@ -4819,7 +4638,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Handgun Ammo",
         "roomName": ""
@@ -4840,7 +4658,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Handgun Ammo",
         "roomName": ""
@@ -4861,7 +4678,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Handgun Ammo",
         "roomName": ""
@@ -4882,7 +4698,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Handgun Ammo",
         "roomName": ""
@@ -4903,7 +4718,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Handgun Ammo",
         "roomName": ""
@@ -4924,7 +4738,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 0,
         "name": "Handgun Ammo",
         "roomName": ""
@@ -4945,7 +4758,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Handgun Ammo",
         "roomName": ""
@@ -4966,7 +4778,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Handgun Ammo",
         "roomName": ""
@@ -4987,7 +4798,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Handgun Ammo",
         "roomName": ""
@@ -5008,7 +4818,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Handgun Ammo",
         "roomName": ""
@@ -5029,7 +4838,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Ink Ribbon x2",
         "roomName": ""
@@ -5050,7 +4858,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 5,
         "name": "Ink Ribbon x3",
         "roomName": ""
@@ -5071,7 +4878,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Ink Ribbon x2",
         "roomName": ""
@@ -5092,7 +4898,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Ink Ribbon",
         "roomName": ""
@@ -5113,7 +4918,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Ink Ribbon x2",
         "roomName": ""
@@ -5134,7 +4938,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Ink Ribbon x2",
         "roomName": ""
@@ -5155,7 +4958,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Combat Knife",
         "roomName": ""
@@ -5176,7 +4978,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Combat Knife",
         "roomName": ""
@@ -5197,7 +4998,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Combat Knife",
         "roomName": ""
@@ -5218,7 +5018,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 0,
         "name": "Combat Knife",
         "roomName": ""
@@ -5239,7 +5038,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Needle Cartridges",
         "roomName": ""
@@ -5260,7 +5058,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 0,
         "name": "Submachine Gun Ammo",
         "roomName": ""
@@ -5281,7 +5078,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Submachine Gun Ammo",
         "roomName": ""
@@ -5302,7 +5098,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": true,
         "flags": 9,
         "name": "Wooden Boards",
         "roomName": ""
@@ -5323,7 +5118,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": true,
         "flags": 1,
         "name": "Wooden Boards",
         "roomName": ""
@@ -5344,7 +5138,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": true,
         "flags": 1,
         "name": "Wooden Boards",
         "roomName": ""
@@ -5365,7 +5158,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": true,
         "flags": 9,
         "name": "Wooden Boards",
         "roomName": ""
@@ -5386,7 +5178,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": true,
         "flags": 8,
         "name": "Wooden Boards",
         "roomName": ""
@@ -5407,7 +5198,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": true,
         "flags": 8,
         "name": "Wooden Boards",
         "roomName": ""
@@ -5428,7 +5218,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": true,
         "flags": 1,
         "name": "Wooden Boards",
         "roomName": ""
@@ -5449,7 +5238,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Blue Herb",
         "roomName": ""
@@ -5470,7 +5258,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Blue Herb",
         "roomName": ""
@@ -5491,7 +5278,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Blue Herb",
         "roomName": ""
@@ -5512,7 +5298,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Blue Herb",
         "roomName": ""
@@ -5533,7 +5318,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "First Aid Spray",
         "roomName": ""
@@ -5554,7 +5338,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "First Aid Spray",
         "roomName": ""
@@ -5575,7 +5358,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "First Aid Spray",
         "roomName": ""
@@ -5596,7 +5378,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Green Herb",
         "roomName": ""
@@ -5617,7 +5398,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Green Herb",
         "roomName": ""
@@ -5638,7 +5418,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Green Herb",
         "roomName": ""
@@ -5659,7 +5438,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Green Herb",
         "roomName": ""
@@ -5680,7 +5458,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 0,
         "name": "Green Herb",
         "roomName": ""
@@ -5701,7 +5478,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Green Herb",
         "roomName": ""
@@ -5722,7 +5498,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Green Herb",
         "roomName": ""
@@ -5743,7 +5518,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Green Herb",
         "roomName": ""
@@ -5764,7 +5538,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Green Herb",
         "roomName": ""
@@ -5785,7 +5558,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 0,
         "name": "Green Herb",
         "roomName": ""
@@ -5806,7 +5578,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Gunpowder",
         "roomName": ""
@@ -5827,7 +5598,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Gunpowder",
         "roomName": ""
@@ -5848,7 +5618,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Gunpowder",
         "roomName": ""
@@ -5869,7 +5638,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Gunpowder",
         "roomName": ""
@@ -5890,7 +5658,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Gunpowder (Large)",
         "roomName": ""
@@ -5911,7 +5678,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Gunpowder",
         "roomName": ""
@@ -5932,7 +5698,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Gunpowder",
         "roomName": ""
@@ -5953,7 +5718,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Gunpowder",
         "roomName": ""
@@ -5974,7 +5738,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Gunpowder",
         "roomName": ""
@@ -5995,7 +5758,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Gunpowder",
         "roomName": ""
@@ -6016,7 +5778,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "High-Grade Gunpowder (White)",
         "roomName": ""
@@ -6037,7 +5798,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "High-Grade Gunpowder (White)",
         "roomName": ""
@@ -6058,7 +5818,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "High-Grade Gunpowder (White)",
         "roomName": ""
@@ -6079,7 +5838,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "High-Grade Gunpowder (White)",
         "roomName": ""
@@ -6100,7 +5858,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "High-Grade Gunpowder (White)",
         "roomName": ""
@@ -6121,7 +5878,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Red Herb",
         "roomName": ""
@@ -6142,7 +5898,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Red Herb",
         "roomName": ""
@@ -6163,7 +5918,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 1,
         "name": "Red Herb",
         "roomName": ""
@@ -6184,7 +5938,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 9,
         "name": "Red Herb",
         "roomName": ""
@@ -6205,7 +5958,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Red Herb",
         "roomName": ""
@@ -6226,7 +5978,6 @@
         "action": 1,
         "hidden": false,
         "available": true,
-        "hasModel": true,
         "flags": 8,
         "name": "Red Herb",
         "roomName": ""
@@ -6247,7 +5998,6 @@
         "action": 7,
         "hidden": false,
         "available": true,
-        "hasModel": false,
         "flags": 1,
         "name": "Resident Evil 2 (1998) Reference",
         "roomName": ""
@@ -6268,7 +6018,6 @@
         "action": 6,
         "hidden": false,
         "available": true,
-        "hasModel": false,
         "flags": 1,
         "name": "Lever",
         "roomName": ""
@@ -6289,7 +6038,6 @@
         "action": 6,
         "hidden": false,
         "available": true,
-        "hasModel": false,
         "flags": 1,
         "name": "Closet",
         "roomName": ""
@@ -6310,7 +6058,6 @@
         "action": 6,
         "hidden": false,
         "available": true,
-        "hasModel": false,
         "flags": 1,
         "name": "Small Window",
         "roomName": ""
@@ -6331,7 +6078,6 @@
         "action": 6,
         "hidden": false,
         "available": true,
-        "hasModel": false,
         "flags": 1,
         "name": "Darkroom Sink",
         "roomName": ""
@@ -6352,7 +6098,6 @@
         "action": 6,
         "hidden": false,
         "available": true,
-        "hasModel": false,
         "flags": 9,
         "name": "Water Valve Lever",
         "roomName": ""
@@ -6373,7 +6118,6 @@
         "action": 6,
         "hidden": false,
         "available": true,
-        "hasModel": false,
         "flags": 8,
         "name": "Gear Box",
         "roomName": ""
@@ -6394,7 +6138,6 @@
         "action": 6,
         "hidden": false,
         "available": true,
-        "hasModel": false,
         "flags": 8,
         "name": "Gear Box",
         "roomName": ""
@@ -6415,7 +6158,6 @@
         "action": 6,
         "hidden": false,
         "available": true,
-        "hasModel": false,
         "flags": 0,
         "name": "Closet",
         "roomName": ""
@@ -6436,7 +6178,6 @@
         "action": 6,
         "hidden": false,
         "available": true,
-        "hasModel": false,
         "flags": 1,
         "name": "Gear Box",
         "roomName": ""
@@ -6457,7 +6198,6 @@
         "action": 6,
         "hidden": false,
         "available": true,
-        "hasModel": false,
         "flags": 9,
         "name": "Water Valve Lever",
         "roomName": ""
@@ -6478,7 +6218,6 @@
         "action": 6,
         "hidden": false,
         "available": true,
-        "hasModel": false,
         "flags": 1,
         "name": "Locker Room Code",
         "roomName": ""
@@ -6499,7 +6238,6 @@
         "action": 6,
         "hidden": false,
         "available": true,
-        "hasModel": false,
         "flags": 1,
         "name": "Lever",
         "roomName": ""
@@ -6520,7 +6258,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 8,
         "name": "Window",
         "roomName": ""
@@ -6541,7 +6278,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 8,
         "name": "Window",
         "roomName": ""
@@ -6562,7 +6298,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "Window",
         "roomName": ""
@@ -6583,7 +6318,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 8,
         "name": "Window",
         "roomName": ""
@@ -6604,7 +6338,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 0,
         "name": "Window",
         "roomName": ""
@@ -6625,7 +6358,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 0,
         "name": "Window",
         "roomName": ""
@@ -6646,7 +6378,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "Window",
         "roomName": ""
@@ -6667,7 +6398,6 @@
         "action": 0,
         "hidden": false,
         "available": false,
-        "hasModel": false,
         "flags": 1,
         "name": "Window",
         "roomName": ""
@@ -6688,7 +6418,6 @@
         "action": 3,
         "hidden": false,
         "available": true,
-        "hasModel": false,
         "flags": 0,
         "name": "Car Key Box",
         "roomName": ""
@@ -6697,56 +6426,48 @@
     "inventory": [
       {
         "name": "Car Key",
-        "icon": "key_spade",
         "r": 158,
         "g": 79,
         "b": 242
       },
       {
         "name": "JMB Hp3",
-        "icon": "weapon_handgun_laser",
         "r": 229,
         "g": 71,
         "b": 71
       },
       {
         "name": "Diamond Key",
-        "icon": "key_diamond",
         "r": 158,
         "g": 79,
         "b": 242
       },
       {
         "name": "Spade Key",
-        "icon": "key_spade",
         "r": 158,
         "g": 79,
         "b": 242
       },
       {
         "name": "Bolt Cutters",
-        "icon": "key_spade",
         "r": 158,
         "g": 79,
         "b": 242
       },
       {
         "name": "Film: \"Commemorative\"",
-        "icon": "file",
         "r": 242,
         "g": 115,
         "b": 184
       },
       {
         "name": "Hip Pouch",
-        "icon": "hip_pouch",
         "r": 102,
         "g": 153,
         "b": 217
       },
       {
         "name": "Hip Pouch",
-        "icon": "hip_pouch",
         "r": 102,
         "g": 153,
         "b": 217

@@ -7,7 +7,7 @@ type QuestPanelProps = {
 const SLOTS = 8;
 
 export default function QuestPanel({ session }: QuestPanelProps) {
-  const { planCount, moving, room, inventory, icons } = session.state;
+  const { planCount, moving, room, inventory } = session.state;
   const note = moving
     ? "Claire is moving along the route."
     : planCount === 0
@@ -30,18 +30,7 @@ export default function QuestPanel({ session }: QuestPanelProps) {
       <div className="rpd-inventory" data-empty={inventory.every((slot) => slot === null)}>
         {Array.from({ length: SLOTS }, (_, index) => {
           const slot = inventory[index];
-          const icon = slot ? icons[slot.icon] : undefined;
-          const style = icon
-            ? {
-                backgroundImage: "url(/rpd/icons_atlas.png)",
-                backgroundSize: "800% 500%",
-                backgroundPosition: `${(icon.column / 7) * 100}% ${(icon.row / 4) * 100}%`,
-                backgroundRepeat: "no-repeat",
-                imageRendering: "pixelated" as const,
-              }
-            : slot
-              ? { background: `rgb(${slot.r} ${slot.g} ${slot.b})` }
-              : undefined;
+          const style = slot ? { background: `rgb(${slot.r} ${slot.g} ${slot.b})` } : undefined;
           return (
             <span
               className="rpd-slot"

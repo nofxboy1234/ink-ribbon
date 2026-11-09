@@ -10,8 +10,6 @@ const files = [
   "nav.json",
   "quest.json",
   "rpd.wasm",
-  "item_models.bin",
-  "item_models.json",
   "item_registry.json",
   "icons.json",
 ];

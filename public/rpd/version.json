@@ -1,12 +1,10 @@
 {
-  "version": "c57d8f1b7623925c",
+  "version": "1c6f56dd252382bd",
   "files": [
     "rpd.bin",
     "nav.json",
     "quest.json",
     "rpd.wasm",
-    "item_models.bin",
-    "item_models.json",
     "item_registry.json",
     "icons.json"
   ]

@@ -533,7 +533,7 @@ async function run() {
       "every registry item should carry a floor and a title",
     );
     const expectedDiamonds = (floor) =>
-      registry.filter((item) => item.floor === floor && item.state === 1 && !item.hasModel).length;
+      registry.filter((item) => item.floor === floor && item.state === 1).length;
     const floorDiamonds = [];
     for (const floor of [0, 1, 2, 3, 4]) {
       await setFloor(floor);
@@ -730,12 +730,13 @@ async function run() {
       await cdp.eval(`(() => {
         const slot = document.querySelector('.rpd-slot[data-name="Car Key"]');
         if (!slot) return null;
-        return JSON.stringify({ title: slot.title, bg: getComputedStyle(slot).backgroundImage });
+        return JSON.stringify({ title: slot.title, bg: getComputedStyle(slot).backgroundColor });
       })()`),
     );
     assert(keySlot && keySlot.title === "Car Key", "the inventory slot should name the car key");
-    assert(keySlot.bg.includes("icons_atlas.png"), "the inventory slot should show the item icon");
-    await shot("33-inventory-icon");
+    const keyColor = `rgb(${Math.round(items[carKey].r * 255)}, ${Math.round(items[carKey].g * 255)}, ${Math.round(items[carKey].b * 255)})`;
+    assert(keySlot.bg === keyColor, `the inventory slot should be the item cube colour ${keyColor}, got ${keySlot.bg}`);
+    await shot("33-inventory-square");
 
     assert(
       (await cdp.eval(`window.__quest.actItem(${trunk})`)) === 0,
@@ -954,7 +955,6 @@ async function run() {
       const result = await cdp.eval(`window.__quest.actItem(${next})`);
       assert(result === 0, `filling slot ${filled + 1} failed with ${result}`);
       await sleep(300);
-      if (filled === 4) await shot("15-inventory-3");
     }
     await sleep(500);
     await shot("16-inventory-full");

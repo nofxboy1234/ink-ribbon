@@ -8,7 +8,6 @@
 
 #include "rpd_app.h"
 #include "rpd_input.h"
-#include "rpd_item_render.h"
 #include "rpd_items.h"
 #include "rpd_overlay.h"
 #include "rpd_plan.h"
@@ -162,7 +161,6 @@ void rpd_app_frame(void) {
         g_rpd.scene.loaded = scene_upload(&g_rpd.scene);
         if (g_rpd.scene.loaded) camera_reset();
     }
-    item_render_tick();
     if (g_rpd.target.dirty || g_rpd.target.width != sapp_width() || g_rpd.target.height != sapp_height())
         target_create(&g_rpd.target, sapp_width(), sapp_height());
 
@@ -206,7 +204,6 @@ void rpd_app_init(void) {
         .logger = { .func = slog_func },
     });
     scene_create_pipelines(&g_rpd.scene);
-    item_render_create_pipelines();
     overlay_init();
     target_create_composite(&g_rpd.target);
     g_rpd.target.dirty = true;
@@ -334,8 +331,7 @@ EMSCRIPTEN_KEEPALIVE int rpd_item(int index, float *out) {
     out[11] = (float)def->action;
     out[12] = (float)items_hidden(index);
     out[13] = (float)items_available(index);
-    out[14] = def->model ? 1.0f : 0.0f;
-    out[15] = (float)def->flags;
+    out[14] = (float)def->flags;
     return 1;
 }
 
