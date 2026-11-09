@@ -71,6 +71,7 @@ export type RpdClient = {
     label: string;
   } | null;
   popupMessage(): string;
+  popupClose(): void;
   itemCount(): number;
   item(index: number): {
     x: number;
@@ -306,6 +307,9 @@ export async function createRpdClient(options: {
     },
     popupMessage() {
       return utf8((module as unknown as { _rpd_popup_message: () => number })._rpd_popup_message());
+    },
+    popupClose() {
+      (module as unknown as { _rpd_popup_close: () => void })._rpd_popup_close();
     },
     itemCount() {
       return (module as unknown as { _rpd_item_count: () => number })._rpd_item_count();

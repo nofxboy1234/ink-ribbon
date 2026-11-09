@@ -1,4 +1,5 @@
 import type { PlanSession } from "../session/usePlanSession";
+import CodeEntry from "./CodeEntry";
 import FloorSelector from "./FloorSelector";
 import QuestPanel from "./QuestPanel";
 import RpdStage from "./RpdStage";
@@ -26,6 +27,7 @@ export default function RpdView({ session, label }: RpdViewProps) {
         </div>
       </header>
       <FloorSelector session={session} />
+      <CodeEntry session={session} />
       <QuestPanel session={session} />
       {state.view2D && (
         <div className="rpd-map-title">

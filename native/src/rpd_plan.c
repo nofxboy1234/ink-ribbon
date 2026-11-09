@@ -48,7 +48,6 @@ static int moving;
 static int move_index;
 static float move_t;
 static int hover = -1;
-
 static float view_proj[16];
 static int view_w, view_h;
 
@@ -159,7 +158,6 @@ static int route_scratch_capacity;
 static int *route_pull_nodes;
 static int route_pull_capacity;
 static int route_path_nodes[MAX_ROUTE];
-
 static void ensure_route_scratch(int count) {
     if (route_scratch_capacity >= count) return;
     free(route_scratch_nodes);
@@ -424,9 +422,11 @@ static void open_item_popup(int item) {
         return;
     }
     if (items_has_code(item)) {
-        popup_set_message("CODE REQUIRED");
+        int hint = items_missing_hint(item);
+        const item_t *required = hint >= 0 ? items_get(hint) : NULL;
         char label[48];
-        snprintf(label, sizeof(label), "%s - CODE REQUIRED", verb);
+        popup_set_message(required ? required->def->title : "CODE REQUIRED");
+        snprintf(label, sizeof(label), "%s - %s", verb, required ? "READ THE HINT" : "CODE REQUIRED");
         popup_add_choice(POPUP_ACTION_ACT, label, false);
         return;
     }

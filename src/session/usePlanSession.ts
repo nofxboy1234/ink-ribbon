@@ -12,6 +12,13 @@ export type InventoryEntry = {
   b: number;
 };
 
+export type CodeLock = {
+  item: number;
+  title: string;
+  hint: string;
+  hintKnown: boolean;
+};
+
 export type PlanSession = {
   state: {
     loaded: boolean;
@@ -24,6 +31,7 @@ export type PlanSession = {
     moving: boolean;
     room: string;
     inventory: (InventoryEntry | null)[];
+    codeLock: CodeLock | null;
   };
   ref: { canvas: RefObject<HTMLCanvasElement | null> };
   set: { activeFloor: (index: number) => void };
@@ -33,6 +41,8 @@ export type PlanSession = {
     clearRoute: () => void;
     resetView: () => void;
     recenter: () => void;
+    enterCode: (code: string) => number;
+    closeCodeEntry: () => void;
   };
 };
 
@@ -71,6 +81,7 @@ export function usePlanSession(
   const [inventory, setInventory] = useState<(InventoryEntry | null)[]>(() =>
     Array.from({ length: 8 }, () => null),
   );
+  const [codeLock, setCodeLock] = useState<CodeLock | null>(null);
   const graphRef = useRef<ReturnType<typeof buildNavGraph> | null>(null);
   const roomsRef = useRef<Quest["rooms"]>([]);
 
@@ -224,6 +235,31 @@ export function usePlanSession(
               );
             });
             return same ? current : nextInventory;
+          });
+          const popup = clientRef.current.popupState();
+          const popupItem = popup[7] === 1 ? popup[2] : -1;
+          let nextCodeLock: CodeLock | null = null;
+          if (popupItem >= 0 && clientRef.current.itemHasCode(popupItem)) {
+            const item = clientRef.current.item(popupItem);
+            const hint = clientRef.current.itemHint(popupItem);
+            nextCodeLock = {
+              item: popupItem,
+              title: item?.name ?? "Lock",
+              hint,
+              hintKnown: hint === "CODE REQUIRED",
+            };
+          }
+          setCodeLock((current) => {
+            if (!current || !nextCodeLock) return current === nextCodeLock ? current : nextCodeLock;
+            if (
+              current.item === nextCodeLock.item &&
+              current.title === nextCodeLock.title &&
+              current.hint === nextCodeLock.hint &&
+              current.hintKnown === nextCodeLock.hintKnown
+            ) {
+              return current;
+            }
+            return nextCodeLock;
           });
         }, 250);
       } catch (loadError) {
@@ -505,7 +541,7 @@ export function usePlanSession(
   }, [loaded, activeFloor]);
 
   return {
-    state: { loaded, error, progress, floors, activeFloor, view2D, planCount, moving, room, inventory },
+    state: { loaded, error, progress, floors, activeFloor, view2D, planCount, moving, room, inventory, codeLock },
     ref: { canvas },
     set: { activeFloor: setActiveFloor },
     actions: {
@@ -526,6 +562,19 @@ export function usePlanSession(
       },
       recenter() {
         clientRef.current?.recenter();
+      },
+      enterCode(code) {
+        if (!codeLock) return -3;
+        const result = clientRef.current?.itemEnterCode(codeLock.item, code) ?? -3;
+        if (result === 0) {
+          clientRef.current?.popupClose();
+          setCodeLock(null);
+        }
+        return result;
+      },
+      closeCodeEntry() {
+        clientRef.current?.popupClose();
+        setCodeLock(null);
       },
     },
   };

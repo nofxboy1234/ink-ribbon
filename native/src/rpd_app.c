@@ -396,6 +396,10 @@ EMSCRIPTEN_KEEPALIVE const char *rpd_popup_message(void) {
     return popup_get()->message;
 }
 
+EMSCRIPTEN_KEEPALIVE void rpd_popup_close(void) {
+    popup_close();
+}
+
 EMSCRIPTEN_KEEPALIVE int rpd_get_camera(float *out) {
     if (!out) return -1;
     float eye[3];
