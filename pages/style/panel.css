@@ -246,9 +246,18 @@
   font: 10px/1.4 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 
-.rpd-legend-row span:nth-child(2n) {
-  margin-right: 8px;
+.rpd-legend-items {
+  flex-wrap: wrap;
+  row-gap: 4px;
+  column-gap: 10px;
 }
+
+.rpd-legend-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 
 .rpd-dot {
   width: 9px;

@@ -6,6 +6,18 @@ type QuestPanelProps = {
 
 const SLOTS = 8;
 
+// Mirrors CATEGORY_COLOURS in native/src/rpd_items.c.
+const ITEM_KEYS = [
+  ["Keys", "rgb(158 79 242)"],
+  ["Locks", "rgb(242 140 51)"],
+  ["Files", "rgb(230 230 214)"],
+  ["Weapons", "rgb(230 71 71)"],
+  ["Ammo", "rgb(242 209 77)"],
+  ["Herbs", "rgb(89 217 102)"],
+  ["Containers", "rgb(153 107 64)"],
+  ["Puzzle", "rgb(77 217 217)"],
+] as const;
+
 export default function QuestPanel({ session }: QuestPanelProps) {
   const { planCount, moving, room, inventory } = session.state;
   const note = moving
@@ -45,9 +57,15 @@ export default function QuestPanel({ session }: QuestPanelProps) {
         })}
       </div>
       <div className="rpd-legend">
+        <div className="rpd-legend-row rpd-legend-items">
+          {ITEM_KEYS.map(([label, color]) => (
+            <span className="rpd-legend-key" key={label}>
+              <span className="rpd-dot" style={{ background: color }} />
+              <span>{label}</span>
+            </span>
+          ))}
+        </div>
         <div className="rpd-legend-row">
-          <span className="rpd-dot" style={{ background: "#ff79c6" }} />
-          <span>Claire</span>
           <span className="rpd-dot" style={{ background: "#39ff14" }} />
           <span>Route</span>
           <span className="rpd-dot" style={{ background: "#22d3ee" }} />
@@ -55,7 +73,7 @@ export default function QuestPanel({ session }: QuestPanelProps) {
         </div>
         <p className="rpd-legend-note">
           Click an item to take, unlock, open or read it. Keys must be in the eight slots before a
-          lock opens. Right click the plan for waypoints and Run route. Right drag rotates the
+          lock opens. Right click the 2D plan for waypoints and Run route. Right drag rotates the
           camera in 3D.
         </p>
       </div>
