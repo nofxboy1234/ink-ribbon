@@ -74,6 +74,8 @@ typedef struct {
     int marker;
     int approach_node;
     float approach_x, approach_y, approach_z;
+    int snap_node;
+    float snap_x, snap_y, snap_z;
     float r, g, b;
 } item_t;
 
@@ -92,6 +94,7 @@ int items_count(void);
 int items_registry_count(void);
 const item_t *items_get(int index);
 const rpd_item_def_t *items_def(int index);
+void items_cube_position(int index, float out[3]);
 int items_at_node(int node);
 bool items_node_blocked(int node);
 int items_room(int index);

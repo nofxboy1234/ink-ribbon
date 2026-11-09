@@ -310,7 +310,6 @@ int plan_open_popup_at(float x, float z) {
     }
     return popup_is_open() ? 1 : 0;
 }
-
 void plan_fit_camera(void) {
     if (view_w > 1 && view_h > 1) fit_camera();
 }
@@ -381,20 +380,21 @@ static int pick_item_screen(float px, float py) {
         const item_t *item = items_get(i);
         if (!item || item->state != ITEM_PRESENT) continue;
         if (item->def->floor != active_floor) continue;
-        float sx, sy, depth;
-        project(item->def->x, item->def->y + 0.45f, item->def->z, &sx, &sy, &depth);
+        float cube[3], sx, sy, depth;
+        items_cube_position(i, cube);
+        project(cube[0], cube[1], cube[2], &sx, &sy, &depth);
         if (sx < -1e8f) continue;
         float distance = sqrtf((sx - px) * (sx - px) + (sy - py) * (sy - py));
         if (distance < best_distance) { best_distance = distance; best = i; }
     }
     return best;
 }
-
 static void open_item_popup(int item) {
     const item_t *entry = items_get(item);
     if (!entry) return;
-    float sx, sy, depth;
-    project(entry->def->x, entry->def->y + 0.45f, entry->def->z, &sx, &sy, &depth);
+    float cube[3], sx, sy, depth;
+    items_cube_position(item, cube);
+    project(cube[0], cube[1], cube[2], &sx, &sy, &depth);
     if (sx < -1e8f) return;
     popup_open(-1, item, sx + 26.0f, sy - 10.0f);
     popup_set_message(entry->def->title);

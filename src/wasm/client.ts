@@ -89,6 +89,9 @@ export type RpdClient = {
     hidden: boolean;
     available: boolean;
     flags: number;
+    cubeX: number;
+    cubeY: number;
+    cubeZ: number;
     name: string;
     roomName: string;
   } | null;
@@ -315,14 +318,14 @@ export async function createRpdClient(options: {
       return (module as unknown as { _rpd_item_count: () => number })._rpd_item_count();
     },
     item(index) {
-      const ptr = module._malloc(15 * 4);
+      const ptr = module._malloc(18 * 4);
       const ok = (module as unknown as { _rpd_item: (i: number, p: number) => number })
         ._rpd_item(index, ptr);
       if (!ok) {
         module._free(ptr);
         return null;
       }
-      const out = new Float32Array(heap.HEAPU8.buffer, ptr, 15).slice();
+      const out = new Float32Array(heap.HEAPU8.buffer, ptr, 18).slice();
       module._free(ptr);
       const namePtr = (module as unknown as { _rpd_item_name: (i: number) => number })._rpd_item_name(index);
       const roomPtr = (module as unknown as { _rpd_item_room: (i: number) => number })._rpd_item_room(index);
@@ -342,6 +345,9 @@ export async function createRpdClient(options: {
         hidden: out[12] !== 0,
         available: out[13] !== 0,
         flags: out[14],
+        cubeX: out[15],
+        cubeY: out[16],
+        cubeZ: out[17],
         name: utf8(namePtr),
         roomName: utf8(roomPtr),
       };

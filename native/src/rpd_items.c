@@ -110,6 +110,10 @@ void items_reset(void) {
         item->approach_x = 0.0f;
         item->approach_y = 0.0f;
         item->approach_z = 0.0f;
+        item->snap_node = -1;
+        item->snap_x = 0.0f;
+        item->snap_y = 0.0f;
+        item->snap_z = 0.0f;
         colour_t colour = category_colour(def->category);
         item->r = colour.r;
         item->g = colour.g;
@@ -136,10 +140,14 @@ bool items_place(int nav_count, const float *x, const float *y, const float *z,
             if (d < bestd) { bestd = d; best = n; }
         }
         g_items[i].approach_node = best;
+        g_items[i].snap_node = best;
         if (best >= 0) {
             g_items[i].approach_x = x[best];
             g_items[i].approach_y = y[best];
             g_items[i].approach_z = z[best];
+            g_items[i].snap_x = x[best];
+            g_items[i].snap_y = y[best];
+            g_items[i].snap_z = z[best];
         }
     }
     g_placed = true;
@@ -154,6 +162,23 @@ void items_set_approach(int index, int node, float x, float y, float z) {
     g_items[index].approach_z = z;
 }
 
+void items_cube_position(int index, float out[3]) {
+    const item_t *item = items_get(index);
+    if (!item || !out) {
+        if (out) { out[0] = 0.0f; out[1] = 0.0f; out[2] = 0.0f; }
+        return;
+    }
+    if (item->snap_node >= 0) {
+        out[0] = item->snap_x;
+        out[1] = item->snap_y + ITEM_MARKER_LIFT;
+        out[2] = item->snap_z;
+        return;
+    }
+    out[0] = item->def->x;
+    out[1] = item->def->y + ITEM_MARKER_LIFT;
+    out[2] = item->def->z;
+}
+
 static void sync_marker(int index) {
     item_t *item = &g_items[index];
     if (item->state != ITEM_PRESENT) {
@@ -165,8 +190,9 @@ static void sync_marker(int index) {
         rpd_marker_set_visible(item->marker, 1);
         return;
     }
-    item->marker = rpd_marker_add(MARKER_CUBE, item->def->x,
-                                  item->def->y + ITEM_MARKER_LIFT, item->def->z, 0.275f,
+    float pos[3];
+    items_cube_position(index, pos);
+    item->marker = rpd_marker_add(MARKER_CUBE, pos[0], pos[1], pos[2], 0.275f,
                                   (int)(item->r * 255.0f), (int)(item->g * 255.0f),
                                   (int)(item->b * 255.0f));
 }

@@ -332,6 +332,9 @@ EMSCRIPTEN_KEEPALIVE int rpd_item(int index, float *out) {
     out[12] = (float)items_hidden(index);
     out[13] = (float)items_available(index);
     out[14] = (float)def->flags;
+    float cube[3];
+    items_cube_position(index, cube);
+    out[15] = cube[0]; out[16] = cube[1]; out[17] = cube[2];
     return 1;
 }
 

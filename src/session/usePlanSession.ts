@@ -378,7 +378,7 @@ export function usePlanSession(
         const itemScreens = Array.from({ length: client.itemCount() }, (_, index) => {
           const item = client.item(index);
           if (!item || item.hidden || item.floor !== activeFloor) return null;
-          return projectPoint([item.x, item.y + 0.45, item.z], viewProj, rect.width, rect.height);
+          return projectPoint([item.cubeX, item.cubeY, item.cubeZ], viewProj, rect.width, rect.height);
         }).filter(Boolean);
         let best = -1;
         let bestDistance = Infinity;
@@ -527,6 +527,23 @@ export function usePlanSession(
           nodes: graph.count,
           edges: graph.edgeCount,
         };
+      },
+      navNode: (index: number) =>
+        index < 0 || index >= graph.count
+          ? null
+          : { index, x: graph.x[index], y: graph.y[index], z: graph.z[index], floor: graph.floor[index] },
+      nearestNavNode: (floor: number, x: number, y: number, z: number) => {
+        let best = -1;
+        let bestDistance = Infinity;
+        for (let i = 0; i < graph.count; i += 1) {
+          if (graph.floor[i] !== floor) continue;
+          const dx = graph.x[i] - x;
+          const dy = (graph.y[i] - y) * 1.4;
+          const dz = graph.z[i] - z;
+          const distance = dx * dx + dy * dy + dz * dz;
+          if (distance < bestDistance) { bestDistance = distance; best = i; }
+        }
+        return best < 0 ? null : { index: best, x: graph.x[best], y: graph.y[best], z: graph.z[best] };
       },
       project: (x: number, y: number, z: number) => {
         const rect = canvas.current?.getBoundingClientRect();

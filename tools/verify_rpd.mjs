@@ -668,6 +668,27 @@ async function run() {
     const items = await cdp.eval("window.__quest.items()");
     assert(items.length === 271, `expected 271 registry items, got ${items.length}`);
     const byName = (name) => items.findIndex((entry) => entry.name === name);
+    const centring = await evalJson(`(() => {
+      const list = window.__quest.items();
+      const bad = [];
+      let checked = 0;
+      for (const item of list) {
+        if (item.state !== 1) continue;
+        const nearest = window.__quest.nearestNavNode(item.floor, item.x, item.y, item.z);
+        checked += 1;
+        if (!nearest || Math.abs(item.cubeX - nearest.x) > 1e-3 ||
+            Math.abs(item.cubeZ - nearest.z) > 1e-3 ||
+            Math.abs(item.cubeY - (nearest.y + 0.45)) > 1e-3) {
+          bad.push({ name: item.name, cube: [item.cubeX, item.cubeY, item.cubeZ], nearest });
+        }
+      }
+      return { checked, bad };
+    })()`);
+    assert(
+      centring.checked > 200 && centring.bad.length === 0,
+      `item cubes must sit on their closest nav node: ${JSON.stringify(centring.bad.slice(0, 3))}`,
+    );
+    report.states.itemCentring = centring;
 
     // Every registry item draws as a small coloured cube in both views.
     // Keys are the purple family; the rest follow CATEGORY_COLOURS.
