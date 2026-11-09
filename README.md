@@ -77,9 +77,9 @@ vertices and 51k triangles.
 area. Doors are walkable cells bridged to the rooms on both sides; stairwells
 are replaced by ramp chains whose nodes carry intermediate heights, so A* can
 cross floors without teleporting. The graph is written to `public/rpd/nav.json`
-with per-floor bounds used by the plan camera. It holds about 5.5k nodes and
-14.8k edges in one connected component that spans all five floors (a handful of
-closet-sized rooms and one service stair are isolated by the source drawing).
+with per-floor bounds used by the plan camera. It holds 9,925 nodes and 17,773
+edges in one component that spans all five floors, plus a few source-drawing
+pockets. One authored B1 kennel bridge crosses a dotted plan threshold.
 
 The TypeScript A* in `src/nav.ts` is unchanged: it searches the 3D graph,
 supports weighted vertical edges and returns the route points. `routeFromPath`
@@ -132,9 +132,10 @@ waypoints and Claire's movement are drawn and calculated in C.
 table into C once, and polls the plan count, current room, active floor and
 inventory at 4 Hz. No per-frame React state drives the map.
 
-The right panel shows a 2×4 inventory grid. Each filled slot shows the icon of
-the item Claire carries. Locked doors block their nav threshold until the key is
-in a slot, and code locks take the MapGenie code. A routing popup offers Add
+The right panel shows a 2×4 inventory grid. Each filled slot is a solid square in
+the carried item's category colour. A locked door closes its 2 m threshold until
+the key is in a slot. A code lock opens a text panel that accepts the MapGenie
+code only after the matching hint file is read. A routing popup offers Add
 waypoint on a walkable cell, and Take or Walk next to it on an item cell. A
 double click on Claire's capsule starts the run.
 

@@ -88,8 +88,9 @@ static int item_in_inventory(int index) {
 
 static bool item_is_open(int index) {
     if (index < 0 || index >= RPD_ITEM_COUNT) return true;
-    item_state_t state = g_items[index].state;
-    return state == ITEM_OPEN || state == ITEM_UNLOCKED || state == ITEM_TAKEN || state == ITEM_USED;
+    // A read file or inspected fixture is used up in the same sense as an
+    // opened container: its requirement is satisfied for downstream gates.
+    return g_items[index].state >= ITEM_TAKEN;
 }
 
 void items_reset(void) {
@@ -276,6 +277,22 @@ int items_missing_external(int index) {
     return -1;
 }
 
+static int item_known(int index) {
+    const item_t *item = items_get(index);
+    if (!item) return 0;
+    return item->state >= ITEM_TAKEN || item_in_inventory(index) >= 0;
+}
+
+int items_missing_hint(int index) {
+    if (index < 0 || index >= RPD_ITEM_COUNT) return -1;
+    const rpd_item_def_t *def = &RPD_ITEM_DEFS[index];
+    for (int i = 0; i < def->hint_count; i++) {
+        int hint = def->hints[i];
+        if (hint >= 0 && hint < RPD_ITEM_COUNT && !item_known(hint)) return hint;
+    }
+    return -1;
+}
+
 int items_has_code(int index) {
     if (index < 0 || index >= RPD_ITEM_COUNT) return 0;
     return RPD_ITEM_DEFS[index].code != NULL;
@@ -388,6 +405,9 @@ int items_act(int index) {
         item->state = ITEM_OPEN;
     }
     reveal_contents(index);
+    for (int i = 0; i < item->def->external_grant_count; i++) {
+        items_grant_external(item->def->external_grants[i]);
+    }
     if (item->marker >= 0) rpd_marker_set_visible(item->marker, 0);
     return 0;
 }
@@ -400,6 +420,7 @@ int items_enter_code(int index, const char *entry) {
     if (items_missing_requirement(index) >= 0) return -2;
     if (items_missing_open(index) >= 0) return -2;
     if (items_missing_external(index) >= 0) return -2;
+    if (items_missing_hint(index) >= 0) return -7;
     if (strcmp(def->code, entry) != 0) return -6;
     item->state = ITEM_OPEN;
     reveal_contents(index);
@@ -409,6 +430,7 @@ int items_enter_code(int index, const char *entry) {
 
 const char *items_action_label(int index) {
     if (index < 0 || index >= RPD_ITEM_COUNT) return "";
+    if (RPD_ITEM_DEFS[index].external_grant_count > 0) return "FETCH FILM";
     int action = RPD_ITEM_DEFS[index].action;
     if (action < 0 || action > RPD_ACTION_INSPECT) return "";
     return ACTION_VERBS[action];

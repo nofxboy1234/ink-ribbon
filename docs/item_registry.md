@@ -39,6 +39,9 @@ regenerates on every wasm build. The JSON is committed; the C header is not.
   "blocks": false,
   "code": null,
   "external_requires": [],
+  "external_grants": [],
+  "hint": [],
+  "unreachable_reason": null,
   "synthetic": false
 }
 ```
@@ -51,11 +54,16 @@ solved; each content row starts with `hidden_by` pointing back at its container.
 the `**Unlocked By:**` links so a key knows what it opens.
 
 `blocks` marks a door that closes the nav graph at its threshold cells until
-its state is open, unlocked or used. `block_radius` is 1.0 m and lives at the
-top of the registry. `code` is the MapGenie prose code for a safe or dial lock.
+its state is open, unlocked or used. `block_radius` is 2.0 m and lives at the
+top of the registry, so a locked door shuts the adjacent cell as well as the
+threshold. `code` is the MapGenie prose code for a safe or dial lock. `hint`
+names the file or note that must be read or carried before the code is accepted.
 `external_requires` lists a carrying requirement from outside the mapped
-floors, such as the Sewers Hiding Place film. `synthetic` marks the authored
-Car Key box.
+floors, such as the Sewers Hiding Place film. `external_grants` marks the
+reachable map action that fetches such an item, so the film is obtained from the
+Underground Facility transition rather than a DEV grant. `unreachable_reason`
+records a pickup that the nav graph cannot reach, so `npm run check:items`
+reports it instead of losing it. `synthetic` marks the authored Car Key box.
 
 ## Action kinds
 
@@ -89,6 +97,15 @@ whose key is not in a slot stays shut with `<KEY> - NEEDS KEY` disabled.
   the nearest open cell, so Claire can stand outside the threshold and turn the
   lock. A door whose threshold cells have no open node within 8 m stays
   unreachable and is reported by `npm run check:items`.
+- The code locks open through the React code panel. The panel appears when the
+  item popup opens on a safe or dial lock. `items_enter_code` refuses the code
+  with `-7` until the linked `hint` item is read, used or carried, then accepts
+  the exact MapGenie string. `npm run check:items` proves every hint is itself
+  obtainable.
+- The Hiding Place film is fetched from the mapped `To Underground Facility`
+  transition. `items_act` records the external film, so the Hiding Place file
+  reads without a DEV call. `npm run check:items` requires every external
+  requirement to have a reachable granting action.
 - Every present row draws a small cube in perspective and a coloured diamond
   in ortho. The cube colour is the category colour in `rpd_items.c`; key items
   are purple. Ortho draws only the active floor.
@@ -114,28 +131,34 @@ every `locationIds=` link by its bold section or the words before the link:
   marker set goes in `external_requires`.
 - A dial lock's `**Unlocked By:** C-A-P` line and a safe's `Combination:`
   bullets become `code`, with the bullets written as `L9 R15 L7`.
+- A `**Hint:**` link becomes `hint`, the file or note that makes the code
+  readable.
 - `One-Way Door` and a description that says it cannot be opened while playing
   as Claire stay `none`. Claire A cannot use those locks, so they never become
   an action.
 
+The prose does not link three relations, so the builder authors them in
+`MANUAL_RELATIONS`, `MANUAL_EXTERNAL_GRANTS` and `MANUAL_UNREACHABLE`:
+`High-Capacity Mag. (MQ 11)` needs the Hiding Place file open, `To Underground
+Facility` fetches the Sewers film, and the two 1F east-wing herbs plus the 1F
+service-room Valve Handle are recorded as unreachable.
+
 Links that point outside the RPD marker set stay in `unresolved` rather than
 being dropped, for example the Underground Facility case opened by the
 S.T.A.R.S Badge. A film outside the marker set goes in `external_requires`
-instead, and `rpd_item_grant_external` records it as carried.
+instead, and a mapped transition grants it through `external_grants`.
 
 ## Known gaps
 
-- Safe and dial-lock codes are enforced through the DEV entry
-  `rpd_item_enter_code`, not a keypad UI. `items_act` refuses a coded lock with
-  `-5`, a wrong code returns `-6`, and a matching code opens the lock and
-  reveals its contents. The verification run checks both outcomes.
+- The two 1F east-wing herbs at (44.3, -29.2) sit in a wing clipped by the plan
+  edge. The pre-rebase graph reached them only through a cross-floor teleport
+  edge, so they are marked unreachable rather than faked into the walkable
+  component. `npm run check:items` fails if a marked item becomes reachable and
+  if an unmarked pickup is not.
+- The 1F service-room Valve Handle is sealed behind a thin plan wall. Its
+  dependent `Valve` and `One-Way Door` fixtures stay present without a route.
+- The B1 kennel threshold is a dotted plan line rather than wall ink. The nav
+  builder adds one explicit bridge at (-17.5, 13.5) to (-17.5, 15.5), so the
+  B1 herb at (-8.2, 9.5) stays obtainable.
 - The one-way doors and the Claire-only doors stay `none`. Claire A cannot use
   them, so they render without an action and never block a route.
-- The 1F Darkroom chain is a real state change. A file stays hidden until the
-  sink is used, and reading it requires the matching film in a slot. The
-  Hiding Place film is in the Sewers, so `external_requires` records it and the
-  DEV grant stands in for carrying it across areas.
-- The 1F Chained Door at (30.0, 1.4) sits in a two-node nav pocket with no open
-  cell within 8 m. It is marked as a blocker but can never be unlocked from the
-  route graph. `npm run check:items` reports it as a warning and still proves
-  every gate key that a reachable gate needs.

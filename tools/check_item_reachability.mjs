@@ -69,6 +69,19 @@ const approaches = new Map(items.map((item) => [item.id, approachNode(item)]));
 const portalPairs = new Set(
   (nav.portals ?? []).map(([a, b]) => `${Math.min(a, b)}:${Math.max(a, b)}`),
 );
+const bridges = nav.bridges ?? [];
+for (const bridge of bridges) {
+  const { a, b } = bridge;
+  if (!Number.isInteger(a) || !Number.isInteger(b) || a < 0 || b < 0 || a >= count || b >= count) {
+    throw new Error(`bridge ${bridge.reason ?? "?"} points at a missing node`);
+  }
+  if (nodes[a].floor !== nodes[b].floor) {
+    throw new Error(`bridge ${bridge.reason ?? "?"} crosses floors`);
+  }
+  if (!nodes[a].n.includes(b) || !nodes[b].n.includes(a)) {
+    throw new Error(`bridge ${bridge.reason ?? "?"} is not a two-way edge`);
+  }
+}
 const neighbours = Array.from({ length: count }, () => []);
 const parent = Array.from({ length: count }, (_, index) => index);
 const find = (node) => {
@@ -179,6 +192,7 @@ function inReach(item, seen) {
 }
 
 const external = items.filter((item) => item.external_requires.length > 0);
+const externalGranted = new Set();
 const obtained = new Set();
 const opened = new Set();
 const openOrder = [];
@@ -201,17 +215,37 @@ while (changed) {
     } else {
       continue;
     }
+    for (const id of item.external_grants ?? []) externalGranted.add(id);
     openOrder.push(item.id);
     changed = true;
   }
 }
 
-function externalCarried() {
-  return false;
+function externalCarried(id) {
+  return externalGranted.has(id);
 }
 
 const failures = [];
-const gates = items.filter((item) => item.blocks || item.contents.length > 0);
+const sources = items.filter((item) => (item.external_grants ?? []).length > 0);
+for (const required of external) {
+  for (const entry of required.external_requires) {
+    if (externalGranted.has(entry.id)) continue;
+    const source = sources.find((item) => item.external_grants.includes(entry.id));
+    failures.push(
+      `${required.title} (${required.id}) needs ${entry.title}, which no reachable item grants${
+        source ? ` (source ${source.title} ${source.id} never acts)` : ""
+      }`,
+    );
+  }
+}
+for (const source of sources) {
+  if (!opened.has(source.id)) {
+    failures.push(`${source.title} (${source.id}) grants an external item but is not reachable`);
+  }
+}
+const gates = items.filter(
+  (item) => item.blocks || item.contents.length > 0 || item.requires_open.length > 0,
+);
 for (const gate of gates) {
   for (const id of gate.requires) {
     if (obtained.has(id)) continue;
@@ -220,6 +254,27 @@ for (const gate of gates) {
   for (const id of gate.requires_open) {
     if (opened.has(id)) continue;
     failures.push(`${gate.title} (${gate.id}) needs ${byId.get(id)?.title ?? id} open, which never opens`);
+  }
+  for (const id of gate.hint ?? []) {
+    if (opened.has(id)) continue;
+    failures.push(`${gate.title} (${gate.id}) needs the hint ${byId.get(id)?.title ?? id}, which is not reachable`);
+  }
+}
+
+const unreachableMarked = [];
+for (const item of items.filter((entry) => entry.action === "take")) {
+  if (item.unreachable_reason) {
+    if (obtained.has(item.id)) {
+      failures.push(
+        `${item.title} (${item.id}) is marked unreachable but the route reaches it; clear unreachable_reason`,
+      );
+    } else {
+      unreachableMarked.push(item);
+    }
+    continue;
+  }
+  if (!obtained.has(item.id)) {
+    failures.push(`${item.title} (${item.id}) is obtainable but the route never reaches it; mark it unreachable`);
   }
 }
 
@@ -256,6 +311,10 @@ for (const door of items.filter((item) => item.blocks)) {
   const locked = threshold(door, lockedSeen);
   if (locked.total === 0) {
     failures.push(`${door.title} (${door.id}) blocks no nav cells`);
+  } else if (locked.total < 5) {
+    failures.push(
+      `${door.title} (${door.id}) blocks only ${locked.total} nav cells; the route can slip around the threshold`,
+    );
   } else if (locked.reachable !== 0) {
     failures.push(`${door.title} (${door.id}) does not block its threshold while locked`);
   }
@@ -295,5 +354,8 @@ for (const failure of failures) console.error(`FAIL ${failure}`);
 if (failures.length) process.exit(1);
 
 console.log(
-  `item reachability ok: ${gates.length} gates, ${items.filter((item) => item.blocks).length} mapped doors, ${obtained.size} obtainable items, ${external.length} external requirement left out of the route graph`,
+  `item reachability ok: ${gates.length} gates, ${items.filter((item) => item.blocks).length} mapped doors, ${obtained.size} obtainable items, ${external.length} external requirements sourced from reachable actions, ${unreachableMarked.length} items explicitly unreachable`,
 );
+for (const item of unreachableMarked) {
+  console.log(`unreachable ${item.title} (${item.id}) on floor ${item.floor}: ${item.unreachable_reason}`);
+}

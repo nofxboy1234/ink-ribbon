@@ -21,6 +21,11 @@ EMSCRIPTEN_KEEPALIVE const char *rpd_item_hint(int index) {
         if (required) return required->def->title;
     }
     if (items_missing_external(index) >= 0) return "OUTSIDE THE MAP";
+    int hint = items_missing_hint(index);
+    if (hint >= 0) {
+        const item_t *required = items_get(hint);
+        return required ? required->def->title : "HINT";
+    }
     if (items_has_code(index)) return "CODE REQUIRED";
     if (items_hidden(index)) return "HIDDEN";
     if (items_inventory_count() >= INVENTORY_SLOTS && items_action_kind(index) == RPD_ACTION_TAKE)

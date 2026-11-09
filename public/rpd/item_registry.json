@@ -15,27 +15,30 @@
     "unlock",
     "use"
   ],
-  "block_radius": 1.0,
+  "block_radius": 2.0,
   "stats": {
     "items": 271,
     "hidden_contents": 17,
-    "gated": 36,
+    "gated": 37,
     "actions": {
-      "none": 59,
+      "inspect": 7,
+      "none": 58,
+      "open": 12,
+      "read": 31,
+      "solve": 8,
       "take": 119,
       "unlock": 20,
-      "open": 12,
-      "solve": 8,
-      "read": 31,
-      "use": 15,
-      "inspect": 7
+      "use": 16
     },
     "blocking_doors": 14,
     "coded_locks": 4,
     "external_requires": 1,
     "synthetic": 1,
     "relations": 90,
-    "unresolved_links": 1
+    "unresolved_links": 1,
+    "external_grants": 1,
+    "hints": 4,
+    "unreachable": 3
   },
   "unresolved": [
     {
@@ -72,7 +75,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544420,
@@ -99,7 +105,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544658,
@@ -126,7 +135,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544404,
@@ -155,7 +167,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544405,
@@ -184,7 +199,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544406,
@@ -213,7 +231,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544407,
@@ -242,7 +263,10 @@
       "blocks": true,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544409,
@@ -271,7 +295,10 @@
       "blocks": true,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544439,
@@ -300,7 +327,10 @@
       "blocks": true,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544447,
@@ -331,7 +361,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544453,
@@ -358,7 +391,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544454,
@@ -387,7 +423,10 @@
       "blocks": true,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544479,
@@ -422,7 +461,12 @@
       "blocks": false,
       "code": "C-A-P",
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [
+        544588
+      ],
+      "unreachable_reason": null
     },
     {
       "id": 544481,
@@ -451,7 +495,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544491,
@@ -480,7 +527,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544496,
@@ -509,7 +559,10 @@
       "blocks": true,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544497,
@@ -538,7 +591,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544506,
@@ -567,7 +623,10 @@
       "blocks": true,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544521,
@@ -594,7 +653,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544523,
@@ -623,7 +685,10 @@
       "blocks": true,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544529,
@@ -652,7 +717,10 @@
       "blocks": true,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544532,
@@ -681,7 +749,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544544,
@@ -713,7 +784,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544556,
@@ -746,7 +820,12 @@
       "blocks": false,
       "code": "D-C-M",
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [
+        544470
+      ],
+      "unreachable_reason": null
     },
     {
       "id": 544562,
@@ -775,7 +854,10 @@
       "blocks": true,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544570,
@@ -802,7 +884,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544571,
@@ -831,7 +916,10 @@
       "blocks": true,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544581,
@@ -860,7 +948,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544582,
@@ -889,7 +980,10 @@
       "blocks": true,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544592,
@@ -918,7 +1012,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544597,
@@ -950,7 +1047,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544627,
@@ -979,7 +1079,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544631,
@@ -1008,7 +1111,10 @@
       "blocks": true,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544632,
@@ -1035,7 +1141,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544637,
@@ -1064,7 +1173,10 @@
       "blocks": true,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544640,
@@ -1091,7 +1203,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544644,
@@ -1118,7 +1233,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544685,
@@ -1145,7 +1263,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544686,
@@ -1172,7 +1293,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 545844,
@@ -1203,7 +1327,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544431,
@@ -1232,7 +1359,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544490,
@@ -1267,7 +1397,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544500,
@@ -1296,7 +1429,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544508,
@@ -1325,7 +1461,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544517,
@@ -1366,7 +1505,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544604,
@@ -1407,7 +1549,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544665,
@@ -1448,7 +1593,10 @@
       "blocks": true,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 545830,
@@ -1511,7 +1659,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544448,
@@ -1528,7 +1679,7 @@
       "nearest_nav": 0.33,
       "placement": "floor",
       "icon": "transition",
-      "action": "none",
+      "action": "use",
       "requires": [],
       "requires_open": [],
       "contents": [],
@@ -1544,7 +1695,12 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [
+        545948
+      ],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544779,
@@ -1577,7 +1733,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544780,
@@ -1610,7 +1769,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544781,
@@ -1643,7 +1805,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544782,
@@ -1676,7 +1841,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544783,
@@ -1709,7 +1877,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544784,
@@ -1742,7 +1913,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544785,
@@ -1775,7 +1949,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544786,
@@ -1808,7 +1985,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544787,
@@ -1841,7 +2021,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544788,
@@ -1874,7 +2057,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544789,
@@ -1907,7 +2093,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544790,
@@ -1940,7 +2129,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544791,
@@ -1973,7 +2165,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544792,
@@ -2006,7 +2201,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544793,
@@ -2039,7 +2237,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544794,
@@ -2072,7 +2273,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544795,
@@ -2105,7 +2309,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544796,
@@ -2138,7 +2345,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544797,
@@ -2171,7 +2381,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544798,
@@ -2204,7 +2417,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544799,
@@ -2237,7 +2453,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544800,
@@ -2270,7 +2489,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544801,
@@ -2303,7 +2525,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544802,
@@ -2341,7 +2566,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544803,
@@ -2374,7 +2602,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544804,
@@ -2407,7 +2638,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544805,
@@ -2440,7 +2674,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544807,
@@ -2473,7 +2710,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544808,
@@ -2506,7 +2746,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 545835,
@@ -2539,7 +2782,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544401,
@@ -2566,7 +2812,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544464,
@@ -2593,7 +2842,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544659,
@@ -2620,7 +2872,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544458,
@@ -2647,7 +2902,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544498,
@@ -2674,7 +2932,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544630,
@@ -2701,7 +2962,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544393,
@@ -2728,7 +2992,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544441,
@@ -2755,7 +3022,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544457,
@@ -2782,7 +3052,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544463,
@@ -2809,7 +3082,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544469,
@@ -2840,7 +3116,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544470,
@@ -2871,7 +3150,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544471,
@@ -2906,7 +3188,10 @@
           "source": "outside the RPD marker set"
         }
       ],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544472,
@@ -2937,7 +3222,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544475,
@@ -2964,7 +3252,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544486,
@@ -2991,7 +3282,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544512,
@@ -3018,7 +3312,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544519,
@@ -3045,7 +3342,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544538,
@@ -3072,7 +3372,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544551,
@@ -3099,7 +3402,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544553,
@@ -3126,7 +3432,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544560,
@@ -3153,7 +3462,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544594,
@@ -3180,7 +3492,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544629,
@@ -3207,7 +3522,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544634,
@@ -3234,7 +3552,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544636,
@@ -3261,7 +3582,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544646,
@@ -3288,7 +3612,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544657,
@@ -3315,7 +3642,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544661,
@@ -3342,7 +3672,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544663,
@@ -3369,7 +3702,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544668,
@@ -3396,7 +3732,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544683,
@@ -3423,7 +3762,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544684,
@@ -3450,7 +3792,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544687,
@@ -3477,7 +3822,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544487,
@@ -3504,7 +3852,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544601,
@@ -3531,7 +3882,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544650,
@@ -3558,7 +3912,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544595,
@@ -3585,7 +3942,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544680,
@@ -3612,7 +3972,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544408,
@@ -3643,7 +4006,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544477,
@@ -3672,7 +4038,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544485,
@@ -3707,7 +4076,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544493,
@@ -3736,7 +4108,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544501,
@@ -3765,7 +4140,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544504,
@@ -3794,7 +4172,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544509,
@@ -3823,7 +4204,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544516,
@@ -3852,7 +4236,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544518,
@@ -3890,7 +4277,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544520,
@@ -3919,7 +4309,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544530,
@@ -3948,7 +4341,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544539,
@@ -3977,7 +4373,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544543,
@@ -4006,7 +4405,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544555,
@@ -4037,7 +4439,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544559,
@@ -4066,7 +4471,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544564,
@@ -4095,7 +4503,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": "1F service room is sealed in the source plan and has no walkable threshold"
     },
     {
       "id": 544565,
@@ -4124,7 +4535,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544572,
@@ -4159,7 +4573,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544586,
@@ -4194,7 +4611,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544635,
@@ -4223,7 +4643,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544648,
@@ -4254,7 +4677,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544664,
@@ -4286,7 +4712,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544672,
@@ -4315,7 +4744,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544677,
@@ -4344,7 +4776,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 545877,
@@ -4373,7 +4808,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544522,
@@ -4400,7 +4838,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544545,
@@ -4427,7 +4868,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544639,
@@ -4454,7 +4898,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544673,
@@ -4481,7 +4928,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544689,
@@ -4508,7 +4958,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 546138,
@@ -4535,7 +4988,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544476,
@@ -4564,7 +5020,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544494,
@@ -4593,7 +5052,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544513,
@@ -4628,7 +5090,12 @@
       "blocks": false,
       "code": "L6 R2 L11",
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [
+        544668
+      ],
+      "unreachable_reason": null
     },
     {
       "id": 544679,
@@ -4663,7 +5130,12 @@
       "blocks": false,
       "code": "L9 R15 L7",
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [
+        544486
+      ],
+      "unreachable_reason": null
     },
     {
       "id": 544561,
@@ -4690,7 +5162,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544599,
@@ -4717,7 +5192,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 545843,
@@ -4744,7 +5222,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544652,
@@ -4771,7 +5252,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544674,
@@ -4798,7 +5282,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544691,
@@ -4836,7 +5323,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 553287,
@@ -4855,7 +5345,9 @@
       "icon": "upgrade",
       "action": "take",
       "requires": [],
-      "requires_open": [],
+      "requires_open": [
+        544471
+      ],
       "contents": [],
       "opens": [],
       "hidden_by": null,
@@ -4869,7 +5361,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544489,
@@ -4896,7 +5391,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544534,
@@ -4923,7 +5421,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544567,
@@ -4950,7 +5451,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544590,
@@ -4977,7 +5481,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544647,
@@ -5004,7 +5511,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544478,
@@ -5031,7 +5541,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544480,
@@ -5064,7 +5577,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544483,
@@ -5091,7 +5607,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544488,
@@ -5118,7 +5637,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544536,
@@ -5145,7 +5667,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544596,
@@ -5172,7 +5697,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544598,
@@ -5199,7 +5727,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544638,
@@ -5226,7 +5757,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544676,
@@ -5253,7 +5787,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544410,
@@ -5280,7 +5817,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544436,
@@ -5307,7 +5847,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544443,
@@ -5334,7 +5877,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544451,
@@ -5361,7 +5907,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544456,
@@ -5388,7 +5937,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544460,
@@ -5415,7 +5967,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544473,
@@ -5442,7 +5997,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544503,
@@ -5469,7 +6027,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544507,
@@ -5496,7 +6057,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544526,
@@ -5523,7 +6087,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544533,
@@ -5550,7 +6117,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544547,
@@ -5577,7 +6147,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544557,
@@ -5604,7 +6177,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544569,
@@ -5631,7 +6207,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544573,
@@ -5658,7 +6237,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544600,
@@ -5685,7 +6267,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544681,
@@ -5712,7 +6297,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544403,
@@ -5739,7 +6327,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544466,
@@ -5766,7 +6357,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544568,
@@ -5793,7 +6387,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544662,
@@ -5820,7 +6417,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544667,
@@ -5847,7 +6447,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544678,
@@ -5874,7 +6477,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544445,
@@ -5907,7 +6513,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544502,
@@ -5934,7 +6543,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544602,
@@ -5961,7 +6573,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544671,
@@ -5988,7 +6603,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 553486,
@@ -6021,7 +6639,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544554,
@@ -6048,7 +6669,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544660,
@@ -6075,7 +6699,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544411,
@@ -6102,7 +6729,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544442,
@@ -6129,7 +6759,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544461,
@@ -6156,7 +6789,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544515,
@@ -6183,7 +6819,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544535,
@@ -6210,7 +6849,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544549,
@@ -6237,7 +6879,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544593,
@@ -6264,7 +6909,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544528,
@@ -6291,7 +6939,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544531,
@@ -6318,7 +6969,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544641,
@@ -6345,7 +6999,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544651,
@@ -6372,7 +7029,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544400,
@@ -6399,7 +7059,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544438,
@@ -6426,7 +7089,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544492,
@@ -6453,7 +7119,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544450,
@@ -6480,7 +7149,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544462,
@@ -6507,7 +7179,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544511,
@@ -6534,7 +7209,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544524,
@@ -6561,7 +7239,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544537,
@@ -6588,7 +7269,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544574,
@@ -6615,7 +7299,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": "1F east wing is clipped by the plan edge and has no walkable plan threshold"
     },
     {
       "id": 544575,
@@ -6642,7 +7329,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": "1F east wing is clipped by the plan edge and has no walkable plan threshold"
     },
     {
       "id": 544589,
@@ -6669,7 +7359,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544656,
@@ -6696,7 +7389,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 545879,
@@ -6723,7 +7419,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544465,
@@ -6750,7 +7449,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544482,
@@ -6777,7 +7479,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544495,
@@ -6804,7 +7509,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544499,
@@ -6831,7 +7539,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544546,
@@ -6858,7 +7569,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544550,
@@ -6885,7 +7599,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544566,
@@ -6912,7 +7629,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544603,
@@ -6939,7 +7659,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544670,
@@ -6966,7 +7689,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544682,
@@ -6993,7 +7719,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544584,
@@ -7020,7 +7749,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544605,
@@ -7047,7 +7779,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544642,
@@ -7074,7 +7809,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544653,
@@ -7101,7 +7839,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544666,
@@ -7128,7 +7869,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544467,
@@ -7155,7 +7899,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544474,
@@ -7182,7 +7929,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544484,
@@ -7209,7 +7959,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544525,
@@ -7236,7 +7989,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544645,
@@ -7263,7 +8019,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544649,
@@ -7290,7 +8049,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544688,
@@ -7317,7 +8079,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544398,
@@ -7344,7 +8109,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544437,
@@ -7371,7 +8139,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544459,
@@ -7398,7 +8169,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544468,
@@ -7430,7 +8204,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544527,
@@ -7463,7 +8240,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544541,
@@ -7496,7 +8276,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544542,
@@ -7529,7 +8312,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544548,
@@ -7562,7 +8348,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544558,
@@ -7595,7 +8384,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544576,
@@ -7628,7 +8420,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544588,
@@ -7661,7 +8456,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544654,
@@ -7694,7 +8492,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544412,
@@ -7721,7 +8522,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544413,
@@ -7748,7 +8552,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544414,
@@ -7775,7 +8582,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544415,
@@ -7802,7 +8612,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544416,
@@ -7829,7 +8642,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544417,
@@ -7856,7 +8672,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544418,
@@ -7883,7 +8702,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544419,
@@ -7910,7 +8732,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": false
+      "synthetic": false,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     },
     {
       "id": 544635000,
@@ -7939,7 +8764,10 @@
       "blocks": false,
       "code": null,
       "external_requires": [],
-      "synthetic": true
+      "synthetic": true,
+      "external_grants": [],
+      "hint": [],
+      "unreachable_reason": null
     }
   ]
 }

@@ -74,6 +74,13 @@ STAIRS = [
     (39.0, 3.0, "B1", "1F"),
 ]
 
+# The B1 kennel uses a dotted plan threshold that is not wall ink, so the
+# lattice leaves a one-cell gap. Bridge the gate explicitly instead of losing
+# the room and its herb to a nav artefact.
+MANUAL_BRIDGES = [
+    {"floor": 4, "a": (-17.5, 13.5), "b": (-17.5, 15.5), "reason": "B1 kennel dotted gate"},
+]
+
 
 def load_plan(floor: dict) -> dict:
     image = cv2.imread(str(PLANS / f"{floor['image']}.png"), cv2.IMREAD_UNCHANGED)
@@ -512,6 +519,26 @@ def main() -> int:
         stair_links.append((lo, hi, chain[0], chain[-1]))
     print(f"stairs: {len(stair_links)}, total cells: {len(all_cells)}", flush=True)
 
+    bridges = []
+    for bridge in MANUAL_BRIDGES:
+        end = []
+        for point in (bridge["a"], bridge["b"]):
+            match = [
+                i
+                for i, cell in enumerate(all_cells)
+                if cell["floor"] == bridge["floor"]
+                and abs(cell["x"] - point[0]) < 0.01
+                and abs(cell["z"] - point[1]) < 0.01
+            ]
+            if not match:
+                sys.exit(f"bridge {bridge['reason']} has no node at {point}")
+            end.append(match[0])
+        a, b = end
+        if b not in all_cells[a]["n"]:
+            all_cells[a]["n"].append(b)
+            all_cells[b]["n"].append(a)
+        bridges.append({"floor": bridge["floor"], "a": a, "b": b, "reason": bridge["reason"]})
+
     # Validate: every node should be in one component per adjacent floor stack.
     parent = list(range(len(all_cells)))
 
@@ -548,6 +575,7 @@ def main() -> int:
         "floors": floor_meta,
         "nodes": all_cells,
         "portals": [[a, b] for _lo, _hi, a, b in stair_links],
+        "bridges": bridges,
     }
     OUT_NAV.write_text(json.dumps(payload, separators=(",", ":")) + "\n", encoding="utf-8")
     print(f"wrote {OUT_NAV.relative_to(ROOT)} ({OUT_NAV.stat().st_size / 1024:.0f} KiB)", flush=True)

@@ -9,6 +9,8 @@
 #define RPD_MAX_CONTENTS 4
 #define RPD_MAX_OPENS 12
 #define RPD_MAX_EXTERNAL 2
+#define RPD_MAX_HINTS 2
+#define RPD_MAX_EXTERNAL_GRANTS 2
 
 // The action a MapGenie category earns. A pickup is carried in one of the
 // eight inventory slots; a key item is an ordinary pickup, so keys compete for
@@ -59,6 +61,10 @@ typedef struct {
     int32_t external_requires[RPD_MAX_EXTERNAL];
     uint8_t external_count;
     const char *code;
+    int16_t hints[RPD_MAX_HINTS];
+    uint8_t hint_count;
+    int32_t external_grants[RPD_MAX_EXTERNAL_GRANTS];
+    uint8_t external_grant_count;
 } rpd_item_def_t;
 
 typedef struct {
@@ -101,6 +107,7 @@ int items_index_for_id(int id);
 int items_missing_requirement(int index);
 int items_missing_open(int index);
 int items_missing_external(int index);
+int items_missing_hint(int index);
 int items_enter_code(int index, const char *entry);
 int items_grant_external(int id);
 int items_external_carried(int id);

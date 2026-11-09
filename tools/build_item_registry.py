@@ -45,6 +45,21 @@ LINK = re.compile(r"\[([^\]]+)\]\((https://mapgenie\.io/[^)]*?locationIds=(\d+)[
 BOLD = re.compile(r"^\*\*(.+?):\*\*(.*)$")
 INSIDE_LEAD = re.compile(r"^\s*Inside the ([A-Z][A-Za-z0-9' .!-]{1,48}?)(?=,|\.|;|\n|$)")
 
+# The MapGenie prose does not link these three facts, so they are authored
+# here instead of being lost between builds.
+MANUAL_RELATIONS = {
+    553287: {"requires_open": [544471], "note": "the Hiding Place file reveals the MQ 11 magazine"},
+}
+MANUAL_EXTERNAL_GRANTS = {
+    544448: {"grants": [545948], "note": "the Underground Facility transition fetches the Sewers film"},
+}
+MANUAL_UNREACHABLE = {
+    544574: "1F east wing is clipped by the plan edge and has no walkable plan threshold",
+    544575: "1F east wing is clipped by the plan edge and has no walkable plan threshold",
+    544564: "1F service room is sealed in the source plan and has no walkable threshold",
+}
+BLOCK_RADIUS = 2.0
+
 ACTIONS = {
     "none": "none",
     "take": "take",
@@ -256,6 +271,9 @@ def main() -> None:
             "blocks": False,
             "code": None,
             "external_requires": [],
+            "external_grants": [],
+            "hint": [],
+            "unreachable_reason": None,
             "synthetic": False,
         }
         rows.append(row)
@@ -373,6 +391,9 @@ def main() -> None:
             "blocks": False,
             "code": None,
             "external_requires": [],
+            "external_grants": [],
+            "hint": [],
+            "unreachable_reason": None,
             "synthetic": True,
         }
         rows.append(box)
@@ -383,6 +404,17 @@ def main() -> None:
 
     for row in rows:
         description = (locations.get(row["id"]) or {}).get("description")
+        manual = MANUAL_RELATIONS.get(row["id"])
+        if manual:
+            for key in ("requires", "requires_open"):
+                if key in manual:
+                    row[key].extend(manual[key])
+        row["hint"] = sorted(
+            {link["id"] for link in row["links"] if link["section"] == "hint" and link["id"] in known}
+        )
+        grant = MANUAL_EXTERNAL_GRANTS.get(row["id"])
+        row["external_grants"] = sorted(grant["grants"]) if grant else []
+        row["unreachable_reason"] = MANUAL_UNREACHABLE.get(row["id"])
         row["requires"] = sorted(set(row["requires"]))
         row["requires_open"] = sorted(set(row["requires_open"]))
         row["contents"] = sorted(set(row["contents"]))
@@ -393,6 +425,8 @@ def main() -> None:
         row["action"] = action_for(
             row["category"], row["requires"], row["contents"], row["title"], row["code"], description
         )
+        if row["external_grants"]:
+            row["action"] = "use"
         row["blocks"] = blocks_route(row)
 
     action_counts: dict[str, int] = {name: 0 for name in ACTIONS}
@@ -410,7 +444,7 @@ def main() -> None:
             "api": f"mapgenie map 878 descriptions sha256:{digest}",
         },
         "actions": sorted(ACTIONS),
-        "block_radius": 1.0,
+        "block_radius": BLOCK_RADIUS,
         "stats": {
             "items": len(rows),
             "hidden_contents": hidden,
@@ -419,6 +453,9 @@ def main() -> None:
             "blocking_doors": sum(1 for row in rows if row["blocks"]),
             "coded_locks": sum(1 for row in rows if row["code"]),
             "external_requires": sum(len(row["external_requires"]) for row in rows),
+            "external_grants": sum(len(row["external_grants"]) for row in rows),
+            "hints": sum(len(row["hint"]) for row in rows),
+            "unreachable": sum(1 for row in rows if row["unreachable_reason"]),
             "synthetic": sum(1 for row in rows if row["synthetic"]),
             "relations": len(relations),
             "unresolved_links": len(unresolved),
