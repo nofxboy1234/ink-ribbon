@@ -26,6 +26,8 @@
     "32-item-cubes-ortho",
     "32b-item-hover",
     "32c-item-no-hover",
+    "32d-item-size-far",
+    "32e-item-size-near",
     "34-key-gating",
     "33-inventory-square",
     "35-box-open",
@@ -296,6 +298,10 @@
         0
       ]
     },
+    "noDiamond": {
+      "item": "To 2F",
+      "pixels": 0
+    },
     "plan": {
       "floors": [
         "4F",
@@ -561,9 +567,9 @@
       "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · middle drag to pan",
       "plan": [],
       "player": [
-        20.538055419921875,
+        20.36794090270996,
         0.09999999403953552,
-        -10.259513854980469
+        -10.216984748840332
       ],
       "moving": false,
       "routePoints": 0,
@@ -683,7 +689,7 @@
         }
       ],
       "markerPixels": {
-        "floorOne": 6260
+        "floorOne": 10107
       }
     },
     "orthoReset": {
@@ -821,6 +827,18 @@
       "hidden": 117,
       "pixels": 2018
     },
+    "itemSize": {
+      "far": {
+        "count": 196,
+        "width": 14,
+        "height": 14
+      },
+      "near": {
+        "count": 196,
+        "width": 14,
+        "height": 14
+      }
+    },
     "doorRoute": {
       "lockedRoute": 0,
       "unlockedRoute": 15
@@ -911,7 +929,7 @@
         -0.8999999761581421,
         0.4000000059604645,
         0.40000003576278687,
-        0,
+        2.9802322387695312e-8,
         50
       ]
     },
@@ -924,7 +942,7 @@
         -0.8999999761581421,
         0.4000000059604645,
         0.40000003576278687,
-        0,
+        2.9802322387695312e-8,
         50
       ],
       "pan": [

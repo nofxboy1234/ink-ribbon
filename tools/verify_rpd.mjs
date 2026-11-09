@@ -111,6 +111,45 @@ function changedPixels(a, b, area) {
   return count;
 }
 
+function colouredPixelsInBox(path, area) {
+  const { width, height, channels, pixels } = readPng(path);
+  let count = 0;
+  for (let y = Math.max(0, area.y0); y < Math.min(height, area.y1); y += 1) {
+    for (let x = Math.max(0, area.x0); x < Math.min(width, area.x1); x += 1) {
+      const at = (y * width + x) * channels;
+      if (Math.max(pixels[at], pixels[at + 1], pixels[at + 2]) - Math.min(pixels[at], pixels[at + 1], pixels[at + 2]) > 60) {
+        count += 1;
+      }
+    }
+  }
+  return count;
+}
+
+function colourBounds(path, centre, half, matches) {
+  const { width, height, channels, pixels } = readPng(path);
+  let count = 0;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (let y = Math.max(0, Math.round(centre.y) - half); y < Math.min(height, Math.round(centre.y) + half); y += 1) {
+    for (let x = Math.max(0, Math.round(centre.x) - half); x < Math.min(width, Math.round(centre.x) + half); x += 1) {
+      const at = (y * width + x) * channels;
+      if (!matches(pixels[at], pixels[at + 1], pixels[at + 2])) continue;
+      count += 1;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  return {
+    count,
+    width: count > 0 ? maxX - minX + 1 : 0,
+    height: count > 0 ? maxY - minY + 1 : 0,
+  };
+}
+
 function waitForHttp(url, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
     const start = Date.now();
@@ -382,6 +421,36 @@ async function run() {
     await setFloor(0);
     await shot("07-ortho-1f-clean");
 
+    const rawDiamond = await evalJson(`(() => {
+      const list = window.__quest.items().filter((item) => item.floor === 0 && item.state === 1);
+      const cubes = list.map((item) => window.__quest.project(item.cubeX, item.cubeY, item.cubeZ));
+      const player = window.__quest.project(...window.__quest.debug().player);
+      let best = null;
+      for (const item of list) {
+        const raw = window.__quest.project(item.x, item.y, item.z);
+        const cube = window.__quest.project(item.cubeX, item.cubeY, item.cubeZ);
+        if (Math.hypot(raw.x - cube.x, raw.y - cube.y) < 16) continue;
+        let clearance = Math.hypot(raw.x - player.x, raw.y - player.y);
+        for (const other of cubes) {
+          clearance = Math.min(clearance, Math.hypot(raw.x - other.x, raw.y - other.y));
+        }
+        if (!best || clearance > best.clearance) best = { name: item.name, raw, clearance };
+      }
+      return best;
+    })()`);
+    assert(
+      rawDiamond && rawDiamond.clearance > 10,
+      `no item is clear of its raw position for the diamond check: ${JSON.stringify(rawDiamond)}`,
+    );
+    const rawPixels = colouredPixelsInBox(shotPath("07-ortho-1f-clean"), {
+      x0: Math.round(rawDiamond.raw.x) - 5,
+      y0: Math.round(rawDiamond.raw.y) - 5,
+      x1: Math.round(rawDiamond.raw.x) + 5,
+      y1: Math.round(rawDiamond.raw.y) + 5,
+    });
+    assert(rawPixels === 0, `${rawDiamond.name} still draws a diamond at its raw position`);
+    report.states.noDiamond = { item: rawDiamond.name, pixels: rawPixels };
+
     const cell = JSON.parse(await cdp.eval("JSON.stringify(window.__quest.walkableCell())"));
     assert(cell && cell.screen, "the DEV API did not return a walkable cell");
     const cellX = cell.screen.x;
@@ -571,7 +640,7 @@ async function run() {
     const floorTwoStats = await cdp.eval("window.__quest.overlayStats()");
     assert(floorTwoStats[4] === 0, "Claire's label must not draw on 2F");
     const floorOnePixels = colouredPixels(shotPath("07-ortho-1f-clean"));
-    assert(floorOnePixels > 0, "item diamonds must draw on their own floor");
+    assert(floorOnePixels > 0, "item cubes must draw on their own floor");
     report.states.floorFilter = {
       floorOneStats,
       floorTwoStats,
@@ -794,6 +863,41 @@ async function run() {
       "a taken item must not hover",
     );
     report.states.itemHover = { ammo: ammoIndex, hidden: hiddenIndex, pixels: hoverPixels };
+
+    await setFloor(2);
+    const spadeItem = itemsOrtho.find(
+      (entry) => entry.name === "Spade Key" && entry.floor === 2 && entry.state === 1,
+    );
+    assert(spadeItem, "expected the present Spade Key on 2F");
+    const sizeOrbit = (distance) =>
+      `window.__rpd.setOrbit(${spadeItem.cubeX}, ${spadeItem.cubeY}, ${spadeItem.cubeZ}, 0, 1.2, ${distance})`;
+    await cdp.eval(sizeOrbit(20));
+    await sleep(600);
+    const sizeCentre = await evalJson(
+      `window.__quest.project(${spadeItem.cubeX}, ${spadeItem.cubeY}, ${spadeItem.cubeZ})`,
+    );
+    await shot("32d-item-size-far");
+    await cdp.eval(sizeOrbit(8));
+    await sleep(600);
+    await shot("32e-item-size-near");
+    const keyColour = [spadeItem.r, spadeItem.g, spadeItem.b].map((value) => Math.round(value * 255));
+    const cubeColour = (r, g, b) =>
+      Math.abs(r - keyColour[0]) < 24 &&
+      Math.abs(g - keyColour[1]) < 24 &&
+      Math.abs(b - keyColour[2]) < 24;
+    const farSize = colourBounds(shotPath("32d-item-size-far"), sizeCentre, 30, cubeColour);
+    const nearSize = colourBounds(shotPath("32e-item-size-near"), sizeCentre, 30, cubeColour);
+    assert(
+      farSize.width >= 10 && nearSize.width >= 10,
+      `the item cube did not draw in both zoom shots: ${JSON.stringify({ farSize, nearSize })}`,
+    );
+    assert(
+      Math.abs(farSize.width - nearSize.width) <= 2 &&
+        Math.abs(farSize.height - nearSize.height) <= 2,
+      `the ortho cube must keep its pixel size across zoom: ${JSON.stringify({ farSize, nearSize })}`,
+    );
+    report.states.itemSize = { far: farSize, near: nearSize };
+    await setFloor(0);
 
     // Key gating: the car trunk refuses until the car key sits in a slot.
     const trunk = byName("Car Trunk");

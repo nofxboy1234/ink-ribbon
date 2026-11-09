@@ -154,31 +154,6 @@ void overlay_stats(float *out) {
     out[5] = (float)stat_popup;
 }
 
-static void draw_items(void) {
-    int count = items_count();
-    int level = plan_active_floor();
-    for (int i = 0; i < count; i++) {
-        const item_t *item = items_get(i);
-        if (!item || item->state != ITEM_PRESENT) continue;
-        if (item->def->floor != level) continue;
-        float sx, sy;
-        project(item->def->x, item->def->y, item->def->z, &sx, &sy);
-        if (sx < -1e8f) continue;
-        uint8_t r = (uint8_t)(item->r * 255.0f);
-        uint8_t g = (uint8_t)(item->g * 255.0f);
-        uint8_t b = (uint8_t)(item->b * 255.0f);
-        uint32_t color = ((uint32_t)r << 24) | ((uint32_t)g << 16) | ((uint32_t)b << 8) | 0xffu;
-        float radius = 7.0f;
-        push(sx, sy - radius, color);
-        push(sx + radius, sy, color);
-        push(sx, sy + radius, color);
-        push(sx, sy - radius, color);
-        push(sx, sy + radius, color);
-        push(sx - radius, sy, color);
-        line(sx - radius, sy, sx + radius, sy, 1.0f, 0x24221ee6);
-    }
-}
-
 static void draw_item_hover(void) {
     int index = plan_hover_item();
     if (index < 0) return;
@@ -347,7 +322,6 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
         draw_item_hover();
     }
 
-    if (ortho) draw_items();
     draw_popup();
 
     if (fps_visible) {

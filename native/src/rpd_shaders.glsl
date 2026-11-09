@@ -111,23 +111,27 @@ layout(location = 0) out vec4 frag_color;
 layout(location = 1) out vec4 frag_normal;
 layout(location = 2) out vec4 frag_depth;
 void main() {
-    float spec_power = 16.0;
-    float ambient_intensity = 0.25;
-    vec3 l = vec3(0.0, 1.0, 0.0);
-    vec3 n = normalize(v_normal);
-    float n_dot_l = dot(n, l);
-    float lum = dot(u_color.rgb, vec3(0.299, 0.587, 0.114));
-    vec3 base = clamp(mix(vec3(lum), u_color.rgb, 1.7), 0.0, 1.0);
-    vec3 orb;
-    if (n_dot_l > 0.0) {
-        vec3 v = normalize(u_camera.xyz - v_world);
-        vec3 r = reflect(-l, n);
-        float spec_intensity = pow(max(dot(r, v), 0.0), spec_power) * n_dot_l;
-        orb = vec3(spec_intensity) + (n_dot_l + ambient_intensity) * base;
-    } else {
-        orb = base * ambient_intensity;
+    float flat_marker = u_camera.w;
+    vec3 orb = u_color.rgb;
+    if (flat_marker < 0.5) {
+        float spec_power = 16.0;
+        float ambient_intensity = 0.25;
+        vec3 l = vec3(0.0, 1.0, 0.0);
+        vec3 n = normalize(v_normal);
+        float n_dot_l = dot(n, l);
+        float lum = dot(u_color.rgb, vec3(0.299, 0.587, 0.114));
+        vec3 base = clamp(mix(vec3(lum), u_color.rgb, 1.7), 0.0, 1.0);
+        if (n_dot_l > 0.0) {
+            vec3 v = normalize(u_camera.xyz - v_world);
+            vec3 r = reflect(-l, n);
+            float spec_intensity = pow(max(dot(r, v), 0.0), spec_power) * n_dot_l;
+            orb = vec3(spec_intensity) + (n_dot_l + ambient_intensity) * base;
+        } else {
+            orb = base * ambient_intensity;
+        }
+        orb = pow(clamp(orb, 0.0, 1.0), vec3(1.0 / 2.2));
     }
-    frag_color = vec4(pow(clamp(orb, 0.0, 1.0), vec3(1.0 / 2.2)), 1.0);
+    frag_color = vec4(orb, 1.0);
     frag_normal = vec4(0.5, 0.5, 0.5, 0.5);
     frag_depth = vec4(0.0, 0.0, 0.0, 0.5);
 }

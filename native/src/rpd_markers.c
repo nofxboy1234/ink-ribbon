@@ -8,6 +8,8 @@
 #include "rpd_shaders.h"
 #include "rpd_state.h"
 
+#define ITEM_CUBE_ORTHO_PX 14.0f
+
 EMSCRIPTEN_KEEPALIVE void rpd_marker_clear(void);
 EMSCRIPTEN_KEEPALIVE int rpd_marker_add(int shape, float x, float y, float z, float size, int r, int g, int b);
 EMSCRIPTEN_KEEPALIVE void rpd_set_player_position(float x, float y, float z);
@@ -255,7 +257,8 @@ void markers_create(scene_t *s) {
     create_markers(s);
 }
 
-void markers_render(scene_t *s, mat4 view_proj, const float eye[3], float marker_floor) {
+void markers_render(scene_t *s, mat4 view_proj, const float eye[3], float marker_floor,
+                    bool ortho, float ortho_scale) {
     if (g_marker_count <= 0) return;
     sg_apply_pipeline(s->marker_pip);
     marker_fs_params_t mf = { 0 };
@@ -269,7 +272,13 @@ void markers_render(scene_t *s, mat4 view_proj, const float eye[3], float marker
         if (m->shape < 0 || m->shape >= MARKER_SHAPE_COUNT) continue;
         if (s->marker_index_count[m->shape] <= 0) continue;
         marker_vs_params_t mv;
-        mat4 model = marker_model(m);
+        marker_t draw = *m;
+        // The plan view wants item cubes at a fixed pixel size, so undo the
+        // world scale that zoom applies to every other marker.
+        if (ortho && m->shape == MARKER_CUBE && ortho_scale > 0.0f)
+            draw.size = ITEM_CUBE_ORTHO_PX / ortho_scale;
+        mf.u_camera[3] = ortho && m->shape == MARKER_CUBE ? 1.0f : 0.0f;
+        mat4 model = marker_model(&draw);
         memcpy(mv.u_view_proj, view_proj.m, sizeof(mv.u_view_proj));
         memcpy(mv.u_model, model.m, sizeof(mv.u_model));
         mf.u_color[0] = m->r; mf.u_color[1] = m->g; mf.u_color[2] = m->b; mf.u_color[3] = 1.0f;
