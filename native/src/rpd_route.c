@@ -1,5 +1,7 @@
 #include "rpd_route.h"
 
+#include "rpd_player.h"
+
 #include <math.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -17,6 +19,9 @@ typedef struct {
 
 static cell_slot_t cell_slots[CELL_HASH];
 static const uint8_t *route_blocked;
+static const uint8_t *route_floor;
+
+static bool edge_block_clear(int a, int b, const float *x, const float *z);
 
 void route_set_blocked(const uint8_t *blocked) {
     route_blocked = blocked;
@@ -61,6 +66,7 @@ static int cell_find(int key) {
 }
 
 void route_set_cells(int count, const float *x, const float *z, const uint8_t *floor) {
+    route_floor = floor;
     cell_clear();
     for (int i = 0; i < count; i++) {
         cell_insert(cell_key(floor[i], (int)floorf(x[i]), (int)floorf(z[i])), i);
@@ -202,6 +208,7 @@ int route_find_path(int count, const float *x, const float *y, const float *z,
             int nxt = adjacency[e];
             if (blocked && blocked[nxt]) continue;
             if (astar_state[nxt] == 2) continue;
+            if (blocked && !edge_block_clear(cur, nxt, x, z)) continue;
             float tentative = astar_g[cur] + cost[e];
             if (tentative >= astar_g[nxt]) continue;
             astar_g[nxt] = tentative;
@@ -238,10 +245,58 @@ static void push_point(float *out, int cap, int *written, float x, float y, floa
     (*written)++;
 }
 
-static bool cell_walkable_at(int floor, float x, float z) {
-    int node = cell_find(cell_key(floor, (int)floorf(x), (int)floorf(z)));
+static bool cell_open(int floor, int ix, int iz) {
+    int node = cell_find(cell_key(floor, ix, iz));
     if (node < 0) return false;
     return route_blocked == NULL || route_blocked[node] == 0;
+}
+
+/* A route point is legal only when the whole player disc stays on walkable
+ * cells. The old point test let the body overlap the cell corner next door,
+ * which is where the walls live. */
+static bool cell_walkable_at(int floor, float x, float z) {
+    if (!cell_open(floor, (int)floorf(x), (int)floorf(z))) return false;
+    const float r = RPD_PLAYER_RADIUS;
+    int ix0 = (int)floorf(x - r), ix1 = (int)floorf(x + r);
+    int iz0 = (int)floorf(z - r), iz1 = (int)floorf(z + r);
+    for (int ix = ix0; ix <= ix1; ix++) {
+        for (int iz = iz0; iz <= iz1; iz++) {
+            float cx = fminf(fmaxf(x, (float)ix), (float)ix + 1.0f);
+            float cz = fminf(fmaxf(z, (float)iz), (float)iz + 1.0f);
+            float dx = cx - x, dz = cz - z;
+            if (dx * dx + dz * dz > r * r) continue;
+            if (!cell_open(floor, ix, iz)) return false;
+        }
+    }
+    return true;
+}
+
+/* A* only skips edges whose body would overlap a blocked cell. Absent cells
+ * stay out of this test so portal gaps and door thresholds keep connecting. */
+static bool edge_block_clear(int a, int b, const float *x, const float *z) {
+    if (!route_blocked || !route_floor) return true;
+    int floor = route_floor[a];
+    float dx = x[b] - x[a], dz = z[b] - z[a];
+    float length = sqrtf(dx * dx + dz * dz);
+    int steps = (int)ceilf(length / ROUTE_SAMPLE_STEP);
+    if (steps < 1) steps = 1;
+    const float r = RPD_PLAYER_RADIUS;
+    for (int s = 0; s <= steps; s++) {
+        float t = (float)s / (float)steps;
+        float px = x[a] + dx * t;
+        float pz = z[a] + dz * t;
+        for (int gx = (int)floorf(px - r); gx <= (int)floorf(px + r); gx++) {
+            for (int gz = (int)floorf(pz - r); gz <= (int)floorf(pz + r); gz++) {
+                float cx = fminf(fmaxf(px, (float)gx), (float)gx + 1.0f);
+                float cz = fminf(fmaxf(pz, (float)gz), (float)gz + 1.0f);
+                float ddx = cx - px, ddz = cz - pz;
+                if (ddx * ddx + ddz * ddz > r * r) continue;
+                int node = cell_find(cell_key(floor, gx, gz));
+                if (node >= 0 && route_blocked[node]) return false;
+            }
+        }
+    }
+    return true;
 }
 
 static bool floor_point_walkable(int floor, float ax, float az, float bx, float bz, float *check) {

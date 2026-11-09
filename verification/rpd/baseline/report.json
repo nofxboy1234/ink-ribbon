@@ -87,6 +87,9 @@
         "samples": 0,
         "bad": 0,
         "worst": 0,
+        "clearance": 0,
+        "clearanceAt": null,
+        "radius": 0.25,
         "nodes": 9925,
         "edges": 17773
       },
@@ -184,6 +187,9 @@
         "samples": 0,
         "bad": 0,
         "worst": 0,
+        "clearance": 0,
+        "clearanceAt": null,
+        "radius": 0.25,
         "nodes": 9925,
         "edges": 17773
       },
@@ -270,6 +276,9 @@
         "samples": 0,
         "bad": 0,
         "worst": 0,
+        "clearance": 0,
+        "clearanceAt": null,
+        "radius": 0.25,
         "nodes": 9925,
         "edges": 17773
       },
@@ -347,7 +356,7 @@
         7.5
       ],
       "moving": false,
-      "routePoints": 83,
+      "routePoints": 119,
       "move": [
         0,
         0,
@@ -355,10 +364,17 @@
       ],
       "playerFloor": 0,
       "check": {
-        "points": 83,
-        "samples": 523,
+        "points": 119,
+        "samples": 576,
         "bad": 0,
-        "worst": 0.6999999093459001,
+        "worst": 0.7071067811865476,
+        "clearance": 0.032842442734788535,
+        "clearanceAt": [
+          7.800000190734863,
+          0.09999999403953552,
+          7.199999809265137
+        ],
+        "radius": 0.25,
         "nodes": 9925,
         "edges": 17773
       },
@@ -441,6 +457,9 @@
         "samples": 0,
         "bad": 0,
         "worst": 0,
+        "clearance": 0,
+        "clearanceAt": null,
+        "radius": 0.25,
         "nodes": 9925,
         "edges": 17773
       },
@@ -523,6 +542,9 @@
         "samples": 0,
         "bad": 0,
         "worst": 0,
+        "clearance": 0,
+        "clearanceAt": null,
+        "radius": 0.25,
         "nodes": 9925,
         "edges": 17773
       },
@@ -588,9 +610,9 @@
       "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · middle drag to pan · right click for waypoints",
       "plan": [],
       "player": [
-        20.481372833251953,
+        20.490400314331055,
         0.09999999403953552,
-        -10.245343208312988
+        -10.211543083190918
       ],
       "moving": false,
       "routePoints": 0,
@@ -605,6 +627,9 @@
         "samples": 0,
         "bad": 0,
         "worst": 0,
+        "clearance": 0,
+        "clearanceAt": null,
+        "radius": 0.25,
         "nodes": 9925,
         "edges": 17773
       },
@@ -760,7 +785,7 @@
         }
       ],
       "markerPixels": {
-        "floorOne": 9750
+        "floorOne": 9706
       }
     },
     "orthoReset": {
@@ -813,6 +838,9 @@
         "samples": 0,
         "bad": 0,
         "worst": 0,
+        "clearance": 0,
+        "clearanceAt": null,
+        "radius": 0.25,
         "nodes": 9925,
         "edges": 17773
       },
@@ -912,12 +940,12 @@
     },
     "doorRoute": {
       "lockedRoute": 0,
-      "unlockedRoute": 15
+      "unlockedRoute": 41
     },
     "chainedDoorRoute": {
       "locked": 0,
       "adjacentLocked": 0,
-      "unlocked": 41,
+      "unlocked": 28,
       "adjacentUnlocked": 28
     },
     "film": {
@@ -1094,7 +1122,7 @@
         0,
         0,
         0,
-        9.272391938437315e-42
+        9.249971163008117e-42
       ],
       "player": [
         -0.5,

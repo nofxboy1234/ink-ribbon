@@ -1,5 +1,7 @@
 #include "rpd_markers.h"
 
+#include "rpd_player.h"
+
 #include <emscripten/emscripten.h>
 #include <math.h>
 #include <stdlib.h>
@@ -239,6 +241,10 @@ mat4 marker_model(const marker_t *m) {
     float sx = m->size, sy = m->size, sz = m->size;
     if (m->shape == MARKER_DOOR) {
         sx = 1.15f; sy = 2.15f; sz = 0.18f;
+    } else if (m->shape == MARKER_CAPSULE) {
+        /* The body radius is fixed; size is only the standing height. */
+        sx = sz = RPD_PLAYER_RADIUS / 0.25f;
+        sy = RPD_PLAYER_HEIGHT;
     }
     float c = cosf(m->rot), s = sinf(m->rot);
     out.m[0] = c * sx;
@@ -303,7 +309,7 @@ const marker_t *scene_marker(int index) {
 
 void markers_ensure_player(float x, float y, float z) {
     rpd_marker_clear();
-    rpd_marker_add(MARKER_CAPSULE, x, y, z, 1.7f, 255, 121, 198);
+    rpd_marker_add(MARKER_CAPSULE, x, y, z, RPD_PLAYER_HEIGHT, 255, 121, 198);
     rpd_set_player_position(x, y, z);
 }
 
