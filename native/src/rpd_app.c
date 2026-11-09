@@ -278,6 +278,7 @@ void rpd_app_event(const sapp_event *e) {
 }
 
 EMSCRIPTEN_KEEPALIVE float rpd_player_radius(void) { return RPD_PLAYER_RADIUS; }
+EMSCRIPTEN_KEEPALIVE float rpd_route_radius(void) { return RPD_ROUTE_RADIUS; }
 
 EMSCRIPTEN_KEEPALIVE void rpd_plan_set_floors(int count, float *levels, float *bounds) {
     plan_set_floors(count, levels, bounds);

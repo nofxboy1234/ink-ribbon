@@ -238,7 +238,8 @@ return {
         i,
       );
     }
-    const radius = client.playerRadius();
+    const radius = client.routeRadius();
+    const visualRadius = client.playerRadius();
     const portalNodes = new Set<number>();
     for (const [a, b] of graph.portals) {
       portalNodes.add(a);
@@ -314,6 +315,7 @@ return {
       clearance: Number.isFinite(clearance) ? clearance : 0,
       clearanceAt,
       radius,
+      visualRadius,
       nodes: graph.count,
       edges: graph.edgeCount,
     };

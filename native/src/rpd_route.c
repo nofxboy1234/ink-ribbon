@@ -256,7 +256,7 @@ static bool cell_open(int floor, int ix, int iz) {
  * which is where the walls live. */
 static bool cell_walkable_at(int floor, float x, float z) {
     if (!cell_open(floor, (int)floorf(x), (int)floorf(z))) return false;
-    const float r = RPD_PLAYER_RADIUS;
+    const float r = RPD_ROUTE_RADIUS;
     int ix0 = (int)floorf(x - r), ix1 = (int)floorf(x + r);
     int iz0 = (int)floorf(z - r), iz1 = (int)floorf(z + r);
     for (int ix = ix0; ix <= ix1; ix++) {
@@ -280,7 +280,7 @@ static bool edge_block_clear(int a, int b, const float *x, const float *z) {
     float length = sqrtf(dx * dx + dz * dz);
     int steps = (int)ceilf(length / ROUTE_SAMPLE_STEP);
     if (steps < 1) steps = 1;
-    const float r = RPD_PLAYER_RADIUS;
+    const float r = RPD_ROUTE_RADIUS;
     for (int s = 0; s <= steps; s++) {
         float t = (float)s / (float)steps;
         float px = x[a] + dx * t;
