@@ -312,10 +312,7 @@ int plan_open_popup_at(float x, float z) {
 }
 void plan_fit_camera(void) { if (view_w > 1 && view_h > 1) fit_camera(); }
 
-void plan_reset(void) {
-    plan_set_spawn(spawn[0], spawn[1], spawn[2]);
-    plan_set_floor(active_floor);
-}
+void plan_reset(void) { plan_set_spawn(spawn[0], spawn[1], spawn[2]); plan_set_floor(active_floor); }
 
 void plan_update(float dt, const float *vp, int width, int height) {
     memcpy(view_proj, vp, sizeof(view_proj));
@@ -388,6 +385,7 @@ static int pick_item_screen(float px, float py) {
     }
     return best;
 }
+
 static void open_item_popup(int item) {
     const item_t *entry = items_get(item);
     if (!entry) return;
@@ -471,8 +469,8 @@ static void popup_execute(popup_action_t action) {
 
 void plan_pointer_down(float x, float y) {
     if (view_w < 2) return;
-    static double last_player_click = -1.0;
-    double now = emscripten_get_now();
+    static double last_player_click = -1.0; double now = emscripten_get_now();
+    hover_item = -1;
     if (popup_is_open()) {
         int hit = popup_hit(x, y);
         if (hit >= 0) {
