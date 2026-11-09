@@ -11,7 +11,6 @@ typedef enum {
 
 typedef enum {
     POPUP_ACTION_NONE,
-    POPUP_ACTION_WAYPOINT,
     POPUP_ACTION_TAKE,
     POPUP_ACTION_WALK_NEXT,
     POPUP_ACTION_ACT,

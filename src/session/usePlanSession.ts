@@ -3,7 +3,9 @@ import type { RefObject } from "react";
 import { buildNavGraph, nearestNode, type NavFile } from "../nav";
 import type { Floor, Quest, Vec3 } from "../quest";
 import { createRpdClient, type RpdClient } from "../wasm/client";
+import { createDevApi } from "./devApi";
 import { CACHE_VERSION, fetchScene } from "./scene";
+import type { WaypointCommand, WaypointMenuState } from "./waypointMenu";
 
 export type InventoryEntry = {
   name: string;
@@ -32,6 +34,7 @@ export type PlanSession = {
     room: string;
     inventory: (InventoryEntry | null)[];
     codeLock: CodeLock | null;
+    menu: WaypointMenuState | null;
   };
   ref: { canvas: RefObject<HTMLCanvasElement | null> };
   set: { activeFloor: (index: number) => void };
@@ -43,25 +46,11 @@ export type PlanSession = {
     recenter: () => void;
     enterCode: (code: string) => number;
     closeCodeEntry: () => void;
+    openMenu: (x: number, y: number) => void;
+    closeMenu: () => void;
+    waypointCommand: (command: WaypointCommand) => void;
   };
 };
-
-function projectPoint(
-  point: Vec3,
-  vp: Float32Array,
-  width: number,
-  height: number,
-): { x: number; y: number } | null {
-  const [x, y, z] = point;
-  const cx = vp[0] * x + vp[4] * y + vp[8] * z + vp[12];
-  const cy = vp[1] * x + vp[5] * y + vp[9] * z + vp[13];
-  const cw = vp[3] * x + vp[7] * y + vp[11] * z + vp[15];
-  if (cw <= 0.0001) return null;
-  return {
-    x: (cx / cw * 0.5 + 0.5) * width,
-    y: (1 - (cy / cw * 0.5 + 0.5)) * height,
-  };
-}
 
 export function usePlanSession(
   assetUrl = "/rpd/rpd.bin",
@@ -82,6 +71,7 @@ export function usePlanSession(
     Array.from({ length: 8 }, () => null),
   );
   const [codeLock, setCodeLock] = useState<CodeLock | null>(null);
+  const [menu, setMenu] = useState<WaypointMenuState | null>(null);
   const graphRef = useRef<ReturnType<typeof buildNavGraph> | null>(null);
   const roomsRef = useRef<Quest["rooms"]>([]);
 
@@ -280,277 +270,14 @@ export function usePlanSession(
     const client = clientRef.current;
     const graph = graphRef.current;
     if (!client || !graph) return;
-    const api = {
-      debug: () => {
-        const p = client.planPlayer();
-        return {
-          player: [p[0], p[1], p[2]] as Vec3,
-          plan: Array.from({ length: client.planCount() }, () => 0),
-          moving: client.planMoving() !== 0,
-          routePoints: client.planRouteCount(),
-          move: Array.from(client.planMoveState()),
-          room: client.planRoom(),
-          activeFloor,
-          playerFloor: (() => {
-            let best = -1;
-            let bestDistance = Infinity;
-            for (let i = 0; i < graph.count; i += 1) {
-              const distance = Math.hypot(
-                graph.x[i] - p[0],
-                graph.y[i] - p[1],
-                graph.z[i] - p[2],
-              );
-              if (distance < bestDistance) {
-                bestDistance = distance;
-                best = i;
-              }
-            }
-            return best >= 0 ? graph.floor[best] : -1;
-          })(),
-        };
-      },
-      setFloor: (index: number) => {
-        client.planSetFloor(index);
-        setActiveFloor(index);
-      },
-      setPlayer: (x: number, y: number, z: number) => client.planSetPlayer(x, y, z),
-      addTarget: (x: number, z: number) => client.planAddTarget(x, 0, z),
-      addTargetNode: (node: number) => client.planAddTargetNode(node),
-      items: () => {
-        const out = [];
-        for (let i = 0; i < client.itemCount(); i += 1) {
-          const item = client.item(i);
-          if (item) out.push({ index: i, ...item });
-        }
-        return out;
-      },
-      inventory: () => {
-        const slots = client.inventory();
-        return Array.from({ length: 8 }, (_, index) => {
-          if (slots[index * 4] === 0) return null;
-          const itemIndex = client.inventoryItem(index);
-          const item = itemIndex >= 0 ? client.item(itemIndex) : null;
-          return {
-            name: item?.name ?? "",
-            r: Math.round(slots[index * 4 + 1] * 255),
-            g: Math.round(slots[index * 4 + 2] * 255),
-            b: Math.round(slots[index * 4 + 3] * 255),
-          };
-        });
-      },
-      itemByName: (title: string) => {
-        for (let i = 0; i < client.itemCount(); i += 1) {
-          const item = client.item(i);
-          if (item?.name === title) return i;
-        }
-        return -1;
-      },
-      actItem: (index: number) => client.itemAct(index),
-      enterCode: (index: number, code: string) => client.itemEnterCode(index, code),
-      grantExternal: (id: number) => client.itemGrantExternal(id),
-      itemBlocked: (index: number) => client.itemBlocked(index),
-      itemHasCode: (index: number) => client.itemHasCode(index),
-      itemHint: (index: number) => client.itemHint(index),
-      standAt: (index: number) => {
-        const item = client.item(index);
-        if (!item) return false;
-        client.planSetPlayer(item.x + 0.9, item.y, item.z);
-        return true;
-      },
-      standNextTo: (index: number) => {
-        const item = client.item(index);
-        if (!item) return false;
-        client.planSetPlayer(item.x + 0.9, item.y, item.z);
-        return true;
-      },
-      walkableCell: () => {
-        const blocked = new Set(
-          Array.from({ length: client.itemCount() }, (_, i) => client.item(i))
-            .filter((entry) => entry && !entry.taken)
-            .map((entry) => entry!.node),
-        );
-        const rect = canvas.current?.getBoundingClientRect();
-        if (!rect) return null;
-        const playerArray = client.planPlayer();
-        const player: Vec3 = [playerArray[0], playerArray[1], playerArray[2]];
-        const viewProj = client.getViewProj();
-        const playerScreen = projectPoint(player, viewProj, rect.width, rect.height);
-        const itemScreens = Array.from({ length: client.itemCount() }, (_, index) => {
-          const item = client.item(index);
-          if (!item || item.hidden || item.floor !== activeFloor) return null;
-          return projectPoint([item.cubeX, item.cubeY, item.cubeZ], viewProj, rect.width, rect.height);
-        }).filter(Boolean);
-        let best = -1;
-        let bestDistance = Infinity;
-        for (let i = 0; i < graph.count; i += 1) {
-          if (graph.floor[i] !== activeFloor || blocked.has(i)) continue;
-          if (playerScreen) {
-            const screen = projectPoint(
-              [graph.x[i], graph.y[i] + 0.06, graph.z[i]],
-              viewProj,
-              rect.width,
-              rect.height,
-            );
-            if (screen && Math.hypot(screen.x - playerScreen.x, screen.y - playerScreen.y) < 90) {
-              continue;
-            }
-            if (screen && itemScreens.some((item) => item && Math.hypot(screen.x - item.x, screen.y - item.y) < 26)) {
-              continue;
-            }
-          }
-          const distance = Math.hypot(graph.x[i], graph.z[i] - 4);
-          if (distance < bestDistance) {
-            bestDistance = distance;
-            best = i;
-          }
-        }
-        if (best < 0) return null;
-        return {
-          node: best,
-          world: [graph.x[best], graph.y[best], graph.z[best]],
-          screen: projectPoint(
-            [graph.x[best], graph.y[best] + 0.06, graph.z[best]],
-            client.getViewProj(),
-            rect.width,
-            rect.height,
-          ),
-        };
-      },
-      popup: () => {
-        const state = client.popupState();
-        const choices: unknown[] = [];
-        for (let i = 0; i < state[6]; i += 1) {
-          const choice = client.popupChoice(i);
-          if (choice) choices.push(choice);
-        }
-        return {
-          open: state[7] === 1,
-          node: state[1],
-          item: state[2],
-          hover: state[3],
-          anchor: [state[4], state[5]],
-          message: client.popupMessage(),
-          choices,
-        };
-      },
-      reset: () => client.planClearRoute(),
-      clearRoute: () => client.planClearRoute(),
-      openPopupAt: (x: number, z: number) => client.openPopupAt(x, z) !== 0,
-      resetView: () => client.resetView(),
-      recenter: () => client.recenter(),
-      camera: () => Array.from(client.planCamera()),
-      cameraPose: () => Array.from(client.getCamera()),
-      cameraModel: () => Array.from(client.cameraModel()),
-      debugFloors: () => Array.from(client.debugFloors()),
-      overlayStats: () => Array.from(client.overlayStats()),
-      rooms: () => roomsRef.current,
-      nearestCell: (x: number, z: number) => {
-        const rect = canvas.current?.getBoundingClientRect();
-        if (!rect) return null;
-        const blocked = new Set(
-          Array.from({ length: client.itemCount() }, (_, i) => client.item(i))
-            .filter((entry) => entry && !entry.taken)
-            .map((entry) => entry!.node),
-        );
-        let best = -1;
-        let bestDistance = Infinity;
-        for (let i = 0; i < graph.count; i += 1) {
-          if (graph.floor[i] !== activeFloor || blocked.has(i)) continue;
-          const distance = Math.hypot(graph.x[i] - x, graph.z[i] - z);
-          if (distance < bestDistance) {
-            bestDistance = distance;
-            best = i;
-          }
-        }
-        if (best < 0) return null;
-        return {
-          node: best,
-          world: [graph.x[best], graph.y[best], graph.z[best]],
-          screen: projectPoint(
-            [graph.x[best], graph.y[best] + 0.06, graph.z[best]],
-            client.getViewProj(),
-            rect.width,
-            rect.height,
-          ),
-        };
-      },
-      checkPath: () => {
-        const route = client.planRoute();
-        const points = route.length / 3;
-        const cellKey = (floor: number, ix: number, iz: number) => `${floor}:${ix}:${iz}`;
-        const cells = new Map<string, number>();
-        for (let i = 0; i < graph.count; i += 1) {
-          cells.set(
-            cellKey(graph.floor[i], Math.floor(graph.x[i]), Math.floor(graph.z[i])),
-            i,
-          );
-        }
-        let bad = 0;
-        let samples = 0;
-        let worst = 0;
-        const lift = 0.08;
-        for (let i = 0; i + 1 < points; i += 1) {
-          const ax = route[i * 3];
-          const ay = route[i * 3 + 1];
-          const az = route[i * 3 + 2];
-          const bx = route[i * 3 + 3];
-          const by = route[i * 3 + 4];
-          const bz = route[i * 3 + 5];
-          const length = Math.hypot(bx - ax, by - ay, bz - az);
-          const steps = Math.max(1, Math.ceil(length / 0.1));
-          for (let s = 0; s <= steps; s += 1) {
-            const t = s / steps;
-            const px = ax + (bx - ax) * t;
-            const py = ay + (by - ay) * t;
-            const pz = az + (bz - az) * t;
-            const ix = Math.floor(px);
-            const iz = Math.floor(pz);
-            let found = false;
-            let nearest = Infinity;
-            for (const floor of graph.floors) {
-              const node = cells.get(cellKey(floor.index, ix, iz));
-              if (node === undefined) continue;
-              if (Math.abs(graph.y[node] + lift - py) > 0.9) continue;
-              found = true;
-              nearest = Math.min(nearest, Math.hypot(graph.x[node] - px, graph.z[node] - pz));
-            }
-            samples += 1;
-            if (!found) bad += 1;
-            else if (nearest > worst) worst = nearest;
-          }
-        }
-        return {
-          points,
-          samples,
-          bad,
-          worst,
-          nodes: graph.count,
-          edges: graph.edgeCount,
-        };
-      },
-      navNode: (index: number) =>
-        index < 0 || index >= graph.count
-          ? null
-          : { index, x: graph.x[index], y: graph.y[index], z: graph.z[index], floor: graph.floor[index] },
-      nearestNavNode: (floor: number, x: number, y: number, z: number) => {
-        let best = -1;
-        let bestDistance = Infinity;
-        for (let i = 0; i < graph.count; i += 1) {
-          if (graph.floor[i] !== floor) continue;
-          const dx = graph.x[i] - x;
-          const dy = (graph.y[i] - y) * 1.4;
-          const dz = graph.z[i] - z;
-          const distance = dx * dx + dy * dy + dz * dz;
-          if (distance < bestDistance) { bestDistance = distance; best = i; }
-        }
-        return best < 0 ? null : { index: best, x: graph.x[best], y: graph.y[best], z: graph.z[best] };
-      },
-      project: (x: number, y: number, z: number) => {
-        const rect = canvas.current?.getBoundingClientRect();
-        if (!rect) return null;
-        return projectPoint([x, y, z], client.getViewProj(), rect.width, rect.height);
-      },
-    };
+    const api = createDevApi({
+      client,
+      graph,
+      canvas,
+      rooms: roomsRef.current,
+      activeFloor,
+      setActiveFloor,
+    });
     (window as unknown as { __quest?: typeof api }).__quest = api;
     return () => {
       delete (window as unknown as { __quest?: typeof api }).__quest;
@@ -558,21 +285,40 @@ export function usePlanSession(
   }, [loaded, activeFloor]);
 
   return {
-    state: { loaded, error, progress, floors, activeFloor, view2D, planCount, moving, room, inventory, codeLock },
+    state: {
+      loaded,
+      error,
+      progress,
+      floors,
+      activeFloor,
+      view2D,
+      planCount,
+      moving,
+      room,
+      inventory,
+      codeLock,
+      menu,
+    },
     ref: { canvas },
     set: { activeFloor: setActiveFloor },
     actions: {
       setFloor(index) {
         clientRef.current?.planSetFloor(index);
         setActiveFloor(index);
+        clientRef.current?.planSetMenuOpen(false);
+        setMenu(null);
       },
       toggleView() {
         const next = !view2D;
         clientRef.current?.setViewMode(next ? 1 : 0);
         setView2D(next);
+        clientRef.current?.planSetMenuOpen(false);
+        setMenu(null);
       },
       clearRoute() {
         clientRef.current?.planClearRoute();
+        clientRef.current?.planSetMenuOpen(false);
+        setMenu(null);
       },
       resetView() {
         clientRef.current?.resetView();
@@ -592,6 +338,42 @@ export function usePlanSession(
       closeCodeEntry() {
         clientRef.current?.popupClose();
         setCodeLock(null);
+      },
+      openMenu(x, y) {
+        const client = clientRef.current;
+        const element = canvas.current;
+        if (!client || !element) return;
+        client.popupClose();
+        client.planSetMenuOpen(true);
+        const rect = element.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          client.planPointerMove(
+            (x * element.width) / rect.width,
+            (y * element.height) / rect.height,
+          );
+        }
+        setMenu({
+          x,
+          y,
+          node: client.planHover(),
+          waypoints: client.planCount(),
+          route: client.planRouteCount(),
+          moving: client.planMoving() !== 0,
+        });
+      },
+      closeMenu() {
+        clientRef.current?.planSetMenuOpen(false);
+        setMenu(null);
+      },
+      waypointCommand(command) {
+        const client = clientRef.current;
+        if (client && menu) {
+          if (command === "add" && menu.node >= 0) client.planAddTargetNode(menu.node);
+          else if (command === "remove") client.planRemoveTarget();
+          else if (command === "run") client.planStartMove();
+        }
+        client?.planSetMenuOpen(false);
+        setMenu(null);
       },
     },
   };

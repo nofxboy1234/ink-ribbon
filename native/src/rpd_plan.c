@@ -1,6 +1,5 @@
 #include "rpd_plan.h"
 
-#include <emscripten/emscripten.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,6 +48,7 @@ static int move_index;
 static float move_t;
 static int hover = -1;
 static int hover_item = -1;
+static int menu_open;
 static float view_proj[16];
 static int view_w, view_h;
 
@@ -151,8 +151,8 @@ static void fit_camera(void) {
     g_rpd.camera.target[2] = 0.5f * (minz + maxz);
 }
 
-static void add_waypoint_node(int node); static void open_node_popup(int node);
-static void open_item_popup(int item); static int pick_item_screen(float px, float py);
+static void add_waypoint_node(int node); static void open_item_popup(int item);
+static int pick_item_screen(float px, float py);
 
 static int *route_scratch_nodes;
 static int route_scratch_capacity;
@@ -173,6 +173,7 @@ static void ensure_pull_scratch(int count) {
 }
 static void recompute_route(void) {
     route_count = 0;
+    route_set_blocked(nav_blocked);
     int start = nearest_node_on(active_floor, player[0], player[1], player[2], 4.0f);
     if (start < 0) start = player_node;
     if (start < 0) return;
@@ -301,13 +302,12 @@ void plan_clear_route(void) {
     popup_close();
 }
 
+void plan_set_menu_open(int open) { menu_open = open != 0; }
+int plan_menu_open(void) { return menu_open; }
+
 int plan_open_popup_at(float x, float z) {
     int item = items_pick(active_floor, x, z, 1.0f);
     if (item >= 0) open_item_popup(item);
-    else {
-        int node = nearest_node_on(active_floor, x, plan_level(), z, 4.0f);
-        if (node >= 0) open_node_popup(node);
-    }
     return popup_is_open() ? 1 : 0;
 }
 void plan_fit_camera(void) { if (view_w > 1 && view_h > 1) fit_camera(); }
@@ -367,6 +367,7 @@ void plan_pointer_move(float x, float y) {
     }
     hover_item = pick_item_screen(x, y);
     hover = hover_item >= 0 ? -1 : pick_cell(x, y);
+    if (hover >= 0 && nav_blocked && nav_blocked[hover]) hover = -1;
 }
 
 static int pick_item_screen(float px, float py) {
@@ -435,21 +436,10 @@ static void open_item_popup(int item) {
     popup_add_choice(POPUP_ACTION_ACT, verb, items_available(item) != 0);
 }
 
-static void open_node_popup(int node) {
-    float sx, sy, depth;
-    project(nav_x[node], nav_y[node] + 0.06f, nav_z[node], &sx, &sy, &depth);
-    if (sx < -1e8f) return;
-    popup_open(node, -1, sx + 26.0f, sy - 10.0f);
-    popup_set_message("");
-    popup_add_choice(POPUP_ACTION_WAYPOINT, "ADD WAYPOINT", true);
-}
-
 static void popup_execute(popup_action_t action) {
     popup_t chosen = *popup_get();
     popup_close();
-    if (action == POPUP_ACTION_WAYPOINT) {
-        add_waypoint_node(chosen.node);
-    } else if (action == POPUP_ACTION_WALK_NEXT) {
+    if (action == POPUP_ACTION_WALK_NEXT) {
         if (chosen.item >= 0) {
             const item_t *entry = items_get(chosen.item);
             int node = -1;
@@ -469,7 +459,6 @@ static void popup_execute(popup_action_t action) {
 
 void plan_pointer_down(float x, float y) {
     if (view_w < 2) return;
-    static double last_player_click = -1.0; double now = emscripten_get_now();
     hover_item = -1;
     if (popup_is_open()) {
         int hit = popup_hit(x, y);
@@ -482,29 +471,7 @@ void plan_pointer_down(float x, float y) {
         return;
     }
     int item = pick_item_screen(x, y);
-    if (item >= 0) {
-        open_item_popup(item);
-        last_player_click = -1.0;
-        return;
-    }
-    int node = pick_cell(x, y);
-    float sx, sy, depth;
-    project(player[0], player[1] + 0.9f, player[2], &sx, &sy, &depth);
-    float distance = sqrtf((sx - x) * (sx - x) + (sy - y) * (sy - y));
-    bool near_player = distance < 46.0f;
-    if (near_player && last_player_click > 0.0 && now - last_player_click < 420.0) {
-        plan_start_move();
-        popup_close();
-        last_player_click = -1.0;
-        return;
-    }
-    if (near_player) {
-        last_player_click = now;
-        popup_close();
-        return;
-    }
-    if (node >= 0) open_node_popup(node);
-    last_player_click = -1.0;
+    if (item >= 0) open_item_popup(item);
 }
 
 void plan_set_player(float x, float y, float z) {
@@ -527,6 +494,13 @@ void plan_add_target(float x, float y, float z) {
 }
 
 void plan_add_target_node(int node) { add_waypoint_node(node); }
+
+int plan_remove_target(void) {
+    if (moving || waypoint_count <= 0) return 0;
+    waypoint_count--;
+    recompute_route();
+    return 1;
+}
 
 void plan_start_move(void) {
     popup_close();
@@ -562,6 +536,10 @@ float plan_map_scale(void) {
 int plan_count(void) { return waypoint_count; }
 int plan_moving(void) { return moving; }
 int plan_hover(void) { return hover; }
+int plan_node_blocked(int node) {
+    if (!nav_blocked || node < 0 || node >= nav_count) return 0;
+    return nav_blocked[node] != 0;
+}
 int plan_hover_item(void) { return hover_item; }
 int plan_waypoint_count(void) { return waypoint_count; }
 const int *plan_waypoints(void) { return waypoints; }

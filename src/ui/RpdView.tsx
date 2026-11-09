@@ -32,7 +32,7 @@ export default function RpdView({ session, label }: RpdViewProps) {
       {state.view2D && (
         <div className="rpd-map-title">
           <strong>{floorLabel} · FLOOR PLAN</strong>
-          <span>wheel to zoom · middle drag to pan</span>
+          <span>wheel to zoom · middle drag to pan · right click for waypoints</span>
         </div>
       )}
       <RpdStatus

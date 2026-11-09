@@ -11,6 +11,8 @@ void plan_set_rooms(int count, const float *x, const float *y, const float *z,
 void plan_set_spawn(float x, float y, float z);
 void plan_set_floor(int index);
 void plan_clear_route(void);
+void plan_set_menu_open(int open);
+int plan_menu_open(void);
 void plan_refresh_blocks(void);
 int plan_item_blocked_count(int index);
 int plan_open_popup_at(float x, float z);
@@ -26,6 +28,7 @@ void plan_start_move(void);
 void plan_set_player(float x, float y, float z);
 void plan_add_target(float x, float y, float z);
 void plan_add_target_node(int node);
+int plan_remove_target(void);
 
 int plan_active_floor(void);
 float plan_level(void);
@@ -36,6 +39,7 @@ float plan_map_scale(void);
 int plan_count(void);
 int plan_moving(void);
 int plan_hover(void);
+int plan_node_blocked(int node);
 int plan_hover_item(void);
 int plan_waypoint_count(void);
 const int *plan_waypoints(void);

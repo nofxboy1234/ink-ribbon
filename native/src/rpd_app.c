@@ -227,7 +227,7 @@ EMSCRIPTEN_KEEPALIVE void rpd_recenter(void);
 
 void rpd_app_event(const sapp_event *e) {
     if (e->type == SAPP_EVENTTYPE_KEY_DOWN && e->key_code == SAPP_KEYCODE_ESCAPE) {
-        plan_clear_route();
+        if (!plan_menu_open()) plan_clear_route();
         return;
     }
     if (e->type == SAPP_EVENTTYPE_KEY_DOWN && e->key_code == SAPP_KEYCODE_R) {
@@ -278,6 +278,11 @@ EMSCRIPTEN_KEEPALIVE void rpd_plan_set_floor(int index) { plan_set_floor(index);
 EMSCRIPTEN_KEEPALIVE void rpd_plan_start_move(void) { plan_start_move(); }
 EMSCRIPTEN_KEEPALIVE void rpd_plan_add_target(float x, float y, float z) { plan_add_target(x, y, z); }
 EMSCRIPTEN_KEEPALIVE void rpd_plan_add_target_node(int node) { plan_add_target_node(node); }
+EMSCRIPTEN_KEEPALIVE int rpd_plan_remove_target(void) { return plan_remove_target(); }
+EMSCRIPTEN_KEEPALIVE int rpd_plan_hover(void) { return plan_hover(); }
+EMSCRIPTEN_KEEPALIVE int rpd_plan_node_blocked(int node) { return plan_node_blocked(node); }
+EMSCRIPTEN_KEEPALIVE void rpd_plan_set_menu_open(int open) { plan_set_menu_open(open); }
+EMSCRIPTEN_KEEPALIVE void rpd_plan_pointer_move(float x, float y) { plan_pointer_move(x, y); }
 EMSCRIPTEN_KEEPALIVE void rpd_set_fps_visible(int visible) { overlay_set_fps_visible(visible); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_camera(float *out) {
     if (!out) return -1;

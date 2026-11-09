@@ -11,8 +11,8 @@ export default function QuestPanel({ session }: QuestPanelProps) {
   const note = moving
     ? "Claire is moving along the route."
     : planCount === 0
-      ? "Switch to the 2D plan, click a cell and choose Add waypoint. Double click Claire to run the route."
-      : `Plan has ${planCount} step${planCount === 1 ? "" : "s"}. Double click Claire to run the route.`;
+      ? "Switch to the 2D plan, right click a cell and choose Add waypoint. Right click again to run the route."
+      : `Plan has ${planCount} step${planCount === 1 ? "" : "s"}. Right click the plan to remove a waypoint or run the route.`;
 
   return (
     <aside className="rpd-panel" aria-label="Route planner">
@@ -55,7 +55,8 @@ export default function QuestPanel({ session }: QuestPanelProps) {
         </div>
         <p className="rpd-legend-note">
           Click an item to take, unlock, open or read it. Keys must be in the eight slots before a
-          lock opens. Then double click Claire to run the route.
+          lock opens. Right click the plan for waypoints and Run route. Right drag rotates the
+          camera in 3D.
         </p>
       </div>
     </aside>

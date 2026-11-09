@@ -57,6 +57,11 @@ export type RpdClient = {
   planStartMove(): void;
   planAddTarget(x: number, y: number, z: number): void;
   planAddTargetNode(node: number): void;
+  planRemoveTarget(): number;
+  planHover(): number;
+  planPointerMove(x: number, y: number): void;
+  planNodeBlocked(node: number): number;
+  planSetMenuOpen(open: boolean): void;
   planCamera(): Float32Array;
   planRouteCount(): number;
   planRoute(): Float32Array;
@@ -259,6 +264,21 @@ export async function createRpdClient(options: {
     planAddTargetNode(node) {
       (module as unknown as { _rpd_plan_add_target_node: (n: number) => void })
         ._rpd_plan_add_target_node(node);
+    },
+    planRemoveTarget() {
+      return module._rpd_plan_remove_target();
+    },
+    planHover() {
+      return module._rpd_plan_hover();
+    },
+    planPointerMove(x, y) {
+      module._rpd_plan_pointer_move(x, y);
+    },
+    planNodeBlocked(node) {
+      return module._rpd_plan_node_blocked(node);
+    },
+    planSetMenuOpen(open) {
+      module._rpd_plan_set_menu_open(open ? 1 : 0);
     },
     planCamera() {
       const ptr = module._malloc(3 * 4);
