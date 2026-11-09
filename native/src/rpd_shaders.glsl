@@ -40,7 +40,7 @@ void main() {
         float fres = pow(1.0 - max(dot(n, view), 0.0), 2.0);
         float light = 0.55 + 0.35 * key + 0.10 * hemi;
         vec3 glass = vec3(0.95, 0.96, 0.97) * light;
-        float alpha = (0.30 + 0.35 * fres) * (0.45 + 0.55 * near);
+        float alpha = 0.5 * (0.30 + 0.35 * fres) * (0.45 + 0.55 * near);
         frag_color = vec4(glass, alpha);
         frag_normal = vec4(n * 0.5 + 0.5, 0.25);
         frag_depth = vec4(0.0, 0.0, 0.0, 0.25);
