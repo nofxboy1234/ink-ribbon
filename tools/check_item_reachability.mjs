@@ -64,6 +64,71 @@ function approachNode(item) {
 
 const approaches = new Map(items.map((item) => [item.id, approachNode(item)]));
 
+// The floors only meet at the explicit stair chains. Every other edge stays on
+// its own floor, and every floor's main component joins the spawn component.
+const portalPairs = new Set(
+  (nav.portals ?? []).map(([a, b]) => `${Math.min(a, b)}:${Math.max(a, b)}`),
+);
+const neighbours = Array.from({ length: count }, () => []);
+const parent = Array.from({ length: count }, (_, index) => index);
+const find = (node) => {
+  while (parent[node] !== node) {
+    parent[node] = parent[parent[node]];
+    node = parent[node];
+  }
+  return node;
+};
+const union = (a, b) => {
+  const rootA = find(a);
+  const rootB = find(b);
+  if (rootA !== rootB) parent[rootB] = rootA;
+};
+for (let i = 0; i < count; i++) {
+  for (const j of nodes[i].n) {
+    if (!Number.isInteger(j) || j < 0 || j >= count) {
+      throw new Error(`node ${i} points at missing node ${j}`);
+    }
+    if (nodes[i].floor !== nodes[j].floor) {
+      const stair = nodes[i].kind === "stair" && nodes[j].kind === "stair";
+      const portal = portalPairs.has(`${Math.min(i, j)}:${Math.max(i, j)}`);
+      if (!stair && !portal) {
+        throw new Error(`node ${i} on floor ${nodes[i].floor} links to node ${j} on floor ${nodes[j].floor} without a portal`);
+      }
+    }
+    neighbours[i].push(j);
+    union(i, j);
+  }
+}
+for (let i = 0; i < count; i++) {
+  for (const j of neighbours[i]) {
+    if (!neighbours[j].includes(i)) throw new Error(`edge ${i}->${j} is one-way`);
+  }
+}
+const spawnRoot = find(spawnNode);
+for (const floor of nav.floors) {
+  const sizes = new Map();
+  for (let i = 0; i < count; i++) {
+    if (nodes[i].floor !== floor.index) continue;
+    const root = find(i);
+    sizes.set(root, (sizes.get(root) ?? 0) + 1);
+  }
+  const sorted = [...sizes.entries()].sort((a, b) => b[1] - a[1]);
+  if (sorted[0][0] !== spawnRoot) {
+    throw new Error(`floor ${floor.label} has no component reachable from spawn`);
+  }
+  const isolated = sorted.slice(1).reduce((total, [, size]) => total + size, 0);
+  if (isolated) {
+    console.warn(`warning: floor ${floor.label} has ${isolated} cells in ${sorted.length - 1} wall-separated components`);
+  }
+}
+for (const id of [544665, 545830]) {
+  const approach = approaches.get(id);
+  if (approach === undefined || approach < 0 || find(approach) !== spawnRoot) {
+    throw new Error(`gate ${id} has no approach node reachable from spawn`);
+  }
+}
+console.log("nav graph ok: floor edges stay on their floor, every floor joins the spawn component");
+
 function reachable(opened) {
   const blocked = new Set();
   for (const door of items) {

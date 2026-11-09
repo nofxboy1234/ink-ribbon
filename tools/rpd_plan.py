@@ -123,14 +123,22 @@ def pixel_of(floor: dict, x: float, z: float) -> tuple[float, float]:
     return (x * floor["s"] + floor["ox"], z * floor["s"] + floor["oy"])
 
 
-def free_and_outside(wall: np.ndarray, frame: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
-    """Return free space and the exterior region inside the map frame."""
+def free_and_outside(
+    wall: np.ndarray,
+    frame: np.ndarray | None = None,
+    door: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return free space and the exterior region inside the map frame.
+
+    Closed doors are walls to the exterior flood. Without them the background
+    leaks through a threshold into an otherwise sealed room.
+    """
     barrier = wall if frame is None else (wall | frame)
     free = (~barrier).astype(np.uint8)
+    sealed = free if door is None else free & ~door
     h, w = free.shape
     seeds = [(1, 1), (w - 2, 1), (1, h - 2), (w - 2, h - 2)]
-    outside = np.zeros((h, w), np.uint8)
-    work = free.copy()
+    work = sealed.copy()
     for x, y in seeds:
         if work[y, x]:
             mask = np.zeros((h + 2, w + 2), np.uint8)
@@ -239,7 +247,7 @@ def build_floor_geometry(floor: dict, plan: dict) -> list[dict]:
     level = floor["level"]
     wall = plan["wall"].copy()
     wall &= ~stair_rect_mask(wall.shape, floor)
-    free, outside = free_and_outside(wall, plan["frame"])
+    free, outside = free_and_outside(wall, plan["frame"], plan["door"])
     # Doors are free floor.
     interior = free & ~outside
     # Black detail is not wall volume, but its footprint is still floor.
@@ -312,9 +320,9 @@ def build_stairs(floor: dict) -> list[dict]:
     return boxes
 
 
-def nav_cells(floor: dict, plan: dict) -> tuple[list[dict], dict[tuple[int, int], int]]:
+def nav_cells(floor: dict, plan: dict) -> list[dict]:
     """A fresh 1 m lattice over the walkable part of the plan."""
-    free, outside = free_and_outside(plan["wall"], plan["frame"])
+    free, outside = free_and_outside(plan["wall"], plan["frame"], plan["door"])
     walk = free & ~outside
     if floor["label"] == "4F":
         ys, xs = np.where(plan["wall"])
@@ -327,15 +335,12 @@ def nav_cells(floor: dict, plan: dict) -> tuple[list[dict], dict[tuple[int, int]
     walk &= ~stair_rect_mask(walk.shape, floor)
     s = floor["s"]
     half = 0.5
-    # The lattice is anchored on whole metres in world space.
-    # np.where returns (row, column), which is (z, x) in plan pixels. Only the
-    # 1F lattice is corrected here: the other floors keep the legacy extent
-    # until their per-floor cell indices are rebased into the shared graph.
+    # The lattice is anchored on whole metres in world space. np.where returns
+    # (row, column); a row is world z and a column is world x.
     xs, zs = np.where(walk)
-    if floor["index"] == 0:
-        xs, zs = zs, xs
+    xs, zs = zs, xs
     if len(xs) == 0:
-        return [], {}
+        return []
     wx = (xs - floor["ox"]) / s
     wz = (zs - floor["oy"]) / s
     x_min, x_max = math.floor(wx.min()) - 1, math.ceil(wx.max()) + 1
@@ -408,7 +413,7 @@ def nav_cells(floor: dict, plan: dict) -> tuple[list[dict], dict[tuple[int, int]
             if other not in cells[node]["n"]:
                 cells[node]["n"].append(other)
                 cells[other]["n"].append(node)
-    return cells, index
+    return cells
 
 
 def ramp_chain(cells: list[dict], floor: dict, x: float, z: float, other_level: float, kind: str) -> tuple[list[int], list[int]]:
@@ -452,8 +457,11 @@ def main() -> int:
 
     for floor in FLOORS:
         label = floor["label"]
-        cells, index = nav_cells(floor, plans[label])
+        cells = nav_cells(floor, plans[label])
+        # nav_cells indexes its own floor; offset the edges into the shared graph.
         base = len(all_cells)
+        for cell in cells:
+            cell["n"] = [base + node for node in cell["n"]]
         all_cells.extend(cells)
         floor_ranges[label] = (base, len(all_cells))
         boxes = build_floor_geometry(floor, plans[label])
