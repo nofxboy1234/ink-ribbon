@@ -461,38 +461,135 @@ async function run() {
 
     await cdp.mouse("mousePressed", cellX, cellY);
     await cdp.mouse("mouseReleased", cellX, cellY);
-    await sleep(600);
-    let popup = await cdp.eval("window.__quest.popup()");
-    assert(popup.open, "clicking a walkable cell did not open the routing popup");
-    assert(!popup.choices.some((choice) => choice.label.includes("TAKE")), "a walkable cell should offer a waypoint");
+    await sleep(500);
+    assert(
+      !(await cdp.eval("window.__quest.popup().open")),
+      "a walkable cell must not open the old waypoint popup",
+    );
+
+    const menuItem = (command) =>
+      `document.querySelector('.rpd-menu-item[data-command="${command}"]')`;
+    const menuState = () =>
+      evalJson(`(() => {
+        const menu = document.querySelector('.rpd-menu');
+        if (!menu) return null;
+        const button = (command) =>
+          document.querySelector('.rpd-menu-item[data-command="' + command + '"]');
+        return {
+          label: menu.getAttribute('aria-label'),
+          add: button('add') ? !button('add').disabled : null,
+          remove: button('remove') ? !button('remove').disabled : null,
+          run: button('run') ? !button('run').disabled : null,
+        };
+      })()`);
+    const rightClick = async (x, y) => {
+      await cdp.mouse("mouseMoved", x, y);
+      await sleep(120);
+      await cdp.mouse("mousePressed", x, y, { button: "right", buttons: 2 });
+      await cdp.mouse("mouseReleased", x, y, { button: "right", buttons: 0 });
+      await sleep(250);
+    };
+
+    await rightClick(cellX, cellY);
+    assert(
+      await cdp.eval("Boolean(document.querySelector('.rpd-menu'))"),
+      "right click on the plan did not open the menu",
+    );
+    const menuBox = await evalJson(`(() => {
+      const rect = document.querySelector('.rpd-menu').getBoundingClientRect();
+      return { x: rect.x, y: rect.y };
+    })()`);
+    assert(
+      Math.abs(menuBox.x - cellX) < 8 && Math.abs(menuBox.y - cellY) < 8,
+      `the menu did not open at the cursor: ${JSON.stringify({ menuBox, cellX, cellY })}`,
+    );
+    const canvasContextMenu = await cdp.eval(`(() => {
+      const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+      document.querySelector('#canvas').dispatchEvent(event);
+      return event.defaultPrevented;
+    })()`);
+    assert(canvasContextMenu, "the canvas must suppress the native context menu");
+    const bodyContextMenu = await cdp.eval(`(() => {
+      const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+      document.body.dispatchEvent(event);
+      return event.defaultPrevented;
+    })()`);
+    assert(!bodyContextMenu, "the native context menu must stay enabled outside the canvas");
+
+    const freshMenu = await menuState();
+    assert(
+      freshMenu && freshMenu.add && !freshMenu.remove && !freshMenu.run,
+      `fresh menu states are wrong: ${JSON.stringify(freshMenu)}`,
+    );
+    await shot("09-menu");
+
+    await cdp.eval(`${menuItem("add")}.click()`);
+    await sleep(500);
+    assert(
+      !(await cdp.eval("Boolean(document.querySelector('.rpd-menu'))")),
+      "the menu should close after an action",
+    );
+    assert(
+      (await cdp.eval("window.__quest.debug().plan.length")) > 0,
+      "Add waypoint did not add a waypoint",
+    );
+
+    const planBeforeEscape = await cdp.eval("window.__quest.debug().plan.length");
+    await rightClick(cellX, cellY);
+    await cdp.key("Escape", "Escape", 27);
+    await sleep(250);
+    assert(
+      !(await cdp.eval("Boolean(document.querySelector('.rpd-menu'))")),
+      "Escape did not close the menu",
+    );
+    assert(
+      (await cdp.eval("window.__quest.debug().plan.length")) === planBeforeEscape,
+      "Escape with the menu open must not clear the plan",
+    );
+
+    await rightClick(cellX, cellY);
+    const plannedMenu = await menuState();
+    assert(
+      plannedMenu && plannedMenu.add && plannedMenu.remove && plannedMenu.run,
+      `planned menu states are wrong: ${JSON.stringify(plannedMenu)}`,
+    );
+    await shot("09-menu-planned");
+
+    await cdp.eval(`${menuItem("remove")}.click()`);
+    await sleep(500);
+    assert(
+      (await cdp.eval("window.__quest.debug().plan.length")) === 0,
+      "Remove waypoint did not drop the waypoint",
+    );
+    assert(
+      (await cdp.eval("window.__quest.debug().routePoints")) === 0,
+      "Remove waypoint left a stale route",
+    );
+
+    let emptyPoint = null;
+    for (const point of [[40, 800], [60, 760], [1000, 840], [1040, 40], [520, 170]]) {
+      await cdp.mouse("mouseMoved", point[0], point[1]);
+      await sleep(150);
+      if ((await cdp.eval("window.__quest.hover()")) === -1) {
+        emptyPoint = point;
+        break;
+      }
+    }
+    assert(emptyPoint, "could not find a screen point without a hovered nav cell");
+    await rightClick(emptyPoint[0], emptyPoint[1]);
+    const blockedMenu = await menuState();
+    assert(
+      blockedMenu && !blockedMenu.add,
+      "Add waypoint should be disabled without a hovered nav cell",
+    );
     await cdp.mouse("mousePressed", 240, 760);
     await cdp.mouse("mouseReleased", 240, 760);
-    await sleep(400);
-    assert(!(await cdp.eval("window.__quest.popup().open")), "clicking outside should dismiss the popup");
-
-    await cdp.mouse("mousePressed", cellX, cellY);
-    await cdp.mouse("mouseReleased", cellX, cellY);
-    await sleep(600);
-    popup = await cdp.eval("window.__quest.popup()");
-    const waypointChoice = popup.choices.find(
-      (choice) => choice.enabled && choice.label.includes("ADD WAYPOINT"),
+    await sleep(300);
+    assert(
+      !(await cdp.eval("Boolean(document.querySelector('.rpd-menu'))")),
+      "an outside click did not close the menu",
     );
-    assert(waypointChoice, "the routing popup has no Add waypoint choice");
-    await shot("09-popup");
-    const choiceIndex = popup.choices.indexOf(waypointChoice);
-    const choiceX = (waypointChoice.x0 + waypointChoice.x1) / 2;
-    const choiceY = (waypointChoice.y0 + waypointChoice.y1) / 2;
-    await cdp.mouse("mouseMoved", choiceX, choiceY);
-    await sleep(500);
-    const hovered = await cdp.eval("window.__quest.popup().hover");
-    assert(hovered === choiceIndex, "hovering a popup choice did not highlight it");
-    await shot("09-popup-hover");
-    await cdp.mouse("mousePressed", choiceX, choiceY);
-    await cdp.mouse("mouseReleased", choiceX, choiceY);
-    await sleep(600);
-    assert(!(await cdp.eval("window.__quest.popup().open")), "the popup should close after a choice");
-    const picked = await cdp.eval("window.__quest.debug().plan.length");
-    assert(picked > 0, "choosing Add waypoint did not add a waypoint");
+
     await cdp.eval("window.__quest.reset()");
     await cdp.eval("window.__quest.addTarget(0, 4)");
     await sleep(500);
@@ -527,6 +624,33 @@ async function run() {
       await cdp.mouse("mousePressed", claire.x, claire.y, { clickCount: 2 });
       await cdp.mouse("mouseReleased", claire.x, claire.y, { clickCount: 2 });
     }
+    await sleep(700);
+    assert(
+      !(await cdp.eval("window.__quest.debug().moving")),
+      "double clicking Claire must not run the route any more",
+    );
+    assert(
+      (await cdp.eval("window.__quest.debug().plan.length")) > 0,
+      "double clicking Claire must not change the plan",
+    );
+
+    await rightClick(700, 500);
+    const readyMenu = await menuState();
+    assert(
+      readyMenu && readyMenu.run,
+      `Run route should be enabled with a route: ${JSON.stringify(readyMenu)}`,
+    );
+    await cdp.eval(`${menuItem("run")}.click()`);
+    await cdp.waitFor("window.__quest.debug().moving === true", 10000);
+    await rightClick(700, 500);
+    const movingMenu = await menuState();
+    assert(
+      movingMenu && !movingMenu.add && !movingMenu.remove && !movingMenu.run,
+      `moving menu states are wrong: ${JSON.stringify(movingMenu)}`,
+    );
+    await cdp.mouse("mousePressed", emptyPoint[0], emptyPoint[1]);
+    await cdp.mouse("mouseReleased", emptyPoint[0], emptyPoint[1]);
+    await sleep(200);
     for (let i = 0; i < 600; i += 1) {
       await sleep(150);
       if (!(await cdp.eval("window.__quest.debug().moving"))) break;
@@ -534,7 +658,7 @@ async function run() {
     await sleep(400);
     await shot("11-route-ortho");
     report.states.arrived = await facts();
-    assert(!report.states.arrived.moving, "double clicking Claire should run the route to completion");
+    assert(!report.states.arrived.moving, "Run route should run the route to completion");
     assert(report.states.arrived.plan.length === 0, "arriving should clear the waypoints");
     assert(report.states.arrived.routePoints === 0, "arriving should clear the drawn route");
 
@@ -560,13 +684,8 @@ async function run() {
     await cdp.eval("window.__quest.addTarget(-30, 10)");
     await sleep(400);
     const movingStart = await evalJson("window.__quest.debug().player");
-    const movingClaire = await evalJson(
-      "window.__quest.project(...window.__quest.debug().player)",
-    );
-    for (let i = 0; i < 2; i += 1) {
-      await cdp.mouse("mousePressed", movingClaire.x, movingClaire.y, { clickCount: 2 });
-      await cdp.mouse("mouseReleased", movingClaire.x, movingClaire.y, { clickCount: 2 });
-    }
+    await rightClick(700, 500);
+    await cdp.eval(`${menuItem("run")}.click()`);
     await cdp.waitFor("window.__quest.debug().moving === true", 10000);
     await sleep(900);
     const movingCamera = await cdp.eval("JSON.stringify(window.__quest.camera())");
@@ -587,6 +706,116 @@ async function run() {
     );
     report.states.escMoving = escMoving;
 
+    const blockingCandidates = await evalJson(`(() => {
+      const list = window.__quest
+        .items()
+        .filter(
+          (item) =>
+            item.floor === 0 && item.state === 1 && item.action === 1 && !item.hidden && item.available,
+        );
+      const preferred = list.filter((item) => item.name === "Green Herb");
+      const others = list.filter((item) => !/Key|Bolt Cutter|Film/.test(item.name));
+      const candidates = [];
+      for (const item of [...preferred, ...others]) {
+        const snap = window.__quest.nearestNavNode(item.floor, item.x, item.y, item.z);
+        if (!snap || item.node < 0) continue;
+        const approach = window.__quest.navNode(item.node);
+        if (!approach || approach.index === snap.index) continue;
+        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) {
+          const before = window.__quest.nearestNavNode(item.floor, snap.x - dx * 3, snap.y, snap.z - dz * 3);
+          const beyond = window.__quest.nearestNavNode(item.floor, snap.x + dx * 3, snap.y, snap.z + dz * 3);
+          if (!before || !beyond || before.index === beyond.index) continue;
+          if (window.__quest.cellBlocked(before.index) || window.__quest.cellBlocked(beyond.index)) continue;
+          if (Math.floor((before.x + beyond.x) / 2) !== Math.floor(snap.x)) continue;
+          if (Math.floor((before.z + beyond.z) / 2) !== Math.floor(snap.z)) continue;
+          if (Math.hypot(before.x - beyond.x, before.z - beyond.z) < 3) continue;
+          candidates.push({ item, snap, before, beyond, approach });
+          break;
+        }
+        if (candidates.length >= 12) break;
+      }
+      return candidates;
+    })()`);
+    assert(blockingCandidates.length > 0, "could not find an item cell with a route around it");
+
+    let blockingItem = null;
+    for (const candidate of blockingCandidates) {
+      await cdp.eval("window.__quest.reset()");
+      await cdp.eval(
+        `window.__quest.setPlayer(${candidate.before.x}, ${candidate.before.y}, ${candidate.before.z})`,
+      );
+      await sleep(250);
+      await cdp.eval(`window.__quest.addTargetNode(${candidate.beyond.index})`);
+      await sleep(350);
+      if ((await cdp.eval("window.__quest.debug().routePoints")) > 1) {
+        blockingItem = candidate;
+        break;
+      }
+    }
+    assert(blockingItem, "no route resolved around a candidate item cell");
+    assert(
+      await cdp.eval(`window.__quest.cellBlocked(${blockingItem.snap.index})`),
+      `${blockingItem.item.name} does not block its nav cell`,
+    );
+    assert(
+      blockingItem.approach.index !== blockingItem.snap.index &&
+        !(await cdp.eval(`window.__quest.cellBlocked(${blockingItem.approach.index})`)),
+      "the item approach cell must be a reachable neighbour",
+    );
+
+    const itemCellHits = await cdp.eval(`(() => {
+      const route = window.__rpd.planRoute();
+      const cellX = Math.floor(${blockingItem.snap.x});
+      const cellZ = Math.floor(${blockingItem.snap.z});
+      let hits = 0;
+      for (let i = 0; i < route.length; i += 3) {
+        if (Math.floor(route[i]) === cellX && Math.floor(route[i + 2]) === cellZ) hits += 1;
+      }
+      return hits;
+    })()`);
+    assert(itemCellHits === 0, `the detour crossed the item cell ${itemCellHits} times`);
+
+    await cdp.eval("window.__quest.reset()");
+    await cdp.eval("window.__quest.setPlayer(0, 0.02, 7.5)");
+    await cdp.eval(`window.__quest.addTargetNode(${blockingItem.snap.index})`);
+    await sleep(400);
+    assert(
+      (await cdp.eval("window.__quest.debug().routePoints")) === 0,
+      "a route must not end on an item cell",
+    );
+
+    await cdp.eval("window.__quest.reset()");
+    await cdp.eval(
+      `window.__quest.setPlayer(${blockingItem.approach.x}, ${blockingItem.approach.y}, ${blockingItem.approach.z})`,
+    );
+    await sleep(300);
+    await cdp.eval(`window.__quest.openPopupAt(${blockingItem.item.x}, ${blockingItem.item.z})`);
+    await sleep(400);
+    const approachPopup = await cdp.eval("window.__quest.popup()");
+    assert(
+      approachPopup.open && approachPopup.item === blockingItem.item.index,
+      "the item popup did not open from the approach cell",
+    );
+    assert(
+      approachPopup.choices.some((choice) => choice.enabled && choice.label.includes("TAKE")),
+      "the item is not interactable from the approach cell",
+    );
+    await cdp.key("Escape", "Escape", 27);
+    await sleep(200);
+    assert(
+      (await cdp.eval(`window.__quest.actItem(${blockingItem.item.index})`)) === 0,
+      "the pickup failed from the approach cell",
+    );
+    await sleep(300);
+    assert(
+      !(await cdp.eval(`window.__quest.cellBlocked(${blockingItem.snap.index})`)),
+      "taking the item did not free its cell",
+    );
+    report.states.itemBlocking = blockingItem;
+
+    await cdp.eval("window.__quest.setPlayer(0, 0.02, 7.5)");
+    await sleep(300);
+
     await cdp.eval("window.__quest.setFloor(1)");
     await sleep(300);
     await cdp.eval("window.__quest.setFloor(0)");
@@ -596,16 +825,33 @@ async function run() {
 
     let labelOverlap = null;
     const rooms = await cdp.eval("window.__quest.rooms()");
-    for (const room of rooms) {
-      if (room.floor !== 0) continue;
-      if (Math.hypot(room.x - settledPlayer[0], room.z - settledPlayer[2]) < 6) continue;
-      const opened = await cdp.eval(`window.__quest.openPopupAt(${room.x}, ${room.z})`);
-      await sleep(700);
+    const labelCandidates = await evalJson(`(() => {
+      const items = window.__quest.items().filter((item) => item.floor === 0 && item.state === 1);
+      return window.__quest.rooms()
+        .filter((room) => room.floor === 0)
+        .map((room) => {
+          const item = items
+            .slice()
+            .sort(
+              (a, b) =>
+                Math.hypot(a.x - room.x, a.z - room.z) -
+                Math.hypot(b.x - room.x, b.z - room.z),
+            )[0];
+          return item ? { room: room.name, item: { x: item.x, z: item.z } } : null;
+        })
+        .filter(Boolean);
+    })()`);
+    for (const candidate of labelCandidates) {
+      const opened = await cdp.eval(
+        `window.__quest.openPopupAt(${candidate.item.x}, ${candidate.item.z})`,
+      );
+      await sleep(350);
       const stats = await cdp.eval("window.__quest.overlayStats()");
       if (opened && stats[2] > 0) {
-        labelOverlap = { room: room.name, stats };
+        labelOverlap = { room: candidate.room, stats };
         break;
       }
+      await cdp.key("Escape", "Escape", 27);
     }
     assert(labelOverlap, "could not open a popup that reserves a room label");
     assert(labelOverlap.stats[3] === 0, "a room label was drawn over the popup");
@@ -739,6 +985,23 @@ async function run() {
     await sleep(800);
     await shot("24-3d-clean");
 
+    const dragPose = await evalJson("window.__quest.cameraModel()");
+    await cdp.mouse("mousePressed", 700, 450, { button: "right", buttons: 2 });
+    await cdp.mouse("mouseMoved", 760, 470, { button: "right", buttons: 2 });
+    await cdp.mouse("mouseReleased", 760, 470, { button: "right", buttons: 0 });
+    await sleep(300);
+    const dragPoseAfter = await evalJson("window.__quest.cameraModel()");
+    assert(
+      Math.abs(dragPoseAfter[4] - dragPose[4]) > 1e-3,
+      "right drag must still rotate the perspective camera",
+    );
+    assert(
+      !(await cdp.eval("Boolean(document.querySelector('.rpd-menu'))")),
+      "a right drag must not open the context menu",
+    );
+    await cdp.eval("window.__rpd.setOrbit(0, 2.5, 2, -0.75, 0.36, 65)");
+    await sleep(500);
+
     await cdp.eval("window.__quest.setPlayer(0, 0.02, 7.5)");
     await sleep(400);
     const claireClose = JSON.parse(
@@ -813,18 +1076,10 @@ async function run() {
       ),
     );
     await cdp.mouse("mouseMoved", ammoScreen.x, ammoScreen.y);
-    await sleep(400);
-    assert(
-      (await cdp.eval("window.__quest.overlayStats()"))[0] === ammoIndex,
-      "ortho item hover did not track the cube under the cursor",
-    );
+    await cdp.waitFor(`window.__quest.overlayStats()[0] === ${ammoIndex}`, 10000);
     await shot("32b-item-hover");
     await cdp.mouse("mouseMoved", Math.round(ammoScreen.x + 70), Math.round(ammoScreen.y + 70));
-    await sleep(400);
-    assert(
-      (await cdp.eval("window.__quest.overlayStats()"))[0] === -1,
-      "moving off the cube should clear the item hover",
-    );
+    await cdp.waitFor("window.__quest.overlayStats()[0] === -1", 10000);
     await shot("32c-item-no-hover");
     const hoverPixels = changedPixels(shotPath("32b-item-hover"), shotPath("32c-item-no-hover"), {
       x0: Math.max(0, Math.round(ammoScreen.x) - 90),
@@ -846,23 +1101,27 @@ async function run() {
       ),
     );
     await cdp.mouse("mouseMoved", hiddenScreen.x, hiddenScreen.y);
-    await sleep(400);
+    await sleep(600);
     assert(
       (await cdp.eval("window.__quest.overlayStats()"))[0] !== hiddenIndex,
       "a hidden item must not hover",
     );
 
-    await cdp.eval(`window.__quest.standAt(${ammoIndex})`);
-    assert((await cdp.eval(`window.__quest.actItem(${ammoIndex})`)) === 0, "the Handgun Ammo could not be taken");
-    await cdp.eval(centreOrbit(ammoItem));
+    const takenIndex = itemsOrtho.findIndex((entry) => entry.floor === 0 && entry.taken);
+    assert(takenIndex >= 0, "expected a taken item on 1F");
+    const takenItem = itemsOrtho[takenIndex];
+    await cdp.eval(centreOrbit(takenItem));
     await sleep(500);
-    await cdp.mouse("mouseMoved", ammoScreen.x, ammoScreen.y);
-    await sleep(400);
+    const takenScreen = await evalJson(
+      `window.__quest.project(${takenItem.cubeX}, ${takenItem.cubeY}, ${takenItem.cubeZ})`,
+    );
+    await cdp.mouse("mouseMoved", takenScreen.x, takenScreen.y);
+    await sleep(600);
     assert(
-      (await cdp.eval("window.__quest.overlayStats()"))[0] !== ammoIndex,
+      (await cdp.eval("window.__quest.overlayStats()"))[0] !== takenIndex,
       "a taken item must not hover",
     );
-    report.states.itemHover = { ammo: ammoIndex, hidden: hiddenIndex, pixels: hoverPixels };
+    report.states.itemHover = { taken: takenIndex, hidden: hiddenIndex, pixels: hoverPixels };
 
     await setFloor(2);
     const spadeItem = itemsOrtho.find(
