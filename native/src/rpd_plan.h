@@ -36,6 +36,7 @@ float plan_map_scale(void);
 int plan_count(void);
 int plan_moving(void);
 int plan_hover(void);
+int plan_hover_item(void);
 int plan_waypoint_count(void);
 const int *plan_waypoints(void);
 int plan_route_count(void);

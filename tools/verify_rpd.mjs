@@ -89,6 +89,28 @@ function colouredPixels(path) {
   return count;
 }
 
+function changedPixels(a, b, area) {
+  const first = readPng(a);
+  const second = readPng(b);
+  if (first.width !== second.width || first.height !== second.height) {
+    throw new Error(`${a} and ${b} have different sizes`);
+  }
+  let count = 0;
+  for (let y = area.y0; y < Math.min(first.height, area.y1); y += 1) {
+    for (let x = area.x0; x < Math.min(first.width, area.x1); x += 1) {
+      const at = (y * first.width + x) * first.channels;
+      if (
+        Math.abs(first.pixels[at] - second.pixels[at]) > 8 ||
+        Math.abs(first.pixels[at + 1] - second.pixels[at + 1]) > 8 ||
+        Math.abs(first.pixels[at + 2] - second.pixels[at + 2]) > 8
+      ) {
+        count += 1;
+      }
+    }
+  }
+  return count;
+}
+
 function waitForHttp(url, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
     const start = Date.now();
@@ -532,19 +554,13 @@ async function run() {
       registry.every((item) => item.floor >= 0 && item.floor <= 4 && item.name),
       "every registry item should carry a floor and a title",
     );
-    const expectedDiamonds = (floor) =>
-      registry.filter((item) => item.floor === floor && item.state === 1).length;
-    const floorDiamonds = [];
+    const floorHover = [];
     for (const floor of [0, 1, 2, 3, 4]) {
       await setFloor(floor);
       await sleep(400);
       const stats = await cdp.eval("window.__quest.overlayStats()");
-      const expected = expectedDiamonds(floor);
-      assert(
-        stats[0] === expected,
-        `floor ${floor} drew ${stats[0]} item diamonds, expected ${expected}`,
-      );
-      floorDiamonds.push({ floor, drawn: stats[0], expected, claire: stats[4] });
+      assert(stats[0] === -1, `floor ${floor} should start with no hovered item`);
+      floorHover.push({ floor, hover: stats[0], claire: stats[4] });
     }
     await setFloor(0);
     await sleep(400);
@@ -559,7 +575,7 @@ async function run() {
     report.states.floorFilter = {
       floorOneStats,
       floorTwoStats,
-      floorDiamonds,
+      floorHover,
       markerPixels: { floorOne: floorOnePixels },
     };
     await setFloor(0);
@@ -712,6 +728,72 @@ async function run() {
     await shot("32-item-cubes-ortho");
     report.states.itemCubes = { perspective: items3d.length, ortho: itemsOrtho.length,
                                 spade: [spade.r, spade.g, spade.b] };
+
+    const ammoIndex = itemsOrtho.findIndex(
+      (entry) => entry.name === "Handgun Ammo" && entry.floor === 0 && entry.state === 1,
+    );
+    assert(ammoIndex >= 0, "expected a present Handgun Ammo on 1F");
+    const ammoItem = itemsOrtho[ammoIndex];
+    const centreOrbit = (entry) =>
+      `window.__rpd.setOrbit(${entry.cubeX}, 0, ${entry.cubeZ}, 0, 1.2, 20)`;
+    await cdp.eval(centreOrbit(ammoItem));
+    await sleep(500);
+    const ammoScreen = JSON.parse(
+      await cdp.eval(
+        `JSON.stringify(window.__quest.project(${ammoItem.cubeX}, ${ammoItem.cubeY}, ${ammoItem.cubeZ}))`,
+      ),
+    );
+    await cdp.mouse("mouseMoved", ammoScreen.x, ammoScreen.y);
+    await sleep(400);
+    assert(
+      (await cdp.eval("window.__quest.overlayStats()"))[0] === ammoIndex,
+      "ortho item hover did not track the cube under the cursor",
+    );
+    await shot("32b-item-hover");
+    await cdp.mouse("mouseMoved", Math.round(ammoScreen.x + 70), Math.round(ammoScreen.y + 70));
+    await sleep(400);
+    assert(
+      (await cdp.eval("window.__quest.overlayStats()"))[0] === -1,
+      "moving off the cube should clear the item hover",
+    );
+    await shot("32c-item-no-hover");
+    const hoverPixels = changedPixels(shotPath("32b-item-hover"), shotPath("32c-item-no-hover"), {
+      x0: Math.max(0, Math.round(ammoScreen.x) - 90),
+      y0: Math.max(0, Math.round(ammoScreen.y) - 46),
+      x1: Math.min(1400, Math.round(ammoScreen.x) + 90),
+      y1: Math.min(900, Math.round(ammoScreen.y) - 8),
+    });
+    assert(hoverPixels > 40, `the hovered item name did not draw (${hoverPixels} pixels)`);
+
+    const hiddenIndex = itemsOrtho.findIndex(
+      (entry) => entry.hidden && entry.floor === 0 && entry.name === "Hip Pouch",
+    );
+    assert(hiddenIndex >= 0, "expected the hidden Hip Pouch on 1F");
+    await cdp.eval(centreOrbit(itemsOrtho[hiddenIndex]));
+    await sleep(500);
+    const hiddenScreen = JSON.parse(
+      await cdp.eval(
+        `JSON.stringify(window.__quest.project(${itemsOrtho[hiddenIndex].cubeX}, ${itemsOrtho[hiddenIndex].cubeY}, ${itemsOrtho[hiddenIndex].cubeZ}))`,
+      ),
+    );
+    await cdp.mouse("mouseMoved", hiddenScreen.x, hiddenScreen.y);
+    await sleep(400);
+    assert(
+      (await cdp.eval("window.__quest.overlayStats()"))[0] !== hiddenIndex,
+      "a hidden item must not hover",
+    );
+
+    await cdp.eval(`window.__quest.standAt(${ammoIndex})`);
+    assert((await cdp.eval(`window.__quest.actItem(${ammoIndex})`)) === 0, "the Handgun Ammo could not be taken");
+    await cdp.eval(centreOrbit(ammoItem));
+    await sleep(500);
+    await cdp.mouse("mouseMoved", ammoScreen.x, ammoScreen.y);
+    await sleep(400);
+    assert(
+      (await cdp.eval("window.__quest.overlayStats()"))[0] !== ammoIndex,
+      "a taken item must not hover",
+    );
+    report.states.itemHover = { ammo: ammoIndex, hidden: hiddenIndex, pixels: hoverPixels };
 
     // Key gating: the car trunk refuses until the car key sits in a slot.
     const trunk = byName("Car Trunk");
@@ -1019,7 +1101,7 @@ async function run() {
       "the walk-next check needs an item out of reach",
     );
     const farScreen = JSON.parse(
-      await cdp.eval(`JSON.stringify(window.__quest.project(${farItem.x}, ${farItem.y}, ${farItem.z}))`),
+      await cdp.eval(`JSON.stringify(window.__quest.project(${farItem.cubeX}, ${farItem.cubeY}, ${farItem.cubeZ}))`),
     );
     await cdp.mouse("mousePressed", farScreen.x, farScreen.y);
     await cdp.mouse("mouseReleased", farScreen.x, farScreen.y);

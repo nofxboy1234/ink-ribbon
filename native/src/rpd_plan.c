@@ -48,6 +48,7 @@ static int moving;
 static int move_index;
 static float move_t;
 static int hover = -1;
+static int hover_item = -1;
 static float view_proj[16];
 static int view_w, view_h;
 
@@ -151,7 +152,7 @@ static void fit_camera(void) {
 }
 
 static void add_waypoint_node(int node); static void open_node_popup(int node);
-static void open_item_popup(int item);
+static void open_item_popup(int item); static int pick_item_screen(float px, float py);
 
 static int *route_scratch_nodes;
 static int route_scratch_capacity;
@@ -278,7 +279,7 @@ void plan_set_spawn(float x, float y, float z) {
     } else {
         player[0] = x; player[1] = y; player[2] = z; player_node = -1;
     }
-    waypoint_count = 0; route_count = 0; moving = 0; hover = -1;
+    waypoint_count = 0; route_count = 0; moving = 0; hover = -1; hover_item = -1;
     popup_close();
     markers_ensure_player(player[0], player[1], player[2]);
     items_place(nav_count, nav_x, nav_y, nav_z, nav_floor);
@@ -289,8 +290,7 @@ void plan_set_spawn(float x, float y, float z) {
 void plan_set_floor(int index) {
     if (index < 0) index = 0;
     if (floor_count > 0 && index >= floor_count) index = floor_count - 1;
-    active_floor = index;
-    hover = -1;
+    active_floor = index; hover = -1; hover_item = -1;
     popup_close();
     if (g_rpd.ortho && view_w > 1 && view_h > 1) fit_camera();
 }
@@ -310,9 +310,7 @@ int plan_open_popup_at(float x, float z) {
     }
     return popup_is_open() ? 1 : 0;
 }
-void plan_fit_camera(void) {
-    if (view_w > 1 && view_h > 1) fit_camera();
-}
+void plan_fit_camera(void) { if (view_w > 1 && view_h > 1) fit_camera(); }
 
 void plan_reset(void) {
     plan_set_spawn(spawn[0], spawn[1], spawn[2]);
@@ -367,10 +365,11 @@ void plan_pointer_move(float x, float y) {
     if (view_w < 2) return;
     if (popup_is_open()) {
         popup_set_hover(popup_hit(x, y));
-        hover = -1;
+        hover = -1; hover_item = -1;
         return;
     }
-    hover = pick_cell(x, y);
+    hover_item = pick_item_screen(x, y);
+    hover = hover_item >= 0 ? -1 : pick_cell(x, y);
 }
 
 static int pick_item_screen(float px, float py) {
@@ -565,6 +564,7 @@ float plan_map_scale(void) {
 int plan_count(void) { return waypoint_count; }
 int plan_moving(void) { return moving; }
 int plan_hover(void) { return hover; }
+int plan_hover_item(void) { return hover_item; }
 int plan_waypoint_count(void) { return waypoint_count; }
 const int *plan_waypoints(void) { return waypoints; }
 int plan_route_count(void) { return route_count; }

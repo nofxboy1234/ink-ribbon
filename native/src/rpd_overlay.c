@@ -30,7 +30,7 @@ static int view_w = 1, view_h = 1;
 static int fps_visible = 1;
 static int text_ready = 1;
 static float vp[16];
-static int stat_items;
+static int stat_hover_item;
 static int stat_labels;
 static int stat_blocked;
 static int stat_clashes;
@@ -146,7 +146,7 @@ static bool rects_overlap(const float *a, const float *b) {
 
 void overlay_stats(float *out) {
     if (!out) return;
-    out[0] = (float)stat_items;
+    out[0] = (float)stat_hover_item;
     out[1] = (float)stat_labels;
     out[2] = (float)stat_blocked;
     out[3] = (float)stat_clashes;
@@ -164,7 +164,6 @@ static void draw_items(void) {
         float sx, sy;
         project(item->def->x, item->def->y, item->def->z, &sx, &sy);
         if (sx < -1e8f) continue;
-        stat_items++;
         uint8_t r = (uint8_t)(item->r * 255.0f);
         uint8_t g = (uint8_t)(item->g * 255.0f);
         uint8_t b = (uint8_t)(item->b * 255.0f);
@@ -178,6 +177,25 @@ static void draw_items(void) {
         push(sx - radius, sy, color);
         line(sx - radius, sy, sx + radius, sy, 1.0f, 0x24221ee6);
     }
+}
+
+static void draw_item_hover(void) {
+    int index = plan_hover_item();
+    if (index < 0) return;
+    const item_t *item = items_get(index);
+    if (!item || item->state != ITEM_PRESENT) return;
+    float pos[3], sx, sy;
+    items_cube_position(index, pos);
+    project(pos[0], pos[1], pos[2], &sx, &sy);
+    if (sx < -1e8f) return;
+    const char *name = item->def->title;
+    float width = dtx_width(name);
+    float x = sx - width * 0.5f;
+    float y = sy - 30.0f;
+    if (x < 6.0f) x = 6.0f;
+    if (x + width + 8.0f > (float)view_w - 6.0f) x = (float)view_w - width - 14.0f;
+    if (y < 6.0f) y = sy + 14.0f;
+    dtx_text(name, x, y, 0x24221eff, 1);
 }
 
 static void draw_popup(void) {
@@ -213,7 +231,7 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
     view_h = height > 1 ? height : 1;
     memcpy(vp, matrix, sizeof(vp));
     vcount = 0;
-    stat_items = 0;
+    stat_hover_item = ortho ? plan_hover_item() : -1;
     stat_labels = 0;
     stat_blocked = 0;
     stat_clashes = 0;
@@ -326,6 +344,7 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
             stat_labels++;
             if (popup_open && rects_overlap(player_rect, popup_rect)) stat_clashes++;
         }
+        draw_item_hover();
     }
 
     if (ortho) draw_items();
