@@ -25,8 +25,18 @@ void popup_reset(void) {
 void popup_open(int node, int item, float anchor_x, float anchor_y) {
     popup_reset();
     g_popup.phase = POPUP_CHOOSING;
+    g_popup.kind = POPUP_KIND_ITEM;
     g_popup.node = node;
     g_popup.item = item;
+    g_popup.anchor[0] = anchor_x;
+    g_popup.anchor[1] = anchor_y;
+}
+
+void popup_open_menu(int node, float anchor_x, float anchor_y) {
+    popup_reset();
+    g_popup.phase = POPUP_CHOOSING;
+    g_popup.kind = POPUP_KIND_MENU;
+    g_popup.node = node;
     g_popup.anchor[0] = anchor_x;
     g_popup.anchor[1] = anchor_y;
 }
@@ -49,6 +59,10 @@ void popup_close(void) {
 
 bool popup_is_open(void) {
     return g_popup.phase == POPUP_CHOOSING;
+}
+
+bool popup_is_menu(void) {
+    return popup_is_open() && g_popup.kind == POPUP_KIND_MENU;
 }
 
 void popup_set_hover(int index) {

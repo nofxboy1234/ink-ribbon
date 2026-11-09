@@ -57,11 +57,11 @@ export type RpdClient = {
   planStartMove(): void;
   planAddTarget(x: number, y: number, z: number): void;
   planAddTargetNode(node: number): void;
-  planRemoveTarget(): number;
+  planRemoveTargetNode(node: number): number;
+  planWaypoint(index: number): number;
   planHover(): number;
   planPointerMove(x: number, y: number): void;
   planNodeBlocked(node: number): number;
-  planSetMenuOpen(open: boolean): void;
   planCamera(): Float32Array;
   planRouteCount(): number;
   planRoute(): Float32Array;
@@ -265,8 +265,13 @@ export async function createRpdClient(options: {
       (module as unknown as { _rpd_plan_add_target_node: (n: number) => void })
         ._rpd_plan_add_target_node(node);
     },
-    planRemoveTarget() {
-      return module._rpd_plan_remove_target();
+    planRemoveTargetNode(node) {
+      return (module as unknown as { _rpd_plan_remove_target_node: (n: number) => number })
+        ._rpd_plan_remove_target_node(node);
+    },
+    planWaypoint(index) {
+      return (module as unknown as { _rpd_plan_waypoint: (i: number) => number })
+        ._rpd_plan_waypoint(index);
     },
     planHover() {
       return module._rpd_plan_hover();
@@ -276,9 +281,6 @@ export async function createRpdClient(options: {
     },
     planNodeBlocked(node) {
       return module._rpd_plan_node_blocked(node);
-    },
-    planSetMenuOpen(open) {
-      module._rpd_plan_set_menu_open(open ? 1 : 0);
     },
     planCamera() {
       const ptr = module._malloc(3 * 4);
@@ -301,9 +303,9 @@ export async function createRpdClient(options: {
       return out;
     },
     popupState() {
-      const ptr = module._malloc(8 * 4);
+      const ptr = module._malloc(9 * 4);
       (module as unknown as { _rpd_popup_state: (p: number) => number })._rpd_popup_state(ptr);
-      const out = new Float32Array(heap.HEAPU8.buffer, ptr, 8).slice();
+      const out = new Float32Array(heap.HEAPU8.buffer, ptr, 9).slice();
       module._free(ptr);
       return out;
     },

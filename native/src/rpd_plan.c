@@ -7,6 +7,7 @@
 
 #include "rpd_item_gate.h"
 #include "rpd_items.h"
+#include "rpd_menu.h"
 #include "rpd_nearest.h"
 #include "rpd_markers.h"
 #include "rpd_popup.h"
@@ -48,7 +49,6 @@ static int move_index;
 static float move_t;
 static int hover = -1;
 static int hover_item = -1;
-static int menu_open;
 static float view_proj[16];
 static int view_w, view_h;
 
@@ -151,7 +151,8 @@ static void fit_camera(void) {
     g_rpd.camera.target[2] = 0.5f * (minz + maxz);
 }
 
-static void add_waypoint_node(int node); static void open_item_popup(int item);
+static void add_waypoint_node(int node);
+static void open_item_popup(int item);
 static int pick_item_screen(float px, float py);
 
 static int *route_scratch_nodes;
@@ -302,9 +303,6 @@ void plan_clear_route(void) {
     popup_close();
 }
 
-void plan_set_menu_open(int open) { menu_open = open != 0; }
-int plan_menu_open(void) { return menu_open; }
-
 int plan_open_popup_at(float x, float z) {
     int item = items_pick(active_floor, x, z, 1.0f);
     if (item >= 0) open_item_popup(item);
@@ -439,6 +437,10 @@ static void open_item_popup(int item) {
 static void popup_execute(popup_action_t action) {
     popup_t chosen = *popup_get();
     popup_close();
+    if (action >= POPUP_ACTION_MENU_ADD) {
+        menu_execute(action, chosen.node);
+        return;
+    }
     if (action == POPUP_ACTION_WALK_NEXT) {
         if (chosen.item >= 0) {
             const item_t *entry = items_get(chosen.item);
@@ -481,12 +483,19 @@ void plan_set_player(float x, float y, float z) {
     recompute_route();
 }
 
+int plan_has_waypoint(int node) {
+    for (int i = 0; i < waypoint_count; i++) {
+        if (waypoints[i] == node) return 1;
+    }
+    return 0;
+}
+
 static void add_waypoint_node(int node) {
     if (node < 0 || node >= nav_count) return;
-    if (waypoint_count == 0 || waypoints[waypoint_count - 1] != node) {
-        if (waypoint_count < MAX_WAYPOINTS) waypoints[waypoint_count++] = node;
-        recompute_route();
-    }
+    if (plan_has_waypoint(node)) return;
+    if (waypoint_count >= MAX_WAYPOINTS) return;
+    waypoints[waypoint_count++] = node;
+    recompute_route();
 }
 
 void plan_add_target(float x, float y, float z) {
@@ -495,8 +504,14 @@ void plan_add_target(float x, float y, float z) {
 
 void plan_add_target_node(int node) { add_waypoint_node(node); }
 
-int plan_remove_target(void) {
-    if (moving || waypoint_count <= 0) return 0;
+int plan_remove_target_node(int node) {
+    if (moving || node < 0) return 0;
+    int at = -1;
+    for (int i = 0; i < waypoint_count; i++) {
+        if (waypoints[i] == node) { at = i; break; }
+    }
+    if (at < 0) return 0;
+    for (int i = at; i + 1 < waypoint_count; i++) waypoints[i] = waypoints[i + 1];
     waypoint_count--;
     recompute_route();
     return 1;
@@ -536,6 +551,11 @@ float plan_map_scale(void) {
 int plan_count(void) { return waypoint_count; }
 int plan_moving(void) { return moving; }
 int plan_hover(void) { return hover; }
+int plan_pick_node(float x, float y) {
+    int node = pick_cell(x, y);
+    if (node >= 0 && nav_blocked && nav_blocked[node]) return -1;
+    return node;
+}
 int plan_node_blocked(int node) {
     if (!nav_blocked || node < 0 || node >= nav_count) return 0;
     return nav_blocked[node] != 0;
@@ -543,6 +563,9 @@ int plan_node_blocked(int node) {
 int plan_hover_item(void) { return hover_item; }
 int plan_waypoint_count(void) { return waypoint_count; }
 const int *plan_waypoints(void) { return waypoints; }
+int plan_waypoint_at(int index) {
+    return (index >= 0 && index < waypoint_count) ? waypoints[index] : -1;
+}
 int plan_route_count(void) { return route_count; }
 int plan_move_index(void) { return move_index; }
 int plan_move_count(void) { return move_count; }

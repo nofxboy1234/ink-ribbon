@@ -5,7 +5,6 @@ import type { Floor, Quest, Vec3 } from "../quest";
 import { createRpdClient, type RpdClient } from "../wasm/client";
 import { createDevApi } from "./devApi";
 import { CACHE_VERSION, fetchScene } from "./scene";
-import type { WaypointCommand, WaypointMenuState } from "./waypointMenu";
 
 export type InventoryEntry = {
   name: string;
@@ -34,7 +33,6 @@ export type PlanSession = {
     room: string;
     inventory: (InventoryEntry | null)[];
     codeLock: CodeLock | null;
-    menu: WaypointMenuState | null;
   };
   ref: { canvas: RefObject<HTMLCanvasElement | null> };
   set: { activeFloor: (index: number) => void };
@@ -46,9 +44,6 @@ export type PlanSession = {
     recenter: () => void;
     enterCode: (code: string) => number;
     closeCodeEntry: () => void;
-    openMenu: (x: number, y: number) => void;
-    closeMenu: () => void;
-    waypointCommand: (command: WaypointCommand) => void;
   };
 };
 
@@ -71,7 +66,6 @@ export function usePlanSession(
     Array.from({ length: 8 }, () => null),
   );
   const [codeLock, setCodeLock] = useState<CodeLock | null>(null);
-  const [menu, setMenu] = useState<WaypointMenuState | null>(null);
   const graphRef = useRef<ReturnType<typeof buildNavGraph> | null>(null);
   const roomsRef = useRef<Quest["rooms"]>([]);
 
@@ -297,7 +291,6 @@ export function usePlanSession(
       room,
       inventory,
       codeLock,
-      menu,
     },
     ref: { canvas },
     set: { activeFloor: setActiveFloor },
@@ -305,20 +298,14 @@ export function usePlanSession(
       setFloor(index) {
         clientRef.current?.planSetFloor(index);
         setActiveFloor(index);
-        clientRef.current?.planSetMenuOpen(false);
-        setMenu(null);
       },
       toggleView() {
         const next = !view2D;
         clientRef.current?.setViewMode(next ? 1 : 0);
         setView2D(next);
-        clientRef.current?.planSetMenuOpen(false);
-        setMenu(null);
       },
       clearRoute() {
         clientRef.current?.planClearRoute();
-        clientRef.current?.planSetMenuOpen(false);
-        setMenu(null);
       },
       resetView() {
         clientRef.current?.resetView();
@@ -338,42 +325,6 @@ export function usePlanSession(
       closeCodeEntry() {
         clientRef.current?.popupClose();
         setCodeLock(null);
-      },
-      openMenu(x, y) {
-        const client = clientRef.current;
-        const element = canvas.current;
-        if (!client || !element) return;
-        client.popupClose();
-        client.planSetMenuOpen(true);
-        const rect = element.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0) {
-          client.planPointerMove(
-            (x * element.width) / rect.width,
-            (y * element.height) / rect.height,
-          );
-        }
-        setMenu({
-          x,
-          y,
-          node: client.planHover(),
-          waypoints: client.planCount(),
-          route: client.planRouteCount(),
-          moving: client.planMoving() !== 0,
-        });
-      },
-      closeMenu() {
-        clientRef.current?.planSetMenuOpen(false);
-        setMenu(null);
-      },
-      waypointCommand(command) {
-        const client = clientRef.current;
-        if (client && menu) {
-          if (command === "add" && menu.node >= 0) client.planAddTargetNode(menu.node);
-          else if (command === "remove") client.planRemoveTarget();
-          else if (command === "run") client.planStartMove();
-        }
-        client?.planSetMenuOpen(false);
-        setMenu(null);
       },
     },
   };

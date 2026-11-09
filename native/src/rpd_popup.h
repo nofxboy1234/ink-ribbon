@@ -2,7 +2,7 @@
 
 #include <stdbool.h>
 
-#define POPUP_MAX_CHOICES 3
+#define POPUP_MAX_CHOICES 4
 
 typedef enum {
     POPUP_CLOSED,
@@ -10,10 +10,19 @@ typedef enum {
 } popup_phase_t;
 
 typedef enum {
+    POPUP_KIND_ITEM,
+    POPUP_KIND_MENU,
+} popup_kind_t;
+
+typedef enum {
     POPUP_ACTION_NONE,
     POPUP_ACTION_TAKE,
     POPUP_ACTION_WALK_NEXT,
     POPUP_ACTION_ACT,
+    POPUP_ACTION_MENU_ADD,
+    POPUP_ACTION_MENU_REMOVE,
+    POPUP_ACTION_MENU_RUN,
+    POPUP_ACTION_MENU_CLEAR,
 } popup_action_t;
 
 typedef struct {
@@ -24,6 +33,7 @@ typedef struct {
 
 typedef struct {
     popup_phase_t phase;
+    popup_kind_t kind;
     int node;
     int item;
     int hover;
@@ -35,10 +45,12 @@ typedef struct {
 
 void popup_reset(void);
 void popup_open(int node, int item, float anchor_x, float anchor_y);
+void popup_open_menu(int node, float anchor_x, float anchor_y);
 void popup_add_choice(popup_action_t action, const char *label, bool enabled);
 void popup_set_message(const char *message);
 void popup_close(void);
 bool popup_is_open(void);
+bool popup_is_menu(void);
 void popup_set_hover(int index);
 void popup_set_viewport(int width, int height);
 int popup_hit(float x, float y);

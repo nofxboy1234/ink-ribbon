@@ -37,6 +37,7 @@ return {
     return {
       player: [p[0], p[1], p[2]] as Vec3,
       plan: Array.from({ length: client.planCount() }, () => 0),
+      waypoints: Array.from({ length: client.planCount() }, (_, index) => client.planWaypoint(index)),
       moving: client.planMoving() !== 0,
       routePoints: client.planRouteCount(),
       move: Array.from(client.planMoveState()),
@@ -177,6 +178,7 @@ return {
     }
     return {
       open: state[7] === 1,
+      menu: state[8] === 1,
       node: state[1],
       item: state[2],
       hover: state[3],

@@ -521,34 +521,3 @@
   text-transform: uppercase;
 }
 
-.rpd-menu {
-  position: absolute;
-  z-index: 12;
-  display: grid;
-  gap: 2px;
-  width: 178px;
-  padding: 6px;
-  border: 1px solid #24221e;
-  background: rgb(250 247 239 / 97%);
-  box-shadow: 0 14px 34px rgb(36 34 30 / 18%);
-}
-
-.rpd-menu-item {
-  padding: 8px 10px;
-  border: 0;
-  background: transparent;
-  color: #24221e;
-  font: 600 11px/1.2 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  text-align: left;
-  cursor: pointer;
-}
-
-.rpd-menu-item:hover:not(:disabled) {
-  background: #24221e;
-  color: #f5f1e6;
-}
-
-.rpd-menu-item:disabled {
-  color: rgb(36 34 30 / 34%);
-  cursor: default;
-}

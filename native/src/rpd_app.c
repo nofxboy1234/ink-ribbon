@@ -9,6 +9,7 @@
 #include "rpd_app.h"
 #include "rpd_input.h"
 #include "rpd_items.h"
+#include "rpd_menu.h"
 #include "rpd_overlay.h"
 #include "rpd_plan.h"
 #include "rpd_popup.h"
@@ -221,13 +222,17 @@ void rpd_app_cleanup(void) {
 }
 
 static bool map_panning;
+static bool right_click;
+static bool right_dragging;
+static float right_click_x, right_click_y;
 EMSCRIPTEN_KEEPALIVE void rpd_set_view_mode(int mode);
 EMSCRIPTEN_KEEPALIVE void rpd_reset_view(void);
 EMSCRIPTEN_KEEPALIVE void rpd_recenter(void);
 
 void rpd_app_event(const sapp_event *e) {
     if (e->type == SAPP_EVENTTYPE_KEY_DOWN && e->key_code == SAPP_KEYCODE_ESCAPE) {
-        if (!plan_menu_open()) plan_clear_route();
+        if (menu_is_open()) menu_close();
+        else plan_clear_route();
         return;
     }
     if (e->type == SAPP_EVENTTYPE_KEY_DOWN && e->key_code == SAPP_KEYCODE_R) {
@@ -243,13 +248,26 @@ void rpd_app_event(const sapp_event *e) {
         float mx = e->mouse_x * s;
         float my = e->mouse_y * s;
         if (e->type == SAPP_EVENTTYPE_MOUSE_MOVE) {
+            if (right_click && hypotf(mx - right_click_x, my - right_click_y) > 4.0f * s) {
+                right_dragging = true;
+            }
             if (map_panning) plan_pan(e->mouse_dx * s, e->mouse_dy * s);
             else plan_pointer_move(mx, my);
         } else if (e->type == SAPP_EVENTTYPE_MOUSE_DOWN) {
             if (e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) map_panning = true;
             else if (e->mouse_button == SAPP_MOUSEBUTTON_LEFT) plan_pointer_down(mx, my);
+            else if (e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) {
+                right_click = true;
+                right_dragging = false;
+                right_click_x = mx;
+                right_click_y = my;
+            }
         } else if (e->type == SAPP_EVENTTYPE_MOUSE_UP) {
             if (e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) map_panning = false;
+            else if (e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) {
+                if (right_click && !right_dragging) menu_open(mx, my);
+                right_click = false;
+            }
         } else if (e->type == SAPP_EVENTTYPE_MOUSE_SCROLL) {
             plan_zoom(mx, my, e->scroll_y);
         }
@@ -278,10 +296,10 @@ EMSCRIPTEN_KEEPALIVE void rpd_plan_set_floor(int index) { plan_set_floor(index);
 EMSCRIPTEN_KEEPALIVE void rpd_plan_start_move(void) { plan_start_move(); }
 EMSCRIPTEN_KEEPALIVE void rpd_plan_add_target(float x, float y, float z) { plan_add_target(x, y, z); }
 EMSCRIPTEN_KEEPALIVE void rpd_plan_add_target_node(int node) { plan_add_target_node(node); }
-EMSCRIPTEN_KEEPALIVE int rpd_plan_remove_target(void) { return plan_remove_target(); }
+EMSCRIPTEN_KEEPALIVE int rpd_plan_remove_target_node(int node) { return plan_remove_target_node(node); }
+EMSCRIPTEN_KEEPALIVE int rpd_plan_waypoint(int index) { return plan_waypoint_at(index); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_hover(void) { return plan_hover(); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_node_blocked(int node) { return plan_node_blocked(node); }
-EMSCRIPTEN_KEEPALIVE void rpd_plan_set_menu_open(int open) { plan_set_menu_open(open); }
 EMSCRIPTEN_KEEPALIVE void rpd_plan_pointer_move(float x, float y) { plan_pointer_move(x, y); }
 EMSCRIPTEN_KEEPALIVE void rpd_set_fps_visible(int visible) { overlay_set_fps_visible(visible); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_camera(float *out) {
@@ -380,6 +398,7 @@ EMSCRIPTEN_KEEPALIVE int rpd_popup_state(float *out) {
     out[5] = p->anchor[1];
     out[6] = (float)p->choice_count;
     out[7] = p->phase == POPUP_CHOOSING ? 1.0f : 0.0f;
+    out[8] = (float)p->kind;
     return 0;
 }
 
@@ -519,6 +538,7 @@ EMSCRIPTEN_KEEPALIVE void rpd_set_view_mode(int mode) {
     bool ortho = mode != 0;
     if (ortho == g_rpd.ortho) return;
     g_rpd.ortho = ortho;
+    menu_close();
     camera_cancel_animation();
 }
 
