@@ -28,6 +28,7 @@ export type RpdClient = {
   markerSetRotation(index: number, radians: number): void;
   markerCount(): number;
   setPlayerPosition(x: number, y: number, z: number): void;
+  playerRadius(): number;
   setViewMode(mode: number): void;
   planSetFloors(levels: Float32Array, bounds: Float32Array): void;
   planSetGraph(
@@ -192,6 +193,9 @@ export async function createRpdClient(options: {
     },
     markerCount() {
       return module._rpd_marker_count();
+    },
+    playerRadius() {
+      return (module as unknown as { _rpd_player_radius: () => number })._rpd_player_radius();
     },
     setPlayerPosition(x, y, z) {
       module._rpd_set_player_position(x, y, z);

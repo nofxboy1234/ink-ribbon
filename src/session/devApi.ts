@@ -238,9 +238,17 @@ return {
         i,
       );
     }
+    const radius = client.playerRadius();
+    const portalNodes = new Set<number>();
+    for (const [a, b] of graph.portals) {
+      portalNodes.add(a);
+      portalNodes.add(b);
+    }
     let bad = 0;
     let samples = 0;
     let worst = 0;
+    let clearance = Infinity;
+    let clearanceAt: number[] | null = null;
     const lift = 0.08;
     for (let i = 0; i + 1 < points; i += 1) {
       const ax = route[i * 3];
@@ -259,17 +267,43 @@ return {
         const ix = Math.floor(px);
         const iz = Math.floor(pz);
         let found = false;
+        let foundNode = -1;
         let nearest = Infinity;
         for (const floor of graph.floors) {
           const node = cells.get(cellKey(floor.index, ix, iz));
           if (node === undefined) continue;
           if (Math.abs(graph.y[node] + lift - py) > 0.9) continue;
           found = true;
+          foundNode = node;
           nearest = Math.min(nearest, Math.hypot(graph.x[node] - px, graph.z[node] - pz));
         }
         samples += 1;
         if (!found) bad += 1;
-        else if (nearest > worst) worst = nearest;
+        else {
+          if (nearest > worst) worst = nearest;
+          const node = foundNode;
+          const exempt =
+            node < 0 ||
+            portalNodes.has(node) ||
+            Math.abs(graph.x[node] * 2 - Math.round(graph.x[node] * 2)) > 1e-3 ||
+            Math.abs(graph.z[node] * 2 - Math.round(graph.z[node] * 2)) > 1e-3;
+          if (!exempt) {
+            let wall = Infinity;
+            for (let gx = ix - 1; gx <= ix + 1; gx += 1) {
+              for (let gz = iz - 1; gz <= iz + 1; gz += 1) {
+                const owner = cells.get(cellKey(graph.floor[node], gx, gz));
+                if (owner !== undefined && !client.planNodeBlocked(owner)) continue;
+                const cx = Math.min(Math.max(px, gx), gx + 1);
+                const cz = Math.min(Math.max(pz, gz), gz + 1);
+                wall = Math.min(wall, Math.hypot(cx - px, cz - pz));
+              }
+            }
+            if (wall - radius < clearance) {
+              clearance = wall - radius;
+              clearanceAt = [px, py, pz];
+            }
+          }
+        }
       }
     }
     return {
@@ -277,6 +311,9 @@ return {
       samples,
       bad,
       worst,
+      clearance: Number.isFinite(clearance) ? clearance : 0,
+      clearanceAt,
+      radius,
       nodes: graph.count,
       edges: graph.edgeCount,
     };

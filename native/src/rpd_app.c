@@ -12,6 +12,7 @@
 #include "rpd_menu.h"
 #include "rpd_overlay.h"
 #include "rpd_plan.h"
+#include "rpd_player.h"
 #include "rpd_popup.h"
 #include "rpd_state.h"
 
@@ -19,7 +20,7 @@ rpd_state_t g_rpd;
 
 #define BLEND_DURATION 0.7f
 #define RECENTER_DURATION 0.45f
-#define CLAIRE_CAPSULE_TOP 1.7f
+#define CLAIRE_CAPSULE_TOP RPD_PLAYER_HEIGHT
 
 static void reset_orbit_camera(void) {
     const bounds_t *b = &g_rpd.scene.bounds;
@@ -275,6 +276,8 @@ void rpd_app_event(const sapp_event *e) {
     }
     input_handle_event(e);
 }
+
+EMSCRIPTEN_KEEPALIVE float rpd_player_radius(void) { return RPD_PLAYER_RADIUS; }
 
 EMSCRIPTEN_KEEPALIVE void rpd_plan_set_floors(int count, float *levels, float *bounds) {
     plan_set_floors(count, levels, bounds);

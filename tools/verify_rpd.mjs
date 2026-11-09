@@ -693,8 +693,9 @@ async function run() {
         report.states.plan.check.points > 1 &&
         report.states.plan.check.samples > 0 &&
         report.states.plan.check.bad === 0 &&
-        report.states.plan.check.worst <= 0.75,
-      "route leaves the walkable graph",
+        report.states.plan.check.worst <= 0.75 &&
+        report.states.plan.check.clearance >= 0,
+      `the capsule body leaves the walkable corridor (clearance ${report.states.plan.check?.clearance}, radius ${report.states.plan.check?.radius})`,
     );
 
     await cdp.key("KeyM", "m", 77);
