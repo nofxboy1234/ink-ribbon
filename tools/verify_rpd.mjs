@@ -1158,6 +1158,10 @@ async function run() {
     report.states.itemCubes = { perspective: items3d.length, ortho: itemsOrtho.length,
                                 spade: [spade.r, spade.g, spade.b] };
 
+    // The waypoint menu owns the pointer while it is open, so close it
+    // before probing the item hover.
+    await cdp.key("Escape", "Escape", 27);
+    await sleep(200);
     const ammoIndex = itemsOrtho.findIndex(
       (entry) => entry.name === "Handgun Ammo" && entry.floor === 0 && entry.state === 1,
     );
