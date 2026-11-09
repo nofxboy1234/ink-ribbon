@@ -1,7 +1,9 @@
 {
   "shots": [
     "01-3d",
+    "01b-menu-3d-disabled",
     "02-ortho-1f",
+    "02b-legend",
     "03-ortho-2f",
     "04-ortho-3f",
     "05-ortho-4f",
@@ -9,7 +11,8 @@
     "07-ortho-1f-clean",
     "08-hover",
     "09-menu",
-    "09-menu-planned",
+    "09-menu-waypoint",
+    "09-menu-clear",
     "09-waypoint",
     "10-plan",
     "10b-route-3d",
@@ -48,6 +51,9 @@
   ],
   "errors": [],
   "states": {
+    "menu3d": {
+      "open": false
+    },
     "initial": {
       "floors": [
         "4F",
@@ -130,6 +136,21 @@
         0
       ]
     },
+    "legend": {
+      "text": "Keys\nLocks\nFiles\nWeapons\nAmmo\nHerbs\nContainers\nPuzzle\nRoute\nWaypoint\n\nClick an item to take, unlock, open or read it. Keys must be in the eight slots before a lock opens. Right click the 2D plan for waypoints and Run route. Right drag rotates the camera in 3D.",
+      "dots": [
+        "rgb(158, 79, 242)",
+        "rgb(242, 140, 51)",
+        "rgb(230, 230, 214)",
+        "rgb(230, 71, 71)",
+        "rgb(242, 209, 77)",
+        "rgb(89, 217, 102)",
+        "rgb(153, 107, 64)",
+        "rgb(77, 217, 217)",
+        "rgb(57, 255, 20)",
+        "rgb(34, 211, 238)"
+      ]
+    },
     "ortho1f": {
       "floors": [
         "4F",
@@ -208,7 +229,7 @@
         10,
         0,
         0,
-        1,
+        0,
         0
       ]
     },
@@ -380,10 +401,10 @@
       ],
       "overlay": [
         -1,
-        15,
+        14,
         0,
         0,
-        1,
+        0,
         0
       ]
     },
@@ -462,10 +483,10 @@
       ],
       "overlay": [
         -1,
-        15,
+        14,
         0,
         0,
-        1,
+        0,
         0
       ]
     },
@@ -544,10 +565,10 @@
       ],
       "overlay": [
         -1,
-        15,
+        14,
         0,
         0,
-        1,
+        0,
         0
       ]
     },
@@ -567,9 +588,9 @@
       "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · middle drag to pan · right click for waypoints",
       "plan": [],
       "player": [
-        20.48134994506836,
+        20.481372833251953,
         0.09999999403953552,
-        -10.24533748626709
+        -10.245343208312988
       ],
       "moving": false,
       "routePoints": 0,
@@ -626,10 +647,10 @@
       ],
       "overlay": [
         -1,
-        15,
+        14,
         0,
         0,
-        1,
+        0,
         0
       ]
     },
@@ -684,10 +705,10 @@
       }
     },
     "labelOverlap": {
-      "room": "Main Hall",
+      "room": "Reception - RPD",
       "stats": [
         -1,
-        14,
+        13,
         1,
         0,
         0,
@@ -697,10 +718,10 @@
     "floorFilter": {
       "floorOneStats": [
         -1,
-        15,
+        14,
         0,
         0,
-        1,
+        0,
         0
       ],
       "floorTwoStats": [
@@ -715,7 +736,7 @@
         {
           "floor": 0,
           "hover": -1,
-          "claire": 1
+          "claire": 0
         },
         {
           "floor": 1,
@@ -739,7 +760,7 @@
         }
       ],
       "markerPixels": {
-        "floorOne": 10107
+        "floorOne": 9750
       }
     },
     "orthoReset": {
@@ -979,7 +1000,7 @@
         -0.8999999761581421,
         0.4000000059604645,
         0.40000003576278687,
-        0,
+        2.9802322387695312e-8,
         50
       ]
     },
@@ -992,7 +1013,7 @@
         -0.8999999761581421,
         0.4000000059604645,
         0.40000003576278687,
-        0,
+        2.9802322387695312e-8,
         50
       ],
       "pan": [
@@ -1072,7 +1093,7 @@
         4,
         0,
         0,
-        -1,
+        0,
         9.272391938437315e-42
       ],
       "player": [
