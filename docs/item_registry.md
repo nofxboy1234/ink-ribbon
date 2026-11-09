@@ -2,8 +2,8 @@
 
 The RPD sokol map owns every MapGenie B1-4F marker as one registry row, plus
 the Car Key box that MapGenie describes but does not plot. A row joins the
-mapped world pose, the extracted 3D model, the icon and the typed action, so
-no code path branches on a hand-written item name. The registry has 271 rows.
+mapped world pose, the icon and the typed action, so no code path branches on a
+hand-written item name. The registry has 271 rows.
 
 ## Build
 
@@ -13,8 +13,8 @@ node tools/gen_item_registry.mjs
 ```
 
 The first command writes `public/rpd/item_registry.json`. It joins
-`items_mapgenie.json`, `item_models.json` and `icons.json` by title and
-category slug, and reads the MapGenie descriptions for the relations. The
+`items_mapgenie.json` and `icons.json` by title and category slug, and reads
+the MapGenie descriptions for the relations. The
 second command writes `native/gen/rpd_item_registry.h`, which `native/build.sh`
 regenerates on every wasm build. The JSON is committed; the C header is not.
 
@@ -29,7 +29,6 @@ regenerates on every wasm build. The JSON is committed; the C header is not.
   "floor": 4,
   "x": -0.295, "y": -5.2, "z": 34.387,
   "placement": "fixture",
-  "model": null,
   "icon": "lock",
   "action": "open",
   "requires": [544635],
@@ -90,17 +89,11 @@ whose key is not in a slot stays shut with `<KEY> - NEEDS KEY` disabled.
   the nearest open cell, so Claire can stand outside the threshold and turn the
   lock. A door whose threshold cells have no open node within 8 m stays
   unreachable and is reported by `npm run check:items`.
-- Modelled rows draw the extracted mesh in perspective and on their own floor
-  in ortho. A model scales by `metres_per_unit` clamped to 0.55-1.6 m so keys
-  stay readable at building scale. The model pivot is the manifest base centre,
-  so the mesh sits on the floor surface.
-- Perspective culls a model below roughly two pixels and by the view frustum.
-  Ortho draws only the active floor. The unmodelled fixtures keep a 3D marker
-  in perspective and a coloured diamond in ortho; modelled rows draw as meshes
-  in both views, and the icons remain the inventory and popup identity.
-- Item pixels carry normal alpha 0.5, the marker alpha the composite already
-  understands, so a small model keeps its albedo instead of becoming an ink
-  silhouette.
+- Every present row draws a small cube in perspective and a coloured diamond
+  in ortho. The cube colour is the category colour in `rpd_items.c`; key items
+  are purple. Ortho draws only the active floor.
+- The inventory draws each carried row as a solid square in the same cube
+  colour. The icon id stays in the registry for the popup and the item API.
 
 ## Link derivation
 

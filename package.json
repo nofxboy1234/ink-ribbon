@@ -24,9 +24,7 @@
     "plan:build": "uv run --with numpy --with scipy --with opencv-python-headless python tools/rpd_plan.py && blender -b -P tools/plan_scene.py && node tools/write_asset_version.mjs",
     "asset:version": "node tools/write_asset_version.mjs",
     "bench:rpd": "node tools/bench_rpd.mjs",
-    "icons": "uv run --with zstandard --with texture2ddecoder --with pillow python tools/extract_item_icons.py",
-    "item-models": "uv run --with zstandard --with texture2ddecoder --with pillow python tools/extract_item_models.py",
-    "item-models:check": "blender -b -P tools/render_item_models.py && uv run --with pillow python tools/item_model_sheet.py"
+    "icons": "uv run --with zstandard --with texture2ddecoder --with pillow python tools/extract_item_icons.py"
   },
   "dependencies": {
     "hono": "4.13.14",

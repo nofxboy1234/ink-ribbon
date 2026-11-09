@@ -24,7 +24,3 @@ verification/rpd/current/
 
 # sokol-shdc generated shader headers.
 native/gen/
-
-# Per-model verification renders; the contact sheets carry the review trail.
-verification/item_models/*.png
-!verification/item_models/contact-*.png
