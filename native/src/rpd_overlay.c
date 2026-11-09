@@ -34,7 +34,6 @@ static int stat_hover_item;
 static int stat_labels;
 static int stat_blocked;
 static int stat_clashes;
-static int stat_player_label;
 static int stat_popup;
 
 static const uint8_t *col(uint32_t c) {
@@ -150,7 +149,7 @@ void overlay_stats(float *out) {
     out[1] = (float)stat_labels;
     out[2] = (float)stat_blocked;
     out[3] = (float)stat_clashes;
-    out[4] = (float)stat_player_label;
+    out[4] = 0.0f;
     out[5] = (float)stat_popup;
 }
 
@@ -210,7 +209,6 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
     stat_labels = 0;
     stat_blocked = 0;
     stat_clashes = 0;
-    stat_player_label = 0;
     stat_popup = popup_is_open() ? 1 : 0;
     if (text_ready) {
         sdtx_canvas((float)view_w / DTX_SCALE, (float)view_h / DTX_SCALE);
@@ -260,25 +258,6 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
             placed[placed_count][3] = popup_rect[3];
             placed_count++;
         }
-        float player[3];
-        plan_player(player);
-        float psx, psy;
-        project(player[0], player[1] + 1.15f, player[2], &psx, &psy);
-        bool player_visible = psx > -1e8f && plan_player_floor() == level;
-        float player_w = dtx_width("CLAIRE");
-        float player_rect[4] = {
-            psx + 15 - 4, psy - 5 - 3,
-            psx + 15 + player_w + 4, psy - 5 + DTX_CELL + 3,
-        };
-        if (player_visible) {
-            if (popup_open && rects_overlap(player_rect, popup_rect)) {
-                player_visible = false;
-                stat_blocked++;
-            } else if (placed_count < MAX_LABELS) {
-                memcpy(placed[placed_count], player_rect, sizeof(player_rect));
-                placed_count++;
-            }
-        }
         int rooms = plan_room_count();
         for (int i = 0; i < rooms; i++) {
             if (plan_room_floor(i) != level) continue;
@@ -312,12 +291,6 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
             dtx_text(name, sx - w * 0.5f, sy, 0x4a4842f0, 1);
             stat_labels++;
             if (popup_open && rects_overlap(label_rect, popup_rect)) stat_clashes++;
-        }
-        if (player_visible) {
-            dtx_text("CLAIRE", psx + 15.0f, psy - 5.0f, 0x9b3d78ff, 1);
-            stat_player_label++;
-            stat_labels++;
-            if (popup_open && rects_overlap(player_rect, popup_rect)) stat_clashes++;
         }
         draw_item_hover();
     }
