@@ -231,11 +231,25 @@ int items_at_node(int node) {
     return -1;
 }
 
+static bool item_occupies_cell(const item_t *item) {
+    return item && item->state == ITEM_PRESENT && item->snap_node >= 0;
+}
+
 bool items_node_blocked(int node) {
-    (void)node;
-    // A marker never blocks the nav graph. Reach is checked against the item
-    // coordinate, so off-nav fixtures stay interactable without editing paths.
+    if (!g_placed) return false;
+    for (int i = 0; i < RPD_ITEM_COUNT; i++) {
+        if (item_occupies_cell(&g_items[i]) && g_items[i].snap_node == node) return true;
+    }
     return false;
+}
+
+void items_block_cells(int nav_count, uint8_t *blocked) {
+    if (!g_placed || !blocked) return;
+    for (int i = 0; i < RPD_ITEM_COUNT; i++) {
+        if (!item_occupies_cell(&g_items[i])) continue;
+        int node = g_items[i].snap_node;
+        if (node < nav_count) blocked[node] = 1;
+    }
 }
 
 int items_room(int index) {

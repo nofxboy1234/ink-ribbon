@@ -27,6 +27,7 @@ void item_gate_refresh(int nav_count, const float *nav_x, const float *nav_z,
             if (dx * dx + dz * dz <= radius * radius) blocked[n] = 1;
         }
     }
+    items_block_cells(nav_count, blocked);
 }
 
 void item_gate_retarget(int nav_count, const float *nav_x, const float *nav_y,
@@ -34,7 +35,7 @@ void item_gate_retarget(int nav_count, const float *nav_x, const float *nav_y,
                         const uint8_t *blocked) {
     for (int i = 0; i < items_count(); i++) {
         const item_t *item = items_get(i);
-        if (!item || !item->def->blocks) continue;
+        if (!item || item->state != ITEM_PRESENT) continue;
         if (item->approach_node >= 0 && !blocked[item->approach_node]) continue;
         int node = nearest_floor_node(nav_count, nav_x, nav_y, nav_z, nav_floor, blocked,
                                       item->def->floor, item->def->x, item->def->y,

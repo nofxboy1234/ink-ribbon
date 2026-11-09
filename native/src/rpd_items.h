@@ -97,6 +97,7 @@ const rpd_item_def_t *items_def(int index);
 void items_cube_position(int index, float out[3]);
 int items_at_node(int node);
 bool items_node_blocked(int node);
+void items_block_cells(int nav_count, uint8_t *blocked);
 int items_room(int index);
 int items_inventory_count(void);
 const inventory_slot_t *items_inventory(void);

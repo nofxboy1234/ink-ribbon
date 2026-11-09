@@ -11,6 +11,7 @@ int route_find_path(int count, const float *x, const float *y, const float *z,
                     const uint8_t *blocked, int start, int goal, int *out, int cap);
 
 void route_set_cells(int count, const float *x, const float *z, const uint8_t *floor);
+void route_set_blocked(const uint8_t *blocked);
 
 int route_pull(int count, const int *nodes,
                const float *x, const float *y, const float *z,

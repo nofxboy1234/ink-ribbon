@@ -16,6 +16,11 @@ typedef struct {
 } cell_slot_t;
 
 static cell_slot_t cell_slots[CELL_HASH];
+static const uint8_t *route_blocked;
+
+void route_set_blocked(const uint8_t *blocked) {
+    route_blocked = blocked;
+}
 
 static int cell_key(int floor, int ix, int iz) {
     return ((floor * 4096 + ix + 2048) * 4096 + iz + 2048);
@@ -234,7 +239,9 @@ static void push_point(float *out, int cap, int *written, float x, float y, floa
 }
 
 static bool cell_walkable_at(int floor, float x, float z) {
-    return cell_find(cell_key(floor, (int)floorf(x), (int)floorf(z))) >= 0;
+    int node = cell_find(cell_key(floor, (int)floorf(x), (int)floorf(z)));
+    if (node < 0) return false;
+    return route_blocked == NULL || route_blocked[node] == 0;
 }
 
 static bool floor_point_walkable(int floor, float ax, float az, float bx, float bz, float *check) {
