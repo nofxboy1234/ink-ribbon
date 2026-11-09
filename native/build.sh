@@ -24,6 +24,7 @@ fi
 
 mkdir -p "${ROOT}/public/rpd" "${ROOT}/src/wasm" "${ROOT}/native/gen"
 node "${ROOT}/tools/gen_item_registry.mjs"
+node "${ROOT}/tools/rpd_walls.mjs"
 "${SHDC}" -i "${ROOT}/native/src/rpd_shaders.glsl" \
     -o "${ROOT}/native/gen/rpd_shaders_gen.h" \
     -l glsl300es -f sokol

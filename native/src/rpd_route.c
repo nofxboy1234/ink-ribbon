@@ -1,6 +1,7 @@
 #include "rpd_route.h"
 
 #include "rpd_player.h"
+#include "rpd_walls_gen.h"
 
 #include <math.h>
 #include <stdbool.h>
@@ -208,7 +209,7 @@ int route_find_path(int count, const float *x, const float *y, const float *z,
             int nxt = adjacency[e];
             if (blocked && blocked[nxt]) continue;
             if (astar_state[nxt] == 2) continue;
-            if (blocked && !edge_block_clear(cur, nxt, x, z)) continue;
+            if (!edge_block_clear(cur, nxt, x, z)) continue;
             float tentative = astar_g[cur] + cost[e];
             if (tentative >= astar_g[nxt]) continue;
             astar_g[nxt] = tentative;
@@ -251,11 +252,43 @@ static bool cell_open(int floor, int ix, int iz) {
     return route_blocked == NULL || route_blocked[node] == 0;
 }
 
-/* A route point is legal only when the whole player disc stays on walkable
- * cells. The old point test let the body overlap the cell corner next door,
- * which is where the walls live. */
-static bool cell_walkable_at(int floor, float x, float z) {
+/* Distance from the body at (x, y, z) to the nearest rendered wall face on the
+ * same floor. Door leaves and wall caps are in the table too; the vertical
+ * band filters out the caps above Claire's head. */
+static float wall_distance_at(int floor, float x, float y, float z) {
+    int gx = (int)floorf((x - RPD_WALL_GRID_MIN_X) / RPD_WALL_GRID_CELL);
+    int gz = (int)floorf((z - RPD_WALL_GRID_MIN_Z) / RPD_WALL_GRID_CELL);
+    if (gx < 0 || gz < 0 || gx >= RPD_WALL_GRID_COLS || gz >= RPD_WALL_GRID_ROWS) return 1e30f;
+    float best = 1e30f;
+    for (int ix = gx - 1; ix <= gx + 1; ix++) {
+        if (ix < 0 || ix >= RPD_WALL_GRID_COLS) continue;
+        for (int iz = gz - 1; iz <= gz + 1; iz++) {
+            if (iz < 0 || iz >= RPD_WALL_GRID_ROWS) continue;
+            unsigned int at = rpd_wall_grid_start[ix * RPD_WALL_GRID_ROWS + iz];
+            unsigned int end = rpd_wall_grid_start[ix * RPD_WALL_GRID_ROWS + iz + 1];
+            for (unsigned int k = at; k < end; k++) {
+                const rpd_wall_t *w = &rpd_walls[rpd_wall_grid_items[k]];
+                if (w->floor != floor) continue;
+                if (!(w->y1 > y + 1e-4f && w->y0 < y + RPD_PLAYER_HEIGHT)) continue;
+                float dx = fmaxf(fmaxf(w->x0 - x, 0.0f), x - w->x1);
+                float dz = fmaxf(fmaxf(w->z0 - z, 0.0f), z - w->z1);
+                float d = sqrtf(dx * dx + dz * dz);
+                if (d < best) best = d;
+            }
+        }
+    }
+    return best;
+}
+
+static bool wall_clear_at(int floor, float x, float y, float z, float radius) {
+    return wall_distance_at(floor, x, y, z) >= radius;
+}
+
+/* A route point is legal only when the whole body disc stays on walkable cells
+ * and clear of the rendered paper walls. */
+static bool cell_walkable_at(int floor, float x, float y, float z) {
     if (!cell_open(floor, (int)floorf(x), (int)floorf(z))) return false;
+    if (!wall_clear_at(floor, x, y, z, RPD_ROUTE_RADIUS)) return false;
     const float r = RPD_ROUTE_RADIUS;
     int ix0 = (int)floorf(x - r), ix1 = (int)floorf(x + r);
     int iz0 = (int)floorf(z - r), iz1 = (int)floorf(z + r);
@@ -272,7 +305,9 @@ static bool cell_walkable_at(int floor, float x, float z) {
 }
 
 /* A* only skips edges whose body would overlap a blocked cell. Absent cells
- * stay out of this test so portal gaps and door thresholds keep connecting. */
+ * stay out of this test so portal gaps and door thresholds keep connecting.
+ * The rendered walls are enforced in the pull and the corner rounding, where a
+ * rejected shortcut falls back to the graph path instead of erasing the edge. */
 static bool edge_block_clear(int a, int b, const float *x, const float *z) {
     if (!route_blocked || !route_floor) return true;
     int floor = route_floor[a];
@@ -299,15 +334,17 @@ static bool edge_block_clear(int a, int b, const float *x, const float *z) {
     return true;
 }
 
-static bool floor_point_walkable(int floor, float ax, float az, float bx, float bz, float *check) {
+static bool floor_point_walkable(int floor, float ax, float ay, float az,
+                                 float bx, float by, float bz, float *check) {
     float dx = bx - ax;
+    float dy = by - ay;
     float dz = bz - az;
     float length = sqrtf(dx * dx + dz * dz);
     int steps = (int)ceilf(length / ROUTE_SAMPLE_STEP);
     if (steps < 1) steps = 1;
     for (int s = 0; s <= steps; s++) {
         float t = (float)s / (float)steps;
-        if (!cell_walkable_at(floor, ax + dx * t, az + dz * t)) {
+        if (!cell_walkable_at(floor, ax + dx * t, ay + dy * t, az + dz * t)) {
             *check = t;
             return false;
         }
@@ -316,27 +353,26 @@ static bool floor_point_walkable(int floor, float ax, float az, float bx, float 
 }
 
 static bool segment_walkable(int a, int b,
-                             const float *x, const float *z,
+                             const float *x, const float *y, const float *z,
                              const uint8_t *floor, const uint8_t *kind) {
     if (floor[a] != floor[b] || kind[a] != 0 || kind[b] != 0) return false;
     float check = 0.0f;
-    return floor_point_walkable(floor[a], x[a], z[a], x[b], z[b], &check);
+    return floor_point_walkable(floor[a], x[a], y[a], z[a], x[b], y[b], z[b], &check);
 }
 
 int route_pull(int count, const int *nodes,
                const float *x, const float *y, const float *z,
                const uint8_t *floor, const uint8_t *kind,
                int *out, int cap) {
-    (void)y;
     if (count <= 0 || cap <= 0) return 0;
     int written = 0;
     out[written++] = nodes[0];
     int anchor = 0;
     while (anchor < count - 1 && written < cap) {
         int best = anchor + 1;
-        if (segment_walkable(nodes[anchor], nodes[best], x, z, floor, kind)) {
+        if (segment_walkable(nodes[anchor], nodes[best], x, y, z, floor, kind)) {
             for (int j = anchor + 2; j < count; j++) {
-                if (!segment_walkable(nodes[anchor], nodes[j], x, z, floor, kind)) break;
+                if (!segment_walkable(nodes[anchor], nodes[j], x, y, z, floor, kind)) break;
                 best = j;
             }
         }
@@ -387,8 +423,10 @@ int route_smooth(int count, const int *nodes,
             for (int step = 1; step <= ROUTE_CURVE_STEPS && rounded; step++) {
                 float check;
                 if (!floor_point_walkable(floor[c],
-                                          curve[(step - 1) * 3], curve[(step - 1) * 3 + 2],
-                                          curve[step * 3], curve[step * 3 + 2], &check)) {
+                                          curve[(step - 1) * 3], curve[(step - 1) * 3 + 1],
+                                          curve[(step - 1) * 3 + 2],
+                                          curve[step * 3], curve[step * 3 + 1],
+                                          curve[step * 3 + 2], &check)) {
                     rounded = false;
                 }
             }

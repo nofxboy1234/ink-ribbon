@@ -89,6 +89,52 @@ function colouredPixels(path) {
   return count;
 }
 
+const renderWallBoxes = (() => {
+  const plan = JSON.parse(readFileSync(join(root, "public/rpd/plan.json"), "utf8"));
+  const boxes = [];
+  for (const floor of plan.floors) {
+    for (const box of floor.boxes) {
+      if (box.faces === "top") continue;
+      boxes.push(box);
+    }
+  }
+  return boxes;
+})();
+
+// The paper walls are the rendered floor plan. Sample the route against the
+// same boxes plan_scene.py turns into rpd.bin and report any body penetration.
+function renderWallClearance(route, height = 1.7) {
+  const points = route.length / 3;
+  let samples = 0;
+  let penetrating = 0;
+  let minClearance = Infinity;
+  let minAt = null;
+  for (let i = 0; i + 1 < points; i += 1) {
+    const ax = route[i * 3], ay = route[i * 3 + 1], az = route[i * 3 + 2];
+    const bx = route[i * 3 + 3], by = route[i * 3 + 4], bz = route[i * 3 + 5];
+    const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay, bz - az) / 0.05));
+    for (let s = 0; s <= steps; s += 1) {
+      const t = s / steps;
+      const x = ax + (bx - ax) * t;
+      const y = ay + (by - ay) * t;
+      const z = az + (bz - az) * t;
+      samples += 1;
+      for (const box of renderWallBoxes) {
+        if (!(box.y1 > y + 1e-4 && box.y0 < y + height)) continue;
+        const dx = Math.max(box.x0 - x, 0, x - box.x1);
+        const dz = Math.max(box.z0 - z, 0, z - box.z1);
+        const distance = Math.hypot(dx, dz);
+        if (distance <= 0) penetrating += 1;
+        if (distance < minClearance) {
+          minClearance = distance;
+          minAt = [x, y, z];
+        }
+      }
+    }
+  }
+  return { samples, penetrating, minClearance: Number.isFinite(minClearance) ? minClearance : 0, minAt };
+}
+
 function changedPixels(a, b, area) {
   const first = readPng(a);
   const second = readPng(b);
@@ -687,6 +733,17 @@ async function run() {
     await shot("10-plan");
     report.states.plan = await facts();
     console.log("route check", JSON.stringify(report.states.plan.check));
+    const renderedRoute = JSON.parse(
+      await cdp.eval("JSON.stringify(Array.from(window.__rpd.planRoute()))"),
+    );
+    const renderWall = renderWallClearance(renderedRoute);
+    const renderRadius = await cdp.eval("window.__rpd.playerRadius()");
+    report.states.plan.renderWall = { ...renderWall, radius: renderRadius, boxes: renderWallBoxes.length };
+    console.log("render wall check", JSON.stringify(report.states.plan.renderWall));
+    assert(
+      renderWall.samples > 100 && renderWall.penetrating === 0,
+      `the route enters the rendered paper walls at ${renderWall.penetrating} of ${renderWall.samples} samples`,
+    );
     assert(report.states.plan.plan.length > 1, "the waypoint did not add plan steps");
     assert(
       report.states.plan.check &&

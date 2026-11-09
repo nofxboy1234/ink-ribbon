@@ -21,7 +21,7 @@
     "verify:rpd": "node tools/verify_rpd.mjs",
     "check:items": "node tools/check_item_reachability.mjs",
     "check:structure": "node tools/check_structure.mjs",
-    "plan:build": "uv run --with numpy --with scipy --with opencv-python-headless python tools/rpd_plan.py && blender -b -P tools/plan_scene.py && node tools/write_asset_version.mjs",
+    "plan:build": "uv run --with numpy --with scipy --with opencv-python-headless python tools/rpd_plan.py && node tools/rpd_wall_openings.mjs && blender -b -P tools/plan_scene.py && node tools/rpd_walls.mjs && node tools/write_asset_version.mjs",
     "asset:version": "node tools/write_asset_version.mjs",
     "bench:rpd": "node tools/bench_rpd.mjs",
     "icons": "uv run --with zstandard --with texture2ddecoder --with pillow python tools/extract_item_icons.py"

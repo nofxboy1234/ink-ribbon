@@ -2,10 +2,10 @@
   "asset": "rpd.bin",
   "version": 4,
   "method": "Blender paper model built from calibrated floor plans",
-  "vertices": 16232,
-  "triangles": 19860,
+  "vertices": 15176,
+  "triangles": 18276,
   "chunks": 5,
-  "bytes": 265540,
+  "bytes": 246532,
   "bounds": {
     "min": [
       -51.583,
@@ -22,7 +22,7 @@
     {
       "index": 0,
       "label": "1F",
-      "level": 0.0,
+      "level": 0,
       "y_min": -0.24,
       "y_max": 4.939657160296025,
       "chunks": 1
