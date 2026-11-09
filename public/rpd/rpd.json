@@ -2,10 +2,10 @@
   "asset": "rpd.bin",
   "version": 4,
   "method": "Blender paper model built from calibrated floor plans",
-  "vertices": 15632,
-  "triangles": 19560,
+  "vertices": 16232,
+  "triangles": 19860,
   "chunks": 5,
-  "bytes": 258340,
+  "bytes": 265540,
   "bounds": {
     "min": [
       -51.583,
@@ -15,7 +15,7 @@
     "max": [
       47.257000000000005,
       18.45006469825284,
-      51.992664225223166
+      52.03187747005417
     ]
   },
   "floors": [
@@ -40,7 +40,7 @@
       "label": "3F",
       "level": 10.4,
       "y_min": 10.16,
-      "y_max": 15.340063813229571,
+      "y_max": 15.339680476081483,
       "chunks": 1
     },
     {
