@@ -24,16 +24,56 @@ typedef struct {
     float r, g, b;
 } colour_t;
 
-static const colour_t ACTION_COLOURS[RPD_ACTION_INSPECT + 1] = {
-    { 0.55f, 0.55f, 0.55f },
-    { 0.43f, 0.90f, 0.55f },
-    { 0.95f, 0.62f, 0.32f },
-    { 0.95f, 0.82f, 0.36f },
-    { 0.72f, 0.55f, 0.98f },
-    { 0.38f, 0.66f, 0.95f },
-    { 0.36f, 0.85f, 0.88f },
-    { 0.95f, 0.45f, 0.72f },
+typedef struct {
+    const char *category;
+    float r, g, b;
+} category_colour_t;
+
+static const category_colour_t CATEGORY_COLOURS[] = {
+    { "Key Item", 0.62f, 0.31f, 0.95f },
+    { "Lock", 0.95f, 0.55f, 0.20f },
+    { "Safe", 0.95f, 0.78f, 0.25f },
+    { "Puzzle", 0.30f, 0.85f, 0.85f },
+    { "File", 0.90f, 0.90f, 0.84f },
+    { "Film", 0.95f, 0.45f, 0.72f },
+    { "Area Map", 0.35f, 0.75f, 0.95f },
+    { "Weapon", 0.90f, 0.28f, 0.28f },
+    { "Weapon Upgrade", 0.95f, 0.62f, 0.25f },
+    { "Knife", 0.72f, 0.72f, 0.76f },
+    { "Flash Grenade", 0.45f, 0.85f, 0.45f },
+    { "Hand Grenade", 0.35f, 0.75f, 0.35f },
+    { "Grenade Rounds", 0.60f, 0.80f, 0.35f },
+    { "Handgun Ammo", 0.95f, 0.82f, 0.30f },
+    { "SMG Ammo", 0.95f, 0.70f, 0.25f },
+    { "Needle Cartridges", 0.85f, 0.70f, 0.30f },
+    { "High-Powered Rounds", 0.90f, 0.60f, 0.20f },
+    { "Green Herb", 0.35f, 0.85f, 0.40f },
+    { "Red Herb", 0.90f, 0.30f, 0.30f },
+    { "Blue Herb", 0.35f, 0.55f, 0.95f },
+    { "First Aid Spray", 0.95f, 0.40f, 0.55f },
+    { "Gunpowder", 0.85f, 0.75f, 0.35f },
+    { "High-Grade Gunpowder", 0.95f, 0.85f, 0.45f },
+    { "Ink Ribbon", 0.35f, 0.35f, 0.40f },
+    { "Wooden Boards", 0.65f, 0.45f, 0.25f },
+    { "Item Box", 0.60f, 0.42f, 0.25f },
+    { "Typewriter", 0.45f, 0.45f, 0.50f },
+    { "Transition", 0.35f, 0.65f, 0.95f },
+    { "Hip Pouch", 0.40f, 0.60f, 0.85f },
+    { "Mr Raccoon", 0.70f, 0.70f, 0.70f },
+    { "Easter Egg", 0.95f, 0.85f, 0.35f },
 };
+
+static colour_t category_colour(const char *category) {
+    if (category != NULL) {
+        for (size_t i = 0; i < sizeof(CATEGORY_COLOURS) / sizeof(CATEGORY_COLOURS[0]); i++) {
+            if (strcmp(category, CATEGORY_COLOURS[i].category) == 0) {
+                return (colour_t){ CATEGORY_COLOURS[i].r, CATEGORY_COLOURS[i].g,
+                                   CATEGORY_COLOURS[i].b };
+            }
+        }
+    }
+    return (colour_t){ 0.55f, 0.55f, 0.55f };
+}
 
 static const char *ACTION_VERBS[RPD_ACTION_INSPECT + 1] = {
     "", "TAKE", "UNLOCK", "OPEN", "SOLVE", "READ", "USE", "INSPECT",
@@ -69,10 +109,10 @@ void items_reset(void) {
         item->approach_x = 0.0f;
         item->approach_y = 0.0f;
         item->approach_z = 0.0f;
-        const colour_t *colour = &ACTION_COLOURS[def->action <= RPD_ACTION_INSPECT ? def->action : 0];
-        item->r = colour->r;
-        item->g = colour->g;
-        item->b = colour->b;
+        colour_t colour = category_colour(def->category);
+        item->r = colour.r;
+        item->g = colour.g;
+        item->b = colour.b;
     }
 }
 
@@ -124,8 +164,8 @@ static void sync_marker(int index) {
         rpd_marker_set_visible(item->marker, 1);
         return;
     }
-    item->marker = rpd_marker_add(MARKER_SPHERE, item->def->x,
-                                  item->def->y + ITEM_MARKER_LIFT, item->def->z, 0.55f,
+    item->marker = rpd_marker_add(MARKER_CUBE, item->def->x,
+                                  item->def->y + ITEM_MARKER_LIFT, item->def->z, 0.275f,
                                   (int)(item->r * 255.0f), (int)(item->g * 255.0f),
                                   (int)(item->b * 255.0f));
 }
@@ -133,10 +173,6 @@ static void sync_marker(int index) {
 void items_sync_markers(void) {
     if (!g_placed) return;
     for (int i = 0; i < RPD_ITEM_COUNT; i++) {
-        const item_t *item = &g_items[i];
-        // Modelled items are drawn as meshes; the marker is the 3D stand-in
-        // for the fixtures MapGenie left without a model.
-        if (item->def->model != NULL && item->state == ITEM_PRESENT) continue;
         sync_marker(i);
     }
 }

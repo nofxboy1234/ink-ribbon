@@ -179,8 +179,6 @@ void rpd_app_frame(void) {
         scene_render_floors(&g_rpd.scene, vp, eye, camera_distance(&g_rpd.camera),
                             g_rpd.scene_radius, paper_floor(), clip, fy - 0.55f, fy + 4.2f,
                             g_rpd.ortho ? fy : MARKER_FLOOR_ANY);
-        item_render_models(vp, eye, g_rpd.ortho, plan_active_floor(), clip,
-                           fy - 0.55f, fy + 4.2f);
     }
     sg_end_pass();
 

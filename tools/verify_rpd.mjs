@@ -669,24 +669,28 @@ async function run() {
     assert(items.length === 271, `expected 271 registry items, got ${items.length}`);
     const byName = (name) => items.findIndex((entry) => entry.name === name);
 
-    // The 72 extracted models must upload, texture and draw in both views.
+    // Every registry item draws as a small coloured cube in both views.
+    // Keys are the purple family; the rest follow CATEGORY_COLOURS.
     await cdp.eval("window.__rpd.setOrbit(0, 0, 0, 0, 1.2, 14)");
     await sleep(900);
-    const models3d = JSON.parse(await cdp.eval("JSON.stringify(window.__quest.itemModels())"));
-    assert(models3d[5] === 1, "the ITM1 models did not upload");
-    assert(models3d[2] >= 60, `only ${models3d[2]} albedo textures uploaded`);
-    assert(models3d[3] > 0, "no item model drew in the perspective view");
-    await shot("31-item-models-3d");
+    const items3d = JSON.parse(await cdp.eval("JSON.stringify(window.__quest.items())"));
+    assert(items3d.length === 271, `expected 271 items in the perspective, got ${items3d.length}`);
+    const spade = items3d.find((entry) => entry.name === "Spade Key");
+    assert(spade, "the Spade Key item is missing");
+    assert(spade.r > 0.5 && spade.b > 0.8 && spade.g < 0.5,
+           `keys must be purple, got ${spade.r},${spade.g},${spade.b}`);
+    await shot("31-item-cubes-3d");
 
     await cdp.key("KeyM", "m", 77);
     await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) >= 0.999", 20000);
     await setFloor(0);
     await cdp.eval("window.__rpd.setOrbit(0, 0, 0, 0, 1.2, 20)");
     await sleep(900);
-    const modelsOrtho = JSON.parse(await cdp.eval("JSON.stringify(window.__quest.itemModels())"));
-    assert(modelsOrtho[3] > 0, "no item model drew in the plan view");
-    await shot("32-item-models-ortho");
-    report.states.itemModels = { perspective: models3d, ortho: modelsOrtho };
+    const itemsOrtho = JSON.parse(await cdp.eval("JSON.stringify(window.__quest.items())"));
+    assert(itemsOrtho.length === 271, `expected 271 items in the plan, got ${itemsOrtho.length}`);
+    await shot("32-item-cubes-ortho");
+    report.states.itemCubes = { perspective: items3d.length, ortho: itemsOrtho.length,
+                                spade: [spade.r, spade.g, spade.b] };
 
     // Key gating: the car trunk refuses until the car key sits in a slot.
     const trunk = byName("Car Trunk");
