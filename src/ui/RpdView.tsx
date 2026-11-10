@@ -1,6 +1,7 @@
 import type { PlanSession } from "../session/usePlanSession";
 import CodeEntry from "./CodeEntry";
 import FloorSelector from "./FloorSelector";
+import NotesPanel from "./NotesPanel";
 import QuestPanel from "./QuestPanel";
 import SavePanel from "./SavePanel";
 import RpdStage from "./RpdStage";
@@ -31,6 +32,7 @@ export default function RpdView({ session, label }: RpdViewProps) {
       <CodeEntry session={session} />
       <QuestPanel session={session} />
       <SavePanel session={session} />
+      <NotesPanel session={session} />
       {state.view2D && (
         <div className="rpd-map-title">
           <strong>{floorLabel} · FLOOR PLAN</strong>

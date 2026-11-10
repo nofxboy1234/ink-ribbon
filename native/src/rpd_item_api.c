@@ -4,6 +4,7 @@
 #include "rpd_save.h"
 #include "rpd_doors.h"
 #include "rpd_enemies.h"
+#include "rpd_craft.h"
 #include "rpd_game.h"
 #include "rpd_plan.h"
 #include "rpd_sokol.h"
@@ -95,6 +96,16 @@ EMSCRIPTEN_KEEPALIVE int rpd_save_snapshot(int *out, int cap) {
 
 EMSCRIPTEN_KEEPALIVE int rpd_save_restore(const int *data, int size) {
     return save_restore((const uint8_t *)data, size);
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_craft_combine(int first, int second) {
+    int result = craft_combine(first, second);
+    plan_refresh_blocks();
+    return result;
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_craft_result(int first, int second) {
+    return craft_recipe_result(first, second);
 }
 
 EMSCRIPTEN_KEEPALIVE int rpd_game_health(void) { return game_health(); }

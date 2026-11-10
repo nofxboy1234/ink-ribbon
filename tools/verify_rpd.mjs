@@ -1364,6 +1364,15 @@ async function run() {
 
     await shot("33-inventory-square");
 
+    const craftable = await evalJson(`(() => {
+      const list = window.__quest.items();
+      const a = list.find((item) => item.state === 1 && item.name === "Gunpowder");
+      const b = list.find((item) => item.state === 1 && item.name === "Gunpowder" && item.index !== a?.index);
+      if (!a || !b) return null;
+      return { first: a.index, second: b.index, result: window.__quest.craftResult(a.index, b.index) };
+    })()`);
+    assert(craftable && craftable.result >= 0, `the gunpowder recipe should resolve: ${JSON.stringify(craftable)}`);
+
     const enemyCount = await cdp.eval("window.__quest.enemies().length");
     assert(enemyCount > 0, `the map should expose its enemies, got ${enemyCount}`);
     const health = await cdp.eval("window.__quest.health()");

@@ -127,6 +127,8 @@ export type RpdClient = {
   health(): number;
   shoot(index: number, stationary: boolean): number;
   stab(index: number): number;
+  craftResult(first: number, second: number): number;
+  craftCombine(first: number, second: number): number;
   toggleDebug(): void;
   debugEnabled(): boolean;
   itemEnterCode(index: number, code: string): number;
@@ -478,6 +480,12 @@ export async function createRpdClient(options: {
     },
     stab(index) {
       return (module as unknown as { _rpd_game_stab: (i: number) => number })._rpd_game_stab(index);
+    },
+    craftResult(first, second) {
+      return (module as unknown as { _rpd_craft_result: (a: number, b: number) => number })._rpd_craft_result(first, second);
+    },
+    craftCombine(first, second) {
+      return (module as unknown as { _rpd_craft_combine: (a: number, b: number) => number })._rpd_craft_combine(first, second);
     },
     saveSnapshot() {
       const size = (module as unknown as { _rpd_save_size: () => number })._rpd_save_size();

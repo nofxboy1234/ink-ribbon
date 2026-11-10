@@ -118,6 +118,8 @@ return {
   health: () => client.health(),
   shoot: (index: number, stationary: boolean) => client.shoot(index, stationary),
   stab: (index: number) => client.stab(index),
+  craftResult: (first: number, second: number) => client.craftResult(first, second),
+  craftCombine: (first: number, second: number) => client.craftCombine(first, second),
   saveRestore: (bytes: number[]) => client.saveRestore(Uint8Array.from(bytes)),
   box: () => {
     const count = client.boxCount();

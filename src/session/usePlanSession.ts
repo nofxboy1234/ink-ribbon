@@ -35,6 +35,7 @@ export type PlanSession = {
     room: string;
     inventory: (InventoryEntry | null)[];
     box: { slot: number; index: number; name: string }[];
+    notes: { id: number; title: string; body: string }[];
     codeLock: CodeLock | null;
   };
   ref: { canvas: RefObject<HTMLCanvasElement | null> };
@@ -75,6 +76,7 @@ export function usePlanSession(
   );
   const [codeLock, setCodeLock] = useState<CodeLock | null>(null);
   const [box, setBox] = useState<{ slot: number; index: number; name: string }[]>([]);
+  const [notes, setNotes] = useState<{ id: number; title: string; body: string }[]>([]);
   const graphRef = useRef<ReturnType<typeof buildNavGraph> | null>(null);
   const roomsRef = useRef<Quest["rooms"]>([]);
 
@@ -213,6 +215,14 @@ export function usePlanSession(
               b: Math.round(slots[index * 4 + 3] * 255),
             };
           });
+          const nextNotes: { id: number; title: string; body: string }[] = [];
+          for (let i = 0; i < clientRef.current.itemCount(); i += 1) {
+            const entry = clientRef.current.item(i);
+            if (entry && entry.taken && entry.action === 5) {
+              nextNotes.push({ id: i, title: entry.name, body: "Collected and read in the RPD." });
+            }
+          }
+          setNotes((current) => (JSON.stringify(current) === JSON.stringify(nextNotes) ? current : nextNotes));
           const nextBox = Array.from({ length: clientRef.current.boxCount() }, (_, slot) => {
             const itemIndex = clientRef.current!.boxItem(slot);
             const item = itemIndex >= 0 ? clientRef.current!.item(itemIndex) : null;
@@ -308,6 +318,7 @@ export function usePlanSession(
       room,
       inventory,
       box,
+      notes,
       codeLock,
     },
     ref: { canvas },
