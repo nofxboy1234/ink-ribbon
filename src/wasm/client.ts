@@ -119,6 +119,14 @@ export type RpdClient = {
   saveRestore(bytes: Uint8Array): number;
   saveSize(): number;
   doorsCount(): number;
+  enemyCount(): number;
+  enemyAlive(): number;
+  enemyHealth(index: number): number;
+  enemyHit(index: number, damage: number): number;
+  enemyVisible(index: number): number;
+  health(): number;
+  shoot(index: number, stationary: boolean): number;
+  stab(index: number): number;
   toggleDebug(): void;
   debugEnabled(): boolean;
   itemEnterCode(index: number, code: string): number;
@@ -446,6 +454,30 @@ export async function createRpdClient(options: {
     },
     doorsCount() {
       return (module as unknown as { _rpd_doors_count: () => number })._rpd_doors_count();
+    },
+    enemyCount() {
+      return (module as unknown as { _rpd_enemy_count: () => number })._rpd_enemy_count();
+    },
+    enemyAlive() {
+      return (module as unknown as { _rpd_enemy_alive: () => number })._rpd_enemy_alive();
+    },
+    enemyHealth(index) {
+      return (module as unknown as { _rpd_enemy_health: (i: number) => number })._rpd_enemy_health(index);
+    },
+    enemyHit(index, damage) {
+      return (module as unknown as { _rpd_enemy_hit: (i: number, d: number) => number })._rpd_enemy_hit(index, damage);
+    },
+    enemyVisible(index) {
+      return (module as unknown as { _rpd_enemy_visible: (i: number) => number })._rpd_enemy_visible(index);
+    },
+    health() {
+      return (module as unknown as { _rpd_game_health: () => number })._rpd_game_health();
+    },
+    shoot(index, stationary) {
+      return (module as unknown as { _rpd_game_shoot: (i: number, s: number) => number })._rpd_game_shoot(index, stationary ? 1 : 0);
+    },
+    stab(index) {
+      return (module as unknown as { _rpd_game_stab: (i: number) => number })._rpd_game_stab(index);
     },
     saveSnapshot() {
       const size = (module as unknown as { _rpd_save_size: () => number })._rpd_save_size();

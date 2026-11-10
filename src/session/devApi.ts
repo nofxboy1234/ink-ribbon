@@ -109,6 +109,15 @@ return {
   boxTake: (slot: number) => client.boxTake(slot),
   saveSnapshot: () => Array.from(client.saveSnapshot()),
   doorsCount: () => client.doorsCount(),
+  enemies: () => Array.from({ length: client.enemyCount() }, (_, index) => ({
+    index,
+    health: client.enemyHealth(index),
+    visible: client.enemyVisible(index) !== 0,
+  })),
+  enemyAlive: () => client.enemyAlive(),
+  health: () => client.health(),
+  shoot: (index: number, stationary: boolean) => client.shoot(index, stationary),
+  stab: (index: number) => client.stab(index),
   saveRestore: (bytes: number[]) => client.saveRestore(Uint8Array.from(bytes)),
   box: () => {
     const count = client.boxCount();

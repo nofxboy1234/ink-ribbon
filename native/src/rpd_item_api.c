@@ -3,6 +3,8 @@
 #include "rpd_items.h"
 #include "rpd_save.h"
 #include "rpd_doors.h"
+#include "rpd_enemies.h"
+#include "rpd_game.h"
 #include "rpd_plan.h"
 #include "rpd_sokol.h"
 
@@ -95,6 +97,14 @@ EMSCRIPTEN_KEEPALIVE int rpd_save_restore(const int *data, int size) {
     return save_restore((const uint8_t *)data, size);
 }
 
+EMSCRIPTEN_KEEPALIVE int rpd_game_health(void) { return game_health(); }
+EMSCRIPTEN_KEEPALIVE int rpd_game_shoot(int enemy, int stationary) { return game_shoot(enemy, stationary); }
+EMSCRIPTEN_KEEPALIVE int rpd_game_stab(int enemy) { return game_stab(enemy); }
+EMSCRIPTEN_KEEPALIVE int rpd_enemy_count(void) { return enemies_count(); }
+EMSCRIPTEN_KEEPALIVE int rpd_enemy_alive(void) { return enemies_alive(); }
+EMSCRIPTEN_KEEPALIVE int rpd_enemy_health(int index) { return enemies_health(index); }
+EMSCRIPTEN_KEEPALIVE int rpd_enemy_hit(int index, int damage) { return enemies_hit(index, damage); }
+EMSCRIPTEN_KEEPALIVE int rpd_enemy_visible(int index) { return enemies_visible(index); }
 EMSCRIPTEN_KEEPALIVE int rpd_doors_count(void) {
     return doors_count();
 }

@@ -1364,6 +1364,16 @@ async function run() {
 
     await shot("33-inventory-square");
 
+    const enemyCount = await cdp.eval("window.__quest.enemies().length");
+    assert(enemyCount > 0, `the map should expose its enemies, got ${enemyCount}`);
+    const health = await cdp.eval("window.__quest.health()");
+    assert(health > 0, `Claire should start healthy, got ${health}`);
+    const enemyBefore = await cdp.eval("window.__quest.enemies()[0].health");
+    const shootResult = await cdp.eval("window.__quest.shoot(0, true)");
+    assert(shootResult !== -1, "the stationary shot should resolve");
+    const enemyAfter = await cdp.eval("window.__quest.enemies()[0].health");
+    assert(enemyAfter <= enemyBefore, "the shot should not heal the enemy");
+
     const doorCount = await cdp.eval("window.__quest.doorsCount()");
     assert(doorCount > 0, `the map should expose its doors, got ${doorCount}`);
 

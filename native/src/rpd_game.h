@@ -9,3 +9,8 @@ void game_set_paused(int paused);
 int game_paused(void);
 void game_toggle_debug(void);
 int game_debug(void);
+int game_health(void);
+void game_damage(int amount);
+int game_shoot(int enemy, int stationary);
+int game_stab(int enemy);
+

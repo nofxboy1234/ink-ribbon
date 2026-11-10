@@ -9,5 +9,6 @@ int rpd_marker_add(int shape, float x, float y, float z, float size, int r, int 
 void rpd_marker_set_visible(int index, int visible);
 void rpd_marker_set_color(int index, int r, int g, int b);
 void rpd_marker_set_rotation(int index, float radians);
+void rpd_marker_set_position(int index, float x, float y, float z);
 void markers_render(scene_t *s, mat4 view_proj, const float eye[3], float marker_floor,
                     bool ortho, float ortho_scale);
