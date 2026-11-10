@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 #define INVENTORY_SLOTS 8
-#define BOX_SLOTS 32
+#define BOX_SLOTS 128
 #define RPD_MAX_REQUIRES 8
 #define RPD_MAX_REQUIRES_OPEN 8
 #define RPD_MAX_CONTENTS 4

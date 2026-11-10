@@ -116,6 +116,7 @@ return {
   })),
   enemyAlive: () => client.enemyAlive(),
   health: () => client.health(),
+  ending: () => client.ending(),
   shoot: (index: number, stationary: boolean) => client.shoot(index, stationary),
   stab: (index: number) => client.stab(index),
   craftResult: (first: number, second: number) => client.craftResult(first, second),

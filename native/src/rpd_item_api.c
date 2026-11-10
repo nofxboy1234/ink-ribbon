@@ -40,6 +40,10 @@ EMSCRIPTEN_KEEPALIVE const char *rpd_item_hint(int index) {
 
 EMSCRIPTEN_KEEPALIVE int rpd_item_act(int index) {
     int result = items_act(index);
+    const item_t *item = items_get(index);
+    if (result == 0 && item && item->def && item->def->id == 544627) {
+        game_set_ending(1);
+    }
     plan_refresh_blocks();
     return result;
 }
@@ -115,6 +119,7 @@ EMSCRIPTEN_KEEPALIVE int rpd_craft_result(int first, int second) {
 }
 
 EMSCRIPTEN_KEEPALIVE int rpd_game_health(void) { return game_health(); }
+EMSCRIPTEN_KEEPALIVE int rpd_game_ending(void) { return game_ending(); }
 EMSCRIPTEN_KEEPALIVE int rpd_game_shoot(int enemy, int stationary) { return game_shoot(enemy, stationary); }
 EMSCRIPTEN_KEEPALIVE int rpd_game_stab(int enemy) { return game_stab(enemy); }
 EMSCRIPTEN_KEEPALIVE int rpd_enemy_count(void) { return enemies_count(); }

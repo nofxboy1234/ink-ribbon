@@ -7,12 +7,14 @@ static int paused;
 static int debug;
 static int health = 120;
 static int running;
+static int ending;
 
 void game_reset(void) {
     paused = 0;
     debug = 0;
     health = 120;
     running = 0;
+    ending = 0;
 }
 
 int game_health(void) { return health; }
@@ -49,6 +51,10 @@ void game_toggle_pause(void) { paused = !paused; }
 void game_toggle_run(void) { running = !running; }
 
 int game_run(void) { return running; }
+
+void game_set_ending(int value) { ending = value ? 1 : 0; }
+
+int game_ending(void) { return ending; }
 
 void game_update(float dt, const float *view_proj, int width, int height) {
     // A zero delta freezes the walk but still refreshes the hover and the floor,

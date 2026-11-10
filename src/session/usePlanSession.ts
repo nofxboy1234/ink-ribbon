@@ -36,6 +36,7 @@ export type PlanSession = {
     inventory: (InventoryEntry | null)[];
     box: { slot: number; index: number; name: string }[];
     notes: { id: number; title: string; body: string }[];
+    atTypewriter: boolean;
     codeLock: CodeLock | null;
   };
   ref: { canvas: RefObject<HTMLCanvasElement | null> };
@@ -77,6 +78,7 @@ export function usePlanSession(
   const [codeLock, setCodeLock] = useState<CodeLock | null>(null);
   const [box, setBox] = useState<{ slot: number; index: number; name: string }[]>([]);
   const [notes, setNotes] = useState<{ id: number; title: string; body: string }[]>([]);
+  const [atTypewriter, setAtTypewriter] = useState(false);
   const graphRef = useRef<ReturnType<typeof buildNavGraph> | null>(null);
   const roomsRef = useRef<Quest["rooms"]>([]);
 
@@ -223,6 +225,18 @@ export function usePlanSession(
             }
           }
           setNotes((current) => (JSON.stringify(current) === JSON.stringify(nextNotes) ? current : nextNotes));
+          const player = clientRef.current.planPlayer();
+          let nearWriter = false;
+          for (let i = 0; i < clientRef.current.itemCount(); i += 1) {
+            const entry = clientRef.current.item(i);
+            if (!entry || entry.floor !== clientRef.current.planActiveFloor()) continue;
+            if (!/typewriter/i.test(entry.name)) continue;
+            if (Math.hypot(entry.x - player[0], entry.z - player[2]) < 2.5) {
+              nearWriter = true;
+              break;
+            }
+          }
+          setAtTypewriter((current) => (current === nearWriter ? current : nearWriter));
           const nextBox = Array.from({ length: clientRef.current.boxCount() }, (_, slot) => {
             const itemIndex = clientRef.current!.boxItem(slot);
             const item = itemIndex >= 0 ? clientRef.current!.item(itemIndex) : null;
@@ -319,6 +333,7 @@ export function usePlanSession(
       inventory,
       box,
       notes,
+      atTypewriter,
       codeLock,
     },
     ref: { canvas },

@@ -125,6 +125,7 @@ export type RpdClient = {
   enemyHit(index: number, damage: number): number;
   enemyVisible(index: number): number;
   health(): number;
+  ending(): boolean;
   shoot(index: number, stationary: boolean): number;
   stab(index: number): number;
   craftResult(first: number, second: number): number;
@@ -474,6 +475,9 @@ export async function createRpdClient(options: {
     },
     health() {
       return (module as unknown as { _rpd_game_health: () => number })._rpd_game_health();
+    },
+    ending() {
+      return (module as unknown as { _rpd_game_ending: () => number })._rpd_game_ending() !== 0;
     },
     shoot(index, stationary) {
       return (module as unknown as { _rpd_game_shoot: (i: number, s: number) => number })._rpd_game_shoot(index, stationary ? 1 : 0);

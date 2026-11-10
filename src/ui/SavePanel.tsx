@@ -63,13 +63,16 @@ export default function SavePanel({ session }: SavePanelProps) {
       <div className="rpd-section-title">
         <span>Typewriter saves</span>
       </div>
+      {!session.state.atTypewriter && (
+        <p className="rpd-save-message">Stand at a typewriter to save.</p>
+      )}
       {slots.map((slot, index) => (
         <div className="rpd-save-slot" key={index}>
           <span className="rpd-save-name">Slot {index + 1}</span>
           <span className="rpd-save-meta">
             {slot ? new Date(slot.savedAt).toLocaleTimeString() : "Empty"}
           </span>
-          <button type="button" onClick={() => save(index)}>
+          <button type="button" disabled={!session.state.atTypewriter} onClick={() => save(index)}>
             Save
           </button>
           <button type="button" disabled={!slot} onClick={() => load(index)}>
