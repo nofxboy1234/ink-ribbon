@@ -436,11 +436,11 @@ static void open_item_popup(int item) {
     popup_add_choice(POPUP_ACTION_ACT, verb, items_available(item) != 0);
 }
 
-static void popup_execute(popup_action_t action) {
+static void popup_execute(popup_action_t action, int data) {
     popup_t chosen = *popup_get();
     popup_close();
     if (action >= POPUP_ACTION_MENU_ADD) {
-        menu_execute(action, chosen.node);
+        menu_execute(action, chosen.node, data);
         return;
     }
     if (action == POPUP_ACTION_WALK_NEXT) {
@@ -468,7 +468,7 @@ void plan_pointer_down(float x, float y) {
         int hit = popup_hit(x, y);
         if (hit >= 0) {
             const popup_t *p = popup_get();
-            if (p->choices[hit].enabled) popup_execute(p->choices[hit].action);
+            if (p->choices[hit].enabled) popup_execute(p->choices[hit].action, p->choices[hit].data);
             return;
         }
         popup_close();
@@ -495,6 +495,15 @@ void plan_teleport_node(int node) {
     move_count = 0;
     move_index = 0;
     move_t = 0;
+}
+
+void plan_teleport_item(int index) {
+    const item_t *item = items_get(index);
+    if (!item) return;
+    if (item->def->floor != active_floor) plan_set_floor(item->def->floor);
+    float cube[3];
+    items_cube_position(index, cube);
+    plan_set_player(cube[0], cube[1] - 0.45f, cube[2]);
 }
 
 int plan_has_waypoint(int node) {

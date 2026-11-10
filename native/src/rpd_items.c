@@ -462,6 +462,44 @@ int items_debug_take(int index) {
     return 0;
 }
 
+int items_related(int index, int *out, int cap) {
+    const item_t *item = items_get(index);
+    if (!item || cap <= 0) return 0;
+    int count = 0;
+    for (int i = 0; i < item->def->opens_count && count < cap; i++) out[count++] = item->def->opens[i];
+    for (int i = 0; i < RPD_ITEM_COUNT && count < cap; i++) {
+        if (i == index) continue;
+        const rpd_item_def_t *def = items_def(i);
+        if (!def) continue;
+        for (int r = 0; r < def->requires_count; r++) {
+            if (def->requires[r] == index) { out[count++] = i; break; }
+        }
+    }
+    return count;
+}
+
+static int highlighted = -1;
+
+void items_debug_highlight(int index) {
+    if (highlighted >= 0) {
+        const item_t *old = items_get(highlighted);
+        if (old && old->marker >= 0) rpd_marker_set_color(old->marker,
+            (int)(old->r * 255.0f), (int)(old->g * 255.0f), (int)(old->b * 255.0f));
+    }
+    highlighted = index;
+    if (index < 0) return;
+    int related[8];
+    int count = items_related(index, related, 8);
+    for (int i = 0; i < count; i++) {
+        const item_t *item = items_get(related[i]);
+        if (item && item->marker >= 0) rpd_marker_set_color(item->marker, 255, 210, 60);
+    }
+    const item_t *self = items_get(index);
+    if (self && self->marker >= 0) rpd_marker_set_color(self->marker, 255, 255, 255);
+}
+
+int items_debug_highlighted(void) { return highlighted; }
+
 int items_enter_code(int index, const char *entry) {
     if (index < 0 || index >= RPD_ITEM_COUNT || !entry) return -3;
     item_t *item = &g_items[index];

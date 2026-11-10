@@ -1,5 +1,7 @@
 #include "rpd_menu.h"
 
+#include <stdio.h>
+
 #include "rpd_game.h"
 #include "rpd_items.h"
 #include "rpd_plan.h"
@@ -13,10 +15,22 @@ void menu_open(float x, float y) {
     if (game_debug()) {
         int item = plan_hover_item();
         const item_t *entry = item >= 0 ? items_get(item) : 0;
-        if (entry && entry->state == ITEM_PRESENT && items_action_kind(item) == RPD_ACTION_TAKE) {
+        if (entry && entry->state == ITEM_PRESENT) {
             menu_item = item;
             popup_open_menu(-1, x, y);
-            popup_add_choice(POPUP_ACTION_MENU_DEBUG_TAKE, "Debug take", 1);
+            if (items_action_kind(item) == RPD_ACTION_TAKE) {
+                popup_add_choice(POPUP_ACTION_MENU_DEBUG_TAKE, "Debug take", 1);
+            }
+            popup_add_choice(POPUP_ACTION_MENU_HIGHLIGHT, "Highlight related", 1);
+            int related[5];
+            int count = items_related(item, related, 5);
+            for (int i = 0; i < count; i++) {
+                const item_t *link = items_get(related[i]);
+                if (!link) continue;
+                char label[80];
+                snprintf(label, sizeof(label), "Go to %s", link->def->title);
+                popup_add_choice_data(POPUP_ACTION_MENU_GO_TO, label, 1, related[i]);
+            }
             return;
         }
     }
@@ -41,10 +55,14 @@ void menu_close(void) {
 
 int menu_is_open(void) { return popup_is_menu() ? 1 : 0; }
 
-void menu_execute(popup_action_t action, int node) {
+void menu_execute(popup_action_t action, int node, int data) {
     if (action == POPUP_ACTION_MENU_DEBUG_TAKE) {
         if (menu_item >= 0) items_debug_take(menu_item);
         menu_item = -1;
+    } else if (action == POPUP_ACTION_MENU_HIGHLIGHT) {
+        if (menu_item >= 0) items_debug_highlight(menu_item);
+    } else if (action == POPUP_ACTION_MENU_GO_TO) {
+        plan_teleport_item(data);
     } else if (action == POPUP_ACTION_MENU_TELEPORT) {
         plan_teleport_node(node);
     } else if (action == POPUP_ACTION_MENU_ADD) plan_add_target_node(node);

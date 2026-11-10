@@ -2008,6 +2008,19 @@ async function run() {
     if (failures.length > 0) {
       throw new Error(`Contract failures:\n${failures.join("\n")}`);
     }
+    const relations = await evalJson(`(() => {
+      const key = window.__quest.items().find((item) => item.name === "Heart Key");
+      if (!key) return null;
+      return { index: key.index, related: window.__quest.itemRelated(key.index) };
+    })()`);
+    assert(relations && relations.related.length > 0, "the heart key has no related items");
+    await cdp.eval(`window.__quest.itemDebugHighlight(${relations.index})`);
+    assert((await cdp.eval("window.__quest.itemDebugHighlighted()")) === relations.index, "the highlight did not take");
+    const relatedNames = await evalJson(
+      `window.__quest.itemRelated(${relations.index}).map((index) => window.__quest.items()[index].name)`,
+    );
+    assert(relatedNames.includes("Heart Door"), `the heart door is missing from the relations: ${JSON.stringify(relatedNames)}`);
+    await cdp.eval(`window.__quest.itemDebugHighlight(-1)`);
     await cdp.eval("window.__quest.toggleDebug()");
 
     console.log(`Contract passed. ${shots.length} screenshots matched.`);

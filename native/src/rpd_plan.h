@@ -25,6 +25,7 @@ void plan_zoom(float x, float y, float amount);
 void plan_start_move(void);
 void plan_set_player(float x, float y, float z);
 void plan_teleport_node(int node);
+void plan_teleport_item(int index);
 void plan_add_target(float x, float y, float z);
 void plan_add_target_node(int node);
 int plan_remove_target_node(int node);

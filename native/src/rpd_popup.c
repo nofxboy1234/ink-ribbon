@@ -41,12 +41,17 @@ void popup_open_menu(int node, float anchor_x, float anchor_y) {
     g_popup.anchor[1] = anchor_y;
 }
 
-void popup_add_choice(popup_action_t action, const char *label, bool enabled) {
+void popup_add_choice_data(popup_action_t action, const char *label, bool enabled, int data) {
     if (g_popup.choice_count >= POPUP_MAX_CHOICES) return;
     popup_choice_t *choice = &g_popup.choices[g_popup.choice_count++];
     choice->action = action;
     choice->enabled = enabled;
+    choice->data = data;
     snprintf(choice->label, sizeof(choice->label), "%s", label ? label : "");
+}
+
+void popup_add_choice(popup_action_t action, const char *label, bool enabled) {
+    popup_add_choice_data(action, label, enabled, 0);
 }
 
 void popup_set_message(const char *message) {

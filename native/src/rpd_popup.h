@@ -25,12 +25,15 @@ typedef enum {
     POPUP_ACTION_MENU_CLEAR,
     POPUP_ACTION_MENU_TELEPORT,
     POPUP_ACTION_MENU_DEBUG_TAKE,
+    POPUP_ACTION_MENU_HIGHLIGHT,
+    POPUP_ACTION_MENU_GO_TO,
 } popup_action_t;
 
 typedef struct {
     popup_action_t action;
     char label[48];
     bool enabled;
+    int data;
 } popup_choice_t;
 
 typedef struct {
@@ -49,6 +52,7 @@ void popup_reset(void);
 void popup_open(int node, int item, float anchor_x, float anchor_y);
 void popup_open_menu(int node, float anchor_x, float anchor_y);
 void popup_add_choice(popup_action_t action, const char *label, bool enabled);
+void popup_add_choice_data(popup_action_t action, const char *label, bool enabled, int data);
 void popup_set_message(const char *message);
 void popup_close(void);
 bool popup_is_open(void);

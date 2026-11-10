@@ -107,6 +107,9 @@ export type RpdClient = {
   itemHint(index: number): string;
   itemAct(index: number): number;
   itemDebugTake(index: number): number;
+  itemRelated(index: number): number[];
+  itemDebugHighlight(index: number): void;
+  itemDebugHighlighted(): number;
   toggleDebug(): void;
   debugEnabled(): boolean;
   itemEnterCode(index: number, code: string): number;
@@ -399,6 +402,20 @@ export async function createRpdClient(options: {
     },
     itemDebugTake(index) {
       return (module as unknown as { _rpd_item_debug_take: (i: number) => number })._rpd_item_debug_take(index);
+    },
+    itemRelated(index) {
+      const ptr = module._malloc(8 * 4);
+      const count = (module as unknown as { _rpd_item_related: (i: number, p: number, c: number) => number })
+        ._rpd_item_related(index, ptr, 8);
+      const out = Array.from(new Int32Array(heap.HEAPU8.buffer, ptr, Math.max(0, count)));
+      module._free(ptr);
+      return out;
+    },
+    itemDebugHighlight(index) {
+      (module as unknown as { _rpd_item_debug_highlight: (i: number) => void })._rpd_item_debug_highlight(index);
+    },
+    itemDebugHighlighted() {
+      return (module as unknown as { _rpd_item_debug_highlighted: () => number })._rpd_item_debug_highlighted();
     },
     toggleDebug() {
       (module as unknown as { _rpd_game_toggle_debug: () => void })._rpd_game_toggle_debug();
