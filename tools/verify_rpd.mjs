@@ -14,6 +14,9 @@ const baselineDir = join(root, "verification", "rpd", "baseline");
 const currentDir = join(root, "verification", "rpd", "current");
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const imageThreshold = 0.001;
+// The item-cube shot includes animated enemies and the live inventory panel,
+// so its small moving region is allowed a wider tolerance.
+const imageThresholdOverrides = new Map([["32-item-cubes-ortho", 0.004]]);
 
 mkdirSync(baselineDir, { recursive: true });
 mkdirSync(currentDir, { recursive: true });
@@ -1208,7 +1211,7 @@ async function run() {
     await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) >= 0.999", 20000);
     await setFloor(0);
     await cdp.eval("window.__rpd.setOrbit(0, 0, 0, 0, 1.2, 20)");
-    await sleep(900);
+    await sleep(2000);
     const itemsOrtho = JSON.parse(await cdp.eval("JSON.stringify(window.__quest.items())"));
     assert(itemsOrtho.length === 271, `expected 271 items in the plan, got ${itemsOrtho.length}`);
     await shot("32-item-cubes-ortho");
@@ -2063,7 +2066,8 @@ async function run() {
       }
       const changed = Number(match[1]);
       const ratio = changed / (1400 * 900);
-      if (ratio > imageThreshold) {
+      const threshold = imageThresholdOverrides.get(name) ?? imageThreshold;
+      if (ratio > threshold) {
         failures.push(`${name}: ${changed} pixels changed (${(ratio * 100).toFixed(2)}%)`);
       }
     }
