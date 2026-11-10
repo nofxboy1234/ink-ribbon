@@ -1,5 +1,7 @@
 #include "rpd_plan.h"
 
+#include "rpd_game.h"
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -470,6 +472,7 @@ void plan_pointer_down(float x, float y) {
             return;
         }
         popup_close();
+        game_set_paused(0);
         return;
     }
     int item = pick_item_screen(x, y);
@@ -481,6 +484,17 @@ void plan_set_player(float x, float y, float z) {
     player_node = nearest_node_on(active_floor, x, y, z, 3.0f);
     markers_set_player(x, y, z);
     recompute_route();
+}
+
+void plan_teleport_node(int node) {
+    if (node < 0 || node >= nav_count) return;
+    plan_set_player(nav_x[node], nav_y[node], nav_z[node]);
+    moving = 0;
+    waypoint_count = 0;
+    route_count = 0;
+    move_count = 0;
+    move_index = 0;
+    move_t = 0;
 }
 
 int plan_has_waypoint(int node) {

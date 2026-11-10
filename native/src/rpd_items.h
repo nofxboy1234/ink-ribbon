@@ -102,6 +102,7 @@ int items_room(int index);
 int items_inventory_count(void);
 const inventory_slot_t *items_inventory(void);
 int items_take(int index);
+int items_debug_take(int index);
 int items_act(int index);
 int items_available(int index);
 int items_hidden(int index);

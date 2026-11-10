@@ -2,7 +2,7 @@
 
 #include <stdbool.h>
 
-#define POPUP_MAX_CHOICES 4
+#define POPUP_MAX_CHOICES 8
 
 typedef enum {
     POPUP_CLOSED,
@@ -23,6 +23,8 @@ typedef enum {
     POPUP_ACTION_MENU_REMOVE,
     POPUP_ACTION_MENU_RUN,
     POPUP_ACTION_MENU_CLEAR,
+    POPUP_ACTION_MENU_TELEPORT,
+    POPUP_ACTION_MENU_DEBUG_TAKE,
 } popup_action_t;
 
 typedef struct {

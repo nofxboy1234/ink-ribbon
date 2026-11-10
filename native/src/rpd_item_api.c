@@ -39,6 +39,12 @@ EMSCRIPTEN_KEEPALIVE int rpd_item_act(int index) {
     return result;
 }
 
+EMSCRIPTEN_KEEPALIVE int rpd_item_debug_take(int index) {
+    int result = items_debug_take(index);
+    plan_refresh_blocks();
+    return result;
+}
+
 EMSCRIPTEN_KEEPALIVE int rpd_item_enter_code(int index, const char *code) {
     int result = items_enter_code(index, code);
     plan_refresh_blocks();

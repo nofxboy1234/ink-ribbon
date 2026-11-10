@@ -585,6 +585,7 @@ async function run() {
       await sleep(500);
     };
 
+
     await rightClick(cellX, cellY);
     const freshMenu = await menuState();
     assert(freshMenu, "right click on the plan did not open the native menu");
@@ -1360,6 +1361,7 @@ async function run() {
     assert(keySlot && keySlot.title === "Car Key", "the inventory slot should name the car key");
     const keyColor = `rgb(${Math.round(items[carKey].r * 255)}, ${Math.round(items[carKey].g * 255)}, ${Math.round(items[carKey].b * 255)})`;
     assert(keySlot.bg === keyColor, `the inventory slot should be the item cube colour ${keyColor}, got ${keySlot.bg}`);
+
     await shot("33-inventory-square");
 
     assert(
@@ -2006,6 +2008,8 @@ async function run() {
     if (failures.length > 0) {
       throw new Error(`Contract failures:\n${failures.join("\n")}`);
     }
+    await cdp.eval("window.__quest.toggleDebug()");
+
     console.log(`Contract passed. ${shots.length} screenshots matched.`);
   } finally {
     cdp?.ws.close();

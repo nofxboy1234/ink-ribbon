@@ -100,6 +100,9 @@ return {
     return -1;
   },
   actItem: (index: number) => client.itemAct(index),
+  itemDebugTake: (index: number) => client.itemDebugTake(index),
+  toggleDebug: () => client.toggleDebug(),
+  debugEnabled: () => client.debugEnabled(),
   enterCode: (index: number, code: string) => client.itemEnterCode(index, code),
   grantExternal: (id: number) => client.itemGrantExternal(id),
   itemBlocked: (index: number) => client.itemBlocked(index),

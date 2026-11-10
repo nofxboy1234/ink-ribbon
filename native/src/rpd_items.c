@@ -452,6 +452,16 @@ int items_act(int index) {
     return 0;
 }
 
+int items_debug_take(int index) {
+    const item_t *item = items_get(index);
+    if (!item || item->state != ITEM_PRESENT) return -3;
+    if (items_action_kind(index) != RPD_ACTION_TAKE) return -4;
+    if (place_in_inventory(index) < 0) return -1;
+    g_items[index].state = ITEM_TAKEN;
+    if (g_items[index].marker >= 0) rpd_marker_set_visible(g_items[index].marker, 0);
+    return 0;
+}
+
 int items_enter_code(int index, const char *entry) {
     if (index < 0 || index >= RPD_ITEM_COUNT || !entry) return -3;
     item_t *item = &g_items[index];

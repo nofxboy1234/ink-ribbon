@@ -106,6 +106,9 @@ export type RpdClient = {
   itemAction(index: number): string;
   itemHint(index: number): string;
   itemAct(index: number): number;
+  itemDebugTake(index: number): number;
+  toggleDebug(): void;
+  debugEnabled(): boolean;
   itemEnterCode(index: number, code: string): number;
   itemGrantExternal(id: number): number;
   itemHasCode(index: number): boolean;
@@ -393,6 +396,15 @@ export async function createRpdClient(options: {
     },
     itemAct(index) {
       return (module as unknown as { _rpd_item_act: (i: number) => number })._rpd_item_act(index);
+    },
+    itemDebugTake(index) {
+      return (module as unknown as { _rpd_item_debug_take: (i: number) => number })._rpd_item_debug_take(index);
+    },
+    toggleDebug() {
+      (module as unknown as { _rpd_game_toggle_debug: () => void })._rpd_game_toggle_debug();
+    },
+    debugEnabled() {
+      return (module as unknown as { _rpd_game_debug: () => number })._rpd_game_debug() !== 0;
     },
     itemEnterCode(index, code) {
       const encoded = new TextEncoder().encode(code);
