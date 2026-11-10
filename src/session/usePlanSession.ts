@@ -8,6 +8,8 @@ import { CACHE_VERSION, fetchScene } from "./scene";
 
 export type InventoryEntry = {
   name: string;
+  index: number;
+  description: string;
   r: number;
   g: number;
   b: number;
@@ -32,6 +34,7 @@ export type PlanSession = {
     moving: boolean;
     room: string;
     inventory: (InventoryEntry | null)[];
+    box: { slot: number; index: number; name: string }[];
     codeLock: CodeLock | null;
   };
   ref: { canvas: RefObject<HTMLCanvasElement | null> };
@@ -44,6 +47,9 @@ export type PlanSession = {
     recenter: () => void;
     enterCode: (code: string) => number;
     closeCodeEntry: () => void;
+    discard: (index: number) => void;
+    store: (index: number) => void;
+    takeFromBox: (slot: number) => void;
   };
 };
 
@@ -66,6 +72,7 @@ export function usePlanSession(
     Array.from({ length: 8 }, () => null),
   );
   const [codeLock, setCodeLock] = useState<CodeLock | null>(null);
+  const [box, setBox] = useState<{ slot: number; index: number; name: string }[]>([]);
   const graphRef = useRef<ReturnType<typeof buildNavGraph> | null>(null);
   const roomsRef = useRef<Quest["rooms"]>([]);
 
@@ -197,11 +204,19 @@ export function usePlanSession(
             const item = itemIndex >= 0 ? clientRef.current!.item(itemIndex) : null;
             return {
               name: item?.name ?? "",
+              index: itemIndex,
+              description: item ? `${item.roomName ? `Found in ${item.roomName}. ` : ""}${item.name}` : "",
               r: Math.round(slots[index * 4 + 1] * 255),
               g: Math.round(slots[index * 4 + 2] * 255),
               b: Math.round(slots[index * 4 + 3] * 255),
             };
           });
+          const nextBox = Array.from({ length: clientRef.current.boxCount() }, (_, slot) => {
+            const itemIndex = clientRef.current!.boxItem(slot);
+            const item = itemIndex >= 0 ? clientRef.current!.item(itemIndex) : null;
+            return { slot, index: itemIndex, name: item?.name ?? "" };
+          });
+          setBox((current) => (JSON.stringify(current) === JSON.stringify(nextBox) ? current : nextBox));
           setPlanCount((current) => (current === count ? current : count));
           setMoving((current) => (current === isMoving ? current : isMoving));
           setRoom((current) => (current === nextRoom ? current : nextRoom));
@@ -290,6 +305,7 @@ export function usePlanSession(
       moving,
       room,
       inventory,
+      box,
       codeLock,
     },
     ref: { canvas },
@@ -325,6 +341,15 @@ export function usePlanSession(
       closeCodeEntry() {
         clientRef.current?.popupClose();
         setCodeLock(null);
+      },
+      discard(index) {
+        clientRef.current?.itemDiscard(index);
+      },
+      store(index) {
+        clientRef.current?.boxStore(index);
+      },
+      takeFromBox(slot) {
+        clientRef.current?.boxTake(slot);
       },
     },
   };

@@ -1364,6 +1364,30 @@ async function run() {
 
     await shot("33-inventory-square");
 
+    const boxNames = await evalJson("window.__quest.box().map((entry) => entry.name)");
+    assert(boxNames.length >= 3, `the preloaded box should hold at least 3 items, got ${JSON.stringify(boxNames)}`);
+
+    const slotCount = await cdp.eval("document.querySelectorAll('.rpd-slot[data-filled=\"true\"]').length");
+    assert(slotCount > 0, "the inventory has no filled slots to select");
+    await cdp.eval("document.querySelector('.rpd-slot[data-filled=\"true\"]').click()");
+    await sleep(150);
+    const detail = await cdp.eval(
+      "Boolean(document.querySelector('.rpd-slot.selected')) && Boolean(document.querySelector('.rpd-item-name'))",
+    );
+    assert(detail, "selecting a slot should mark it and show the item detail");
+
+    const beforeStore = await cdp.eval("window.__quest.box().length");
+    await cdp.eval("document.querySelector('.rpd-item-actions button:nth-child(2)').click()");
+    await sleep(400);
+    const afterStore = await cdp.eval("window.__quest.box().length");
+    assert(afterStore === beforeStore + 1, "storing should add the item to the box");
+
+    await cdp.eval("document.querySelector('.rpd-box-slot').click()");
+    await sleep(400);
+    const afterTake = await cdp.eval("window.__quest.box().length");
+    assert(afterTake === afterStore - 1, "taking from the box should remove the item");
+
+
     assert(
       (await cdp.eval(`window.__quest.actItem(${trunk})`)) === 0,
       "the trunk did not open with the car key in the inventory",

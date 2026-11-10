@@ -57,6 +57,34 @@ EMSCRIPTEN_KEEPALIVE int rpd_item_debug_take(int index) {
     return result;
 }
 
+EMSCRIPTEN_KEEPALIVE int rpd_item_discard(int index) {
+    int result = items_discard(index);
+    plan_refresh_blocks();
+    return result;
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_box_store(int index) {
+    int result = items_box_store(index);
+    plan_refresh_blocks();
+    return result;
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_box_take(int slot) {
+    int result = items_box_take(slot);
+    plan_refresh_blocks();
+    return result;
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_box_count(void) {
+    return items_box_count();
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_box_item(int slot) {
+    const inventory_slot_t *box = items_box();
+    if (slot < 0 || slot >= items_box_count() || !box[slot].filled) return -1;
+    return box[slot].item;
+}
+
 EMSCRIPTEN_KEEPALIVE int rpd_item_enter_code(int index, const char *code) {
     int result = items_enter_code(index, code);
     plan_refresh_blocks();

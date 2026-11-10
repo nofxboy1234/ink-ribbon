@@ -628,9 +628,9 @@
       "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · middle drag to pan · right click for waypoints",
       "plan": [],
       "player": [
-        19.92973518371582,
+        19.87353515625,
         0.09999999403953552,
-        -10.051352500915527
+        -10.035295486450195
       ],
       "moving": false,
       "routePoints": 0,
@@ -804,7 +804,7 @@
         }
       ],
       "markerPixels": {
-        "floorOne": 9905
+        "floorOne": 9389
       }
     },
     "orthoReset": {
@@ -929,7 +929,7 @@
       ]
     },
     "itemCentring": {
-      "checked": 253,
+      "checked": 250,
       "bad": []
     },
     "itemCubes": {
@@ -942,7 +942,7 @@
       ]
     },
     "itemHover": {
-      "taken": 218,
+      "taken": 133,
       "hidden": 117,
       "pixels": 2018
     },
@@ -4218,14 +4218,14 @@
         "r": 0.6200000047683716,
         "g": 0.3100000023841858,
         "b": 0.949999988079071,
-        "node": 2213,
-        "taken": false,
+        "node": 2214,
+        "taken": true,
         "room": -1,
         "floor": 0,
-        "state": 1,
+        "state": 2,
         "action": 1,
         "hidden": false,
-        "available": true,
+        "available": false,
         "flags": 1,
         "cubeX": 15.5,
         "cubeY": 0.4699999988079071,
@@ -6288,14 +6288,14 @@
         "r": 0.3499999940395355,
         "g": 0.8500000238418579,
         "b": 0.4000000059604645,
-        "node": 138,
-        "taken": false,
+        "node": 108,
+        "taken": true,
         "room": -1,
         "floor": 0,
-        "state": 1,
+        "state": 2,
         "action": 1,
         "hidden": false,
-        "available": true,
+        "available": false,
         "flags": 9,
         "cubeX": 44.5,
         "cubeY": 0.4699999988079071,
@@ -6311,14 +6311,14 @@
         "r": 0.3499999940395355,
         "g": 0.8500000238418579,
         "b": 0.4000000059604645,
-        "node": 138,
-        "taken": false,
+        "node": 176,
+        "taken": true,
         "room": -1,
         "floor": 0,
-        "state": 1,
+        "state": 2,
         "action": 1,
         "hidden": false,
-        "available": true,
+        "available": false,
         "flags": 9,
         "cubeX": 44.5,
         "cubeY": 0.4699999988079071,
@@ -7387,10 +7387,10 @@
     ],
     "inventory": [
       {
-        "name": "Green Herb",
-        "r": 89,
-        "g": 217,
-        "b": 102
+        "name": "Valve Handle",
+        "r": 158,
+        "g": 79,
+        "b": 242
       },
       {
         "name": "Car Key",

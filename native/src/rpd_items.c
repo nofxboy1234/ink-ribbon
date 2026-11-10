@@ -13,9 +13,13 @@
 #define ITEM_MARKER_LIFT 0.45f
 #define MAX_EXTERNAL_CARRIED 32
 
+static void preload_box(void);
+
 static item_t g_items[RPD_ITEM_COUNT];
 static inventory_slot_t g_inventory[INVENTORY_SLOTS];
 static int g_inventory_count;
+static inventory_slot_t g_box[BOX_SLOTS];
+static int g_box_count;
 static bool g_placed;
 static int32_t g_external_carried[MAX_EXTERNAL_CARRIED];
 static int g_external_count;
@@ -97,6 +101,8 @@ void items_reset(void) {
     memset(g_inventory, 0, sizeof(g_inventory));
     memset(g_external_carried, 0, sizeof(g_external_carried));
     g_inventory_count = 0;
+    memset(g_box, 0, sizeof(g_box));
+    g_box_count = 0;
     g_external_count = 0;
     g_placed = false;
     for (int i = 0; i < RPD_ITEM_COUNT; i++) {
@@ -150,6 +156,7 @@ bool items_place(int nav_count, const float *x, const float *y, const float *z,
             g_items[i].snap_z = z[best];
         }
     }
+    preload_box();
     g_placed = true;
     return true;
 }
@@ -499,6 +506,73 @@ void items_debug_highlight(int index) {
 }
 
 int items_debug_highlighted(void) { return highlighted; }
+
+static void box_add(int index) {
+    if (g_box_count >= BOX_SLOTS) return;
+    inventory_slot_t *slot = &g_box[g_box_count++];
+    const item_t *item = items_get(index);
+    slot->filled = true;
+    slot->r = item->r; slot->g = item->g; slot->b = item->b;
+    slot->item = index;
+}
+
+static void inventory_remove(int index) {
+    for (int i = 0; i < INVENTORY_SLOTS; i++) {
+        if (g_inventory[i].filled && g_inventory[i].item == index) {
+            g_inventory[i].filled = false;
+            g_inventory[i].item = -1;
+            g_inventory_count--;
+        }
+    }
+}
+
+static void preload_box(void) {
+    static const int preloaded[] = { 544564, 544574, 544575 };
+    for (int i = 0; i < 3; i++) {
+        int index = items_index_for_id(preloaded[i]);
+        if (index < 0) continue;
+        item_t *item = &g_items[index];
+        if (item->state != ITEM_PRESENT) continue;
+        item->state = ITEM_TAKEN;
+        if (item->marker >= 0) rpd_marker_set_visible(item->marker, 0);
+        box_add(index);
+    }
+}
+
+int items_discard(int index) {
+    const item_t *item = items_get(index);
+    if (!item || item->state != ITEM_TAKEN) return -3;
+    if (item_in_inventory(index) < 0) return -4;
+    inventory_remove(index);
+    return 0;
+}
+
+int items_box_store(int index) {
+    const item_t *item = items_get(index);
+    if (!item || item->state != ITEM_TAKEN) return -3;
+    if (item_in_inventory(index) < 0) return -4;
+    if (g_box_count >= BOX_SLOTS) return -1;
+    inventory_remove(index);
+    box_add(index);
+    return 0;
+}
+
+int items_box_take(int slot) {
+    if (slot < 0 || slot >= g_box_count || !g_box[slot].filled) return -3;
+    if (g_inventory_count >= INVENTORY_SLOTS) return -1;
+    const item_t *item = items_get(g_box[slot].item);
+    if (!item) return -3;
+    int index = g_box[slot].item;
+    g_box[slot].filled = false;
+    for (int i = slot; i < g_box_count - 1; i++) g_box[i] = g_box[i + 1];
+    g_box[--g_box_count].filled = false;
+    place_in_inventory(index);
+    return 0;
+}
+
+int items_box_count(void) { return g_box_count; }
+
+const inventory_slot_t *items_box(void) { return g_box; }
 
 int items_enter_code(int index, const char *entry) {
     if (index < 0 || index >= RPD_ITEM_COUNT || !entry) return -3;

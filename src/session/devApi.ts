@@ -104,6 +104,17 @@ return {
   itemRelated: (index: number) => client.itemRelated(index),
   itemDebugHighlight: (index: number) => client.itemDebugHighlight(index),
   itemDebugHighlighted: () => client.itemDebugHighlighted(),
+  discardItem: (index: number) => client.itemDiscard(index),
+  boxStore: (index: number) => client.boxStore(index),
+  boxTake: (slot: number) => client.boxTake(slot),
+  box: () => {
+    const count = client.boxCount();
+    return Array.from({ length: count }, (_, slot) => {
+      const itemIndex = client.boxItem(slot);
+      const item = itemIndex >= 0 ? client.item(itemIndex) : null;
+      return { slot, index: itemIndex, name: item?.name ?? "" };
+    });
+  },
   toggleDebug: () => client.toggleDebug(),
   debugEnabled: () => client.debugEnabled(),
   enterCode: (index: number, code: string) => client.itemEnterCode(index, code),

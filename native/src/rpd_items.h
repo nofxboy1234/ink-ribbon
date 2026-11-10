@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #define INVENTORY_SLOTS 8
+#define BOX_SLOTS 32
 #define RPD_MAX_REQUIRES 8
 #define RPD_MAX_REQUIRES_OPEN 8
 #define RPD_MAX_CONTENTS 4
@@ -106,6 +107,11 @@ int items_debug_take(int index);
 int items_related(int index, int *out, int cap);
 void items_debug_highlight(int index);
 int items_debug_highlighted(void);
+int items_discard(int index);
+int items_box_store(int index);
+int items_box_take(int slot);
+int items_box_count(void);
+const inventory_slot_t *items_box(void);
 int items_act(int index);
 int items_available(int index);
 int items_hidden(int index);

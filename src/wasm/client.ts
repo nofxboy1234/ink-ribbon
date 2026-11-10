@@ -110,6 +110,11 @@ export type RpdClient = {
   itemRelated(index: number): number[];
   itemDebugHighlight(index: number): void;
   itemDebugHighlighted(): number;
+  itemDiscard(index: number): number;
+  boxStore(index: number): number;
+  boxTake(slot: number): number;
+  boxCount(): number;
+  boxItem(slot: number): number;
   toggleDebug(): void;
   debugEnabled(): boolean;
   itemEnterCode(index: number, code: string): number;
@@ -416,6 +421,21 @@ export async function createRpdClient(options: {
     },
     itemDebugHighlighted() {
       return (module as unknown as { _rpd_item_debug_highlighted: () => number })._rpd_item_debug_highlighted();
+    },
+    itemDiscard(index) {
+      return (module as unknown as { _rpd_item_discard: (i: number) => number })._rpd_item_discard(index);
+    },
+    boxStore(index) {
+      return (module as unknown as { _rpd_box_store: (i: number) => number })._rpd_box_store(index);
+    },
+    boxTake(slot) {
+      return (module as unknown as { _rpd_box_take: (s: number) => number })._rpd_box_take(slot);
+    },
+    boxCount() {
+      return (module as unknown as { _rpd_box_count: () => number })._rpd_box_count();
+    },
+    boxItem(slot) {
+      return (module as unknown as { _rpd_box_item: (s: number) => number })._rpd_box_item(slot);
     },
     toggleDebug() {
       (module as unknown as { _rpd_game_toggle_debug: () => void })._rpd_game_toggle_debug();

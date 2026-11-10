@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import type { PlanSession } from "../session/usePlanSession";
 
 type QuestPanelProps = {
@@ -19,7 +21,9 @@ const ITEM_KEYS = [
 ] as const;
 
 export default function QuestPanel({ session }: QuestPanelProps) {
-  const { planCount, moving, room, inventory } = session.state;
+  const { planCount, moving, room, inventory, box } = session.state;
+  const [selected, setSelected] = useState<number | null>(null);
+  const selectedSlot = selected !== null ? inventory[selected] : null;
   const note = moving
     ? "Claire is moving along the route."
     : planCount === 0
@@ -44,17 +48,50 @@ export default function QuestPanel({ session }: QuestPanelProps) {
           const slot = inventory[index];
           const style = slot ? { background: `rgb(${slot.r} ${slot.g} ${slot.b})` } : undefined;
           return (
-            <span
-              className="rpd-slot"
+            <button
+              type="button"
+              className={`rpd-slot${selected === index ? " selected" : ""}`}
               key={index}
               data-filled={slot !== null}
               data-name={slot?.name ?? ""}
               style={style}
               title={slot?.name ?? undefined}
               aria-label={slot ? slot.name : `Empty slot ${index + 1}`}
+              onClick={() => setSelected(slot ? (selected === index ? null : index) : null)}
             />
           );
         })}
+      </div>
+      {selectedSlot && (
+        <div className="rpd-item-detail">
+          <p className="rpd-item-name">{selectedSlot.name}</p>
+          <p className="rpd-item-desc">{selectedSlot.description}</p>
+          <div className="rpd-item-actions">
+            <button type="button" onClick={() => session.actions.discard(selectedSlot.index)}>
+              Discard
+            </button>
+            <button type="button" onClick={() => session.actions.store(selectedSlot.index)}>
+              Store in box
+            </button>
+          </div>
+        </div>
+      )}
+      <div className="rpd-section-title">
+        <span>Item box</span>
+      </div>
+      <div className="rpd-box" data-empty={box.length === 0}>
+        {box.length === 0 && <span className="rpd-box-empty">Empty</span>}
+        {box.map((entry) => (
+          <button
+            type="button"
+            className="rpd-box-slot"
+            key={entry.slot}
+            title={entry.name}
+            onClick={() => session.actions.takeFromBox(entry.slot)}
+          >
+            {entry.name}
+          </button>
+        ))}
       </div>
       <div className="rpd-legend">
         <div className="rpd-legend-row rpd-legend-items">
