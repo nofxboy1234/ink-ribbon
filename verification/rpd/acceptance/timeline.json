@@ -1,0 +1,354 @@
+{
+  "ortho": [
+    {
+      "file": "ortho-walk-00.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-01.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-02.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-03.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-04.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-05.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-06.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-07.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-08.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-09.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-10.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-11.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-12.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-13.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-14.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-15.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-16.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-17.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-18.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-19.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-20.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-21.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-22.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-walk-23.png",
+      "ms": 80
+    },
+    {
+      "file": "ortho-fly-00.png",
+      "ms": 70
+    },
+    {
+      "file": "ortho-fly-01.png",
+      "ms": 70
+    },
+    {
+      "file": "ortho-fly-02.png",
+      "ms": 70
+    },
+    {
+      "file": "ortho-fly-03.png",
+      "ms": 70
+    },
+    {
+      "file": "ortho-fly-04.png",
+      "ms": 70
+    },
+    {
+      "file": "ortho-fly-05.png",
+      "ms": 70
+    },
+    {
+      "file": "ortho-fly-06.png",
+      "ms": 70
+    },
+    {
+      "file": "ortho-fly-07.png",
+      "ms": 70
+    },
+    {
+      "file": "ortho-fly-08.png",
+      "ms": 70
+    },
+    {
+      "file": "ortho-fly-09.png",
+      "ms": 70
+    },
+    {
+      "file": "ortho-fly-10.png",
+      "ms": 70
+    },
+    {
+      "file": "ortho-fly-11.png",
+      "ms": 70
+    },
+    {
+      "file": "ortho-fly-12.png",
+      "ms": 70
+    },
+    {
+      "file": "ortho-fly-13.png",
+      "ms": 70
+    },
+    {
+      "file": "ortho-fly-14.png",
+      "ms": 70
+    },
+    {
+      "file": "ortho-fly-15.png",
+      "ms": 70
+    },
+    {
+      "file": "ortho-fly-16.png",
+      "ms": 70
+    },
+    {
+      "file": "ortho-fly-17.png",
+      "ms": 70
+    },
+    {
+      "file": "ortho-fly-18.png",
+      "ms": 70
+    },
+    {
+      "file": "ortho-fly-19.png",
+      "ms": 70
+    },
+    {
+      "file": "ortho-menu-0.png",
+      "ms": 100
+    },
+    {
+      "file": "ortho-menu-1.png",
+      "ms": 100
+    },
+    {
+      "file": "ortho-menu-2.png",
+      "ms": 100
+    },
+    {
+      "file": "ortho-menu-3.png",
+      "ms": 100
+    },
+    {
+      "file": "ortho-menu-4.png",
+      "ms": 100
+    },
+    {
+      "file": "ortho-menu-5.png",
+      "ms": 100
+    },
+    {
+      "file": "ortho-menu-6.png",
+      "ms": 100
+    },
+    {
+      "file": "ortho-menu-7.png",
+      "ms": 100
+    },
+    {
+      "file": "ortho-menu-closed.png",
+      "ms": 120
+    },
+    {
+      "file": "ortho-item-0.png",
+      "ms": 110
+    },
+    {
+      "file": "ortho-item-1.png",
+      "ms": 110
+    },
+    {
+      "file": "ortho-item-2.png",
+      "ms": 110
+    },
+    {
+      "file": "ortho-item-3.png",
+      "ms": 110
+    },
+    {
+      "file": "ortho-item-4.png",
+      "ms": 110
+    },
+    {
+      "file": "ortho-item-5.png",
+      "ms": 110
+    },
+    {
+      "file": "03-ortho-final.png",
+      "ms": 1500
+    }
+  ],
+  "persp": [
+    {
+      "file": "persp-fly-00.png",
+      "ms": 70
+    },
+    {
+      "file": "persp-fly-01.png",
+      "ms": 70
+    },
+    {
+      "file": "persp-fly-02.png",
+      "ms": 70
+    },
+    {
+      "file": "persp-fly-03.png",
+      "ms": 70
+    },
+    {
+      "file": "persp-fly-04.png",
+      "ms": 70
+    },
+    {
+      "file": "persp-fly-05.png",
+      "ms": 70
+    },
+    {
+      "file": "persp-fly-06.png",
+      "ms": 70
+    },
+    {
+      "file": "persp-fly-07.png",
+      "ms": 70
+    },
+    {
+      "file": "persp-fly-08.png",
+      "ms": 70
+    },
+    {
+      "file": "persp-fly-09.png",
+      "ms": 70
+    },
+    {
+      "file": "persp-fly-10.png",
+      "ms": 70
+    },
+    {
+      "file": "persp-fly-11.png",
+      "ms": 70
+    },
+    {
+      "file": "persp-fly-12.png",
+      "ms": 70
+    },
+    {
+      "file": "persp-fly-13.png",
+      "ms": 70
+    },
+    {
+      "file": "persp-fly-14.png",
+      "ms": 70
+    },
+    {
+      "file": "persp-fly-15.png",
+      "ms": 70
+    },
+    {
+      "file": "persp-fly-16.png",
+      "ms": 70
+    },
+    {
+      "file": "persp-fly-17.png",
+      "ms": 70
+    },
+    {
+      "file": "persp-fly-18.png",
+      "ms": 70
+    },
+    {
+      "file": "persp-fly-19.png",
+      "ms": 70
+    },
+    {
+      "file": "persp-item-0.png",
+      "ms": 110
+    },
+    {
+      "file": "persp-item-1.png",
+      "ms": 110
+    },
+    {
+      "file": "persp-item-2.png",
+      "ms": 110
+    },
+    {
+      "file": "persp-item-3.png",
+      "ms": 110
+    },
+    {
+      "file": "persp-item-4.png",
+      "ms": 110
+    },
+    {
+      "file": "persp-item-5.png",
+      "ms": 110
+    },
+    {
+      "file": "persp-final.png",
+      "ms": 1200
+    }
+  ]
+}

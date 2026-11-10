@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,6 +10,12 @@ const chromePort = Number(process.env.RPD_CHROME_PORT ?? 9222);
 const outDir = join(root, "verification", "rpd", "acceptance");
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 mkdirSync(outDir, { recursive: true });
+// Start from a clean frame set so stale shots never leak into the GIFs.
+for (const entry of readdirSync(outDir)) {
+  if (entry.endsWith(".png") || entry.endsWith(".gif") || entry === "timeline.json") {
+    rmSync(join(outDir, entry), { force: true });
+  }
+}
 
 function waitForHttp(url, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
@@ -135,24 +141,156 @@ async function main() {
     const box = await evaluate("window.__quest.box().length");
     report.boxed = box;
 
-    // A real sequence instead of two stills: the camera moves through the
-    // collected map, then the ending view. The GIFs are built from these.
+    // Save/load round trip: snapshot, change the inventory, restore, assert.
+    const snapshot = await evaluate("Array.from(window.__quest.saveSnapshot())");
+    const carriedBefore = await evaluate(
+      "window.__quest.items().filter((item) => item.state === 2).map((item) => item.index)",
+    );
+    const inventoryBefore = await evaluate("window.__quest.inventory().filter(Boolean).length");
+    const slotItem = await evaluate("window.__rpd.inventoryItem(0)");
+    let boxCode = null;
+    if (slotItem >= 0) boxCode = await evaluate(`window.__quest.boxStore(${slotItem})`);
+    const inventoryBoxed = await evaluate("window.__quest.inventory().filter(Boolean).length");
+    await evaluate(`window.__quest.saveRestore(${JSON.stringify(snapshot)})`);
+    const inventoryAfter = await evaluate("window.__quest.inventory().filter(Boolean).length");
+    report.saved = snapshot.length;
+    report.inventory = [inventoryBefore, inventoryBoxed, inventoryAfter, boxCode, slotItem, carriedBefore.length];
+    report.savedRoundTrip =
+      inventoryBoxed === inventoryBefore - 1 && inventoryAfter === inventoryBefore;
+
+    // The GIF timeline mixes time-lapse camera moves with real-time moments so
+    // the menu and the item panel play at their natural speed.
+    const ortho = [];
+    const persp = [];
+    const frames = (view, list) => ({
+      add: async (name, ms) => {
+        await shot(`${view}-${name}`);
+        list.push({ file: `${view}-${name}.png`, ms });
+      },
+    });
+    const orthoShots = frames("ortho", ortho);
+    const perspShots = frames("persp", persp);
+    const click = async (x, y, button = "left") => {
+      const buttons = button === "right" ? 2 : 1;
+      await send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
+      await sleep(80);
+      await send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button, buttons, clickCount: 1 });
+      await send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button, buttons: 0, clickCount: 1 });
+    };
+
     await evaluate("window.__quest.toggleDebug()");
-    for (let frame = 0; frame < 20; frame += 1) {
-      await evaluate(`window.__rpd.setOrbit(${-40 + frame * 4}, 0, ${-10 + frame * 1.5}, 0, ${1.1 + frame * 0.01}, ${18 - frame * 0.3})`);
-      await sleep(120);
-      await shot(`ortho-${String(frame).padStart(2, "0")}`);
+
+    const planMode = async () => {
+      await evaluate("window.__rpd.setViewMode(1)");
+      await evaluate("window.__rpd.setOrbit(0, 0, 0, 0, 1.2, 40)");
+      await evaluate("window.__rpd.resetView()");
+      await sleep(250);
+    };
+
+    // Time-lapse walk in the 2D plan: put Claire on 1F, plan a route through
+    // the rooms and start it, sampling the plan while she walks.
+    await planMode();
+    await evaluate("window.__quest.setFloor(0)");
+    await evaluate("window.__quest.reset()");
+    const rooms = await evaluate("window.__quest.rooms().filter((room) => room.floor === 0)");
+    if (rooms.length) {
+      await evaluate(`window.__quest.setPlayer(${rooms[0].x}, ${rooms[0].y}, ${rooms[0].z})`);
     }
+    await evaluate("window.__rpd.resetView()");
+    await sleep(300);
+    let walkCells = 0;
+    for (const room of rooms.slice(1, 4)) {
+      const cell = await evaluate(`window.__quest.nearestCell(${room.x}, ${room.z})`);
+      if (!cell) continue;
+      await evaluate(`window.__quest.addTargetNode(${cell.node})`);
+      walkCells += 1;
+    }
+    let walked = 0;
+    if (walkCells > 0) await evaluate("window.__rpd.planStartMove()");
+    for (let frame = 0; frame < 24; frame += 1) {
+      await sleep(320);
+      await orthoShots.add(`walk-${String(frame).padStart(2, "0")}`, 80);
+      walked = frame;
+      const state = await evaluate(
+        "({ moving: window.__quest.debug().moving, health: window.__quest.health() })",
+      );
+      if (!state.moving || state.health < 80) break;
+    }
+    report.walkedFrames = walked;
+    await evaluate("window.__quest.reset()");
+    await evaluate("window.__rpd.resetView()");
+    await sleep(300);
+    const pose = await evaluate("window.__quest.cameraPose()");
+    const [cx, , cz] = pose;
+    const orthoDistance = pose[8];
+
+    // Time-lapse survey of the fitted 1F plan: a slow zoom in and back out
+    // while the target drifts across the rooms.
+    for (let frame = 0; frame < 20; frame += 1) {
+      const t = frame / 19;
+      const zoom = 1 - 0.24 * Math.sin(t * Math.PI);
+      const x = cx + Math.sin(t * Math.PI * 2) * 2.5;
+      const z = cz + Math.cos(t * Math.PI * 2) * 1.8;
+      await evaluate(
+        `window.__rpd.setOrbit(${x}, ${pose[1]}, ${z}, 0, 1.2, ${(orthoDistance * zoom).toFixed(3)})`,
+      );
+      await sleep(90);
+      await orthoShots.add(`fly-${String(frame).padStart(2, "0")}`, 70);
+    }
+
+    // Real-time menu moment: open the waypoint menu on Claire's cell and let it
+    // sit for a second before closing it.
+    const player = await evaluate("window.__quest.debug().player");
+    const screen = await evaluate(`window.__quest.project(${player[0]}, ${player[1]}, ${player[2]})`);
+    if (screen) await click(screen.x, screen.y, "right");
+    await sleep(250);
+    for (let frame = 0; frame < 8; frame += 1) {
+      await sleep(100);
+      await orthoShots.add(`menu-${frame}`, 100);
+    }
+    await evaluate("window.__rpd.popupClose()");
+    await sleep(150);
+    await orthoShots.add("menu-closed", 120);
+
+    // Real-time item moment: select an inventory slot and read the detail.
+    await evaluate("document.querySelector('.rpd-slot[data-filled=\"true\"]')?.click()");
+    await sleep(160);
+    for (let frame = 0; frame < 6; frame += 1) {
+      await sleep(110);
+      await orthoShots.add(`item-${frame}`, 110);
+    }
+    await evaluate("document.querySelector('.rpd-slot[data-filled=\"true\"]')?.click()");
+    await sleep(120);
+
+    // Perspective flyover of the same map, plus the item moment again.
     await evaluate("window.__rpd.setViewMode(0)");
     for (let frame = 0; frame < 20; frame += 1) {
-      await evaluate(`window.__rpd.setOrbit(${-40 + frame * 4}, 0, ${-10 + frame * 1.5}, 0, ${1.1 + frame * 0.01}, ${18 - frame * 0.3})`);
-      await sleep(120);
-      await shot(`persp-${String(frame).padStart(2, "0")}`);
+      const t = frame / 19;
+      await evaluate(
+        `window.__rpd.setOrbit(${cx}, 4, ${cz}, ${-0.6 + t * 1.4}, ${0.32 + t * 0.18}, ${52 - t * 16})`,
+      );
+      await sleep(90);
+      await perspShots.add(`fly-${String(frame).padStart(2, "0")}`, 70);
     }
-    await evaluate("window.__rpd.setViewMode(1)");
-    await shot("03-ortho-final");
+    await evaluate("document.querySelector('.rpd-slot[data-filled=\"true\"]')?.click()");
+    await sleep(160);
+    for (let frame = 0; frame < 6; frame += 1) {
+      await sleep(110);
+      await perspShots.add(`item-${frame}`, 110);
+    }
+    await evaluate("document.querySelector('.rpd-slot[data-filled=\"true\"]')?.click()");
+    await sleep(150);
+    await perspShots.add("final", 1200);
 
-    report.saved = await evaluate("window.__quest.saveSnapshot().length");
+    // Final ortho still of the ending floor.
+    await evaluate("window.__quest.setFloor(4)");
+    await planMode();
+    await sleep(200);
+    await shot("03-ortho-final");
+    ortho.push({ file: "03-ortho-final.png", ms: 1500 });
+
+    writeFileSync(join(outDir, "timeline.json"), JSON.stringify({ ortho, persp }, null, 2));
+
     report.reader = await evaluate("window.__quest.items().find((item) => item.name === 'Card Reader')?.state");
     report.key = await evaluate("window.__quest.items().find((item) => item.name === 'Parking Garage Key Card')?.state");
     report.garage = await evaluate("window.__quest.ending()");

@@ -4,6 +4,16 @@
   "saved": 8192,
   "garage": true,
   "views": [],
+  "inventory": [
+    4,
+    3,
+    4,
+    0,
+    121,
+    110
+  ],
+  "savedRoundTrip": true,
+  "walkedFrames": 23,
   "reader": 4,
   "key": 2,
   "items": 271,

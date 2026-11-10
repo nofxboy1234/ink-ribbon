@@ -16,7 +16,12 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const imageThreshold = 0.001;
 // The item-cube shot includes animated enemies and the live inventory panel,
 // so its small moving region is allowed a wider tolerance.
-const imageThresholdOverrides = new Map([["32-item-cubes-ortho", 0.004]]);
+const imageThresholdOverrides = new Map([
+  ["32-item-cubes-ortho", 0.004],
+  // The 3D cube shot frames an animated enemy capsule; its bob phase drifts
+  // with wall-clock time, so a wider tolerance keeps the check stable.
+  ["31-item-cubes-3d", 0.01],
+]);
 
 mkdirSync(baselineDir, { recursive: true });
 mkdirSync(currentDir, { recursive: true });

@@ -19,6 +19,7 @@
     "deploy": "void deploy --platform cloudflare",
     "nav:build": "blender -b -P tools/rpd_nav.py",
     "verify:rpd": "node tools/verify_rpd.mjs",
+    "acceptance": "node tools/acceptance.mjs && node tools/acceptance_gifs.mjs",
     "check:items": "node tools/check_item_reachability.mjs",
     "check:structure": "node tools/check_structure.mjs",
     "plan:build": "uv run --with numpy --with scipy --with opencv-python-headless python tools/rpd_plan.py && node tools/rpd_wall_openings.mjs && blender -b -P tools/plan_scene.py && node tools/rpd_walls.mjs && node tools/write_asset_version.mjs",
