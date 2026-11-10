@@ -107,6 +107,8 @@ return {
   discardItem: (index: number) => client.itemDiscard(index),
   boxStore: (index: number) => client.boxStore(index),
   boxTake: (slot: number) => client.boxTake(slot),
+  saveSnapshot: () => Array.from(client.saveSnapshot()),
+  saveRestore: (bytes: number[]) => client.saveRestore(Uint8Array.from(bytes)),
   box: () => {
     const count = client.boxCount();
     return Array.from({ length: count }, (_, slot) => {

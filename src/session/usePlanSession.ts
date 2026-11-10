@@ -50,6 +50,8 @@ export type PlanSession = {
     discard: (index: number) => void;
     store: (index: number) => void;
     takeFromBox: (slot: number) => void;
+    save: () => number[] | null;
+    restore: (bytes: number[]) => number;
   };
 };
 
@@ -350,6 +352,12 @@ export function usePlanSession(
       },
       takeFromBox(slot) {
         clientRef.current?.boxTake(slot);
+      },
+      save() {
+        return clientRef.current ? Array.from(clientRef.current.saveSnapshot()) : null;
+      },
+      restore(bytes) {
+        return clientRef.current?.saveRestore(Uint8Array.from(bytes)) ?? -1;
       },
     },
   };

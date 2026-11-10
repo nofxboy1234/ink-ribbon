@@ -581,3 +581,32 @@
   font-size: 12px;
   color: #777;
 }
+
+.rpd-save {
+  margin-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.12);
+  padding-top: 8px;
+}
+
+.rpd-save-slot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.rpd-save-name {
+  font-weight: 700;
+  min-width: 50px;
+}
+
+.rpd-save-meta {
+  flex: 1;
+  color: #666;
+}
+
+.rpd-save-message {
+  font-size: 12px;
+  color: #2a6b2a;
+}

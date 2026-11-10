@@ -1364,6 +1364,22 @@ async function run() {
 
     await shot("33-inventory-square");
 
+    const saveBefore = await evalJson("window.__quest.debug().player");
+    await cdp.eval("window.__saveSnap = window.__quest.saveSnapshot()");
+    const saveLen = await cdp.eval("window.__saveSnap.length");
+    assert(saveLen >= 1024, `the save snapshot is too small: ${saveLen}`);
+    await cdp.eval("window.__quest.setPlayer(0, 0, 0)");
+    const moved = await evalJson("window.__quest.debug().player");
+    assert(Math.hypot(moved[0] - saveBefore[0], moved[2] - saveBefore[2]) > 0.1, "the save test did not move the player");
+    const restoreCode = await cdp.eval("window.__quest.saveRestore(window.__saveSnap)");
+    assert(restoreCode === 0, `the save restore failed: ${restoreCode}`);
+    const restored = await evalJson("window.__quest.debug().player");
+    assert(
+      Math.hypot(restored[0] - saveBefore[0], restored[2] - saveBefore[2]) < 0.01,
+      `the restore did not return the player: ${JSON.stringify({ saveBefore, restored })}`,
+    );
+
+
     const boxNames = await evalJson("window.__quest.box().map((entry) => entry.name)");
     assert(boxNames.length >= 3, `the preloaded box should hold at least 3 items, got ${JSON.stringify(boxNames)}`);
 

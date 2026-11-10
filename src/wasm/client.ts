@@ -115,6 +115,9 @@ export type RpdClient = {
   boxTake(slot: number): number;
   boxCount(): number;
   boxItem(slot: number): number;
+  saveSnapshot(): Uint8Array;
+  saveRestore(bytes: Uint8Array): number;
+  saveSize(): number;
   toggleDebug(): void;
   debugEnabled(): boolean;
   itemEnterCode(index: number, code: string): number;
@@ -436,6 +439,26 @@ export async function createRpdClient(options: {
     },
     boxItem(slot) {
       return (module as unknown as { _rpd_box_item: (s: number) => number })._rpd_box_item(slot);
+    },
+    saveSize() {
+      return (module as unknown as { _rpd_save_size: () => number })._rpd_save_size();
+    },
+    saveSnapshot() {
+      const size = (module as unknown as { _rpd_save_size: () => number })._rpd_save_size();
+      const ptr = module._malloc(size);
+      (module as unknown as { _rpd_save_snapshot: (p: number, c: number) => number })
+        ._rpd_save_snapshot(ptr, size);
+      const out = new Uint8Array(heap.HEAPU8.buffer, ptr, size).slice();
+      module._free(ptr);
+      return out;
+    },
+    saveRestore(bytes) {
+      const ptr = module._malloc(bytes.byteLength);
+      heap.HEAPU8.set(bytes, ptr);
+      const result = (module as unknown as { _rpd_save_restore: (p: number, s: number) => number })
+        ._rpd_save_restore(ptr, bytes.byteLength);
+      module._free(ptr);
+      return result;
     },
     toggleDebug() {
       (module as unknown as { _rpd_game_toggle_debug: () => void })._rpd_game_toggle_debug();

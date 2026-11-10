@@ -1,6 +1,7 @@
 #include <emscripten/emscripten.h>
 
 #include "rpd_items.h"
+#include "rpd_save.h"
 #include "rpd_plan.h"
 #include "rpd_sokol.h"
 
@@ -83,6 +84,18 @@ EMSCRIPTEN_KEEPALIVE int rpd_box_item(int slot) {
     const inventory_slot_t *box = items_box();
     if (slot < 0 || slot >= items_box_count() || !box[slot].filled) return -1;
     return box[slot].item;
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_save_snapshot(int *out, int cap) {
+    return save_snapshot((uint8_t *)out, cap);
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_save_restore(const int *data, int size) {
+    return save_restore((const uint8_t *)data, size);
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_save_size(void) {
+    return save_size();
 }
 
 EMSCRIPTEN_KEEPALIVE int rpd_item_enter_code(int index, const char *code) {

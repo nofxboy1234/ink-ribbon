@@ -574,6 +574,48 @@ int items_box_count(void) { return g_box_count; }
 
 const inventory_slot_t *items_box(void) { return g_box; }
 
+void items_restore_states(const uint8_t *states, int count) {
+    if (!states) return;
+    for (int i = 0; i < count && i < items_count(); i++) {
+        g_items[i].state = (item_state_t)states[i];
+        if (g_items[i].marker >= 0) {
+            rpd_marker_set_visible(g_items[i].marker, g_items[i].state == ITEM_PRESENT ? 1 : 0);
+        }
+    }
+}
+
+void items_restore_inventory(int slot, int filled, int item) {
+    if (slot < 0 || slot >= INVENTORY_SLOTS) return;
+    g_inventory[slot].filled = filled != 0;
+    g_inventory[slot].item = item;
+    if (g_inventory[slot].filled && item >= 0) {
+        const item_t *entry = items_get(item);
+        if (entry) {
+            g_inventory[slot].r = entry->r;
+            g_inventory[slot].g = entry->g;
+            g_inventory[slot].b = entry->b;
+        }
+    }
+    g_inventory_count = 0;
+    for (int i = 0; i < INVENTORY_SLOTS; i++) if (g_inventory[i].filled) g_inventory_count++;
+}
+
+void items_restore_box(int slot, int filled, int item) {
+    if (slot < 0 || slot >= BOX_SLOTS) return;
+    g_box[slot].filled = filled != 0;
+    g_box[slot].item = item;
+    if (g_box[slot].filled && item >= 0) {
+        const item_t *entry = items_get(item);
+        if (entry) {
+            g_box[slot].r = entry->r;
+            g_box[slot].g = entry->g;
+            g_box[slot].b = entry->b;
+        }
+    }
+    g_box_count = 0;
+    for (int i = 0; i < BOX_SLOTS; i++) if (g_box[i].filled) g_box_count++;
+}
+
 int items_enter_code(int index, const char *entry) {
     if (index < 0 || index >= RPD_ITEM_COUNT || !entry) return -3;
     item_t *item = &g_items[index];
