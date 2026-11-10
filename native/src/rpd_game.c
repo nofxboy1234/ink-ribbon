@@ -6,11 +6,13 @@
 static int paused;
 static int debug;
 static int health = 120;
+static int running;
 
 void game_reset(void) {
     paused = 0;
     debug = 0;
     health = 120;
+    running = 0;
 }
 
 int game_health(void) { return health; }
@@ -42,8 +44,14 @@ void game_toggle_debug(void) { debug = !debug; }
 
 int game_debug(void) { return debug; }
 
+void game_toggle_pause(void) { paused = !paused; }
+
+void game_toggle_run(void) { running = !running; }
+
+int game_run(void) { return running; }
+
 void game_update(float dt, const float *view_proj, int width, int height) {
     // A zero delta freezes the walk but still refreshes the hover and the floor,
     // so the paused map stays inspectable.
-    plan_update(paused ? 0.0f : dt, view_proj, width, height);
+    plan_update(paused ? 0.0f : dt * (running ? 1.5f : 1.0f), view_proj, width, height);
 }

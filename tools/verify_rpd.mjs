@@ -569,7 +569,7 @@ async function run() {
           labels: popup.choices.map((entry) => entry.label),
           add: enabled("Add waypoint"),
           remove: enabled("Remove waypoint"),
-          run: enabled("Run route"),
+          run: enabled("Execute route"),
           clear: enabled("Clear all"),
         };
       })()`);
@@ -717,8 +717,8 @@ async function run() {
       blockedMenu && !blockedMenu.add && !blockedMenu.remove,
       "Add and Remove should be disabled without a hovered nav cell",
     );
-    await cdp.mouse("mousePressed", 240, 760);
-    await cdp.mouse("mouseReleased", 240, 760);
+    await cdp.mouse("mousePressed", 700, 450);
+    await cdp.mouse("mouseReleased", 700, 450);
     await sleep(300);
     assert(
       !(await cdp.eval("window.__quest.popup().open")),
@@ -787,7 +787,7 @@ async function run() {
       readyMenu && readyMenu.run,
       `Run route should be enabled with a route: ${JSON.stringify(readyMenu)}`,
     );
-    await menuCommand("Run route");
+    await menuCommand("Execute route");
     await cdp.waitFor("window.__quest.debug().moving === true", 10000);
     await rightClick(700, 500);
     const movingMenu = await menuState();
@@ -809,7 +809,7 @@ async function run() {
     await sleep(400);
     await shot("11-route-ortho");
     report.states.arrived = await facts();
-    assert(!report.states.arrived.moving, "Run route should run the route to completion");
+    assert(!report.states.arrived.moving, "Execute route should run the route to completion");
     assert(report.states.arrived.plan.length === 0, "arriving should clear the waypoints");
     assert(report.states.arrived.routePoints === 0, "arriving should clear the drawn route");
 
@@ -820,15 +820,14 @@ async function run() {
     await cdp.key("Escape", "Escape", 27);
     await sleep(400);
     const escIdle = await facts();
-    assert(escIdle.plan.length === 0, "Esc while idle should clear the waypoints");
-    assert(escIdle.routePoints === 0, "Esc while idle should clear the route");
+    assert(escIdle.plan.length > 0, "Esc should pause without clearing the waypoints");
     assert(
       JSON.stringify(escIdle.player) === JSON.stringify(escIdlePlayer),
-      "Esc while idle must not move Claire",
+      "Esc should pause without moving Claire",
     );
     assert(
       closeEnough(escIdle.mapCamera, report.states.arrived.mapCamera, 1e-4),
-      "Esc while idle must not move the map camera",
+      "Esc should pause without moving the map camera",
     );
     report.states.escIdle = escIdle;
 
@@ -836,7 +835,7 @@ async function run() {
     await sleep(400);
     const movingStart = await evalJson("window.__quest.debug().player");
     await rightClick(700, 500);
-    await menuCommand("Run route");
+    await menuCommand("Execute route");
     await cdp.waitFor("window.__quest.debug().moving === true", 10000);
     await sleep(900);
     const movingCamera = await cdp.eval("JSON.stringify(window.__quest.camera())");
@@ -844,12 +843,11 @@ async function run() {
     await sleep(400);
     const escMoving = await facts();
     const pausedPlayer = escMoving.player;
-    assert(!escMoving.moving, "Esc while moving should stop Claire");
-    assert(escMoving.plan.length === 0, "Esc while moving should clear the waypoints");
-    assert(escMoving.routePoints === 0, "Esc while moving should clear the route");
+    assert(escMoving.plan.length > 0, "Esc while moving should pause without clearing the plan");
+    assert(escMoving.routePoints > 0, "Esc while moving should keep the route");
     assert(
       Math.hypot(pausedPlayer[0] - movingStart[0], pausedPlayer[2] - movingStart[2]) > 0.5,
-      "Esc while moving must leave Claire where she stopped",
+      "Esc should pause without moving Claire",
     );
     assert(
       movingCamera === JSON.stringify(escMoving.mapCamera),
@@ -1004,7 +1002,8 @@ async function run() {
         labelOverlap = { room: candidate.room, stats };
         break;
       }
-      await cdp.key("Escape", "Escape", 27);
+      await cdp.mouse("mousePressed", 700, 450);
+      await cdp.mouse("mouseReleased", 700, 450);
       await cdp.waitFor("window.__quest.overlayStats()[5] === 0", 4000);
     }
     assert(labelOverlap, "could not open a popup that reserves a room label");

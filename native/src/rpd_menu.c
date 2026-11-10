@@ -12,6 +12,17 @@ void menu_open(float x, float y) {
     popup_close();
     game_set_paused(1);
     menu_item = -1;
+    {
+        int item = plan_hover_item();
+        const item_t *entry = item >= 0 ? items_get(item) : 0;
+        if (entry && entry->state == ITEM_PRESENT && items_transition_target(item, entry->def->x, entry->def->z) >= 0) {
+            menu_item = item;
+            popup_open_menu(-1, x, y);
+            popup_add_choice(POPUP_ACTION_MENU_GO_TO, "Go", 1);
+            popup_add_choice(POPUP_ACTION_MENU_ADD, "Add waypoint", 1);
+            return;
+        }
+    }
     if (game_debug()) {
         int item = plan_hover_item();
         const item_t *entry = item >= 0 ? items_get(item) : 0;
@@ -40,7 +51,8 @@ void menu_open(float x, float y) {
     popup_open_menu(node, x, y);
     popup_add_choice(POPUP_ACTION_MENU_ADD, "Add waypoint", idle && node >= 0 && !has);
     popup_add_choice(POPUP_ACTION_MENU_REMOVE, "Remove waypoint", idle && has);
-    popup_add_choice(POPUP_ACTION_MENU_RUN, "Run route", idle && plan_route_count() >= 2);
+    popup_add_choice(POPUP_ACTION_MENU_RUN, "Execute route", idle && plan_route_count() >= 2);
+    popup_add_choice(POPUP_ACTION_MENU_RUN_TOGGLE, game_run() ? "Walk" : "Run", 1);
     popup_add_choice(POPUP_ACTION_MENU_CLEAR, "Clear all", plan_count() > 0);
     if (game_debug()) {
         popup_add_choice(POPUP_ACTION_MENU_TELEPORT, "Teleport here", idle && node >= 0);
@@ -62,7 +74,14 @@ void menu_execute(popup_action_t action, int node, int data) {
     } else if (action == POPUP_ACTION_MENU_HIGHLIGHT) {
         if (menu_item >= 0) items_debug_highlight(menu_item);
     } else if (action == POPUP_ACTION_MENU_GO_TO) {
-        plan_teleport_item(data);
+        if (data >= 0) {
+            const item_t *item = items_get(data);
+            plan_teleport_item(data);
+            (void)item;
+        } else if (menu_item >= 0) {
+            const item_t *item = items_get(menu_item);
+            if (item) plan_teleport_item(items_transition_target(menu_item, item->def->x, item->def->z));
+        }
     } else if (action == POPUP_ACTION_MENU_TELEPORT) {
         plan_teleport_node(node);
     } else if (action == POPUP_ACTION_MENU_ADD) plan_add_target_node(node);

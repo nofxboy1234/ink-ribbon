@@ -241,7 +241,7 @@ EMSCRIPTEN_KEEPALIVE void rpd_recenter(void);
 void rpd_app_event(const sapp_event *e) {
     if (e->type == SAPP_EVENTTYPE_KEY_DOWN && e->key_code == SAPP_KEYCODE_ESCAPE) {
         if (menu_is_open()) menu_close();
-        else plan_clear_route();
+        else game_toggle_pause();
         return;
     }
     if (e->type == SAPP_EVENTTYPE_KEY_DOWN && e->key_code == SAPP_KEYCODE_D) {

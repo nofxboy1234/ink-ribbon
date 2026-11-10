@@ -121,6 +121,7 @@ int items_hidden(int index);
 int items_in_range(int index, float x, float y, float z);
 int items_pick(int floor, float x, float z, float radius);
 int items_index_for_id(int id);
+int items_transition_target(int index, float x, float z);
 int items_missing_requirement(int index);
 int items_missing_open(int index);
 int items_missing_external(int index);

@@ -62,6 +62,12 @@ EMSCRIPTEN_KEEPALIVE int rpd_item_debug_take(int index) {
     return result;
 }
 
+EMSCRIPTEN_KEEPALIVE int rpd_item_transition_target(int index) {
+    const item_t *item = items_get(index);
+    if (!item) return -1;
+    return items_transition_target(index, item->def->x, item->def->z);
+}
+
 EMSCRIPTEN_KEEPALIVE int rpd_item_discard(int index) {
     int result = items_discard(index);
     plan_refresh_blocks();

@@ -538,16 +538,18 @@
       "slots": 8,
       "routeDock": false,
       "inventoryShown": true,
-      "panel": "ROUTE PLANNER\n\nPress Room\n\nSwitch to the 2D plan, right click a cell and choose Add waypoi",
+      "panel": "ROUTE PLANNER\n\nPress Room\n\nPlan has 1 step. Right click the plan to remove a waypoint or r",
       "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · middle drag to pan · right click for waypoints",
-      "plan": [],
+      "plan": [
+        0
+      ],
       "player": [
         21.5,
         0.09999999403953552,
         -10.5
       ],
       "moving": false,
-      "routePoints": 0,
+      "routePoints": 106,
       "move": [
         0,
         0,
@@ -555,12 +557,16 @@
       ],
       "playerFloor": 0,
       "check": {
-        "points": 0,
-        "samples": 0,
+        "points": 106,
+        "samples": 854,
         "bad": 0,
-        "worst": 0,
-        "clearance": 0,
-        "clearanceAt": null,
+        "worst": 0.7071066125991736,
+        "clearance": 0.024511652608071532,
+        "clearanceAt": [
+          -15.019629263108776,
+          0.09999999403953552,
+          3.7254883473919285
+        ],
         "radius": 0.25,
         "visualRadius": 0.42500001192092896,
         "nodes": 9925,
@@ -624,29 +630,35 @@
       "slots": 8,
       "routeDock": false,
       "inventoryShown": true,
-      "panel": "ROUTE PLANNER\n\nPress Room\n\nSwitch to the 2D plan, right click a cell and choose Add waypoi",
+      "panel": "ROUTE PLANNER\n\nPress Room\nRUNNING\n\nClaire is moving along the route.\n\nINVENTORY\nITEM BOX\nV",
       "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · middle drag to pan · right click for waypoints",
-      "plan": [],
-      "player": [
-        20.153865814208984,
-        0.09999999403953552,
-        -10.11539077758789
+      "plan": [
+        0
       ],
-      "moving": false,
-      "routePoints": 0,
+      "player": [
+        20.20973014831543,
+        0.09999999403953552,
+        -10.131351470947266
+      ],
+      "moving": true,
+      "routePoints": 106,
       "move": [
         0,
-        0,
-        0
+        106,
+        0.22070324420928955
       ],
       "playerFloor": 0,
       "check": {
-        "points": 0,
-        "samples": 0,
+        "points": 106,
+        "samples": 854,
         "bad": 0,
-        "worst": 0,
-        "clearance": 0,
-        "clearanceAt": null,
+        "worst": 0.7071066125991736,
+        "clearance": 0.024511652608071532,
+        "clearanceAt": [
+          -15.019629263108776,
+          0.09999999403953552,
+          3.7254883473919285
+        ],
         "radius": 0.25,
         "visualRadius": 0.42500001192092896,
         "nodes": 9925,
@@ -1048,7 +1060,7 @@
         -0.8999999761581421,
         0.4000000059604645,
         0.40000003576278687,
-        2.9802322387695312e-8,
+        0,
         50
       ]
     },
@@ -1061,7 +1073,7 @@
         -0.8999999761581421,
         0.4000000059604645,
         0.40000003576278687,
-        2.9802322387695312e-8,
+        0,
         50
       ],
       "pan": [

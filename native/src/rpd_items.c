@@ -387,6 +387,37 @@ int items_pick(int floor, float x, float z, float radius) {
     return best;
 }
 
+int items_transition_target(int index, float x, float z) {
+    const item_t *item = items_get(index);
+    if (!item || !item->def) return -1;
+    const char *category = item->def->category;
+    if (!category || category[0] != 'T') return -1;
+    const char *title = item->def->title;
+    int target_floor = -1;
+    if (title && title[0] == 'T' && title[1] == 'o' && title[2] == ' ' && title[3] >= '1' && title[3] <= '4') {
+        target_floor = (title[3] - '1');
+    } else if (title && title[0] == 'T' && title[1] == 'o' && title[2] == ' ' && title[3] == 'B' && title[4] == '1') {
+        target_floor = 4;
+    }
+    if (target_floor < 0) return -1;
+    int best = -1;
+    float best_distance = 1e30f;
+    for (int i = 0; i < items_count(); i++) {
+        const item_t *other = items_get(i);
+        if (!other || !other->def || other->def->floor != target_floor) continue;
+        const char *other_category = other->def->category;
+        if (!other_category || other_category[0] != 'T') continue;
+        const float dx = other->def->x - x;
+        const float dz = other->def->z - z;
+        const float distance = dx * dx + dz * dz;
+        if (distance < best_distance) {
+            best_distance = distance;
+            best = i;
+        }
+    }
+    return best;
+}
+
 int items_index_for_id(int id) {
     for (int i = 0; i < RPD_ITEM_COUNT; i++) {
         if (RPD_ITEM_DEFS[i].id == id) return i;
