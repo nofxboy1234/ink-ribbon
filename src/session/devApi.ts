@@ -108,6 +108,7 @@ return {
   boxStore: (index: number) => client.boxStore(index),
   boxTake: (slot: number) => client.boxTake(slot),
   saveSnapshot: () => Array.from(client.saveSnapshot()),
+  doorsCount: () => client.doorsCount(),
   saveRestore: (bytes: number[]) => client.saveRestore(Uint8Array.from(bytes)),
   box: () => {
     const count = client.boxCount();

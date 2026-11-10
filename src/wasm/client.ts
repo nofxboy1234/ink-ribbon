@@ -118,6 +118,7 @@ export type RpdClient = {
   saveSnapshot(): Uint8Array;
   saveRestore(bytes: Uint8Array): number;
   saveSize(): number;
+  doorsCount(): number;
   toggleDebug(): void;
   debugEnabled(): boolean;
   itemEnterCode(index: number, code: string): number;
@@ -442,6 +443,9 @@ export async function createRpdClient(options: {
     },
     saveSize() {
       return (module as unknown as { _rpd_save_size: () => number })._rpd_save_size();
+    },
+    doorsCount() {
+      return (module as unknown as { _rpd_doors_count: () => number })._rpd_doors_count();
     },
     saveSnapshot() {
       const size = (module as unknown as { _rpd_save_size: () => number })._rpd_save_size();

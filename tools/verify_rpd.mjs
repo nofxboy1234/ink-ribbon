@@ -1364,6 +1364,10 @@ async function run() {
 
     await shot("33-inventory-square");
 
+    const doorCount = await cdp.eval("window.__quest.doorsCount()");
+    assert(doorCount > 0, `the map should expose its doors, got ${doorCount}`);
+
+
     const saveBefore = await evalJson("window.__quest.debug().player");
     await cdp.eval("window.__saveSnap = window.__quest.saveSnapshot()");
     const saveLen = await cdp.eval("window.__saveSnap.length");

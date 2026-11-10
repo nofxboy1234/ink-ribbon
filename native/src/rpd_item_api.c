@@ -2,6 +2,7 @@
 
 #include "rpd_items.h"
 #include "rpd_save.h"
+#include "rpd_doors.h"
 #include "rpd_plan.h"
 #include "rpd_sokol.h"
 
@@ -92,6 +93,10 @@ EMSCRIPTEN_KEEPALIVE int rpd_save_snapshot(int *out, int cap) {
 
 EMSCRIPTEN_KEEPALIVE int rpd_save_restore(const int *data, int size) {
     return save_restore((const uint8_t *)data, size);
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_doors_count(void) {
+    return doors_count();
 }
 
 EMSCRIPTEN_KEEPALIVE int rpd_save_size(void) {
