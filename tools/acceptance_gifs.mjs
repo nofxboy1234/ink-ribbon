@@ -7,8 +7,9 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const dir = join(root, "verification", "rpd", "acceptance");
+const dir = resolve(root, process.argv[2] ?? "verification/rpd/acceptance");
 const timeline = JSON.parse(readFileSync(join(dir, "timeline.json"), "utf8"));
+const width = Number(process.env.GIF_WIDTH ?? 1000);
 
 for (const view of ["ortho", "persp"]) {
   const frames = timeline[view];
@@ -26,7 +27,7 @@ for (const view of ["ortho", "persp"]) {
       "-safe", "0",
       "-i", listPath,
       "-vf",
-      "scale=1000:-1:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5",
+      `scale=${width}:-1:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5`,
       "-loop", "0",
       join(dir, `rpd-${view}.gif`),
     ],

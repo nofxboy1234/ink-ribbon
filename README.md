@@ -183,6 +183,14 @@ walkable and completes, then compares thirteen screenshots against
 `verification/rpd/baseline/`. Regenerate the baseline with `--update` after an
 intentional visual change.
 
+`npm run acceptance` runs the full item collection, the save/load round trip and
+the garage ending, then writes `verification/rpd/acceptance/` with a report and
+the ortho and perspective GIFs. `npm run playthrough` is the longer variant: it
+walks Claire across every floor, acting on each available item through the real
+state machine, and writes `verification/rpd/playthrough/` with a timeline, a
+report and one long ortho GIF. The per-frame PNGs stay untracked; only the GIF
+and the two JSON reports are committed.
+
 ## Stack
 
 | Part | Version |

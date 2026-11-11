@@ -24,3 +24,9 @@ verification/rpd/current/
 
 # sokol-shdc generated shader headers.
 native/gen/
+
+# Playthrough frames are regenerated locally; only the GIF and reports are committed.
+verification/rpd/playthrough/*.png
+verification/rpd/playthrough/*-frames.txt
+verification/rpd/playthrough/run.log
+verification/rpd/playthrough/debug.log

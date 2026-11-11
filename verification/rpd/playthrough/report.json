@@ -1,0 +1,161 @@
+{
+  "frames": 848,
+  "actions": 133,
+  "walked": 1292.6295994085638,
+  "boxed": 101,
+  "floors": [
+    0,
+    1,
+    4,
+    2,
+    3
+  ],
+  "fallbacks": [
+    "stood at Ink Ribbon x2",
+    "stairs 4->1",
+    "stairs 1->2",
+    "stairs 1->0",
+    "stood at Gunpowder",
+    "stairs 0->2",
+    "stairs 2->3",
+    "stood at Handgun Ammo",
+    "stood at Ink Ribbon",
+    "stood at Parking Garage Key Card",
+    "stairs 3->4",
+    "stood at Heart Key",
+    "stairs 4->0",
+    "stairs 1->2",
+    "stood at Gunpowder",
+    "stood at Submachine Gun Ammo",
+    "stood at Item Box",
+    "stood at Statue's Left Arm",
+    "stood at Red Jewel",
+    "stood at Car Key Box",
+    "stairs 2->4",
+    "stood at Red Herb",
+    "stood at Handgun Ammo",
+    "stood at Shoulder Stock (GM 79)",
+    "stood at Film: \"3F Locker\"",
+    "stood at High-Grade Gunpowder (White)",
+    "stood at Flame Rounds",
+    "stood at Jack",
+    "stood at High-Grade Gunpowder (White)",
+    "stairs 4->1",
+    "stood at Flash Grenade",
+    "stood at Red Herb",
+    "stood at Green Herb",
+    "stood at Handgun Ammo",
+    "stood at Handgun Ammo",
+    "stood at Spade Door",
+    "stood at Handgun Ammo",
+    "stood at Submachine Gun Ammo",
+    "stood at Combat Knife",
+    "stood at Gunpowder",
+    "stood at Handgun Ammo",
+    "stood at Blue Herb",
+    "stood at Green Herb",
+    "stood at S.T.A.R.S Badge",
+    "stood at Large Gear",
+    "stood at Flame Rounds",
+    "stood at Combat Knife",
+    "stood at Flash Grenade",
+    "stood at Red Book (Art Object)",
+    "stood at Power Panel Part",
+    "stood at Small Gear",
+    "stood at High-Grade Gunpowder (White)",
+    "stood at Card Reader",
+    "stood at Green Herb",
+    "stood at Heart Door",
+    "stood at Heart Door",
+    "stood at Weapons Locker Key Card",
+    "stairs 1->0",
+    "stood at Car Key",
+    "stairs 0->4",
+    "stood at Green Herb",
+    "stairs 4->0",
+    "stood at MQ 11 x20",
+    "stood at Spade Door",
+    "stood at Gunpowder (Large)",
+    "stood at Handgun Ammo",
+    "stood at Blue Herb",
+    "stood at Car Trunk",
+    "stairs 0->4",
+    "stood at Diamond Door",
+    "stood at Blue Herb"
+  ],
+  "failed": [],
+  "popup": {
+    "open": true,
+    "menu": true,
+    "choices": [
+      "+Add waypoint",
+      "-Remove waypoint",
+      "+Execute route",
+      "+Run",
+      "+Clear all"
+    ]
+  },
+  "run": true,
+  "pending": {
+    "hidden": 11,
+    "present": 127,
+    "available": 55,
+    "byAction": {
+      "4": 5,
+      "5": 27,
+      "6": 16,
+      "7": 7
+    },
+    "sample": [
+      {
+        "name": "Blocked Door",
+        "action": 0
+      },
+      {
+        "name": "Goddess Statue",
+        "action": 2
+      },
+      {
+        "name": "Club Door",
+        "action": 0
+      },
+      {
+        "name": "Dial Lock",
+        "action": 3
+      },
+      {
+        "name": "Valve",
+        "action": 2
+      },
+      {
+        "name": "Electronically-locked Door",
+        "action": 0
+      },
+      {
+        "name": "One-Way Door",
+        "action": 0
+      },
+      {
+        "name": "Spade Door",
+        "action": 2
+      },
+      {
+        "name": "Crank Handle Slot",
+        "action": 0
+      },
+      {
+        "name": "One-Way Door",
+        "action": 0
+      }
+    ]
+  },
+  "collected": 133,
+  "boxedTotal": 104,
+  "health": 120,
+  "enemies": 8,
+  "garage": true,
+  "key": 2,
+  "reader": 4,
+  "items": 271,
+  "minutes": 36.8
+}
