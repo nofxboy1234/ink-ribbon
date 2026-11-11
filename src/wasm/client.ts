@@ -268,6 +268,12 @@ export async function createRpdClient(options: {
     itemDebugTake(index) {
       return (module as unknown as { _rpd_item_debug_take: (i: number) => number })._rpd_item_debug_take(index);
     },
+    itemDebugOpen(index) {
+      return (module as unknown as { _rpd_item_debug_open: (i: number) => number })._rpd_item_debug_open(index);
+    },
+    itemDebugSolve(index) {
+      return (module as unknown as { _rpd_item_debug_solve: (i: number) => number })._rpd_item_debug_solve(index);
+    },
     itemRelated(index) {
       const ptr = module._malloc(8 * 4);
       const count = (module as unknown as { _rpd_item_related: (i: number, p: number, c: number) => number })

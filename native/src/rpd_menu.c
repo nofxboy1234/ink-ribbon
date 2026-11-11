@@ -29,8 +29,15 @@ void menu_open(float x, float y) {
         if (entry && entry->state == ITEM_PRESENT) {
             menu_item = item;
             popup_open_menu(-1, x, y);
-            if (items_action_kind(item) == RPD_ACTION_TAKE) {
+            const int action = items_action_kind(item);
+            if (action == RPD_ACTION_TAKE) {
                 popup_add_choice(POPUP_ACTION_MENU_DEBUG_TAKE, "Debug take", 1);
+            }
+            if (action == RPD_ACTION_OPEN || action == RPD_ACTION_USE || action == RPD_ACTION_SOLVE) {
+                popup_add_choice(POPUP_ACTION_MENU_DEBUG_OPEN, "Debug open", 1);
+            }
+            if (action == RPD_ACTION_SOLVE) {
+                popup_add_choice(POPUP_ACTION_MENU_DEBUG_SOLVE, "Debug solve", 1);
             }
             popup_add_choice(POPUP_ACTION_MENU_HIGHLIGHT, "Highlight related", 1);
             int related[5];
@@ -70,6 +77,12 @@ int menu_is_open(void) { return popup_is_menu() ? 1 : 0; }
 void menu_execute(popup_action_t action, int node, int data) {
     if (action == POPUP_ACTION_MENU_DEBUG_TAKE) {
         if (menu_item >= 0) items_debug_take(menu_item);
+        menu_item = -1;
+    } else if (action == POPUP_ACTION_MENU_DEBUG_OPEN) {
+        if (menu_item >= 0) items_debug_open(menu_item);
+        menu_item = -1;
+    } else if (action == POPUP_ACTION_MENU_DEBUG_SOLVE) {
+        if (menu_item >= 0) items_debug_solve(menu_item);
         menu_item = -1;
     } else if (action == POPUP_ACTION_MENU_HIGHLIGHT) {
         if (menu_item >= 0) items_debug_highlight(menu_item);

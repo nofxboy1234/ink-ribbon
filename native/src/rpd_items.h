@@ -105,6 +105,8 @@ int items_inventory_count(void);
 const inventory_slot_t *items_inventory(void);
 int items_take(int index);
 int items_debug_take(int index);
+int items_debug_open(int index);
+int items_debug_solve(int index);
 int items_related(int index, int *out, int cap);
 void items_debug_highlight(int index);
 int items_debug_highlighted(void);

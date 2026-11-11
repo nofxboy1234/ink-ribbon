@@ -408,10 +408,19 @@ int items_index_for_id(int id) {
 
 static void reveal_contents(int index) {
     const rpd_item_def_t *def = &RPD_ITEM_DEFS[index];
+    const item_t *source = &g_items[index];
     for (int i = 0; i < def->contents_count; i++) {
         int content = def->contents[i];
         if (content < 0 || content >= RPD_ITEM_COUNT) continue;
         if (g_items[content].state == ITEM_HIDDEN) {
+            g_items[content].approach_node = source->approach_node;
+            g_items[content].approach_x = source->approach_x;
+            g_items[content].approach_y = source->approach_y;
+            g_items[content].approach_z = source->approach_z;
+            g_items[content].snap_node = source->snap_node;
+            g_items[content].snap_x = source->snap_x;
+            g_items[content].snap_y = source->snap_y;
+            g_items[content].snap_z = source->snap_z;
             g_items[content].state = ITEM_PRESENT;
             g_items[content].marker = -1;
             sync_marker(content);
@@ -455,6 +464,26 @@ int items_act(int index) {
     }
     if (item->marker >= 0) rpd_marker_set_visible(item->marker, 0);
     return 0;
+}
+
+static int debug_open(int index) {
+    const item_t *item = items_get(index);
+    if (!item || item->state != ITEM_PRESENT) return -3;
+    g_items[index].state = ITEM_OPEN;
+    reveal_contents(index);
+    for (int i = 0; i < item->def->external_grant_count; i++) {
+        items_grant_external(item->def->external_grants[i]);
+    }
+    if (g_items[index].marker >= 0) rpd_marker_set_visible(g_items[index].marker, 0);
+    return 0;
+}
+
+int items_debug_open(int index) {
+    return debug_open(index);
+}
+
+int items_debug_solve(int index) {
+    return debug_open(index);
 }
 
 int items_debug_take(int index) {
@@ -519,6 +548,30 @@ void items_restore_states(const uint8_t *states, int count) {
             rpd_marker_set_visible(g_items[i].marker, g_items[i].state == ITEM_PRESENT ? 1 : 0);
         }
     }
+    // A loaded save restores states only, so opened containers must place their
+    // contents back on the container's cell instead of the registry cell.
+    for (int i = 0; i < count && i < items_count(); i++) {
+        if (g_items[i].state != ITEM_OPEN) continue;
+        const rpd_item_def_t *def = &RPD_ITEM_DEFS[i];
+        for (int c = 0; c < def->contents_count; c++) {
+            int content = def->contents[c];
+            if (content < 0 || content >= RPD_ITEM_COUNT) continue;
+            item_t *entry = &g_items[content];
+            if (entry->state != ITEM_PRESENT) continue;
+            entry->approach_node = g_items[i].approach_node;
+            entry->approach_x = g_items[i].approach_x;
+            entry->approach_y = g_items[i].approach_y;
+            entry->approach_z = g_items[i].approach_z;
+            entry->snap_node = g_items[i].snap_node;
+            entry->snap_x = g_items[i].snap_x;
+            entry->snap_y = g_items[i].snap_y;
+            entry->snap_z = g_items[i].snap_z;
+            float cube[3];
+            items_cube_position(content, cube);
+            if (entry->marker >= 0) rpd_marker_set_position(entry->marker, cube[0], cube[1], cube[2]);
+        }
+    }
+    items_sync_markers();
 }
 
 int items_enter_code(int index, const char *entry) {

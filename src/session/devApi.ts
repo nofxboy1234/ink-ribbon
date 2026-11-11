@@ -101,6 +101,8 @@ return {
   },
   actItem: (index: number) => client.itemAct(index),
   itemDebugTake: (index: number) => client.itemDebugTake(index),
+  itemDebugOpen: (index: number) => client.itemDebugOpen(index),
+  itemDebugSolve: (index: number) => client.itemDebugSolve(index),
   itemRelated: (index: number) => client.itemRelated(index),
   itemDebugHighlight: (index: number) => client.itemDebugHighlight(index),
   itemDebugHighlighted: () => client.itemDebugHighlighted(),

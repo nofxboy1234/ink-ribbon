@@ -108,6 +108,8 @@ export type RpdClient = {
   itemHint(index: number): string;
   itemAct(index: number): number;
   itemDebugTake(index: number): number;
+  itemDebugOpen(index: number): number;
+  itemDebugSolve(index: number): number;
   itemRelated(index: number): number[];
   itemDebugHighlight(index: number): void;
   itemDebugHighlighted(): number;
