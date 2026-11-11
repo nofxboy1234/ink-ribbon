@@ -30,3 +30,4 @@ verification/rpd/playthrough/*.png
 verification/rpd/playthrough/*-frames.txt
 verification/rpd/playthrough/run.log
 verification/rpd/playthrough/debug.log
+verification/rpd/teleport/
