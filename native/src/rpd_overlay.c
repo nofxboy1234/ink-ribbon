@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "rpd_game.h"
 #include "rpd_items.h"
 #include "rpd_plan.h"
 #include "rpd_popup.h"
@@ -200,6 +201,21 @@ static void draw_popup(void) {
     }
 }
 
+static void draw_debug_frame(void) {
+    if (!game_debug() || view_w <= 404) return;
+    const float inset = 380.0f;
+    const float pad = 6.0f;
+    const float thick = 3.0f;
+    const uint32_t color = 0xFF8A00FF;
+    float x0 = pad, y0 = pad;
+    float x1 = (float)view_w - inset - pad;
+    float y1 = (float)view_h - pad;
+    quad(x0, y0, x1, y0 + thick, color);
+    quad(x0, y1 - thick, x1, y1, color);
+    quad(x0, y0, x0 + thick, y1, color);
+    quad(x1 - thick, y0, x1, y1, color);
+}
+
 void overlay_build(const float *matrix, int width, int height, int ortho, float fps) {
     view_w = width > 1 ? width : 1;
     view_h = height > 1 ? height : 1;
@@ -303,6 +319,7 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
         else snprintf(buf, sizeof(buf), "FPS --");
         dtx_text(buf, (float)view_w - dtx_width(buf) - 390.0f, 16.0f, 0x4a4842f0, 1);
     }
+    draw_debug_frame();
     if (vcount <= 0) return;
 }
 
