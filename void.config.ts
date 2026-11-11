@@ -8,4 +8,10 @@ export default defineConfig({
   worker: {
     compatibility_date: '2026-02-24',
   },
+  routing: {
+    headers: {
+      "/": ["Cache-Control: no-cache"],
+      "/*.html": ["Cache-Control: no-cache"],
+    },
+  },
 });
