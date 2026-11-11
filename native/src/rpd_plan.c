@@ -170,17 +170,10 @@ static void fit_camera(void) {
 
 static void add_waypoint_node(int node);
 
-static int *route_scratch_nodes;
-static int route_scratch_capacity;
 static int *route_pull_nodes;
 static int route_pull_capacity;
 static int route_path_nodes[MAX_ROUTE];
-static void ensure_route_scratch(int count) {
-    if (route_scratch_capacity >= count) return;
-    free(route_scratch_nodes);
-    route_scratch_nodes = (int *)malloc(sizeof(int) * (size_t)count);
-    route_scratch_capacity = count;
-}
+static float route_segment[MAX_ROUTE * 3];
 static void ensure_pull_scratch(int count) {
     if (route_pull_capacity >= count) return;
     free(route_pull_nodes);
@@ -193,27 +186,22 @@ static void recompute_route(void) {
     int start = nearest_node_on(active_floor, player[0], player[1], player[2], 4.0f);
     if (start < 0) start = player_node;
     if (start < 0) return;
-    int *path = route_path_nodes;
-    int path_count = 0;
     for (int w = 0; w < waypoint_count; w++) {
-        int n = route_find_path(nav_count, nav_x, nav_y, nav_z, nav_first, nav_adj, nav_cost,
-                                nav_blocked, start, waypoints[w], path, MAX_ROUTE);
-        if (n <= 0) continue;
-        for (int i = 0; i < n; i++) {
-            if (path_count > 0 && i == 0) continue;
-            if (path_count >= MAX_ROUTE) break;
-            if (path_count == 0) ensure_route_scratch(MAX_ROUTE);
-            route_scratch_nodes[path_count++] = path[i];
+        int path_count = route_find_path(nav_count, nav_x, nav_y, nav_z, nav_first, nav_adj, nav_cost,
+                                         nav_blocked, start, waypoints[w], route_path_nodes, MAX_ROUTE);
+        if (path_count <= 0) continue;
+        ensure_pull_scratch(path_count);
+        int pulled = route_pull(path_count, route_path_nodes, nav_x, nav_y, nav_z,
+                                nav_floor, nav_kind, route_pull_nodes, MAX_ROUTE);
+        if (pulled <= 0) continue;
+        int smoothed = route_smooth(pulled, route_pull_nodes, nav_x, nav_y, nav_z,
+                                    nav_floor, nav_kind, 0.08f, route_segment, MAX_ROUTE);
+        for (int i = route_count > 0 ? 1 : 0; i < smoothed && route_count < MAX_ROUTE; i++) {
+            memcpy(route + route_count * 3, route_segment + i * 3, sizeof(float) * 3);
+            route_count++;
         }
         start = waypoints[w];
     }
-    if (path_count <= 0) return;
-    ensure_pull_scratch(path_count);
-    int pulled = route_pull(path_count, route_scratch_nodes, nav_x, nav_y, nav_z,
-                            nav_floor, nav_kind, route_pull_nodes, MAX_ROUTE);
-    if (pulled <= 0) return;
-    route_count = route_smooth(pulled, route_pull_nodes, nav_x, nav_y, nav_z,
-                               nav_floor, nav_kind, 0.08f, route, MAX_ROUTE);
 }
 void plan_refresh_blocks(void) {
     if (!nav_blocked || nav_count <= 0) return;

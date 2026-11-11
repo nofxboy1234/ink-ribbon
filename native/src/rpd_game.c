@@ -59,5 +59,5 @@ int game_ending(void) { return ending; }
 void game_update(float dt, const float *view_proj, int width, int height) {
     // A zero delta freezes the walk but still refreshes the hover and the floor,
     // so the paused map stays inspectable.
-    plan_update(paused ? 0.0f : dt * (running ? 1.5f : 1.0f), view_proj, width, height);
+    plan_update(paused ? 0.0f : dt * (running ? 2.0f : 1.0f), view_proj, width, height);
 }

@@ -87,6 +87,7 @@ void menu_execute(popup_action_t action, int node, int data) {
     } else if (action == POPUP_ACTION_MENU_ADD) plan_add_target_node(node);
     else if (action == POPUP_ACTION_MENU_REMOVE) plan_remove_target_node(node);
     else if (action == POPUP_ACTION_MENU_RUN) plan_start_move();
+    else if (action == POPUP_ACTION_MENU_RUN_TOGGLE) game_toggle_run();
     else if (action == POPUP_ACTION_MENU_CLEAR) plan_clear_route();
     game_set_paused(0);
 }
