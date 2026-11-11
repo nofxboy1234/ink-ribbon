@@ -315,6 +315,7 @@ EMSCRIPTEN_KEEPALIVE void rpd_plan_add_target_node(int node) { plan_add_target_n
 EMSCRIPTEN_KEEPALIVE int rpd_plan_remove_target_node(int node) { return plan_remove_target_node(node); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_waypoint(int index) { return plan_waypoint_at(index); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_hover(void) { return plan_hover(); }
+EMSCRIPTEN_KEEPALIVE int rpd_plan_hover_item(void) { return plan_hover_item(); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_node_blocked(int node) { return plan_node_blocked(node); }
 EMSCRIPTEN_KEEPALIVE void rpd_plan_pointer_move(float x, float y) { plan_pointer_move(x, y); }
 EMSCRIPTEN_KEEPALIVE void rpd_set_fps_visible(int visible) { overlay_set_fps_visible(visible); }

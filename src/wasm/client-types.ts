@@ -62,6 +62,7 @@ export type RpdClient = {
   planAddTargetNode(node: number): void;
   planRemoveTargetNode(node: number): number;
   planWaypoint(index: number): number;
+  planHoverItem(): number;
   planHover(): number;
   planPointerMove(x: number, y: number): void;
   planNodeBlocked(node: number): number;

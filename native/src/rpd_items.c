@@ -406,21 +406,24 @@ int items_index_for_id(int id) {
     return -1;
 }
 
+static void place_content(int content, const item_t *source) {
+    item_t *entry = &g_items[content];
+    entry->approach_node = source->approach_node;
+    entry->approach_x = source->approach_x;
+    entry->approach_y = source->approach_y;
+    entry->approach_z = source->approach_z;
+    entry->snap_node = source->snap_node;
+    entry->snap_x = source->snap_x;
+    entry->snap_y = source->snap_y;
+    entry->snap_z = source->snap_z;
+}
 static void reveal_contents(int index) {
     const rpd_item_def_t *def = &RPD_ITEM_DEFS[index];
-    const item_t *source = &g_items[index];
     for (int i = 0; i < def->contents_count; i++) {
         int content = def->contents[i];
         if (content < 0 || content >= RPD_ITEM_COUNT) continue;
         if (g_items[content].state == ITEM_HIDDEN) {
-            g_items[content].approach_node = source->approach_node;
-            g_items[content].approach_x = source->approach_x;
-            g_items[content].approach_y = source->approach_y;
-            g_items[content].approach_z = source->approach_z;
-            g_items[content].snap_node = source->snap_node;
-            g_items[content].snap_x = source->snap_x;
-            g_items[content].snap_y = source->snap_y;
-            g_items[content].snap_z = source->snap_z;
+            place_content(content, &g_items[index]);
             g_items[content].state = ITEM_PRESENT;
             g_items[content].marker = -1;
             sync_marker(content);
@@ -558,14 +561,7 @@ void items_restore_states(const uint8_t *states, int count) {
             if (content < 0 || content >= RPD_ITEM_COUNT) continue;
             item_t *entry = &g_items[content];
             if (entry->state != ITEM_PRESENT) continue;
-            entry->approach_node = g_items[i].approach_node;
-            entry->approach_x = g_items[i].approach_x;
-            entry->approach_y = g_items[i].approach_y;
-            entry->approach_z = g_items[i].approach_z;
-            entry->snap_node = g_items[i].snap_node;
-            entry->snap_x = g_items[i].snap_x;
-            entry->snap_y = g_items[i].snap_y;
-            entry->snap_z = g_items[i].snap_z;
+            place_content(content, &g_items[i]);
             float cube[3];
             items_cube_position(content, cube);
             if (entry->marker >= 0) rpd_marker_set_position(entry->marker, cube[0], cube[1], cube[2]);

@@ -33,7 +33,7 @@ void menu_open(float x, float y) {
             if (action == RPD_ACTION_TAKE) {
                 popup_add_choice(POPUP_ACTION_MENU_DEBUG_TAKE, "Debug take", 1);
             }
-            if (action == RPD_ACTION_OPEN || action == RPD_ACTION_USE || action == RPD_ACTION_SOLVE) {
+            if (action == RPD_ACTION_OPEN || action == RPD_ACTION_USE) {
                 popup_add_choice(POPUP_ACTION_MENU_DEBUG_OPEN, "Debug open", 1);
             }
             if (action == RPD_ACTION_SOLVE) {

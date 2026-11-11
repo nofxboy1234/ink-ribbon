@@ -7,7 +7,7 @@
 #include "rpd_math.h"
 #include "rpd_sokol.h"
 
-#define MAX_MARKERS 256
+#define MAX_MARKERS 320
 #define MAX_SCENE_FLOORS 8
 
 enum {

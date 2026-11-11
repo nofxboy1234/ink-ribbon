@@ -69,6 +69,7 @@ return {
   addTarget: (x: number, z: number) => client.planAddTarget(x, 0, z),
   addTargetNode: (node: number) => client.planAddTargetNode(node),
   hover: () => client.planHover(),
+  hoverItem: () => client.planHoverItem(),
   cellBlocked: (node: number) => client.planNodeBlocked(node) !== 0,
   items: () => {
     const out = [];

@@ -152,6 +152,9 @@ export async function createRpdClient(options: {
       return (module as unknown as { _rpd_plan_waypoint: (i: number) => number })
         ._rpd_plan_waypoint(index);
     },
+    planHoverItem() {
+      return (module as unknown as { _rpd_plan_hover_item: () => number })._rpd_plan_hover_item();
+    },
     planHover() {
       return module._rpd_plan_hover();
     },

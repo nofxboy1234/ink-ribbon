@@ -114,12 +114,18 @@ try {
     const item = await evaluate(`window.__quest.items()[${index}]`);
     const screen = await evaluate(`window.__quest.project(${item.cubeX}, ${item.cubeY}, ${item.cubeZ})`);
     if (!screen) return [];
-    await click(screen.x, screen.y, "right");
-    await sleep(300);
-    const labels = await evaluate("window.__quest.popup().choices.map((choice) => choice.label)");
-    await evaluate("window.__rpd.popupClose()");
-    await sleep(120);
-    return labels ?? [];
+    for (const [dx, dy] of [[0, 0], [4, 0], [-4, 0], [0, 4], [0, -4], [7, 7], [-7, -7]]) {
+      await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: screen.x + dx, y: screen.y + dy });
+      await sleep(150);
+      if ((await evaluate("window.__quest.hoverItem()")) !== index) continue;
+      await click(screen.x + dx, screen.y + dy, "right");
+      await sleep(250);
+      const labels = await evaluate("window.__quest.popup().choices.map((choice) => choice.label)");
+      await evaluate("window.__rpd.popupClose()");
+      await sleep(100);
+      return labels ?? [];
+    }
+    return [];
   };
   const state = async (index) => evaluate(`JSON.stringify(window.__quest.items()[${index}])`).then((value) => JSON.parse(value));
 
@@ -146,7 +152,9 @@ try {
     }
     const before = [];
     for (const index of contentIndices) before.push(await state(index));
+    const markersBefore = await evaluate("window.__rpd.markerCount()");
     const code = await evaluate(`window.__quest.${testCase.action}(${containerIndex})`);
+    const markersAfter = await evaluate("window.__rpd.markerCount()");
     await sleep(400);
     const after = [];
     for (const index of contentIndices) after.push(await state(index));
@@ -165,6 +173,8 @@ try {
       labels,
       containerStateBefore: container.state,
       containerStateAfter: containerAfter.state,
+      markersBefore,
+      markersAfter,
       hiddenBefore: before.map((entry) => entry.state),
       placement,
     });
@@ -190,7 +200,20 @@ try {
     };
   }
   console.log(JSON.stringify({ results, saveRoundTrip }, null, 2));
-  const expectedLabels = { "normal-open": [], "debug-open-code": ["Debug open"], "debug-open-key": ["Debug open"], "normal-solve": [], "debug-solve": ["Debug solve"] };
+  const expectedLabels = {
+    "normal-open": [],
+    "debug-open-code": ["Debug open"],
+    "debug-open-key": ["Debug open"],
+    "normal-solve": ["Debug solve"],
+    "debug-solve": ["Debug solve"],
+  };
+  const forbiddenLabels = {
+    "normal-open": [],
+    "debug-open-code": ["Debug solve"],
+    "debug-open-key": ["Debug solve"],
+    "normal-solve": ["Debug open"],
+    "debug-solve": ["Debug open"],
+  };
   const saveOk = saveRoundTrip
     ? saveRoundTrip.state.every((value) => value === 1) &&
       saveRoundTrip.dx.every((value) => Math.abs(value) <= 0.05) &&
@@ -200,10 +223,12 @@ try {
     if (entry.error) return true;
     const wants = expectedLabels[entry.name] ?? [];
     const hasLabels = wants.every((label) => entry.labels.includes(label));
+    const forbids = (forbiddenLabels[entry.name] ?? []).every((label) => !entry.labels.includes(label));
     const containerOpen = entry.containerStateAfter === 3;
     const revealed = entry.placement.every((content) => content.state === 1);
     const atContainer = entry.placement.every((content) => Math.abs(content.dx) <= 0.05 && Math.abs(content.dz) <= 0.05);
-    return !hasLabels || !containerOpen || !revealed || !atContainer;
+    const hasGraphics = entry.markersAfter > entry.markersBefore;
+    return !hasLabels || !forbids || !containerOpen || !revealed || !atContainer || !hasGraphics;
   }) || !saveOk;
   if (failed) console.log("FAIL: a container or puzzle did not emit its contents at its cell, or a debug action is missing");
   if (!failed) console.log("PASS: containers and puzzles emit contents at their cell and debug actions bypass their gates");
