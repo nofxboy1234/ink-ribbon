@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "rpd_item_gate.h"
+#include "rpd_enemies.h"
 #include "rpd_items.h"
 #include "rpd_menu.h"
 #include "rpd_nearest.h"
@@ -286,6 +287,10 @@ void plan_set_spawn(float x, float y, float z) {
     }
     waypoint_count = 0; route_count = 0; moving = 0; hover = -1; hover_item = -1;
     popup_close();
+    // A frame can add enemy markers before the spawn runs; reset every marker
+    // producer so the cleared array is rebuilt from index 0.
+    items_reset_markers();
+    enemies_reset_markers();
     markers_ensure_player(player[0], player[1], player[2]);
     items_place(nav_count, nav_x, nav_y, nav_z, nav_floor);
     items_sync_markers();

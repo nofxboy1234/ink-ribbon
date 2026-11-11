@@ -55,6 +55,10 @@ static void ensure_marker(enemy_t *e) {
     }
 }
 
+void enemies_reset_markers(void) {
+    for (int i = 0; i < count; i++) enemies[i].marker = -1;
+}
+
 void enemies_update(int player_acted, float player_x, float player_y, float player_z, int floor) {
     for (int i = 0; i < count; i++) {
         enemy_t *e = &enemies[i];

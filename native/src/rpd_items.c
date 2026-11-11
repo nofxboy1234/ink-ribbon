@@ -189,6 +189,10 @@ static void sync_marker(int index) {
                                   (int)(item->b * 255.0f));
 }
 
+void items_reset_markers(void) {
+    for (int i = 0; i < RPD_ITEM_COUNT; i++) g_items[i].marker = -1;
+}
+
 void items_sync_markers(void) {
     if (!g_placed) return;
     for (int i = 0; i < RPD_ITEM_COUNT; i++) {

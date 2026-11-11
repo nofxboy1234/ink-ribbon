@@ -90,6 +90,7 @@ void items_reset(void);
 bool items_place(int nav_count, const float *x, const float *y, const float *z,
                  const uint8_t *floor);
 void items_sync_markers(void);
+void items_reset_markers(void);
 void items_set_approach(int index, int node, float x, float y, float z);
 int items_count(void);
 int items_registry_count(void);

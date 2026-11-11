@@ -4,6 +4,7 @@
 // game reads as a real-time / turn-based hybrid. The markers are capsules:
 // zombies red, dogs blue and horizontal, Mr X yellow and larger.
 void enemies_reset(void);
+void enemies_reset_markers(void);
 void enemies_update(int player_acted, float player_x, float player_y, float player_z, int floor);
 int enemies_count(void);
 int enemies_alive(void);
