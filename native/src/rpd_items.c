@@ -1,4 +1,5 @@
 #include "rpd_items.h"
+#include "rpd_inventory.h"
 
 #include <math.h>
 #include <stddef.h>
@@ -13,13 +14,7 @@
 #define ITEM_MARKER_LIFT 0.45f
 #define MAX_EXTERNAL_CARRIED 32
 
-static void preload_box(void);
-
 static item_t g_items[RPD_ITEM_COUNT];
-static inventory_slot_t g_inventory[INVENTORY_SLOTS];
-static int g_inventory_count;
-static inventory_slot_t g_box[BOX_SLOTS];
-static int g_box_count;
 static bool g_placed;
 static int32_t g_external_carried[MAX_EXTERNAL_CARRIED];
 static int g_external_count;
@@ -83,13 +78,6 @@ static const char *ACTION_VERBS[RPD_ACTION_INSPECT + 1] = {
     "", "TAKE", "UNLOCK", "OPEN", "SOLVE", "READ", "USE", "INSPECT",
 };
 
-static int item_in_inventory(int index) {
-    for (int slot = 0; slot < INVENTORY_SLOTS; slot++) {
-        if (g_inventory[slot].filled && g_inventory[slot].item == index) return slot;
-    }
-    return -1;
-}
-
 static bool item_is_open(int index) {
     if (index < 0 || index >= RPD_ITEM_COUNT) return true;
     // A read file or inspected fixture is used up in the same sense as an
@@ -98,11 +86,8 @@ static bool item_is_open(int index) {
 }
 
 void items_reset(void) {
-    memset(g_inventory, 0, sizeof(g_inventory));
+    items_inventory_reset();
     memset(g_external_carried, 0, sizeof(g_external_carried));
-    g_inventory_count = 0;
-    memset(g_box, 0, sizeof(g_box));
-    g_box_count = 0;
     g_external_count = 0;
     g_placed = false;
     for (int i = 0; i < RPD_ITEM_COUNT; i++) {
@@ -156,8 +141,8 @@ bool items_place(int nav_count, const float *x, const float *y, const float *z,
             g_items[i].snap_z = z[best];
         }
     }
-    preload_box();
     g_placed = true;
+    items_preload_box();
     return true;
 }
 
@@ -264,20 +249,12 @@ int items_room(int index) {
     return -1;
 }
 
-int items_inventory_count(void) {
-    return g_inventory_count;
-}
-
-const inventory_slot_t *items_inventory(void) {
-    return g_inventory;
-}
-
 int items_missing_requirement(int index) {
     if (index < 0 || index >= RPD_ITEM_COUNT) return -1;
     const rpd_item_def_t *def = &RPD_ITEM_DEFS[index];
     for (int i = 0; i < def->requires_count; i++) {
         int required = def->requires[i];
-        if (item_in_inventory(required) < 0) return required;
+        if (inventory_slot_for(required) < 0) return required;
     }
     return -1;
 }
@@ -327,7 +304,7 @@ int items_missing_external(int index) {
 static int item_known(int index) {
     const item_t *item = items_get(index);
     if (!item) return 0;
-    return item->state >= ITEM_TAKEN || item_in_inventory(index) >= 0;
+    return item->state >= ITEM_TAKEN || inventory_slot_for(index) >= 0;
 }
 
 int items_missing_hint(int index) {
@@ -353,7 +330,7 @@ int items_available(int index) {
     if (items_missing_open(index) >= 0) return 0;
     if (items_missing_external(index) >= 0) return 0;
     if (item->def->code != NULL) return 0;
-    if (item->def->action == RPD_ACTION_TAKE && g_inventory_count >= INVENTORY_SLOTS) return 0;
+    if (item->def->action == RPD_ACTION_TAKE && items_inventory_count() >= INVENTORY_SLOTS) return 0;
     return 1;
 }
 
@@ -438,20 +415,6 @@ static void reveal_contents(int index) {
     }
 }
 
-static int place_in_inventory(int index) {
-    int slot = 0;
-    while (slot < INVENTORY_SLOTS && g_inventory[slot].filled) slot++;
-    if (slot >= INVENTORY_SLOTS) return -1;
-    const item_t *item = &g_items[index];
-    g_inventory[slot].filled = true;
-    g_inventory[slot].r = item->r;
-    g_inventory[slot].g = item->g;
-    g_inventory[slot].b = item->b;
-    g_inventory[slot].item = index;
-    g_inventory_count++;
-    return slot;
-}
-
 int items_take(int index) {
     return items_act(index);
 }
@@ -468,8 +431,8 @@ int items_act(int index) {
     if (items_missing_external(index) >= 0) return -2;
     if (item->def->code != NULL) return -5;
     if (action == RPD_ACTION_TAKE) {
-        if (g_inventory_count >= INVENTORY_SLOTS) return -1;
-        if (place_in_inventory(index) < 0) return -1;
+        if (items_inventory_count() >= INVENTORY_SLOTS) return -1;
+        if (inventory_place(index) < 0) return -1;
         item->state = ITEM_TAKEN;
     } else if (action == RPD_ACTION_UNLOCK) {
         item->state = ITEM_UNLOCKED;
@@ -494,7 +457,7 @@ int items_debug_take(int index) {
     const item_t *item = items_get(index);
     if (!item || item->state != ITEM_PRESENT) return -3;
     if (items_action_kind(index) != RPD_ACTION_TAKE) return -4;
-    if (place_in_inventory(index) < 0) return -1;
+    if (inventory_place(index) < 0) return -1;
     g_items[index].state = ITEM_TAKEN;
     if (g_items[index].marker >= 0) rpd_marker_set_visible(g_items[index].marker, 0);
     return 0;
@@ -538,72 +501,11 @@ void items_debug_highlight(int index) {
 
 int items_debug_highlighted(void) { return highlighted; }
 
-static void box_add(int index) {
-    if (g_box_count >= BOX_SLOTS) return;
-    inventory_slot_t *slot = &g_box[g_box_count++];
-    const item_t *item = items_get(index);
-    slot->filled = true;
-    slot->r = item->r; slot->g = item->g; slot->b = item->b;
-    slot->item = index;
+void items_mark_taken(int index) {
+    if (index < 0 || index >= RPD_ITEM_COUNT) return;
+    g_items[index].state = ITEM_TAKEN;
+    if (g_items[index].marker >= 0) rpd_marker_set_visible(g_items[index].marker, 0);
 }
-
-static void inventory_remove(int index) {
-    for (int i = 0; i < INVENTORY_SLOTS; i++) {
-        if (g_inventory[i].filled && g_inventory[i].item == index) {
-            g_inventory[i].filled = false;
-            g_inventory[i].item = -1;
-            g_inventory_count--;
-        }
-    }
-}
-
-static void preload_box(void) {
-    static const int preloaded[] = { 544564, 544574, 544575 };
-    for (int i = 0; i < 3; i++) {
-        int index = items_index_for_id(preloaded[i]);
-        if (index < 0) continue;
-        item_t *item = &g_items[index];
-        if (item->state != ITEM_PRESENT) continue;
-        item->state = ITEM_TAKEN;
-        if (item->marker >= 0) rpd_marker_set_visible(item->marker, 0);
-        box_add(index);
-    }
-}
-
-int items_discard(int index) {
-    const item_t *item = items_get(index);
-    if (!item || item->state != ITEM_TAKEN) return -3;
-    if (item_in_inventory(index) < 0) return -4;
-    inventory_remove(index);
-    return 0;
-}
-
-int items_box_store(int index) {
-    const item_t *item = items_get(index);
-    if (!item || item->state != ITEM_TAKEN) return -3;
-    if (item_in_inventory(index) < 0) return -4;
-    if (g_box_count >= BOX_SLOTS) return -1;
-    inventory_remove(index);
-    box_add(index);
-    return 0;
-}
-
-int items_box_take(int slot) {
-    if (slot < 0 || slot >= g_box_count || !g_box[slot].filled) return -3;
-    if (g_inventory_count >= INVENTORY_SLOTS) return -1;
-    const item_t *item = items_get(g_box[slot].item);
-    if (!item) return -3;
-    int index = g_box[slot].item;
-    g_box[slot].filled = false;
-    for (int i = slot; i < g_box_count - 1; i++) g_box[i] = g_box[i + 1];
-    g_box[--g_box_count].filled = false;
-    place_in_inventory(index);
-    return 0;
-}
-
-int items_box_count(void) { return g_box_count; }
-
-const inventory_slot_t *items_box(void) { return g_box; }
 
 void items_restore_states(const uint8_t *states, int count) {
     if (!states) return;
@@ -613,38 +515,6 @@ void items_restore_states(const uint8_t *states, int count) {
             rpd_marker_set_visible(g_items[i].marker, g_items[i].state == ITEM_PRESENT ? 1 : 0);
         }
     }
-}
-
-void items_restore_inventory(int slot, int filled, int item) {
-    if (slot < 0 || slot >= INVENTORY_SLOTS) return;
-    g_inventory[slot].filled = filled != 0;
-    g_inventory[slot].item = item;
-    if (g_inventory[slot].filled && item >= 0) {
-        const item_t *entry = items_get(item);
-        if (entry) {
-            g_inventory[slot].r = entry->r;
-            g_inventory[slot].g = entry->g;
-            g_inventory[slot].b = entry->b;
-        }
-    }
-    g_inventory_count = 0;
-    for (int i = 0; i < INVENTORY_SLOTS; i++) if (g_inventory[i].filled) g_inventory_count++;
-}
-
-void items_restore_box(int slot, int filled, int item) {
-    if (slot < 0 || slot >= BOX_SLOTS) return;
-    g_box[slot].filled = filled != 0;
-    g_box[slot].item = item;
-    if (g_box[slot].filled && item >= 0) {
-        const item_t *entry = items_get(item);
-        if (entry) {
-            g_box[slot].r = entry->r;
-            g_box[slot].g = entry->g;
-            g_box[slot].b = entry->b;
-        }
-    }
-    g_box_count = 0;
-    for (int i = 0; i < BOX_SLOTS; i++) if (g_box[i].filled) g_box_count++;
 }
 
 int items_enter_code(int index, const char *entry) {

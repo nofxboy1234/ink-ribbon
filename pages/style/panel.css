@@ -345,23 +345,6 @@
   cursor: default;
 }
 
-.rpd-toast {
-  position: absolute;
-  left: 50%;
-  bottom: calc(28px + var(--dock-height, 0px));
-  transform: translateX(-50%);
-  z-index: 6;
-  max-width: min(640px, calc(100vw - 40px));
-  padding: 10px 14px;
-  border: 1px solid rgb(67 255 116 / 50%);
-  background: rgb(5 10 8 / 90%);
-  color: #d9ffdf;
-  font: 11px/1.4 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  letter-spacing: 0.03em;
-  box-shadow: 0 0 28px rgb(67 255 116 / 16%);
-  pointer-events: none;
-}
-
 
 @media (max-width: 860px) {
   .rpd-brand {
@@ -580,61 +563,4 @@
 .rpd-box-empty {
   font-size: 12px;
   color: #777;
-}
-
-.rpd-save {
-  margin-top: 12px;
-  border-top: 1px solid rgba(0, 0, 0, 0.12);
-  padding-top: 8px;
-}
-
-.rpd-save-slot {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 4px;
-  font-size: 12px;
-}
-
-.rpd-save-name {
-  font-weight: 700;
-  min-width: 50px;
-}
-
-.rpd-save-meta {
-  flex: 1;
-  color: #666;
-}
-
-.rpd-save-message {
-  font-size: 12px;
-  color: #2a6b2a;
-}
-
-.rpd-notes {
-  margin-top: 12px;
-  border-top: 1px solid rgba(0, 0, 0, 0.12);
-  padding-top: 8px;
-}
-
-.rpd-notes-tabs {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 6px;
-}
-
-.rpd-notes-tabs button[data-active="true"] {
-  background: #111;
-  color: #fff;
-}
-
-.rpd-note h3 {
-  margin: 6px 0 2px;
-  font-size: 13px;
-}
-
-.rpd-note p {
-  margin: 0 0 6px;
-  font-size: 12px;
-  color: #444;
 }
