@@ -7,6 +7,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const nav = JSON.parse(readFileSync(join(root, "public", "rpd", "nav.json"), "utf8"));
 const port = Number(process.env.RPD_TELEPORT_PORT ?? 5191);
 const chromePort = Number(process.env.RPD_TELEPORT_CHROME ?? 9231);
 const outDir = join(root, "verification", "rpd", "teleport");
@@ -139,10 +140,10 @@ try {
   await evaluate("window.__quest.toggleDebug()");
   await sleep(300);
 
-  const level = 10.42;
+  const level = nav.floors.find((floor) => floor.index === 2).level;
   const stair = await teleportAt("stair-teleport", 30.5, 7.84, -18.5);
   if (stair.player) {
-    stair.offLevel = Math.abs(stair.player[1] - level) > 0.5;
+    stair.offLevel = Math.abs(stair.player[1] - level) > 0.25;
     stair.pink = pinkPixelsNear(stair.png, Math.round(stair.projected.x), Math.round(stair.projected.y));
   }
 
@@ -151,7 +152,7 @@ try {
   await sleep(500);
   const floor = await teleportAt("floor-teleport", 0.0, 0.04, 7.5);
   if (floor.player) {
-    floor.offLevel = Math.abs(floor.player[1] - 0.02) > 0.5;
+    floor.offLevel = Math.abs(floor.player[1] - nav.floors.find((entry) => entry.index === 0).level) > 0.25;
     floor.pink = pinkPixelsNear(floor.png, Math.round(floor.projected.x), Math.round(floor.projected.y));
   }
 

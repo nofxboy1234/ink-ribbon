@@ -60,6 +60,20 @@ static int nearest_node_on(int floor, float x, float y, float z, float maxd) {
                               floor, x, y, z, maxd);
 }
 
+static int nearest_floor_level_node(int floor, float x, float z, float max_distance) {
+    if (floor < 0 || floor >= floor_count) return -1;
+    int best = -1;
+    float best_distance = max_distance * max_distance;
+    for (int i = 0; i < nav_count; i++) {
+        if (nav_floor[i] != floor) continue;
+        if (fabsf(nav_y[i] - floor_levels[floor]) > 0.25f) continue;
+        float dx = nav_x[i] - x, dz = nav_z[i] - z;
+        float distance = dx * dx + dz * dz;
+        if (distance < best_distance) { best_distance = distance; best = i; }
+    }
+    return best;
+}
+
 static int nearest_room(void) {
     int floor = player_node >= 0 ? nav_floor[player_node] : active_floor;
     return nearest_room_index(room_count, room_x, room_y, room_z, room_floor, floor,
@@ -361,6 +375,11 @@ void plan_set_player(float x, float y, float z) {
 
 void plan_teleport_node(int node) {
     if (node < 0 || node >= nav_count) return;
+    if (fabsf(nav_y[node] - plan_level()) > 0.25f) {
+        // A stair node can sit 2.6 m off the floor and hides the player in plan view.
+        node = nearest_floor_level_node(active_floor, nav_x[node], nav_z[node], 6.0f);
+        if (node < 0) return;
+    }
     plan_set_player(nav_x[node], nav_y[node], nav_z[node]);
     moving = 0;
     waypoint_count = 0;
