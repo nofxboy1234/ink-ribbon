@@ -359,6 +359,10 @@ export async function createRpdClient(options: {
     debugEnabled() {
       return (module as unknown as { _rpd_game_debug: () => number })._rpd_game_debug() !== 0;
     },
+    setDebugAllowed(allowed) {
+      (module as unknown as { _rpd_set_debug_allowed: (v: number) => void })
+        ._rpd_set_debug_allowed(allowed ? 1 : 0);
+    },
     itemEnterCode(index, code) {
       const encoded = new TextEncoder().encode(code);
       const ptr = module._malloc(encoded.byteLength + 1);

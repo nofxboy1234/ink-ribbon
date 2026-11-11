@@ -118,6 +118,7 @@ EMSCRIPTEN_KEEPALIVE int rpd_craft_result(int first, int second) {
     return craft_recipe_result(first, second);
 }
 
+EMSCRIPTEN_KEEPALIVE void rpd_set_debug_allowed(int value) { game_set_debug_allowed(value); }
 EMSCRIPTEN_KEEPALIVE int rpd_game_health(void) { return game_health(); }
 EMSCRIPTEN_KEEPALIVE int rpd_game_ending(void) { return game_ending(); }
 EMSCRIPTEN_KEEPALIVE int rpd_game_shoot(int enemy, int stationary) { return game_shoot(enemy, stationary); }

@@ -5,6 +5,7 @@
 
 static int paused;
 static int debug;
+static int debug_allowed = 1;
 static int health = 120;
 static int running;
 static int ending;
@@ -42,9 +43,17 @@ void game_set_paused(int value) { paused = value ? 1 : 0; }
 
 int game_paused(void) { return paused; }
 
-void game_toggle_debug(void) { debug = !debug; }
+void game_toggle_debug(void) {
+    if (!debug_allowed) return;
+    debug = !debug;
+}
 
-int game_debug(void) { return debug; }
+int game_debug(void) { return debug && debug_allowed; }
+
+void game_set_debug_allowed(int value) {
+    debug_allowed = value ? 1 : 0;
+    if (!debug_allowed) debug = 0;
+}
 
 void game_toggle_pause(void) { paused = !paused; }
 

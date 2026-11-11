@@ -125,6 +125,7 @@ export function usePlanSession(
           return;
         }
         clientRef.current = client;
+        client.setDebugAllowed(import.meta.env.DEV);
         if (import.meta.env.DEV) {
           (window as unknown as { __rpd?: RpdClient }).__rpd = client;
         }

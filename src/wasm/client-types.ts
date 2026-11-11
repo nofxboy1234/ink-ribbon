@@ -133,6 +133,7 @@ export type RpdClient = {
   craftCombine(first: number, second: number): number;
   toggleDebug(): void;
   debugEnabled(): boolean;
+  setDebugAllowed(allowed: boolean): void;
   itemEnterCode(index: number, code: string): number;
   itemGrantExternal(id: number): number;
   itemHasCode(index: number): boolean;

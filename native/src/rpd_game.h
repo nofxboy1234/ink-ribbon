@@ -9,6 +9,7 @@ void game_set_paused(int paused);
 int game_paused(void);
 void game_toggle_debug(void);
 int game_debug(void);
+void game_set_debug_allowed(int value);
 void game_toggle_pause(void);
 void game_toggle_run(void);
 int game_run(void);
