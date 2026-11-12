@@ -16,6 +16,7 @@ int game_run(void);
 void game_set_ending(int value);
 int game_ending(void);
 int game_health(void);
+void game_set_health(int value);
 void game_damage(int amount);
 int game_shoot(int enemy, int stationary);
 int game_stab(int enemy);

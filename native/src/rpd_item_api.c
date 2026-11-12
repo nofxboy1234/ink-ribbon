@@ -140,6 +140,12 @@ EMSCRIPTEN_KEEPALIVE int rpd_enemy_alive(void) { return enemies_alive(); }
 EMSCRIPTEN_KEEPALIVE int rpd_enemy_health(int index) { return enemies_health(index); }
 EMSCRIPTEN_KEEPALIVE int rpd_enemy_hit(int index, int damage) { return enemies_hit(index, damage); }
 EMSCRIPTEN_KEEPALIVE int rpd_enemy_visible(int index) { return enemies_visible(index); }
+
+EMSCRIPTEN_KEEPALIVE void rpd_enemy_position(int index, float *out) { enemies_position(index, out); }
+
+EMSCRIPTEN_KEEPALIVE int rpd_doors_discovered(int index) { return doors_discovered(index); }
+
+EMSCRIPTEN_KEEPALIVE void rpd_plan_teleport_item(int index) { plan_teleport_item(index); }
 EMSCRIPTEN_KEEPALIVE int rpd_doors_count(void) {
     return doors_count();
 }

@@ -19,7 +19,7 @@ void menu_open(float x, float y) {
         if (entry && entry->state == ITEM_PRESENT && items_transition_target(item, entry->def->x, entry->def->z) >= 0) {
             menu_item = item;
             popup_open_menu(-1, x, y);
-            popup_add_choice(POPUP_ACTION_MENU_GO_TO, "Go", 1);
+            popup_add_choice_data(POPUP_ACTION_MENU_GO_TO, "Go", 1, -1);
             popup_add_choice(POPUP_ACTION_MENU_ADD, "Add waypoint", 1);
             return;
         }

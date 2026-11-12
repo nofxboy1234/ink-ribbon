@@ -5,3 +5,4 @@
 void doors_reset(void);
 void doors_sync(void);
 int doors_count(void);
+int doors_discovered(int index);

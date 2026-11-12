@@ -4,8 +4,15 @@
 
 #include "rpd_item_registry.h"
 
+static bool item_on_map(int index) {
+    const item_t *item = items_get(index);
+    if (!item) return false;
+    return item->state == ITEM_PRESENT || item->state == ITEM_OPEN || item->state == ITEM_UNLOCKED;
+}
+
 static void add_related(int *out, int *count, int cap, int candidate, int self) {
     if (candidate == self || candidate < 0 || candidate >= RPD_ITEM_COUNT) return;
+    if (!item_on_map(candidate)) return;
     for (int i = 0; i < *count; i++) if (out[i] == candidate) return;
     if (*count < cap) out[(*count)++] = candidate;
 }

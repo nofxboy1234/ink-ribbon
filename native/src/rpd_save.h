@@ -3,8 +3,8 @@
 #include <stdint.h>
 
 // A save is a flat byte image of the state the acceptance run needs to resume:
-// the item states, the inventory, the box, the external grants, the player and
-// the active floor. The client owns the slots and the storage.
+// the item states, the inventory, the box, the external grants, the player, the
+// floor, the health and the enemies. The client owns the slots and the storage.
 #define RPD_SAVE_BYTES 8192
 
 int save_snapshot(uint8_t *out, int cap);

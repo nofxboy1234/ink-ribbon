@@ -4,12 +4,14 @@
 
 #include "rpd_items.h"
 #include "rpd_markers.h"
+#include "rpd_plan.h"
 
 #define DOOR_PERIOD 3.1f
 
 static float door_open[64];
 static int door_marker[64];
 static int door_item[64];
+static bool door_discovered[64];
 static int door_count;
 
 void doors_reset(void) {
@@ -18,6 +20,7 @@ void doors_reset(void) {
         door_open[i] = 0.0f;
         door_marker[i] = -1;
         door_item[i] = -1;
+        door_discovered[i] = false;
     }
     for (int i = 0; i < items_count() && door_count < 64; i++) {
         const item_t *item = items_get(i);
@@ -31,16 +34,26 @@ void doors_reset(void) {
 }
 
 void doors_sync(void) {
+    float player[3];
+    plan_player(player);
+    const int floor = plan_active_floor();
     for (int i = 0; i < door_count; i++) {
         const item_t *item = items_get(door_item[i]);
         if (!item || item->marker < 0) continue;
+        if (!door_discovered[i] && item->def->floor == floor) {
+            const float dx = player[0] - item->def->x;
+            const float dz = player[2] - item->def->z;
+            if (dx * dx + dz * dz <= 9.0f) door_discovered[i] = true;
+        }
         float target = item->state == ITEM_OPEN ? 1.0f : 0.0f;
         if (door_open[i] < target) {
             door_open[i] = fminf(1.0f, door_open[i] + 0.05f);
         } else if (door_open[i] > target) {
             door_open[i] = fmaxf(0.0f, door_open[i] - 0.05f);
         }
-        if (item->state == ITEM_OPEN) {
+        if (!door_discovered[i]) {
+            rpd_marker_set_color(item->marker, 150, 150, 150);
+        } else if (item->state == ITEM_OPEN) {
             rpd_marker_set_color(item->marker, 90, 200, 255);
         } else if (item->state == ITEM_UNLOCKED) {
             rpd_marker_set_color(item->marker, 60, 120, 230);
@@ -52,3 +65,7 @@ void doors_sync(void) {
 }
 
 int doors_count(void) { return door_count; }
+
+int doors_discovered(int index) {
+    return index >= 0 && index < door_count && door_discovered[index] ? 1 : 0;
+}

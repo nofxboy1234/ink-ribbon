@@ -68,9 +68,9 @@ void enemies_update(int player_acted, float player_x, float player_y, float play
         const float dx = player_x - e->x;
         const float dz = player_z - e->z;
         const float distance = sqrtf(dx * dx + dz * dz);
-        const int visible = same_floor && distance <= ENEMY_SIGHT;
+        const int visible = e->state != 2 && same_floor && distance <= ENEMY_SIGHT;
         rpd_marker_set_visible(e->marker, visible ? 1 : 0);
-        if (!visible || e->state == 2 || !player_acted) continue;
+        if (!visible || !player_acted) continue;
         if (e->kind != 2 && distance > 1.5f) {
             const float step = (e->kind == 1 ? 0.22f : 0.08f) * (e->kind == 2 ? 0.14f : 1.0f);
             const float len = fmaxf(distance, 0.001f);
@@ -81,7 +81,37 @@ void enemies_update(int player_acted, float player_x, float player_y, float play
     }
 }
 
+int enemies_state(int index, enemy_state_t *out) {
+    if (index < 0 || index >= count || !out) return -1;
+    const enemy_t *e = &enemies[index];
+    out->x = e->x;
+    out->y = e->y;
+    out->z = e->z;
+    out->floor = e->floor;
+    out->health = e->health;
+    out->alive = e->state != 2;
+    return 0;
+}
+
+void enemies_set_state(int index, const enemy_state_t *state) {
+    if (index < 0 || index >= count || !state) return;
+    enemy_t *e = &enemies[index];
+    e->x = state->x;
+    e->y = state->y;
+    e->z = state->z;
+    e->floor = state->floor;
+    e->health = state->health;
+    // An enemy is live only when the save says alive and has health, so the two
+    // flags cannot disagree about visibility.
+    e->state = state->alive && state->health > 0 ? 0 : 2;
+}
+
 int enemies_count(void) { return count; }
+
+void enemies_position(int index, float *out) {
+    if (!out || index < 0 || index >= count) return;
+    out[0] = enemies[index].x; out[1] = enemies[index].y; out[2] = enemies[index].z;
+}
 
 int enemies_alive(void) {
     int alive = 0;

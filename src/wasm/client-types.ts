@@ -128,6 +128,10 @@ export type RpdClient = {
   enemyHealth(index: number): number;
   enemyHit(index: number, damage: number): number;
   enemyVisible(index: number): number;
+  enemyPosition(index: number): number[];
+  doorsDiscovered(index: number): boolean;
+  planTeleportItem(index: number): void;
+  itemTransitionTarget(index: number): number;
   health(): number;
   ending(): boolean;
   shoot(index: number, stationary: boolean): number;

@@ -66,6 +66,7 @@ typedef struct {
     uint8_t hint_count;
     int32_t external_grants[RPD_MAX_EXTERNAL_GRANTS];
     uint8_t external_grant_count;
+    int32_t transition_target;
 } rpd_item_def_t;
 
 typedef struct {

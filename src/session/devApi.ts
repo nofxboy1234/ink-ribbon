@@ -112,11 +112,13 @@ return {
   boxTake: (slot: number) => client.boxTake(slot),
   saveSnapshot: () => Array.from(client.saveSnapshot()),
   doorsCount: () => client.doorsCount(),
-  enemies: () => Array.from({ length: client.enemyCount() }, (_, index) => ({
-    index,
-    health: client.enemyHealth(index),
-    visible: client.enemyVisible(index) !== 0,
-  })),
+  enemies: () => Array.from({ length: client.enemyCount() }, (_, index) => {
+    const position = client.enemyPosition(index);
+    return { index, health: client.enemyHealth(index), visible: client.enemyVisible(index) !== 0, x: position[0], y: position[1], z: position[2] };
+  }),
+  doorsDiscovered: (index: number) => client.doorsDiscovered(index),
+  goToItem: (index: number) => client.planTeleportItem(index),
+  itemTransitionTarget: (index: number) => client.itemTransitionTarget(index),
   enemyAlive: () => client.enemyAlive(),
   health: () => client.health(),
   ending: () => client.ending(),

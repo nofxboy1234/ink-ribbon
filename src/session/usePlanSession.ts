@@ -6,10 +6,22 @@ import { createRpdClient, type RpdClient } from "../wasm/client";
 import { createDevApi } from "./devApi";
 import { CACHE_VERSION, fetchScene } from "./scene";
 
+const ITEM_STATE_OPEN = 3;
+const ITEM_STATE_READ = 5;
+
 export type InventoryEntry = {
   name: string;
   index: number;
   description: string;
+  r: number;
+  g: number;
+  b: number;
+};
+
+export type BoxEntry = {
+  slot: number;
+  index: number;
+  name: string;
   r: number;
   g: number;
   b: number;
@@ -34,7 +46,8 @@ export type PlanSession = {
     moving: boolean;
     room: string;
     inventory: (InventoryEntry | null)[];
-    box: { slot: number; index: number; name: string }[];
+    box: BoxEntry[];
+    boxOpen: boolean;
     notes: { id: number; title: string; body: string }[];
     atTypewriter: boolean;
     codeLock: CodeLock | null;
@@ -52,6 +65,8 @@ export type PlanSession = {
     discard: (index: number) => void;
     store: (index: number) => void;
     takeFromBox: (slot: number) => void;
+    combine: (first: number, second: number) => number;
+    combinePartners: (first: number) => number[];
     save: () => number[] | null;
     restore: (bytes: number[]) => number;
   };
@@ -76,7 +91,8 @@ export function usePlanSession(
     Array.from({ length: 8 }, () => null),
   );
   const [codeLock, setCodeLock] = useState<CodeLock | null>(null);
-  const [box, setBox] = useState<{ slot: number; index: number; name: string }[]>([]);
+  const [box, setBox] = useState<BoxEntry[]>([]);
+  const [boxOpen, setBoxOpen] = useState(false);
   const [notes, setNotes] = useState<{ id: number; title: string; body: string }[]>([]);
   const [atTypewriter, setAtTypewriter] = useState(false);
   const graphRef = useRef<ReturnType<typeof buildNavGraph> | null>(null);
@@ -219,13 +235,17 @@ export function usePlanSession(
             };
           });
           const nextNotes: { id: number; title: string; body: string }[] = [];
+          let nextBoxOpen = false;
           for (let i = 0; i < clientRef.current.itemCount(); i += 1) {
             const entry = clientRef.current.item(i);
-            if (entry && entry.taken && entry.action === 5) {
+            if (!entry) continue;
+            if (entry.name === "Item Box" && entry.state === ITEM_STATE_OPEN) nextBoxOpen = true;
+            if (entry.action === 5 && entry.state === ITEM_STATE_READ) {
               nextNotes.push({ id: i, title: entry.name, body: "Collected and read in the RPD." });
             }
           }
           setNotes((current) => (JSON.stringify(current) === JSON.stringify(nextNotes) ? current : nextNotes));
+          setBoxOpen((current) => (current === nextBoxOpen ? current : nextBoxOpen));
           const player = clientRef.current.planPlayer();
           let nearWriter = false;
           for (let i = 0; i < clientRef.current.itemCount(); i += 1) {
@@ -238,10 +258,17 @@ export function usePlanSession(
             }
           }
           setAtTypewriter((current) => (current === nearWriter ? current : nearWriter));
-          const nextBox = Array.from({ length: clientRef.current.boxCount() }, (_, slot) => {
+          const nextBox: BoxEntry[] = Array.from({ length: clientRef.current.boxCount() }, (_, slot) => {
             const itemIndex = clientRef.current!.boxItem(slot);
             const item = itemIndex >= 0 ? clientRef.current!.item(itemIndex) : null;
-            return { slot, index: itemIndex, name: item?.name ?? "" };
+            return {
+              slot,
+              index: itemIndex,
+              name: item?.name ?? "",
+              r: item ? Math.round(item.r * 255) : 0,
+              g: item ? Math.round(item.g * 255) : 0,
+              b: item ? Math.round(item.b * 255) : 0,
+            };
           });
           setBox((current) => (JSON.stringify(current) === JSON.stringify(nextBox) ? current : nextBox));
           setPlanCount((current) => (current === count ? current : count));
@@ -333,6 +360,7 @@ export function usePlanSession(
       room,
       inventory,
       box,
+      boxOpen,
       notes,
       atTypewriter,
       codeLock,
@@ -379,6 +407,22 @@ export function usePlanSession(
       },
       takeFromBox(slot) {
         clientRef.current?.boxTake(slot);
+      },
+      combine(first, second) {
+        const client = clientRef.current;
+        if (!client || first < 0 || second < 0) return -1;
+        return client.craftCombine(first, second);
+      },
+      combinePartners(first) {
+        const client = clientRef.current;
+        if (!client || first < 0) return [];
+        const partners: number[] = [];
+        for (let slot = 0; slot < 8; slot += 1) {
+          const second = client.inventoryItem(slot);
+          if (second < 0 || second === first) continue;
+          if (client.craftResult(first, second) >= 0) partners.push(second);
+        }
+        return partners;
       },
       save() {
         return clientRef.current ? Array.from(clientRef.current.saveSnapshot()) : null;

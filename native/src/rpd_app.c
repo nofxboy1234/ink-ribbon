@@ -179,7 +179,11 @@ void rpd_app_frame(void) {
     bool clip = e > 0.45f;
     game_update(raw_dt > 0.5f ? 0.5f : raw_dt, vp.m, sapp_width(), sapp_height());
     doors_sync();
-    { float player[3]; plan_player(player); enemies_update(plan_moving(), player[0], player[1], player[2], plan_active_floor()); }
+    if (!game_paused()) {
+        float player[3];
+        plan_player(player);
+        enemies_update(plan_moving(), player[0], player[1], player[2], plan_active_floor());
+    }
     if (g_rpd.scene.loaded && g_rpd.scene.gpu_ready) {
         scene_render_floors(&g_rpd.scene, vp, eye, camera_distance(&g_rpd.camera),
                             g_rpd.scene_radius, paper_floor(), clip, fy - 0.55f, fy + 4.2f,

@@ -20,6 +20,8 @@ void game_reset(void) {
 
 int game_health(void) { return health; }
 
+void game_set_health(int value) { health = value < 0 ? 0 : value; }
+
 void game_damage(int amount) {
     health -= amount;
     if (health < 0) health = 0;

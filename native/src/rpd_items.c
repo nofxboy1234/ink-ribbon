@@ -371,6 +371,9 @@ int items_pick(int floor, float x, float z, float radius) {
 int items_transition_target(int index, float x, float z) {
     const item_t *item = items_get(index);
     if (!item || !item->def) return -1;
+    if (item->def->transition_target != 0) {
+        return items_index_for_id(item->def->transition_target);
+    }
     const char *category = item->def->category;
     if (!category || category[0] != 'T') return -1;
     const char *title = item->def->title;

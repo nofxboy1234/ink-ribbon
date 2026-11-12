@@ -327,6 +327,22 @@ export async function createRpdClient(options: {
     enemyVisible(index) {
       return (module as unknown as { _rpd_enemy_visible: (i: number) => number })._rpd_enemy_visible(index);
     },
+    enemyPosition(index) {
+      const ptr = module._malloc(12);
+      (module as unknown as { _rpd_enemy_position: (i: number, p: number) => void })._rpd_enemy_position(index, ptr);
+      const out = Array.from(new Float32Array(heap.HEAPU8.buffer, ptr, 3));
+      module._free(ptr);
+      return out;
+    },
+    doorsDiscovered(index) {
+      return (module as unknown as { _rpd_doors_discovered: (i: number) => number })._rpd_doors_discovered(index) !== 0;
+    },
+    planTeleportItem(index) {
+      (module as unknown as { _rpd_plan_teleport_item: (i: number) => void })._rpd_plan_teleport_item(index);
+    },
+    itemTransitionTarget(index) {
+      return (module as unknown as { _rpd_item_transition_target: (i: number) => number })._rpd_item_transition_target(index);
+    },
     health() {
       return (module as unknown as { _rpd_game_health: () => number })._rpd_game_health();
     },
