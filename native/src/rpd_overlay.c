@@ -216,7 +216,30 @@ static void draw_debug_frame(void) {
     quad(x1 - thick, y0, x1, y1, color);
 }
 
+static float ring_time;
+
+static void draw_player_ring(int ortho) {
+    float player[3];
+    plan_player(player);
+    const float y = player[1] + 0.85f;
+    if (ortho && fabsf(y - plan_level()) > 2.6f) return;
+    float sx, sy;
+    project(player[0], y, player[2], &sx, &sy);
+    if (sx < -1e8f) return;
+    const float phase = fmodf(ring_time, 1.2f) / 1.2f;
+    const float radius = 10.0f + phase * 28.0f;
+    const uint32_t color = 0x50fa7b00u | (uint32_t)((1.0f - phase) * 220.0f);
+    const int segments = 40;
+    for (int i = 0; i < segments; i++) {
+        const float a0 = (float)i * 6.2831853f / (float)segments;
+        const float a1 = (float)(i + 1) * 6.2831853f / (float)segments;
+        line(sx + cosf(a0) * radius, sy + sinf(a0) * radius,
+             sx + cosf(a1) * radius, sy + sinf(a1) * radius, 2.5f, color);
+    }
+}
+
 void overlay_build(const float *matrix, int width, int height, int ortho, float fps) {
+    ring_time += (float)sapp_frame_duration();
     view_w = width > 1 ? width : 1;
     view_h = height > 1 ? height : 1;
     memcpy(vp, matrix, sizeof(vp));
@@ -311,6 +334,7 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
         draw_item_hover();
     }
 
+    draw_player_ring(ortho);
     draw_popup();
 
     if (fps_visible) {

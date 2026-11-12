@@ -4,6 +4,7 @@
 
 #include "rpd_game.h"
 #include "rpd_items.h"
+#include "rpd_app.h"
 #include "rpd_plan.h"
 
 static int menu_item = -1;
@@ -92,6 +93,7 @@ void menu_execute(popup_action_t action, int node, int data) {
             const item_t *item = items_get(menu_item);
             if (item) plan_teleport_item(items_transition_target(menu_item, item->def->x, item->def->z));
         }
+        rpd_recenter();
     } else if (action == POPUP_ACTION_MENU_TELEPORT) {
         plan_teleport_node(node);
     } else if (action == POPUP_ACTION_MENU_ADD) plan_add_target_node(node);
