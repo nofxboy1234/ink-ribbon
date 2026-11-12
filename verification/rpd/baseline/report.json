@@ -66,7 +66,7 @@
       "slots": 8,
       "routeDock": false,
       "inventoryShown": true,
-      "panel": "ROUTE PLANNER\n\nMain Hall\n\nSwitch to the 2D plan, right click a cell and choose Add waypoin",
+      "panel": "ROUTE PLANNER\n\nMain Hall\nInventory\nFiles\n\nSwitch to the 2D plan, right click a cell and ch",
       "mapTitle": null,
       "plan": [],
       "player": [
@@ -141,7 +141,7 @@
       ]
     },
     "legend": {
-      "text": "Keys\nLocks\nFiles\nWeapons\nAmmo\nHerbs\nContainers\nPuzzle\nRoute\nWaypoint\n\nClick an item to take, unlock, open or read it. Keys must be in the eight slots before a lock opens. Right click the 2D plan for waypoints and Run route. Right drag rotates the camera in 3D.",
+      "text": "Keys\nLocks\nFiles\nWeapons\nAmmo\nHerbs\nContainers\nPuzzle\nRoute\nWaypoint\n\nClick an item to take, unlock, open or read it. Keys must be in the eight slots before a lock opens. Right click an inventory block for its actions. Right click the 2D plan for waypoints and Run route. Right drag rotates the camera in 3D.",
       "dots": [
         "rgb(158, 79, 242)",
         "rgb(242, 140, 51)",
@@ -167,7 +167,7 @@
       "slots": 8,
       "routeDock": false,
       "inventoryShown": true,
-      "panel": "ROUTE PLANNER\n\nMain Hall\n\nSwitch to the 2D plan, right click a cell and choose Add waypoin",
+      "panel": "ROUTE PLANNER\n\nMain Hall\nInventory\nFiles\n\nSwitch to the 2D plan, right click a cell and ch",
       "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · middle drag to pan · right click for waypoints",
       "plan": [],
       "player": [
@@ -257,7 +257,7 @@
       "slots": 8,
       "routeDock": false,
       "inventoryShown": true,
-      "panel": "ROUTE PLANNER\n\nMain Hall\n\nSwitch to the 2D plan, right click a cell and choose Add waypoin",
+      "panel": "ROUTE PLANNER\n\nMain Hall\nInventory\nFiles\n\nSwitch to the 2D plan, right click a cell and ch",
       "mapTitle": "B1 · FLOOR PLAN\nwheel to zoom · middle drag to pan · right click for waypoints",
       "plan": [],
       "player": [
@@ -288,8 +288,8 @@
       "view": "3D",
       "cameraPose": [
         -2.1630001068115234,
-        140.34677124023438,
-        26.02301025390625,
+        236.9999237060547,
+        26.02301597595215,
         2.591592788696289,
         -0.4000000059604645,
         1
@@ -297,29 +297,29 @@
       "mapCamera": [
         -2.1630001068115234,
         26.023000717163086,
-        9.651963233947754
+        5.800217151641846
       ],
       "cameraModel": [
         -2.1630001068115234,
         -5.199999809265137,
         26.023000717163086,
-        93.24527740478516,
+        155.16661071777344,
         -0.550000011920929,
         0.4000000059604645,
         1.570451021194458,
         1,
-        145.54678344726562
+        242.19993591308594
       ],
       "floorRoles": [
         4,
         0,
         26.023000717163086,
-        93.24527740478516,
+        155.16661071777344,
         -0.550000011920929,
         0.4000000059604645,
         1.570451021194458,
         1,
-        145.54678344726562,
+        242.19993591308594,
         1.09203189324833e-41
       ],
       "overlay": [
@@ -347,7 +347,7 @@
       "slots": 8,
       "routeDock": false,
       "inventoryShown": true,
-      "panel": "ROUTE PLANNER\n\nMain Hall\n\nPlan has 2 steps. Right click the plan to remove a waypoint or r",
+      "panel": "ROUTE PLANNER\n\nMain Hall\nInventory\nFiles\n\nPlan has 2 steps. Right click the plan to remove",
       "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · middle drag to pan · right click for waypoints",
       "plan": [
         0,
@@ -452,7 +452,7 @@
       "slots": 8,
       "routeDock": false,
       "inventoryShown": true,
-      "panel": "ROUTE PLANNER\n\nPress Room\n\nSwitch to the 2D plan, right click a cell and choose Add waypoi",
+      "panel": "ROUTE PLANNER\n\nPress Room\nInventory\nFiles\n\nSwitch to the 2D plan, right click a cell and c",
       "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · middle drag to pan · right click for waypoints",
       "plan": [],
       "player": [
@@ -538,7 +538,7 @@
       "slots": 8,
       "routeDock": false,
       "inventoryShown": true,
-      "panel": "ROUTE PLANNER\n\nPress Room\n\nPlan has 1 step. Right click the plan to remove a waypoint or r",
+      "panel": "ROUTE PLANNER\n\nPress Room\nInventory\nFiles\n\nPlan has 1 step. Right click the plan to remove",
       "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · middle drag to pan · right click for waypoints",
       "plan": [
         0
@@ -630,22 +630,22 @@
       "slots": 8,
       "routeDock": false,
       "inventoryShown": true,
-      "panel": "ROUTE PLANNER\n\nPress Room\nRUNNING\n\nClaire is moving along the route.\n\nINVENTORY\nITEM BOX\nV",
+      "panel": "ROUTE PLANNER\n\nPress Room\nRUNNING\nInventory\nFiles\n\nClaire is moving along the route.\n\nINVE",
       "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · middle drag to pan · right click for waypoints",
       "plan": [
         0
       ],
       "player": [
-        20.265932083129883,
+        20.826932907104492,
         0.09999999403953552,
-        -10.147409439086914
+        -10.307695388793945
       ],
       "moving": true,
       "routePoints": 106,
       "move": [
         0,
         106,
-        0.21108992397785187
+        0.1151294931769371
       ],
       "playerFloor": 0,
       "check": {
@@ -761,7 +761,7 @@
       }
     },
     "labelOverlap": {
-      "room": "Reception - RPD",
+      "room": "Main Hall",
       "stats": [
         -1,
         13,
@@ -816,7 +816,7 @@
         }
       ],
       "markerPixels": {
-        "floorOne": 9389
+        "floorOne": 5427
       }
     },
     "orthoReset": {
@@ -848,7 +848,7 @@
       "slots": 8,
       "routeDock": false,
       "inventoryShown": true,
-      "panel": "ROUTE PLANNER\n\nMain Hall\n\nSwitch to the 2D plan, right click a cell and choose Add waypoin",
+      "panel": "ROUTE PLANNER\n\nMain Hall\nInventory\nFiles\n\nSwitch to the 2D plan, right click a cell and ch",
       "mapTitle": null,
       "plan": [],
       "player": [
@@ -1060,7 +1060,7 @@
         -0.8999999761581421,
         0.4000000059604645,
         0.40000003576278687,
-        0.0000321120023727417,
+        2.9802322387695312e-8,
         50
       ]
     },
@@ -1073,7 +1073,7 @@
         -0.8999999761581421,
         0.4000000059604645,
         0.40000003576278687,
-        0.0000321120023727417,
+        2.9802322387695312e-8,
         50
       ],
       "pan": [
@@ -1115,12 +1115,12 @@
         -0.5,
         6.920000076293945,
         3.5,
-        83.74339294433594,
+        41.642578125,
         -0.75,
         0.36000001430511475,
         1.570451021194458,
         1,
-        130.71527099609375
+        65
       ],
       "floorBefore": 0,
       "floorAfter": 1
@@ -1161,6 +1161,186 @@
         5.21999979019165,
         3.5
       ]
+    },
+    "orthoFloorZoom": {
+      "before": {
+        "model": [
+          0.6030006408691406,
+          0,
+          -5.0525007247924805,
+          53.693111419677734,
+          -0.75,
+          0.36000001430511475,
+          1.570451021194458,
+          1,
+          83.80970764160156
+        ],
+        "map": [
+          0.6030006408691406,
+          -5.0525007247924805,
+          16.761926651000977
+        ]
+      },
+      "after": {
+        "model": [
+          2.868499755859375,
+          5.199999809265137,
+          -6.1705002784729,
+          53.693111419677734,
+          -0.75,
+          0.36000001430511475,
+          1.570451021194458,
+          1,
+          83.80970764160156
+        ],
+        "map": [
+          2.868499755859375,
+          -6.1705002784729,
+          16.761926651000977
+        ]
+      },
+      "centre": {
+        "x": 2.8684999999999974,
+        "z": -6.170500000000001
+      }
+    },
+    "transitionGo": {
+      "transition": {
+        "index": 49,
+        "name": "To 1F",
+        "floor": 1
+      },
+      "target": {
+        "index": 61,
+        "name": "To 2F",
+        "floor": 0
+      },
+      "direct": {
+        "activeFloor": 0,
+        "playerFloor": 0,
+        "player": [
+          42.5,
+          0.019999999552965164,
+          1.5
+        ],
+        "room": "Bathroom",
+        "distance": 1.0965856096673199
+      },
+      "menu": {
+        "activeFloor": 0,
+        "playerFloor": 0,
+        "player": [
+          2.5,
+          0.019999999552965164,
+          -3.5
+        ],
+        "room": "Main Hall",
+        "distance": 40.44999999999171
+      }
+    },
+    "doorDiscovery": {
+      "candidate": {
+        "doorIndex": 30,
+        "itemIndex": 33,
+        "name": "Locked Door",
+        "floor": 4,
+        "x": -18.898000717163086,
+        "y": -5.199999809265137,
+        "z": 40.98099899291992,
+        "discovered": false
+      },
+      "count": 44
+    },
+    "inventoryMenuCombine": {
+      "labels": [
+        "Examine",
+        "Combine",
+        "Store",
+        "Discard"
+      ],
+      "freed": [
+        114,
+        118
+      ],
+      "ingredients": [
+        228,
+        229
+      ],
+      "prompt": "Choose a highlighted item to combine with Gunpowder.",
+      "inventory": [
+        "Valve Handle",
+        "Car Key",
+        "JMB Hp3",
+        "Diamond Key",
+        "Spade Key",
+        "Handgun Ammo",
+        null,
+        "High-Capacity Mag. (MQ 11)"
+      ],
+      "gunpowder": 0,
+      "ammo": 1,
+      "message": "Combined."
+    },
+    "heartKey": {
+      "heartKey": 139,
+      "heartDoor": 11,
+      "before": [
+        139
+      ],
+      "after": []
+    },
+    "saveLoadOverlay": {
+      "slots": {
+        "save": 3,
+        "load": 3
+      },
+      "savedPlayer": [
+        3.4630000591278076,
+        0,
+        -0.4819999933242798
+      ],
+      "loadedPlayer": [
+        3.4630000591278076,
+        0,
+        -0.4819999933242798
+      ],
+      "savedInventory": [
+        "Valve Handle",
+        "Car Key",
+        "JMB Hp3",
+        "Diamond Key",
+        "Spade Key",
+        "Handgun Ammo",
+        "Heart Key",
+        "High-Capacity Mag. (MQ 11)"
+      ],
+      "loadedInventory": [
+        "Valve Handle",
+        "Car Key",
+        "JMB Hp3",
+        "Diamond Key",
+        "Spade Key",
+        "Handgun Ammo",
+        "Heart Key",
+        "High-Capacity Mag. (MQ 11)"
+      ],
+      "mutatedAfterSave": [
+        "Valve Handle",
+        "Car Key",
+        "JMB Hp3",
+        "Diamond Key",
+        "Spade Key",
+        "Handgun Ammo",
+        null,
+        "High-Capacity Mag. (MQ 11)"
+      ]
+    },
+    "tabs": {
+      "tabs": [
+        "Inventory",
+        "Files"
+      ],
+      "files": []
     },
     "items": [
       {
@@ -7429,16 +7609,16 @@
         "b": 242
       },
       {
-        "name": "Bolt Cutters",
+        "name": "Handgun Ammo",
+        "r": 242,
+        "g": 209,
+        "b": 77
+      },
+      {
+        "name": "Heart Key",
         "r": 158,
         "g": 79,
         "b": 242
-      },
-      {
-        "name": "Film: \"Commemorative\"",
-        "r": 242,
-        "g": 115,
-        "b": 184
       },
       {
         "name": "High-Capacity Mag. (MQ 11)",

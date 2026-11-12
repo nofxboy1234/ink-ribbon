@@ -21,10 +21,33 @@ const imageThresholdOverrides = new Map([
   // The 3D cube shot frames an animated enemy capsule; its bob phase drifts
   // with wall-clock time, so a wider tolerance keeps the check stable.
   ["31-item-cubes-3d", 0.01],
+  // The label-overlap shot accepts the first room candidate whose popup
+  // overlaps, so its item title and anchor differ between runs.
+  ["18-popup-label-overlap", 0.03],
 ]);
 
 mkdirSync(baselineDir, { recursive: true });
 mkdirSync(currentDir, { recursive: true });
+
+const navFloors = JSON.parse(readFileSync(join(root, "public", "rpd", "nav.json"), "utf8")).floors;
+
+// doors_reset numbers doors in item-registry order, so the registry supplies
+// the item index for each door index the native accessor expects.
+function readDoorItems() {
+  const doors = [];
+  let itemIndex = 0;
+  for (const line of readFileSync(join(root, "native", "gen", "rpd_item_registry.h"), "utf8").split("\n")) {
+    const match = line.match(/^\s*\{\s*(\d+),\s*"((?:[^"\\]|\\.)*)",\s*"((?:[^"\\]|\\.)*)"/);
+    if (!match) continue;
+    const category = match[3];
+    if (category && (category[0] === "L" || category[1] === "o")) {
+      doors.push({ doorIndex: doors.length, itemIndex, id: Number(match[1]), name: match[2] });
+    }
+    itemIndex += 1;
+  }
+  return doors;
+}
+const registryDoors = readDoorItems();
 
 const mapArea = { x0: 0, y0: 140, x1: 1020, y1: 820 };
 
@@ -446,6 +469,7 @@ async function run() {
     };
 
     const report = { shots: [], errors: [], states: {} };
+    const behaviorFailures = [];
 
     await cdp.eval("window.__rpd.setFpsVisible(false)");
     await shot("01-3d");
@@ -515,6 +539,10 @@ async function run() {
 
     await setFloor(0);
     await shot("07-ortho-1f-clean");
+    // A floor change now keeps the previous frame, so fit 1F before measuring
+    // raw-position separations in pixels.
+    await cdp.eval("document.querySelector('.rpd-icon-button').click()");
+    await sleep(700);
 
     const rawDiamond = await evalJson(`(() => {
       const list = window.__quest.items().filter((item) => item.floor === 0 && item.state === 1);
@@ -847,10 +875,20 @@ async function run() {
     await cdp.waitFor("window.__quest.debug().moving === true", 10000);
     await sleep(900);
     const movingCamera = await cdp.eval("JSON.stringify(window.__quest.camera())");
+    const enemiesBeforePause = await evalJson(
+      "window.__quest.enemies().map(({ index, x, y, z }) => ({ index, x, y, z }))",
+    );
     await cdp.key("Escape", "Escape", 27);
-    await sleep(400);
+    await sleep(1100);
     const escMoving = await facts();
+    const enemiesAfterPause = await evalJson(
+      "window.__quest.enemies().map(({ index, x, y, z }) => ({ index, x, y, z }))",
+    );
     const pausedPlayer = escMoving.player;
+    assert(
+      JSON.stringify(enemiesAfterPause) === JSON.stringify(enemiesBeforePause),
+      `Esc must freeze every enemy: ${JSON.stringify({ before: enemiesBeforePause, after: enemiesAfterPause })}`,
+    );
     assert(escMoving.plan.length > 0, "Esc while moving should pause without clearing the plan");
     assert(escMoving.routePoints > 0, "Esc while moving should keep the route");
     assert(
@@ -1422,13 +1460,60 @@ async function run() {
     );
     assert(detail, "selecting a slot should mark it and show the item detail");
 
+    const itemBox = await cdp.eval(
+      "window.__quest.items().findIndex((entry) => entry.name === 'Item Box' && entry.state === 1)",
+    );
+    assert(itemBox >= 0, "the map has no present Item Box to open");
+    assert((await cdp.eval(`window.__quest.actItem(${itemBox})`)) === 0, "the Item Box did not open");
+    await sleep(300);
+    const boxVisible = await cdp.eval("document.querySelectorAll('.rpd-box-slot').length");
+    assert(boxVisible > 0, "opening the Item Box should show its contents grid");
+    const openedItemBox = (await cdp.eval("window.__quest.items()"))[itemBox];
+    assert(openedItemBox.state === 3, `the Item Box should stay OPEN on the map, got state ${openedItemBox.state}`);
+    assert(!openedItemBox.taken, "the Item Box must stay on the map instead of becoming TAKEN");
+    const preloadedBox = await evalJson("window.__quest.box().map((entry) => entry.name)");
+    assert(
+      JSON.stringify(preloadedBox) === JSON.stringify(["Valve Handle", "Green Herb", "Green Herb"]),
+      `the three unreachable items should stay in the box, got ${JSON.stringify(preloadedBox)}`,
+    );
+
     const beforeStore = await cdp.eval("window.__quest.box().length");
-    await cdp.eval("document.querySelector('.rpd-item-actions button:nth-child(2)').click()");
+    const storeMenu = await cdp.eval(`(() => {
+      const slot = document.querySelector('.rpd-slot[data-filled="true"]');
+      if (!slot) return false;
+      const rect = slot.getBoundingClientRect();
+      slot.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: rect.left + 4, clientY: rect.top + 4 }));
+      return true;
+    })()`);
+    assert(storeMenu, "right-clicking an inventory block did not open the action menu");
+    await sleep(120);
+    const stored = await cdp.eval(`(() => {
+      const item = [...document.querySelectorAll('[role="menuitem"]')].find((entry) => entry.textContent === 'Store');
+      if (!item) return false;
+      item.click();
+      return true;
+    })()`);
+    assert(stored, "the inventory menu has no Store action while a box is open");
     await sleep(400);
     const afterStore = await cdp.eval("window.__quest.box().length");
     assert(afterStore === beforeStore + 1, "storing should add the item to the box");
 
-    await cdp.eval("document.querySelector('.rpd-box-slot').click()");
+    const takeMenu = await cdp.eval(`(() => {
+      const slot = document.querySelector('.rpd-box-slot');
+      if (!slot) return false;
+      const rect = slot.getBoundingClientRect();
+      slot.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: rect.left + 4, clientY: rect.top + 4 }));
+      return true;
+    })()`);
+    assert(takeMenu, "right-clicking a box block did not open its menu");
+    await sleep(120);
+    const taken = await cdp.eval(`(() => {
+      const item = [...document.querySelectorAll('[role="menuitem"]')].find((entry) => entry.textContent === 'Take');
+      if (!item) return false;
+      item.click();
+      return true;
+    })()`);
+    assert(taken, "the box menu has no Take action");
     await sleep(400);
     const afterTake = await cdp.eval("window.__quest.box().length");
     assert(afterTake === afterStore - 1, "taking from the box should remove the item");
@@ -1682,6 +1767,10 @@ async function run() {
 
     // A distant item offers Walk next and still routes there.
     await setFloor(0);
+    // The ortho frame now survives the floor change, so fit 1F before
+    // projecting an item the click test expects to see.
+    await cdp.eval("document.querySelector('.rpd-icon-button').click()");
+    await sleep(700);
     await cdp.eval("window.__quest.setPlayer(0, 0.02, 7.5)");
     await sleep(500);
     const farIndex = items.findIndex(
@@ -2037,6 +2126,449 @@ async function run() {
     await cdp.key("Escape", "Escape", 27);
     await sleep(400);
 
+    // The ortho zoom is the frame, and a floor change recentres the target
+    // without refitting the frame.
+    await cdp.key("KeyM", "m", 77);
+    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) >= 0.999", 20000);
+    await cdp.eval("window.__quest.reset()");
+    await setFloor(0);
+    await cdp.send("Input.dispatchMouseEvent", {
+      type: "mouseWheel",
+      x: 600,
+      y: 450,
+      deltaX: 0,
+      deltaY: -400,
+    });
+    await sleep(500);
+    const zoomStart = await evalJson(
+      "({ model: window.__quest.cameraModel(), map: window.__quest.camera() })",
+    );
+    await setFloor(1);
+    const zoomEnd = await evalJson(
+      "({ model: window.__quest.cameraModel(), map: window.__quest.camera() })",
+    );
+    const floor1 = navFloors.find((floor) => floor.index === 1);
+    assert(floor1, "the nav file should describe 2F");
+    const floor1Centre = {
+      x: (floor1.bounds[0] + floor1.bounds[2]) / 2,
+      z: (floor1.bounds[1] + floor1.bounds[3]) / 2,
+    };
+    assert(
+      Math.abs(zoomStart.model[8] - zoomEnd.model[8]) < 1e-4,
+      `the ortho distance must survive a floor change: ${JSON.stringify({ before: zoomStart.model[8], after: zoomEnd.model[8] })}`,
+    );
+    assert(
+      Math.abs(zoomStart.model[3] - zoomEnd.model[3]) < 1e-4,
+      `the ortho frame must survive a floor change: ${JSON.stringify({ before: zoomStart.model[3], after: zoomEnd.model[3] })}`,
+    );
+    assert(
+      Math.abs(zoomEnd.map[0] - floor1Centre.x) < 0.01 &&
+        Math.abs(zoomEnd.map[1] - floor1Centre.z) < 0.01,
+      `the floor change should move the ortho target to the floor centre: ${JSON.stringify({ target: zoomEnd.map, centre: floor1Centre })}`,
+    );
+    assert(
+      Math.abs(zoomEnd.model[1] - floor1.level) < 1e-3,
+      `the ortho target should rise to the 2F level, got ${zoomEnd.model[1]}`,
+    );
+    assert(
+      Math.hypot(zoomEnd.map[0] - zoomStart.map[0], zoomEnd.map[1] - zoomStart.map[1]) > 0.5,
+      "the ortho target did not move between floors",
+    );
+    report.states.orthoFloorZoom = { before: zoomStart, after: zoomEnd, centre: floor1Centre };
+
+    // The 2F transition item's Go action lands on its paired 1F transition,
+    // not on the item the cursor hovers.
+    const transitionItems = await evalJson("window.__quest.items()");
+    const transition = transitionItems.find(
+      (item) => item.name === "To 1F" && item.floor === 1,
+    );
+    assert(transition, "the 2F to 1F transition is missing");
+    const transitionTargetIndex = await cdp.eval(
+      `window.__quest.itemTransitionTarget(${transition.index})`,
+    );
+    const transitionTarget =
+      transitionTargetIndex >= 0 ? transitionItems[transitionTargetIndex] : null;
+    assert(
+      transitionTarget && transitionTarget.name === "To 2F" && transitionTarget.floor === 0,
+      `itemTransitionTarget(544779) should resolve 544791, got ${JSON.stringify(transitionTarget)}`,
+    );
+    await cdp.eval("window.__quest.setFloor(0)");
+    await cdp.eval(`window.__quest.goToItem(${transitionTargetIndex})`);
+    await sleep(500);
+    const directGo = await evalJson(
+      "({ activeFloor: window.__quest.debug().activeFloor, playerFloor: window.__quest.debug().playerFloor, player: window.__quest.debug().player, room: window.__quest.debug().room })",
+    );
+    const directDistance = Math.hypot(
+      directGo.player[0] - transitionTarget.cubeX,
+      directGo.player[1] - transitionTarget.cubeY,
+      directGo.player[2] - transitionTarget.cubeZ,
+    );
+    assert(
+      directGo.activeFloor === 0 && directGo.playerFloor === 0,
+      `teleporting to To 2F should land on 1F: ${JSON.stringify(directGo)}`,
+    );
+    assert(
+      directDistance <= 2.5,
+      `teleporting to To 2F should land within 2.5 m of it, got ${directDistance}`,
+    );
+    await setFloor(1);
+    await cdp.eval(
+      `window.__rpd.setOrbit(${transition.cubeX}, 0, ${transition.cubeZ}, 0, 1.2, 20)`,
+    );
+    await sleep(500);
+    const transitionScreen = await evalJson(
+      `window.__quest.project(${transition.cubeX}, ${transition.cubeY}, ${transition.cubeZ})`,
+    );
+    await cdp.mouse("mouseMoved", transitionScreen.x, transitionScreen.y);
+    await sleep(300);
+    if ((await cdp.eval("window.__quest.overlayStats()[0]")) !== transition.index) {
+      await cdp.eval(
+        `window.__rpd.planPointerMove(${transitionScreen.x}, ${transitionScreen.y})`,
+      );
+      await sleep(300);
+    }
+    try {
+      await cdp.waitFor(
+        `window.__quest.overlayStats()[0] === ${transition.index}`,
+        5000,
+      );
+    } catch (error) {
+      console.log(
+        "transition hover probe",
+        JSON.stringify(
+          await evalJson(`({
+            screen: ${JSON.stringify(transitionScreen)},
+            stats: window.__quest.overlayStats(),
+            hoverItem: window.__rpd.planHoverItem(),
+            popup: window.__quest.popup(),
+            item: window.__quest.items()[${transition.index}],
+            active: window.__quest.debug().activeFloor,
+            player: window.__quest.debug().player,
+            camera: window.__quest.cameraModel(),
+            map: window.__quest.camera(),
+            reproject: window.__quest.project(window.__quest.items()[${transition.index}].cubeX, window.__quest.items()[${transition.index}].cubeY, window.__quest.items()[${transition.index}].cubeZ),
+            nearby: window.__quest.items().filter((entry) => entry.floor === window.__quest.debug().activeFloor && entry.state === 1 && Math.hypot(entry.cubeX - window.__quest.items()[${transition.index}].cubeX, entry.cubeZ - window.__quest.items()[${transition.index}].cubeZ) < 3).map((entry) => ({ name: entry.name, index: entry.index, cubeX: entry.cubeX, cubeZ: entry.cubeZ })),
+          })`),
+        ),
+      );
+      throw error;
+    }
+    await rightClick(transitionScreen.x, transitionScreen.y);
+    const transitionMenu = await evalJson("window.__quest.popup()");
+    assert(
+      transitionMenu.open && transitionMenu.menu,
+      `right-clicking the transition did not open its menu: ${JSON.stringify(transitionMenu)}`,
+    );
+    assert(
+      transitionMenu.choices.some((choice) => choice.label === "Go" && choice.enabled),
+      `the transition menu has no Go action: ${JSON.stringify(transitionMenu.choices)}`,
+    );
+    await menuCommand("Go");
+    await sleep(800);
+    const transitionGo = await evalJson(
+      "({ activeFloor: window.__quest.debug().activeFloor, playerFloor: window.__quest.debug().playerFloor, player: window.__quest.debug().player, room: window.__quest.debug().room })",
+    );
+    const transitionDistance = Math.hypot(
+      transitionGo.player[0] - transitionTarget.cubeX,
+      transitionGo.player[1] - transitionTarget.cubeY,
+      transitionGo.player[2] - transitionTarget.cubeZ,
+    );
+    assert(
+      transitionGo.activeFloor === 0 && transitionGo.playerFloor === 0,
+      `Go on To 1F should land on the 1F floor: ${JSON.stringify(transitionGo)}`,
+    );
+    report.states.transitionGo = {
+      transition: { index: transition.index, name: transition.name, floor: transition.floor },
+      target: { index: transitionTargetIndex, name: transitionTarget.name, floor: transitionTarget.floor },
+      direct: { ...directGo, distance: directDistance },
+      menu: { ...transitionGo, distance: transitionDistance },
+    };
+
+    // A door is grey until Claire stands within 2 m of it on the same floor.
+    const doorsCount = await cdp.eval("window.__quest.doorsCount()");
+    assert(
+      doorsCount === registryDoors.length,
+      `the registry lists ${registryDoors.length} doors but the map reports ${doorsCount}`,
+    );
+    const doorSnapshot = await evalJson(`(() => {
+      const items = window.__quest.items();
+      return ${JSON.stringify(registryDoors)}.map((entry) => {
+        const item = items[entry.itemIndex];
+        return {
+          doorIndex: entry.doorIndex,
+          itemIndex: entry.itemIndex,
+          name: item.name,
+          floor: item.floor,
+          x: item.x,
+          y: item.y,
+          z: item.z,
+          discovered: window.__quest.doorsDiscovered(entry.doorIndex),
+        };
+      });
+    })()`);
+    const currentPlayer = await evalJson("window.__quest.debug()");
+    const doorCandidate =
+      doorSnapshot
+        .filter(
+          (door) =>
+            !door.discovered &&
+            (door.floor !== currentPlayer.playerFloor ||
+              Math.hypot(door.x - currentPlayer.player[0], door.z - currentPlayer.player[2]) > 3),
+        )
+        .sort(
+          (a, b) =>
+            Math.hypot(b.x - currentPlayer.player[0], b.z - currentPlayer.player[2]) -
+            Math.hypot(a.x - currentPlayer.player[0], a.z - currentPlayer.player[2]),
+        )[0] ?? doorSnapshot.find((door) => !door.discovered);
+    assert(doorCandidate, "every door was already discovered");
+    await setFloor(doorCandidate.floor);
+    await sleep(600);
+    assert(
+      (await cdp.eval(`window.__quest.doorsDiscovered(${doorCandidate.doorIndex})`)) === false,
+      `${doorCandidate.name} should stay undiscovered while Claire is far`,
+    );
+    await cdp.eval(
+      `window.__quest.setPlayer(${doorCandidate.x + 1.2}, ${doorCandidate.y}, ${doorCandidate.z})`,
+    );
+    await cdp.waitFor(
+      `window.__quest.doorsDiscovered(${doorCandidate.doorIndex}) === true`,
+      5000,
+    );
+    assert(
+      (await cdp.eval(`window.__quest.doorsDiscovered(${doorCandidate.doorIndex})`)) === true,
+      `${doorCandidate.name} should be discovered within 2 m on its floor`,
+    );
+    assert(
+      (await cdp.eval("window.__quest.debug().playerFloor")) === doorCandidate.floor,
+      `${doorCandidate.name} should be discovered from a cell on its own floor`,
+    );
+    report.states.doorDiscovery = { candidate: doorCandidate, count: doorsCount };
+
+
+    const freed = await evalJson(`(() => {
+      const names = window.__quest.inventory().filter(Boolean).map((slot) => slot.name);
+      const discarded = [];
+      for (const item of window.__quest.items()) {
+        if (discarded.length >= 2) break;
+        if (!item.taken || item.name === "Gunpowder") continue;
+        if (!names.includes(item.name)) continue;
+        if (window.__quest.discardItem(item.index) === 0) {
+          discarded.push(item.index);
+          names.splice(names.indexOf(item.name), 1);
+        }
+      }
+      return discarded;
+    })()`);
+    assert(freed.length === 2, `could not free two inventory slots: ${JSON.stringify(freed)}`);
+    const gunpowderIndexes = await evalJson(
+      `window.__quest.items().filter((item) => item.name === "Gunpowder" && item.state === 1).slice(0, 2).map((item) => item.index)`,
+    );
+    assert(gunpowderIndexes.length === 2, "two Gunpowder items should still be on the map");
+    for (const index of gunpowderIndexes) {
+      const takeCode = await cdp.eval(`window.__quest.actItem(${index})`);
+      assert(takeCode === 0, `taking Gunpowder ${index} failed with ${takeCode}`);
+    }
+    await sleep(400);
+    const gunpowderSlots = await cdp.eval(
+      `document.querySelectorAll('.rpd-slot[data-name="Gunpowder"]').length`,
+    );
+    assert(gunpowderSlots === 2, `expected two Gunpowder slots, got ${gunpowderSlots}`);
+
+    const openedInventoryMenu = await cdp.eval(`(() => {
+      const slot = document.querySelector('.rpd-slot[data-name="Gunpowder"]');
+      if (!slot) return false;
+      const rect = slot.getBoundingClientRect();
+      slot.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: rect.left + 4, clientY: rect.top + 4 }));
+      return true;
+    })()`);
+    assert(openedInventoryMenu, "right-clicking a Gunpowder slot did not open the menu");
+    await sleep(150);
+    const inventoryMenuLabels = await evalJson(
+      `Array.from(document.querySelectorAll('[role="menuitem"]')).map((item) => item.textContent)`,
+    );
+    assert(
+      inventoryMenuLabels.includes("Examine") && inventoryMenuLabels.includes("Combine"),
+      `the inventory menu should offer Examine and Combine, got ${JSON.stringify(inventoryMenuLabels)}`,
+    );
+    await cdp.eval(
+      `[...document.querySelectorAll('[role="menuitem"]')].find((item) => item.textContent === 'Examine').click()`,
+    );
+    await sleep(200);
+    assert(
+      (await cdp.eval("document.querySelector('.rpd-item-name')?.textContent")) === "Gunpowder",
+      "Examine should keep the selected item name under the blocks",
+    );
+    const reopenedMenu = await cdp.eval(`(() => {
+      const slot = document.querySelector('.rpd-slot[data-name="Gunpowder"]');
+      if (!slot) return false;
+      const rect = slot.getBoundingClientRect();
+      slot.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: rect.left + 4, clientY: rect.top + 4 }));
+      return true;
+    })()`);
+    assert(reopenedMenu, "the Gunpowder menu did not reopen");
+    await sleep(150);
+    await cdp.eval(
+      `[...document.querySelectorAll('[role="menuitem"]')].find((item) => item.textContent === 'Combine').click()`,
+    );
+    await sleep(200);
+    const combinePrompt = await cdp.eval(
+      `document.querySelector('.rpd-item-detail [role="status"]')?.textContent ?? null`,
+    );
+    assert(combinePrompt, "Combine should ask for a partner item");
+    const clickedPartner = await cdp.eval(`(() => {
+      const slots = [...document.querySelectorAll('.rpd-slot[data-name="Gunpowder"]')];
+      const partner = slots.find((slot) => !slot.classList.contains('selected'));
+      if (!partner) return false;
+      partner.click();
+      return true;
+    })()`);
+    assert(clickedPartner, "the Gunpowder partner slot was not found");
+    await cdp.waitFor(
+      "window.__quest.inventory().filter((slot) => slot && slot.name === 'Handgun Ammo').length >= 1",
+      5000,
+    );
+    const combineResult = await evalJson(`({
+      inventory: window.__quest.inventory().map((slot) => slot?.name ?? null),
+      gunpowder: window.__quest.inventory().filter((slot) => slot?.name === "Gunpowder").length,
+      ammo: window.__quest.inventory().filter((slot) => slot?.name === "Handgun Ammo").length,
+      message: document.querySelector('.rpd-item-desc[role="status"]')?.textContent ?? null,
+    })`);
+    assert(
+      combineResult.gunpowder === 0,
+      `both Gunpowder ingredients should leave the inventory, got ${combineResult.gunpowder}`,
+    );
+    assert(combineResult.ammo >= 1, "combining should put Handgun Ammo in the inventory");
+    assert(combineResult.message === "Combined.", `expected the combined message, got ${combineResult.message}`);
+    report.states.inventoryMenuCombine = {
+      labels: inventoryMenuLabels,
+      freed,
+      ingredients: gunpowderIndexes,
+      prompt: combinePrompt,
+      ...combineResult,
+    };
+
+    // The related list drives the Go-to choices, so a taken key must drop out.
+    const heartKey = items.findIndex((entry) => entry.name === "Heart Key");
+    const heartDoor = items.findIndex((entry) => entry.name === "Heart Door");
+    assert(heartKey >= 0 && heartDoor >= 0, "the heart key chain is missing");
+    const relatedBefore = await evalJson(`window.__quest.itemRelated(${heartDoor})`);
+    assert(
+      relatedBefore.includes(heartKey),
+      `the heart door should relate to the present Heart Key: ${JSON.stringify(relatedBefore)}`,
+    );
+    await setFloor(1);
+    await cdp.eval(`window.__quest.standAt(${heartKey})`);
+    const heartTake = await cdp.eval(`window.__quest.actItem(${heartKey})`);
+    assert(heartTake === 0, `taking the Heart Key failed with ${heartTake}`);
+    await sleep(300);
+    const relatedAfter = await evalJson(`window.__quest.itemRelated(${heartDoor})`);
+    assert(
+      !relatedAfter.includes(heartKey),
+      `the heart door should no longer relate to the taken Heart Key: ${JSON.stringify(relatedAfter)}`,
+    );
+    assert(
+      (await cdp.eval("window.__quest.items()"))[heartKey].taken,
+      "the Heart Key should be taken after actItem",
+    );
+    report.states.heartKey = { heartKey, heartDoor, before: relatedBefore, after: relatedAfter };
+
+    // The typewriter drives the save overlay, and L drives the load overlay.
+    await setFloor(0);
+    await cdp.eval("window.__quest.setPlayer(0, 0.02, 7.5)");
+    await sleep(300);
+    const typewriter = items.findIndex(
+      (entry) => entry.name === "Typewriter" && entry.floor === 0,
+    );
+    assert(typewriter >= 0, "the 1F typewriter is missing");
+    await cdp.eval(`window.__quest.standAt(${typewriter})`);
+    await cdp.waitFor(`Boolean(document.querySelector('[data-overlay="save"]'))`, 5000);
+    const saveSlotCount = await cdp.eval("document.querySelectorAll('.rpd-save-slot').length");
+    assert(saveSlotCount === 3, `the save overlay should show three slots, got ${saveSlotCount}`);
+    const savedPlayer = await evalJson("window.__quest.debug().player");
+    const savedInventory = await evalJson(
+      "window.__quest.inventory().map((slot) => slot?.name ?? null)",
+    );
+    await cdp.eval(`document.querySelector('[aria-label="Save to slot 1"]').click()`);
+    await cdp.waitFor(
+      `document.querySelector('.rpd-save-slot[data-slot="1"]')?.dataset.filled === "true"`,
+      4000,
+    );
+    assert(
+      (await cdp.eval(`window.__quest.discardItem(${heartKey})`)) === 0,
+      "the save test could not remove the Heart Key from the inventory",
+    );
+    const mutatedInventory = await evalJson(
+      "window.__quest.inventory().map((slot) => slot?.name ?? null)",
+    );
+    assert(
+      JSON.stringify(mutatedInventory) !== JSON.stringify(savedInventory),
+      "the save test did not change the inventory",
+    );
+    await cdp.eval("window.__quest.setPlayer(-30, 0, 30)");
+    await cdp.waitFor("!document.querySelector('[data-overlay]')", 5000);
+    assert(
+      !(await cdp.eval("Boolean(document.querySelector('[data-overlay]'))")),
+      "no save or load overlay should be in the DOM before L",
+    );
+    await cdp.key("KeyL", "l", 76);
+    await cdp.waitFor(`Boolean(document.querySelector('[data-overlay="load"]'))`, 5000);
+    const loadSlotCount = await cdp.eval("document.querySelectorAll('.rpd-save-slot').length");
+    assert(loadSlotCount === 3, `the load overlay should show three slots, got ${loadSlotCount}`);
+    assert(
+      (await cdp.eval(`document.querySelector('[aria-label="Load slot 1"]')?.disabled === false`)),
+      "slot 1 should be loadable",
+    );
+    await cdp.eval(`document.querySelector('[aria-label="Load slot 1"]').click()`);
+    await cdp.waitFor(
+      `document.querySelector('[data-overlay="load"] .rpd-save-message')?.textContent === "Loaded slot 1."`,
+      5000,
+    );
+    const loadedPlayer = await evalJson("window.__quest.debug().player");
+    assert(
+      Math.hypot(
+        loadedPlayer[0] - savedPlayer[0],
+        loadedPlayer[1] - savedPlayer[1],
+        loadedPlayer[2] - savedPlayer[2],
+      ) < 0.01,
+      `loading should restore Claire: ${JSON.stringify({ savedPlayer, loadedPlayer })}`,
+    );
+    const loadedInventory = await evalJson(
+      "window.__quest.inventory().map((slot) => slot?.name ?? null)",
+    );
+    assert(
+      JSON.stringify(loadedInventory) === JSON.stringify(savedInventory),
+      `loading should restore the inventory: ${JSON.stringify({ savedInventory, loadedInventory })}`,
+    );
+    report.states.saveLoadOverlay = {
+      slots: { save: saveSlotCount, load: loadSlotCount },
+      savedPlayer,
+      loadedPlayer,
+      savedInventory,
+      loadedInventory,
+      mutatedAfterSave: mutatedInventory,
+    };
+
+    const tabLabels = await evalJson(
+      `Array.from(document.querySelectorAll('.rpd-notes-tabs [role="tab"]')).map((tab) => tab.textContent.trim())`,
+    );
+    assert(
+      JSON.stringify(tabLabels) === JSON.stringify(["Inventory", "Files"]),
+      `the panel should have exactly Inventory and Files tabs, got ${JSON.stringify(tabLabels)}`,
+    );
+    await cdp.eval(`document.querySelectorAll('.rpd-notes-tabs [role="tab"]')[1].click()`);
+    await sleep(200);
+    const fileTitles = await evalJson(
+      `Array.from(document.querySelectorAll('.rpd-notes-list .rpd-note h3')).map((title) => title.textContent.trim())`,
+    );
+    if (!fileTitles.includes("Commemorative Photo")) {
+      behaviorFailures.push(
+        `the Files tab should list the read file, got ${JSON.stringify(fileTitles)}`,
+      );
+    }
+    await cdp.eval(`document.querySelectorAll('.rpd-notes-tabs [role="tab"]')[0].click()`);
+    await sleep(200);
+    report.states.tabs = { tabs: tabLabels, files: fileTitles };
+
     report.states.items = items;
     report.states.inventory = await cdp.eval("window.__quest.inventory()");
     report.shots = shots;
@@ -2093,6 +2625,22 @@ async function run() {
     assert(relatedNames.includes("Heart Door"), `the heart door is missing from the relations: ${JSON.stringify(relatedNames)}`);
     await cdp.eval(`window.__quest.itemDebugHighlight(-1)`);
     await cdp.eval("window.__quest.toggleDebug()");
+
+    // The Go menu on a transition must land on the paired transition, not on
+    // an item index the popup choice happens to carry.
+    if (report.states.transitionGo.menu.distance > 2.5) {
+      behaviorFailures.push(
+        `Go on To 1F should land within 2.5 m of To 2F, got ${report.states.transitionGo.menu.distance} at ${JSON.stringify(report.states.transitionGo.menu.player)} in ${report.states.transitionGo.menu.room}`,
+      );
+    }
+    if (report.states.transitionGo.menu.room === "Main Hall") {
+      behaviorFailures.push(
+        `the Go action should not drop Claire in the Main Hall, got ${report.states.transitionGo.menu.room}`,
+      );
+    }
+    if (behaviorFailures.length > 0) {
+      throw new Error(`Behavior failures:\n${behaviorFailures.join("\n")}`);
+    }
 
     console.log(`Contract passed. ${shots.length} screenshots matched.`);
   } finally {
