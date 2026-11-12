@@ -132,7 +132,6 @@ try {
     await sleep(300);
     if (await evaluate("(() => { try { return (window.__quest?.items?.().length ?? 0) > 200; } catch { return false; } })()")) break;
   }
-  await evaluate("window.__rpd.setViewMode(1)");
   await evaluate("window.__quest.setFloor(2)");
   await evaluate("window.__rpd.setOrbit(0, 0, 0, 0, 1.2, 40)");
   await evaluate("window.__rpd.resetView()");

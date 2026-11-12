@@ -302,7 +302,7 @@ void plan_set_floor(int index) {
     if (floor_count > 0 && index >= floor_count) index = floor_count - 1;
     active_floor = index; hover = -1; hover_item = -1;
     popup_close();
-    if (g_rpd.ortho && index < floor_count) {
+    if (index < floor_count) {
         g_rpd.camera.target[0] = 0.5f * (floor_bounds[index][0] + floor_bounds[index][2]);
         g_rpd.camera.target[1] = floor_levels[index];
         g_rpd.camera.target[2] = 0.5f * (floor_bounds[index][1] + floor_bounds[index][3]);

@@ -114,7 +114,7 @@ async function main() {
       await sleep(200);
     }
     await sleep(1200);
-    console.log("state", await evalJs("JSON.stringify({floors:[...document.querySelectorAll('.rpd-floor')].map(e=>e.textContent.trim()), view:document.querySelector('.rpd-view-toggle')?.textContent.trim(), status:document.querySelector('.rpd-status')?.innerText.slice(0,120), player:window.__quest?.debug().player})"));
+    console.log("state", await evalJs("JSON.stringify({floors:[...document.querySelectorAll('.rpd-floor')].map(e=>e.textContent.trim()), status:document.querySelector('.rpd-status')?.innerText.slice(0,120), player:window.__quest?.debug().player})"));
     await evalJs("document.body.insertAdjacentHTML('beforeend','<div id=\"probe\" style=\"position:fixed;inset:0;background:#ff0000;z-index:99999\"></div>')");
     await shot("00-probe");
     await evalJs("document.getElementById('probe')?.remove()");
@@ -203,7 +203,7 @@ async function main() {
       }
       console.log("arrived", name, await evalJs("JSON.stringify(window.__quest.debug())"));
     }
-    const view = await evalJs("JSON.stringify({view:document.querySelector('.rpd-view-toggle')?.textContent.trim(), plan:window.__quest.debug().plan, cells:document.querySelector('.rpd-map-title')?.innerText, matrix:Array.from(window.__quest.matrix()).map(v=>+v.toFixed(3))})");
+    const view = await evalJs("JSON.stringify({plan:window.__quest.debug().plan, cells:document.querySelector('.rpd-map-title')?.innerText, matrix:Array.from(window.__quest.matrix()).map(v=>+v.toFixed(3))})");
     console.log("after ortho", view);
     const cam = await evalJs("JSON.stringify(Array.from(window.__rpd?.getViewProj?.() ?? []))").catch(()=>null);
     console.log("vp", cam);

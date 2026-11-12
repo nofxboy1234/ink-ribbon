@@ -181,7 +181,6 @@ async function main() {
     await evaluate("window.__quest.toggleDebug()");
 
     const planMode = async () => {
-      await evaluate("window.__rpd.setViewMode(1)");
       await evaluate("window.__rpd.setOrbit(0, 0, 0, 0, 1.2, 40)");
       await evaluate("window.__rpd.resetView()");
       await sleep(250);
@@ -263,7 +262,6 @@ async function main() {
     await sleep(120);
 
     // Perspective flyover of the same map, plus the item moment again.
-    await evaluate("window.__rpd.setViewMode(0)");
     for (let frame = 0; frame < 20; frame += 1) {
       const t = frame / 19;
       await evaluate(

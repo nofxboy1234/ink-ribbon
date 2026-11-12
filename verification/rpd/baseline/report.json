@@ -1,7 +1,5 @@
 {
   "shots": [
-    "01-3d",
-    "01b-menu-3d-disabled",
     "02-ortho-1f",
     "02b-legend",
     "03-ortho-2f",
@@ -15,17 +13,13 @@
     "09-menu-clear",
     "09-waypoint",
     "10-plan",
-    "10b-route-3d",
     "11-route-ortho",
     "18-popup-label-overlap",
     "20-doors-1f",
     "21-doors-2f",
     "22-doors-3f",
     "23-doors-b1",
-    "12-route-3d",
-    "24-3d-clean",
     "13-claire-closeup",
-    "31-item-cubes-3d",
     "32-item-cubes-ortho",
     "32b-item-hover",
     "32c-item-no-hover",
@@ -41,19 +35,12 @@
     "14-item-popup",
     "16-inventory-full",
     "17-inventory-refused",
-    "25-3d-paper-glass",
-    "28-recenter-3d-before",
-    "28-recenter-3d-after",
     "29-recenter-ortho-before",
     "29-recenter-ortho-after",
-    "30-reset-view",
-    "26-moving-glass"
+    "30-reset-view"
   ],
   "errors": [],
   "states": {
-    "menu3d": {
-      "open": false
-    },
     "initial": {
       "floors": [
         "4F",
@@ -67,7 +54,7 @@
       "routeDock": false,
       "inventoryShown": true,
       "panel": "ROUTE PLANNER\n\nMain Hall\nInventory\nFiles\n\nSwitch to the 2D plan, right click a cell and ch",
-      "mapTitle": null,
+      "mapTitle": "1F · FLOOR PLAN\nwheel to zoom · middle drag to pan · right click for waypoints",
       "plan": [],
       "player": [
         -0.5,
@@ -94,11 +81,10 @@
         "nodes": 9925,
         "edges": 17773
       },
-      "view": "2D",
       "cameraPose": [
-        -118.76454162597656,
-        98.43312072753906,
-        198.1538848876953,
+        -2.1630001068115234,
+        246.31594848632812,
+        7.971951484680176,
         2.591592788696289,
         -0.4000000059604645,
         1
@@ -115,25 +101,25 @@
         155.16661071777344,
         -0.550000011920929,
         0.4000000059604645,
-        0.3999999761581421,
-        0,
+        1.570451021194458,
+        1,
         242.19993591308594
       ],
       "floorRoles": [
         0,
-        4,
-        1,
-        2,
-        3,
-        4,
-        0.3999999761581421,
         0,
+        7.97193717956543,
+        155.16661071777344,
+        -0.550000011920929,
+        0.4000000059604645,
+        1.570451021194458,
+        1,
         242.19993591308594,
         1.09203189324833e-41
       ],
       "overlay": [
         -1,
-        0,
+        10,
         0,
         0,
         0,
@@ -141,7 +127,7 @@
       ]
     },
     "legend": {
-      "text": "Keys\nLocks\nFiles\nWeapons\nAmmo\nHerbs\nContainers\nPuzzle\nRoute\nWaypoint\n\nClick an item to take, unlock, open or read it. Keys must be in the eight slots before a lock opens. Right click an inventory block for its actions. Right click the 2D plan for waypoints and Run route. Right drag rotates the camera in 3D.",
+      "text": "Keys\nLocks\nFiles\nWeapons\nAmmo\nHerbs\nContainers\nPuzzle\nRoute\nWaypoint\n\nClick an item to take, unlock, open or read it. Keys must be in the eight slots before a lock opens. Right click an inventory block for its actions. Right click the 2D plan for waypoints and Run route. Middle drag pans the plan. Wheel zooms.",
       "dots": [
         "rgb(158, 79, 242)",
         "rgb(242, 140, 51)",
@@ -195,7 +181,6 @@
         "nodes": 9925,
         "edges": 17773
       },
-      "view": "3D",
       "cameraPose": [
         -2.1630001068115234,
         246.31594848632812,
@@ -285,7 +270,6 @@
         "nodes": 9925,
         "edges": 17773
       },
-      "view": "3D",
       "cameraPose": [
         -2.1630001068115234,
         236.9999237060547,
@@ -382,7 +366,6 @@
         "nodes": 9925,
         "edges": 17773
       },
-      "view": "3D",
       "cameraPose": [
         0.6030006408691406,
         130.7152557373047,
@@ -480,7 +463,6 @@
         "nodes": 9925,
         "edges": 17773
       },
-      "view": "3D",
       "cameraPose": [
         0.6030006408691406,
         130.7152557373047,
@@ -572,7 +554,6 @@
         "nodes": 9925,
         "edges": 17773
       },
-      "view": "3D",
       "cameraPose": [
         0.6030006408691406,
         130.7152557373047,
@@ -636,16 +617,16 @@
         0
       ],
       "player": [
-        20.826932907104492,
+        19.929399490356445,
         0.09999999403953552,
-        -10.307695388793945
+        -10.051257133483887
       ],
       "moving": true,
       "routePoints": 106,
       "move": [
         0,
         106,
-        0.1151294931769371
+        0.2686546742916107
       ],
       "playerFloor": 0,
       "check": {
@@ -664,7 +645,6 @@
         "nodes": 9925,
         "edges": 17773
       },
-      "view": "3D",
       "cameraPose": [
         0.6030006408691406,
         130.7152557373047,
@@ -761,7 +741,7 @@
       }
     },
     "labelOverlap": {
-      "room": "Main Hall",
+      "room": "Reception - RPD",
       "stats": [
         -1,
         13,
@@ -816,7 +796,7 @@
         }
       ],
       "markerPixels": {
-        "floorOne": 5427
+        "floorOne": 5077
       }
     },
     "orthoReset": {
@@ -836,107 +816,21 @@
         10.747116088867188
       ]
     },
-    "route3d": {
-      "floors": [
-        "4F",
-        "3F",
-        "2F",
-        "1F",
-        "B1"
-      ],
-      "active": "1F",
-      "slots": 8,
-      "routeDock": false,
-      "inventoryShown": true,
-      "panel": "ROUTE PLANNER\n\nMain Hall\nInventory\nFiles\n\nSwitch to the 2D plan, right click a cell and ch",
-      "mapTitle": null,
-      "plan": [],
-      "player": [
-        0,
-        0.019999999552965164,
-        7.5
-      ],
-      "moving": false,
-      "routePoints": 0,
-      "move": [
-        0,
-        0,
-        0
-      ],
-      "playerFloor": 0,
-      "check": {
-        "points": 0,
-        "samples": 0,
-        "bad": 0,
-        "worst": 0,
-        "clearance": 0,
-        "clearanceAt": null,
-        "radius": 0.25,
-        "visualRadius": 0.42500001192092896,
-        "nodes": 9925,
-        "edges": 17773
-      },
-      "view": "2D",
-      "cameraPose": [
-        -62.32683563232422,
-        50.902923583984375,
-        97.58866882324219,
-        2.591592788696289,
-        -0.4000000059604645,
-        1
-      ],
-      "mapCamera": [
-        0.6030006408691406,
-        -5.0525007247924805,
-        10.747116088867188
-      ],
-      "cameraModel": [
-        0.6030006408691406,
-        0,
-        -5.0525007247924805,
-        83.74339294433594,
-        -0.550000011920929,
-        0.4000000059604645,
-        0.3999999761581421,
-        0,
-        130.71527099609375
-      ],
-      "floorRoles": [
-        0,
-        4,
-        1,
-        2,
-        3,
-        4,
-        0.3999999761581421,
-        0,
-        130.71527099609375,
-        1.046069303618476e-41
-      ],
-      "overlay": [
-        -1,
-        0,
-        0,
-        0,
-        0,
-        0
-      ]
-    },
-    "perspectiveReset": {
+    "viewReset": {
       "poseArrow": [
-        -118.76454162597656,
-        98.43312072753906,
-        198.1538848876953,
-        2.591592788696289,
-        -0.4000000059604645,
+        0.6030006408691406,
+        130.7152557373047,
+        -5.052493095397949,
+        1.9415926933288574,
+        -0.5,
         1
       ],
       "poseKey": [
-        -118.76454162597656,
-        98.43312072753906,
-        198.1538848876953,
-        2.591592788696289,
-        -0.4000000059604645,
+        0.6030006408691406,
+        130.7152557373047,
+        -5.052493095397949,
+        1.9415926933288574,
+        -0.5,
         1
       ]
     },
@@ -945,7 +839,6 @@
       "bad": []
     },
     "itemCubes": {
-      "perspective": 271,
       "ortho": 271,
       "spade": [
         0.6200000047683716,
@@ -1029,98 +922,17 @@
         85.76227569580078
       ]
     },
-    "cameraRoundTrip": {
-      "start": [
-        5,
-        3,
-        7,
-        32.032752990722656,
-        -0.8999999761581421,
-        0.4000000059604645,
-        0.40000003576278687,
-        0,
-        50
-      ],
-      "ortho": [
-        5,
-        3,
-        7,
-        32.032752990722656,
-        -0.8999999761581421,
-        0.4000000059604645,
-        1.570451021194458,
-        1,
-        50
-      ],
-      "back": [
-        5,
-        3,
-        7,
-        32.032752990722656,
-        -0.8999999761581421,
-        0.4000000059604645,
-        0.40000003576278687,
-        2.9802322387695312e-8,
-        50
-      ]
-    },
-    "perspectivePan": {
-      "start": [
-        5,
-        3,
-        7,
-        32.032752990722656,
-        -0.8999999761581421,
-        0.4000000059604645,
-        0.40000003576278687,
-        2.9802322387695312e-8,
-        50
-      ],
-      "pan": [
-        3.772907018661499,
-        4.63911771774292,
-        4.338809013366699,
-        32.032752990722656,
-        -0.8999999761581421,
-        0.4000000059604645,
-        0.40000003576278687,
-        0,
-        50
-      ],
-      "zoom": [
-        3.772907018661499,
-        4.63911771774292,
-        4.338809013366699,
-        21.016687393188477,
-        -0.8999999761581421,
-        0.4000000059604645,
-        0.40000003576278687,
-        0,
-        32.804996490478516
-      ]
-    },
     "recenter": {
-      "perspective": [
-        -21.489999771118164,
-        1.7000000476837158,
-        -18.222000122070312,
-        41.642578125,
-        -0.75,
-        0.36000001430511475,
-        0.36000001430511475,
-        0,
-        65
-      ],
       "ortho": [
         -0.5,
         6.920000076293945,
         3.5,
-        41.642578125,
-        -0.75,
-        0.36000001430511475,
+        54.944034576416016,
+        0,
+        1.2000000476837158,
         1.570451021194458,
         1,
-        65
+        85.76227569580078
       ],
       "floorBefore": 0,
       "floorAfter": 1
@@ -1131,8 +943,8 @@
         5.199999809265137,
         -6.1705002784729,
         81.8367919921875,
-        -0.75,
-        0.36000001430511475,
+        0,
+        1.2000000476837158,
         1.570451021194458,
         1,
         127.73924255371094
@@ -1143,25 +955,6 @@
         10.997498512268066
       ]
     },
-    "movingGlass": {
-      "floors": [
-        1,
-        4,
-        0,
-        2,
-        3,
-        4,
-        0,
-        0,
-        0,
-        1.038222032218257e-41
-      ],
-      "player": [
-        -0.5,
-        5.21999979019165,
-        3.5
-      ]
-    },
     "orthoFloorZoom": {
       "before": {
         "model": [
@@ -1169,8 +962,8 @@
           0,
           -5.0525007247924805,
           53.693111419677734,
-          -0.75,
-          0.36000001430511475,
+          0,
+          1.2000000476837158,
           1.570451021194458,
           1,
           83.80970764160156
@@ -1187,8 +980,8 @@
           5.199999809265137,
           -6.1705002784729,
           53.693111419677734,
-          -0.75,
-          0.36000001430511475,
+          0,
+          1.2000000476837158,
           1.570451021194458,
           1,
           83.80970764160156
@@ -1230,23 +1023,23 @@
         "activeFloor": 0,
         "playerFloor": 0,
         "player": [
-          2.5,
+          42.5,
           0.019999999552965164,
-          -3.5
+          1.5
         ],
-        "room": "Main Hall",
-        "distance": 40.44999999999171
+        "room": "Bathroom",
+        "distance": 1.0965856096673199
       }
     },
     "doorDiscovery": {
       "candidate": {
-        "doorIndex": 30,
-        "itemIndex": 33,
-        "name": "Locked Door",
-        "floor": 4,
-        "x": -18.898000717163086,
-        "y": -5.199999809265137,
-        "z": 40.98099899291992,
+        "doorIndex": 7,
+        "itemIndex": 10,
+        "name": "Club Door",
+        "floor": 0,
+        "x": -35.42599868774414,
+        "y": 0,
+        "z": 1.3040000200271606,
         "discovered": false
       },
       "count": 44
@@ -1340,7 +1133,11 @@
         "Inventory",
         "Files"
       ],
-      "files": []
+      "files": [
+        "Commemorative Photo",
+        "Hiding Place",
+        "Internal Memo"
+      ]
     },
     "items": [
       {

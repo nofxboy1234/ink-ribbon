@@ -128,12 +128,6 @@ async function main() {
     const settings = PRESETS[preset];
     if (!settings) throw new Error(`unknown preset ${preset}`);
     if (settings.view === "2d") {
-      await send("Input.dispatchKeyEvent", { type: "keyDown", code: "KeyM", key: "m", windowsVirtualKeyCode: 77 });
-      await send("Input.dispatchKeyEvent", { type: "keyUp", code: "KeyM", key: "m", windowsVirtualKeyCode: 77 });
-      for (let i = 0; i < 100; i += 1) {
-        if ((await evaluate("window.__rpd.debugBlend()")) >= 0.999) break;
-        await sleep(150);
-      }
       await evaluate(`window.__quest.setFloor(${settings.floor})`);
       await sleep(1200);
     } else if (settings.orbit) {

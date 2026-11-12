@@ -21,7 +21,6 @@
 
 rpd_state_t g_rpd;
 
-#define BLEND_DURATION 0.7f
 #define RECENTER_DURATION 0.45f
 #define CLAIRE_CAPSULE_TOP RPD_PLAYER_HEIGHT
 
@@ -76,17 +75,9 @@ void camera_reset(void) {
     reset_orbit_camera();
 }
 
-static float blend_ease(void) {
-    float t = g_rpd.ortho_blend;
-    if (t < 0.0f) t = 0.0f;
-    if (t > 1.0f) t = 1.0f;
-    return t * t * (3.0f - 2.0f * t);
-}
-
 static mat4 camera_view_proj(float eye[3]) {
-    float e = blend_ease();
     float right[3], up[3], forward[3];
-    camera_basis(&g_rpd.camera, e, right, up, forward);
+    camera_basis(&g_rpd.camera, 1.0f, right, up, forward);
     float distance = camera_distance(&g_rpd.camera);
     for (int i = 0; i < 3; i++) eye[i] = g_rpd.camera.target[i] - forward[i] * distance;
 
@@ -95,35 +86,15 @@ static mat4 camera_view_proj(float eye[3]) {
     float aspect = vw / vh;
     float half_h = 0.5f * g_rpd.camera.frame;
     float half_w = half_h * aspect;
-    float near_z = 0.2f;
-    float far_z = 2400.0f;
-    mat4 persp = mat4_perspective(RPD_PERSPECTIVE_FOV, aspect, near_z, far_z);
     const float panel_inset = 380.0f;
     float lens_shift = panel_inset / vw;
-    persp.m[8] = lens_shift;
     float ortho_shift = lens_shift * half_w;
-    mat4 ortho = mat4_ortho(-half_w + ortho_shift, half_w + ortho_shift, -half_h, half_h, near_z, far_z);
-    mat4 proj;
-    for (int i = 0; i < 16; i++) proj.m[i] = persp.m[i] * (1.0f - e) + ortho.m[i] * e;
+    mat4 ortho = mat4_ortho(-half_w + ortho_shift, half_w + ortho_shift, -half_h, half_h, 0.2f, 2400.0f);
     mat4 view = mat4_view_basis(eye, right, up, forward);
-    return mat4_mul(proj, view);
+    return mat4_mul(ortho, view);
 }
 
-static void update_ortho_blend(float dt) {
-    float target = g_rpd.ortho ? 1.0f : 0.0f;
-    float step = dt / BLEND_DURATION;
-    if (g_rpd.ortho_blend < target) g_rpd.ortho_blend = fminf(target, g_rpd.ortho_blend + step);
-    else if (g_rpd.ortho_blend > target) g_rpd.ortho_blend = fmaxf(target, g_rpd.ortho_blend - step);
-}
-
-static int paper_floor(void) {
-    int floor = plan_active_floor();
-    if (!g_rpd.ortho && plan_moving()) {
-        int moving_floor = plan_player_floor();
-        if (moving_floor >= 0) floor = moving_floor;
-    }
-    return floor;
-}
+static int paper_floor(void) { return plan_active_floor(); }
 
 static bool sdtx_ready;
 
@@ -160,7 +131,6 @@ void rpd_app_frame(void) {
     float dt = raw_dt > 0.1f ? 0.1f : raw_dt;
     ensure_sdtx();
     camera_update_animation(dt);
-    update_ortho_blend(dt);
     if (g_rpd.scene.pending) {
         g_rpd.scene.pending = false;
         g_rpd.scene.loaded = scene_upload(&g_rpd.scene);
@@ -174,9 +144,7 @@ void rpd_app_frame(void) {
 
     float eye[3];
     mat4 vp = camera_view_proj(eye);
-    float e = blend_ease();
     float fy = plan_level();
-    bool clip = e > 0.45f;
     game_update(raw_dt > 0.5f ? 0.5f : raw_dt, vp.m, sapp_width(), sapp_height());
     doors_sync();
     if (!game_paused()) {
@@ -186,23 +154,12 @@ void rpd_app_frame(void) {
     }
     if (g_rpd.scene.loaded && g_rpd.scene.gpu_ready) {
         scene_render_floors(&g_rpd.scene, vp, eye, camera_distance(&g_rpd.camera),
-                            g_rpd.scene_radius, paper_floor(), clip, fy - 0.55f, fy + 4.2f,
-                            g_rpd.ortho ? fy : MARKER_FLOOR_ANY,
-                            g_rpd.ortho, (float)sapp_height() / g_rpd.camera.frame);
+                            g_rpd.scene_radius, paper_floor(), 1, fy - 0.55f, fy + 4.2f,
+                            fy, 1, (float)sapp_height() / g_rpd.camera.frame);
     }
     sg_end_pass();
 
-    if (!clip && g_rpd.scene.loaded && g_rpd.scene.gpu_ready) {
-        // Glass blends over the paper and replaces its normal and depth data.
-        // Rebuild the paper detail alone so its ink survives and glass adds none.
-        sg_begin_pass(&g_rpd.target.data_pass);
-        sg_apply_viewport(0, 0, g_rpd.target.width, g_rpd.target.height, true);
-        scene_render_paper_data(&g_rpd.scene, vp, eye, paper_floor(), false,
-                                fy - 0.55f, fy + 4.2f);
-        sg_end_pass();
-    }
-
-    overlay_build(vp.m, sapp_width(), sapp_height(), e > 0.5f, fps_value);
+    overlay_build(vp.m, sapp_width(), sapp_height(), 1, fps_value);
     overlay_upload();
     target_composite(&g_rpd.target, &g_rpd.pass_action);
     sg_commit();
@@ -238,7 +195,6 @@ static bool map_panning;
 static bool right_click;
 static bool right_dragging;
 static float right_click_x, right_click_y;
-EMSCRIPTEN_KEEPALIVE void rpd_set_view_mode(int mode);
 EMSCRIPTEN_KEEPALIVE void rpd_reset_view(void);
 EMSCRIPTEN_KEEPALIVE void rpd_recenter(void);
 
@@ -260,7 +216,7 @@ void rpd_app_event(const sapp_event *e) {
         rpd_recenter();
         return;
     }
-    if (g_rpd.ortho_blend > 0.25f) {
+    {
         float s = sapp_dpi_scale();
         float mx = e->mouse_x * s;
         float my = e->mouse_y * s;
@@ -290,7 +246,6 @@ void rpd_app_event(const sapp_event *e) {
         }
         return;
     }
-    input_handle_event(e);
 }
 
 EMSCRIPTEN_KEEPALIVE float rpd_player_radius(void) { return RPD_PLAYER_RADIUS; }
@@ -452,7 +407,7 @@ EMSCRIPTEN_KEEPALIVE void rpd_popup_close(void) {
 EMSCRIPTEN_KEEPALIVE int rpd_get_camera(float *out) {
     if (!out) return -1;
     float eye[3];
-    camera_eye(&g_rpd.camera, blend_ease(), eye);
+    camera_eye(&g_rpd.camera, 1.0f, eye);
     out[0] = eye[0];
     out[1] = eye[1];
     out[2] = eye[2];
@@ -471,10 +426,10 @@ EMSCRIPTEN_KEEPALIVE int rpd_get_camera_model(float *out) {
     out[4] = g_rpd.camera.yaw;
     out[5] = g_rpd.camera.pitch;
     float right[3], up[3], forward[3];
-    camera_basis(&g_rpd.camera, blend_ease(), right, up, forward);
+    camera_basis(&g_rpd.camera, 1.0f, right, up, forward);
     float down = fminf(1.0f, fmaxf(-1.0f, -forward[1]));
     out[6] = asinf(down);
-    out[7] = g_rpd.ortho_blend;
+    out[7] = 1.0f;
     out[8] = camera_distance(&g_rpd.camera);
     return 0;
 }
@@ -483,17 +438,8 @@ EMSCRIPTEN_KEEPALIVE int rpd_debug_floors(float *out) {
     if (!out) return -1;
     int paper = paper_floor();
     out[0] = (float)paper;
-    int count = 0;
-    int total = scene_floor_count();
-    if (!g_rpd.ortho) {
-        for (int i = 0; i < total; i++) {
-            if (i == paper) continue;
-            out[2 + count] = (float)i;
-            count++;
-        }
-    }
-    out[1] = (float)count;
-    return count;
+    out[1] = 0.0f;
+    return 0;
 }
 
 EMSCRIPTEN_KEEPALIVE int rpd_set_orbit(float tx, float ty, float tz, float yaw, float pitch, float distance) {
@@ -542,7 +488,7 @@ EMSCRIPTEN_KEEPALIVE void rpd_recenter(void) {
     orbit_anim_t *a = &g_rpd.orbit;
     memcpy(a->from_target, g_rpd.camera.target, sizeof(a->from_target));
     a->from_frame = g_rpd.camera.frame;
-    if (g_rpd.ortho) plan_set_floor(floor);
+    plan_set_floor(floor);
     a->to_target[0] = player[0];
     a->to_target[1] = player[1] + CLAIRE_CAPSULE_TOP;
     a->to_target[2] = player[2];
@@ -555,24 +501,11 @@ EMSCRIPTEN_KEEPALIVE void rpd_recenter(void) {
     g_rpd.input.user_moved = true;
 }
 
-EMSCRIPTEN_KEEPALIVE void rpd_set_view_mode(int mode) {
-    bool ortho = mode != 0;
-    if (ortho == g_rpd.ortho) return;
-    g_rpd.ortho = ortho;
-    menu_close();
-    camera_cancel_animation();
-}
-
 EMSCRIPTEN_KEEPALIVE void rpd_reset_view(void) {
     camera_cancel_animation();
     g_rpd.input.rotating = false;
     g_rpd.input.panning = false;
-    if (g_rpd.ortho) {
-        plan_fit_camera();
-        return;
-    }
-    g_rpd.input.user_moved = false;
-    camera_reset();
+    plan_fit_camera();
 }
 
 EMSCRIPTEN_KEEPALIVE int rpd_get_view_proj(float *out) {
@@ -581,10 +514,6 @@ EMSCRIPTEN_KEEPALIVE int rpd_get_view_proj(float *out) {
     mat4 vp = camera_view_proj(eye);
     memcpy(out, vp.m, sizeof(vp.m));
     return 0;
-}
-
-EMSCRIPTEN_KEEPALIVE float rpd_debug_blend(void) {
-    return g_rpd.ortho_blend;
 }
 
 EMSCRIPTEN_KEEPALIVE void rpd_game_toggle_debug(void) {

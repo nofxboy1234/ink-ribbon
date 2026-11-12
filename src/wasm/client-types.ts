@@ -31,7 +31,6 @@ export type RpdClient = {
   setPlayerPosition(x: number, y: number, z: number): void;
   playerRadius(): number;
   routeRadius(): number;
-  setViewMode(mode: number): void;
   planSetFloors(levels: Float32Array, bounds: Float32Array): void;
   planSetGraph(
     count: number,
@@ -163,6 +162,5 @@ export type RpdClient = {
   cameraModel(): Float32Array;
   debugFloors(): Float32Array;
   overlayStats(): Float32Array;
-  debugBlend(): number;
   dispose(): void;
 };

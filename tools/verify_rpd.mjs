@@ -20,7 +20,6 @@ const imageThresholdOverrides = new Map([
   ["32-item-cubes-ortho", 0.004],
   // The 3D cube shot frames an animated enemy capsule; its bob phase drifts
   // with wall-clock time, so a wider tolerance keeps the check stable.
-  ["31-item-cubes-3d", 0.01],
   // The label-overlap shot accepts the first room candidate whose popup
   // overlaps, so its item title and anchor differ between runs.
   ["18-popup-label-overlap", 0.03],
@@ -431,7 +430,7 @@ async function run() {
     };
     const facts = () => cdp.eval(`(() => {
       return {
-        floors: [...document.querySelectorAll('.rpd-floor:not(.rpd-view-toggle)')].map((e) => e.textContent.trim()),
+        floors: [...document.querySelectorAll('.rpd-floor')].map((e) => e.textContent.trim()),
         active: document.querySelector('.rpd-floor[data-active="true"]')?.textContent.trim() ?? null,
         slots: document.querySelectorAll('.rpd-slot').length,
         routeDock: Boolean(document.querySelector('.rpd-route-dock')),
@@ -445,7 +444,6 @@ async function run() {
         move: window.__quest.debug().move,
         playerFloor: window.__quest.debug().playerFloor,
         check: window.__quest.checkPath(),
-        view: document.querySelector('.rpd-view-toggle')?.textContent.trim() ?? null,
         cameraPose: window.__quest.cameraPose(),
         mapCamera: window.__quest.camera(),
         cameraModel: window.__quest.cameraModel(),
@@ -472,24 +470,11 @@ async function run() {
     const behaviorFailures = [];
 
     await cdp.eval("window.__rpd.setFpsVisible(false)");
-    await shot("01-3d");
-    await rightClick(700, 450);
-    assert(
-      !(await cdp.eval("Boolean(document.querySelector('.rpd-menu'))")),
-      "the React context menu must be gone",
-    );
-    const menu3d = await cdp.eval("window.__quest.popup()");
-    assert(!menu3d.open, "right click in 3D must not open the waypoint menu");
-    await shot("01b-menu-3d-disabled");
-    report.states.menu3d = { open: menu3d.open };
     report.states.initial = await facts();
     assert(report.states.initial.floors.length === 5, "expected five floor buttons");
     assert(report.states.initial.slots === 8, "expected eight inventory slots");
     assert(!report.states.initial.routeDock, "the route dock should be gone");
 
-    await cdp.key("KeyM", "m", 77);
-    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 1) >= 0.999", 20000);
-    await sleep(250);
     await shot("02-ortho-1f");
     const legend = await evalJson(`(() => {
       const root = document.querySelector('.rpd-legend');
@@ -527,7 +512,6 @@ async function run() {
     const camAfter = await cdp.eval("JSON.stringify(window.__quest.camera())");
     report.states.leftDrag = { before: camBefore, after: camAfter };
     assert(camBefore === camAfter, "left drag must not pan the plan");
-    assert(report.states.ortho1f.view === "3D", "M should switch to the plan view");
     assert(report.states.ortho1f.mapTitle?.includes("1F"), "the plan should show 1F");
 
     for (const [floor, name] of [[1, "03-ortho-2f"], [2, "04-ortho-3f"], [3, "05-ortho-4f"], [4, "06-ortho-b1"]]) {
@@ -792,13 +776,6 @@ async function run() {
       `the capsule body leaves the walkable corridor (clearance ${report.states.plan.check?.clearance}, radius ${report.states.plan.check?.radius})`,
     );
 
-    await cdp.key("KeyM", "m", 77);
-    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) <= 0.001", 20000);
-    await sleep(250);
-    await shot("10b-route-3d");
-    await cdp.key("KeyM", "m", 77);
-    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) >= 0.999", 20000);
-    await sleep(250);
 
     const claire = JSON.parse(
       await cdp.eval("JSON.stringify(window.__quest.project(...window.__quest.debug().player))"),
@@ -1148,12 +1125,6 @@ async function run() {
     }
     await setFloor(0);
 
-    await cdp.key("KeyM", "m", 77);
-    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) <= 0.001", 20000);
-    await sleep(250);
-    await shot("12-route-3d");
-    report.states.route3d = await facts();
-    assert(report.states.route3d.view === "2D", "M should return to the perspective view");
 
     const resetPlayer = await evalJson("window.__quest.debug().player");
     await cdp.eval("window.__rpd.setOrbit(10, 5, 10, -1.2, 0.5, 40)");
@@ -1168,39 +1139,18 @@ async function run() {
     const poseKey = await evalJson("window.__quest.cameraPose()");
     assert(
       closeEnough(poseArrow, poseKey, 1e-3),
-      "the arrow and R should restore the same perspective camera",
+      "the arrow and R should restore the same plan camera",
     );
     const afterPerspectiveReset = await facts();
     assert(
       JSON.stringify(afterPerspectiveReset.player) === JSON.stringify(resetPlayer),
-      "resetting the perspective view must not move Claire",
+      "resetting the view must not move Claire",
     );
     assert(
       afterPerspectiveReset.plan.length === 0,
-      "resetting the perspective view must not create waypoints",
+      "resetting the view must not create waypoints",
     );
-    report.states.perspectiveReset = { poseArrow, poseKey };
-
-    await cdp.eval("window.__rpd.setOrbit(0, 2.5, 2, -0.75, 0.36, 65)");
-    await sleep(800);
-    await shot("24-3d-clean");
-
-    const dragPose = await evalJson("window.__quest.cameraModel()");
-    await cdp.mouse("mousePressed", 700, 450, { button: "right", buttons: 2 });
-    await cdp.mouse("mouseMoved", 760, 470, { button: "right", buttons: 2 });
-    await cdp.mouse("mouseReleased", 760, 470, { button: "right", buttons: 0 });
-    await sleep(300);
-    const dragPoseAfter = await evalJson("window.__quest.cameraModel()");
-    assert(
-      Math.abs(dragPoseAfter[4] - dragPose[4]) > 1e-3,
-      "right drag must still rotate the perspective camera",
-    );
-    assert(
-      !(await cdp.eval("Boolean(document.querySelector('.rpd-menu'))")),
-      "a right drag must not open the context menu",
-    );
-    await cdp.eval("window.__rpd.setOrbit(0, 2.5, 2, -0.75, 0.36, 65)");
-    await sleep(500);
+    report.states.viewReset = { poseArrow, poseKey };
 
     await cdp.eval("window.__quest.setPlayer(0, 0.02, 7.5)");
     await sleep(400);
@@ -1238,28 +1188,19 @@ async function run() {
     );
     report.states.itemCentring = centring;
 
-    // Every registry item draws as a small coloured cube in both views.
-    // Keys are the purple family; the rest follow CATEGORY_COLOURS.
-    await cdp.eval("window.__rpd.setOrbit(0, 0, 0, 0, 1.2, 14)");
-    await sleep(900);
-    const items3d = JSON.parse(await cdp.eval("JSON.stringify(window.__quest.items())"));
-    assert(items3d.length === 271, `expected 271 items in the perspective, got ${items3d.length}`);
-    const spade = items3d.find((entry) => entry.name === "Spade Key");
+    // Every registry item draws as a small coloured cube.
+    const spade = items.find((entry) => entry.name === "Spade Key");
     assert(spade, "the Spade Key item is missing");
     assert(spade.r > 0.5 && spade.b > 0.8 && spade.g < 0.5,
            `keys must be purple, got ${spade.r},${spade.g},${spade.b}`);
-    await shot("31-item-cubes-3d");
 
-    await cdp.key("KeyM", "m", 77);
-    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) >= 0.999", 20000);
     await setFloor(0);
     await cdp.eval("window.__rpd.setOrbit(0, 0, 0, 0, 1.2, 20)");
     await sleep(2000);
     const itemsOrtho = JSON.parse(await cdp.eval("JSON.stringify(window.__quest.items())"));
     assert(itemsOrtho.length === 271, `expected 271 items in the plan, got ${itemsOrtho.length}`);
     await shot("32-item-cubes-ortho");
-    report.states.itemCubes = { perspective: items3d.length, ortho: itemsOrtho.length,
-                                spade: [spade.r, spade.g, spade.b] };
+    report.states.itemCubes = { ortho: itemsOrtho.length, spade: [spade.r, spade.g, spade.b] };
 
     // The waypoint menu owns the pointer while it is open, so close it
     // before probing the item hover.
@@ -1899,124 +1840,6 @@ async function run() {
       "the recenter button must sit immediately right of the reset arrow",
     );
 
-    await cdp.key("KeyM", "m", 77);
-    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) <= 0.001", 20000);
-    await setFloor(0);
-    await cdp.eval("window.__rpd.setOrbit(0, 2.5, 2, -0.75, 0.36, 65)");
-    await sleep(800);
-    const glassFloors = await evalJson("window.__quest.debugFloors()");
-    assert(
-      glassFloors[0] === 0 && glassFloors[1] === 4,
-      `perspective should draw floor 0 in paper and four glass floors, got ${JSON.stringify(glassFloors)}`,
-    );
-    const perspectiveModel = await evalJson("window.__quest.cameraModel()");
-    const perspectiveCenter = await evalJson(
-      `window.__quest.project(${perspectiveModel[0]}, ${perspectiveModel[1]}, ${perspectiveModel[2]})`,
-    );
-    assert(
-      Math.hypot(perspectiveCenter.x - 510, perspectiveCenter.y - 450) < 1.5,
-      "the shared target must project to the map-area centre in perspective",
-    );
-    await shot("25-3d-paper-glass");
-
-    await cdp.eval("window.__rpd.setOrbit(5, 3, 7, -0.9, 0.4, 50)");
-    await sleep(400);
-    const tripStart = await evalJson("window.__quest.cameraModel()");
-    await cdp.key("KeyM", "m", 77);
-    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) >= 0.999", 20000);
-    await sleep(300);
-    const tripOrtho = await evalJson("window.__quest.cameraModel()");
-    assert(
-      closeEnough(tripStart.slice(0, 6), tripOrtho.slice(0, 6), 1e-4),
-      "switching to ortho must hold the shared target, frame and saved orientation",
-    );
-    assert(
-      Math.abs(tripOrtho[6] - Math.PI / 2) < 0.02,
-      "the orthographic orientation must be top-down",
-    );
-    const orthoCenter = await evalJson(
-      `window.__quest.project(${tripOrtho[0]}, ${tripOrtho[1]}, ${tripOrtho[2]})`,
-    );
-    assert(
-      Math.hypot(orthoCenter.x - 510, orthoCenter.y - 450) < 1.5,
-      "the shared target must project to the map-area centre in ortho",
-    );
-    await cdp.key("KeyM", "m", 77);
-    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) <= 0.001", 20000);
-    await sleep(300);
-    const tripBack = await evalJson("window.__quest.cameraModel()");
-    assert(
-      closeEnough(tripStart.slice(0, 6), tripBack.slice(0, 6), 1e-4),
-      "a 2D/3D round trip must restore the shared target, frame and saved orientation",
-    );
-    report.states.cameraRoundTrip = { start: tripStart, ortho: tripOrtho, back: tripBack };
-
-    const perspPanStart = await evalJson("window.__quest.cameraModel()");
-    await cdp.mouse("mousePressed", 600, 450, { button: "middle" });
-    await cdp.mouse("mouseMoved", 680, 500, { button: "middle" });
-    await cdp.mouse("mouseReleased", 680, 500, { button: "middle" });
-    await sleep(400);
-    const perspPanEnd = await evalJson("window.__quest.cameraModel()");
-    assert(
-      Math.hypot(perspPanEnd[0] - perspPanStart[0], perspPanEnd[2] - perspPanStart[2]) > 0.01,
-      "the perspective pan must move the shared target",
-    );
-    assert(
-      Math.abs(perspPanEnd[3] - perspPanStart[3]) < 1e-4,
-      "the perspective pan must keep the shared frame",
-    );
-    await cdp.send("Input.dispatchMouseEvent", {
-      type: "mouseWheel",
-      x: 600,
-      y: 450,
-      deltaX: 0,
-      deltaY: -400,
-    });
-    await sleep(400);
-    const perspZoomEnd = await evalJson("window.__quest.cameraModel()");
-    assert(
-      Math.abs(perspZoomEnd[3] - perspPanEnd[3]) > 0.01,
-      "the perspective wheel must change the shared frame",
-    );
-    assert(
-      Math.hypot(perspZoomEnd[0] - perspPanEnd[0], perspZoomEnd[2] - perspPanEnd[2]) < 1e-4,
-      "the perspective wheel must keep the shared target",
-    );
-    report.states.perspectivePan = { start: perspPanStart, pan: perspPanEnd, zoom: perspZoomEnd };
-
-    await cdp.eval("window.__rpd.setOrbit(0, 2.5, 2, -0.75, 0.36, 65)");
-    await sleep(400);
-    const recenterPlayer = await evalJson("window.__quest.debug().player");
-    const recenterFrame = (await evalJson("window.__quest.cameraModel()"))[3];
-    await shot("28-recenter-3d-before");
-    await cdp.eval("document.querySelector('.rpd-recenter-button').click()");
-    await cdp.waitFor(
-      `(() => { const m = window.__quest.cameraModel(); return Math.hypot(m[0] - ${recenterPlayer[0]}, m[1] - ${recenterPlayer[1] + 1.7}, m[2] - ${recenterPlayer[2]}) < 0.08; })()`,
-      20000,
-    );
-    await sleep(300);
-    const recentered3d = await evalJson("window.__quest.cameraModel()");
-    assert(
-      Math.abs(recentered3d[3] - recenterFrame) < 0.01,
-      "recentering must keep the shared frame",
-    );
-    assert(
-      JSON.stringify(await evalJson("window.__quest.debug().player")) ===
-        JSON.stringify(recenterPlayer),
-      "recentering must not move Claire",
-    );
-    await shot("28-recenter-3d-after");
-
-    await cdp.eval("window.__rpd.setOrbit(0, 2.5, 2, -0.75, 0.36, 65)");
-    await sleep(400);
-    await cdp.key("KeyC", "c", 67);
-    await cdp.waitFor(
-      `(() => { const m = window.__quest.cameraModel(); return Math.hypot(m[0] - ${recenterPlayer[0]}, m[1] - ${recenterPlayer[1] + 1.7}, m[2] - ${recenterPlayer[2]}) < 0.08; })()`,
-      20000,
-    );
-
-    await cdp.key("KeyM", "m", 77);
-    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) >= 0.999", 20000);
     await setFloor(1);
     const floorCell = JSON.parse(await cdp.eval("JSON.stringify(window.__quest.walkableCell())"));
     assert(floorCell, "could not find a floor 1 cell for the recenter follow");
@@ -2056,7 +1879,6 @@ async function run() {
     );
     await shot("29-recenter-ortho-after");
     report.states.recenter = {
-      perspective: recentered3d,
       ortho: recenteredOrtho,
       floorBefore: 0,
       floorAfter: 1,
@@ -2090,46 +1912,9 @@ async function run() {
     await shot("30-reset-view");
     report.states.resetView = { model: resetModel, camera: resetCamera };
 
-    await cdp.key("KeyM", "m", 77);
-    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) <= 0.001", 20000);
-    await cdp.eval("window.__quest.setFloor(1)");
-    await sleep(400);
-    const glassMoveStart = await evalJson("window.__quest.debug().player");
-    const floorOneRooms = rooms
-      .filter((room) => room.floor === 1)
-      .sort(
-        (a, b) =>
-          Math.hypot(b.x - glassMoveStart[0], b.z - glassMoveStart[2]) -
-          Math.hypot(a.x - glassMoveStart[0], a.z - glassMoveStart[2]),
-      );
-    assert(floorOneRooms.length > 0, "expected rooms on floor 1");
-    let movingRouteReady = false;
-    for (const room of floorOneRooms) {
-      await cdp.eval(`window.__rpd.planAddTarget(${room.x}, ${room.y}, ${room.z})`);
-      await sleep(400);
-      if ((await cdp.eval("window.__rpd.planRouteCount()")) > 1) {
-        movingRouteReady = true;
-        break;
-      }
-    }
-    assert(movingRouteReady, "the moving glass test needs a route on floor 1");
-    await cdp.eval("window.__rpd.planStartMove()");
-    await cdp.waitFor("window.__quest.debug().moving === true", 10000);
-    await sleep(900);
-    const movingFloors = await evalJson("window.__quest.debugFloors()");
-    assert(
-      movingFloors[0] === 1 && movingFloors[1] === 4,
-      `a moving Claire should put her floor in paper and four floors in glass, got ${JSON.stringify(movingFloors)}`,
-    );
-    await shot("26-moving-glass");
-    report.states.movingGlass = { floors: movingFloors, player: glassMoveStart };
-    await cdp.key("Escape", "Escape", 27);
-    await sleep(400);
 
     // The ortho zoom is the frame, and a floor change recentres the target
     // without refitting the frame.
-    await cdp.key("KeyM", "m", 77);
-    await cdp.waitFor("(window.__rpd?.debugBlend?.() ?? 0) >= 0.999", 20000);
     await cdp.eval("window.__quest.reset()");
     await setFloor(0);
     await cdp.send("Input.dispatchMouseEvent", {

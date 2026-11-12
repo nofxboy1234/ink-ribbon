@@ -41,7 +41,6 @@ export type PlanSession = {
     progress: number;
     floors: Floor[];
     activeFloor: number;
-    view2D: boolean;
     planCount: number;
     moving: boolean;
     room: string;
@@ -56,7 +55,6 @@ export type PlanSession = {
   set: { activeFloor: (index: number) => void };
   actions: {
     setFloor: (index: number) => void;
-    toggleView: () => void;
     clearRoute: () => void;
     resetView: () => void;
     recenter: () => void;
@@ -83,7 +81,6 @@ export function usePlanSession(
   const [progress, setProgress] = useState(0);
   const [floors, setFloors] = useState<Floor[]>([]);
   const [activeFloor, setActiveFloor] = useState(0);
-  const [view2D, setView2D] = useState(false);
   const [planCount, setPlanCount] = useState(0);
   const [moving, setMoving] = useState(false);
   const [room, setRoom] = useState("RPD");
@@ -206,7 +203,6 @@ export function usePlanSession(
             : questResponse.spawn;
         client.planSetSpawn(spawn[0], spawn[1], spawn[2]);
         client.planSetFloor(0);
-        client.setViewMode(0);
         setFloors(
           graph.floors
             .map((floor) => ({ index: floor.index, level: floor.level, label: floor.label }))
@@ -354,7 +350,6 @@ export function usePlanSession(
       progress,
       floors,
       activeFloor,
-      view2D,
       planCount,
       moving,
       room,
@@ -371,11 +366,6 @@ export function usePlanSession(
       setFloor(index) {
         clientRef.current?.planSetFloor(index);
         setActiveFloor(index);
-      },
-      toggleView() {
-        const next = !view2D;
-        clientRef.current?.setViewMode(next ? 1 : 0);
-        setView2D(next);
       },
       clearRoute() {
         clientRef.current?.planClearRoute();

@@ -193,7 +193,6 @@ async function main() {
     };
 
     const planMode = async () => {
-      await evaluate("window.__rpd.setViewMode(1)");
       await evaluate("window.__rpd.setOrbit(0, 0, 0, 0, 1.2, 40)");
       await evaluate("window.__rpd.resetView()");
       await sleep(250);
@@ -323,7 +322,6 @@ async function main() {
         await evaluate(`window.__quest.setFloor(${to.floor})`);
         await evaluate(`window.__quest.setPlayer(${to.x}, ${to.y}, ${to.z})`);
         await sleep(500);
-        await evaluate("window.__rpd.setViewMode(1)");
         await evaluate("window.__rpd.resetView()");
         await sleep(300);
         await snap(220);

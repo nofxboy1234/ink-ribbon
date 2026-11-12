@@ -75,9 +75,6 @@ export async function createRpdClient(options: {
     setPlayerPosition(x, y, z) {
       module._rpd_set_player_position(x, y, z);
     },
-    setViewMode(mode) {
-      module._rpd_set_view_mode(mode);
-    },
     planSetFloors(levels, bounds) {
       const lp = module._malloc(levels.byteLength);
       const bp = module._malloc(bounds.byteLength);
@@ -490,9 +487,6 @@ export async function createRpdClient(options: {
       const out = new Float32Array(heap.HEAPU8.buffer, ptr, 6).slice();
       module._free(ptr);
       return out;
-    },
-    debugBlend() {
-      return (module as unknown as { _rpd_debug_blend?: () => number })._rpd_debug_blend?.() ?? -1;
     },
     dispose() {
       module._free(viewProjPtr);

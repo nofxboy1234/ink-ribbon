@@ -172,12 +172,6 @@ async function main() {
 
     const results = [];
     results.push(await sample("3d-idle"));
-    await send("Input.dispatchKeyEvent", { type: "keyDown", code: "KeyM", key: "m", windowsVirtualKeyCode: 77 });
-    await send("Input.dispatchKeyEvent", { type: "keyUp", code: "KeyM", key: "m", windowsVirtualKeyCode: 77 });
-    for (let i = 0; i < 120; i += 1) {
-      if ((await evaluate("window.__rpd.debugBlend?.() ?? 0")) >= 0.999) break;
-      await sleep(200);
-    }
     await sleep(500);
     results.push(await sample("plan-idle"));
     results.push(

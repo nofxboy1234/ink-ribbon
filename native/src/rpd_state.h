@@ -14,8 +14,6 @@ typedef struct {
     orbit_anim_t orbit;
     float scene_radius;
     bool map_mode;
-    bool ortho;
-    float ortho_blend;
     input_t input;
 } rpd_state_t;
 

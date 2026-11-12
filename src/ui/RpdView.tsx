@@ -29,12 +29,10 @@ export default function RpdView({ session, label }: RpdViewProps) {
       <FloorSelector session={session} />
       <CodeEntry session={session} />
       <QuestPanel session={session} />
-      {state.view2D && (
-        <div className="rpd-map-title">
-          <strong>{floorLabel} · FLOOR PLAN</strong>
-          <span>wheel to zoom · middle drag to pan · right click for waypoints</span>
-        </div>
-      )}
+      <div className="rpd-map-title">
+        <strong>{floorLabel} · FLOOR PLAN</strong>
+        <span>wheel to zoom · middle drag to pan · right click for waypoints</span>
+      </div>
       <RpdStatus
         statusText={statusText}
         hidden={state.loaded}

@@ -22,17 +22,6 @@ export default function FloorSelector({ session }: FloorSelectorProps) {
         </button>
       ))}
       <button
-        className="rpd-floor rpd-view-toggle"
-        data-active={state.view2D}
-        title="Animate between the perspective and top-down plan"
-        onClick={(event) => {
-          if (event.detail > 0) event.currentTarget.blur();
-          actions.toggleView();
-        }}
-      >
-        <span>{state.view2D ? "3D" : "2D"}</span>
-      </button>
-      <button
         className="rpd-icon-button"
         title="Reset view"
         onClick={actions.resetView}

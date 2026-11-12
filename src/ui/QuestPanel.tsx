@@ -350,7 +350,7 @@ export default function QuestPanel({ session }: QuestPanelProps) {
               <p className="rpd-legend-note">
                 Click an item to take, unlock, open or read it. Keys must be in the eight slots before a
                 lock opens. Right click an inventory block for its actions. Right click the 2D plan for
-                waypoints and Run route. Right drag rotates the camera in 3D.
+                waypoints and Run route. Middle drag pans the plan. Wheel zooms.
               </p>
             </div>
           </>
