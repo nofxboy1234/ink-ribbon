@@ -39,7 +39,6 @@ void menu_open(float x, float y) {
             if (action == RPD_ACTION_SOLVE) {
                 popup_add_choice(POPUP_ACTION_MENU_DEBUG_SOLVE, "Debug solve", 1);
             }
-            popup_add_choice(POPUP_ACTION_MENU_HIGHLIGHT, "Highlight related", 1);
             int related[5];
             int count = items_related(item, related, 5);
             for (int i = 0; i < count; i++) {
@@ -84,8 +83,6 @@ void menu_execute(popup_action_t action, int node, int data) {
     } else if (action == POPUP_ACTION_MENU_DEBUG_SOLVE) {
         if (menu_item >= 0) items_debug_solve(menu_item);
         menu_item = -1;
-    } else if (action == POPUP_ACTION_MENU_HIGHLIGHT) {
-        if (menu_item >= 0) items_debug_highlight(menu_item);
     } else if (action == POPUP_ACTION_MENU_GO_TO) {
         if (data >= 0) {
             const item_t *item = items_get(data);

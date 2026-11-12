@@ -499,22 +499,6 @@ int items_debug_take(int index) {
     return 0;
 }
 
-int items_related(int index, int *out, int cap) {
-    const item_t *item = items_get(index);
-    if (!item || cap <= 0) return 0;
-    int count = 0;
-    for (int i = 0; i < item->def->opens_count && count < cap; i++) out[count++] = item->def->opens[i];
-    for (int i = 0; i < RPD_ITEM_COUNT && count < cap; i++) {
-        if (i == index) continue;
-        const rpd_item_def_t *def = items_def(i);
-        if (!def) continue;
-        for (int r = 0; r < def->requires_count; r++) {
-            if (def->requires[r] == index) { out[count++] = i; break; }
-        }
-    }
-    return count;
-}
-
 static int highlighted = -1;
 
 void items_debug_highlight(int index) {

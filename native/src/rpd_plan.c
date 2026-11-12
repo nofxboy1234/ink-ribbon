@@ -386,6 +386,14 @@ void plan_teleport_item(int index) {
     const item_t *item = items_get(index);
     if (!item) return;
     if (item->def->floor != active_floor) plan_set_floor(item->def->floor);
+    int node = item->approach_node;
+    if (node < 0) {
+        node = nearest_node_on(item->def->floor, item->def->x, item->def->y, item->def->z, 8.0f);
+    }
+    if (node >= 0) {
+        plan_set_player(nav_x[node], nav_y[node], nav_z[node]);
+        return;
+    }
     float cube[3];
     items_cube_position(index, cube);
     plan_set_player(cube[0], cube[1] - 0.45f, cube[2]);
