@@ -255,6 +255,8 @@ static uint32_t room_edge(int state) {
     return 0xd0cabcff;
 }
 
+static float floor_rect[3][4];
+
 static void draw_map(void) {
     if (!map_loaded()) return;
     const map_floor_t *f = map_get(plan_active_floor());
@@ -349,6 +351,46 @@ static void draw_map(void) {
         line(cx + cosf(a) * 15.0f, cy + sinf(a) * 15.0f,
              cx + cosf(a) * 23.0f, cy + sinf(a) * 23.0f, 1.1f, 0xe8e2d466);
     }
+    const char *title = "Police Station";
+    dtx_text(title, cx - dtx_width(title) * 0.5f, (float)view_h * 0.13f, 0xd8d2c4ff, 0);
+    static const char *floor_labels[3] = { "1F", "2F", "3F" };
+    int floor_count_ui = map_floor_count();
+    for (int i = 0; i < floor_count_ui && i < 3; i++) {
+        float bx = (float)view_w - 148.0f;
+        float by = (float)view_h * 0.22f + (float)i * 38.0f;
+        floor_rect[i][0] = bx; floor_rect[i][1] = by;
+        floor_rect[i][2] = bx + 52.0f; floor_rect[i][3] = by + 28.0f;
+        int active = i == plan_active_floor();
+        if (active) quad(bx, by, bx + 52.0f, by + 28.0f, 0x2a2620ff);
+        line(bx, by, bx + 52.0f, by, 1.0f, active ? 0xd8c890ff : 0x6a6458ff);
+        line(bx, by + 28.0f, bx + 52.0f, by + 28.0f, 1.0f, active ? 0xd8c890ff : 0x6a6458ff);
+        line(bx, by, bx, by + 28.0f, 1.0f, active ? 0xd8c890ff : 0x6a6458ff);
+        line(bx + 52.0f, by, bx + 52.0f, by + 28.0f, 1.0f, active ? 0xd8c890ff : 0x6a6458ff);
+        dtx_text(floor_labels[i], bx + 26.0f - dtx_width(floor_labels[i]) * 0.5f, by + 9.0f,
+                 active ? 0xffe6a0ff : 0x9a9488ff, 0);
+    }
+    const char *searching = "Currently Searching";
+    const char *completed = "Search Completed";
+    float legend_y = (float)view_h - 64.0f;
+    float total = 10.0f + 6.0f + dtx_width(searching) + 28.0f + 10.0f + 6.0f + dtx_width(completed);
+    float legend_x = cx - total * 0.5f;
+    quad(legend_x, legend_y, legend_x + 10.0f, legend_y + 10.0f, 0x7d2020ff);
+    dtx_text(searching, legend_x + 16.0f, legend_y - 2.0f, 0xb8b0a0ff, 0);
+    legend_x += 16.0f + dtx_width(searching) + 28.0f;
+    quad(legend_x, legend_y, legend_x + 10.0f, legend_y + 10.0f, 0x2a4050ff);
+    dtx_text(completed, legend_x + 16.0f, legend_y - 2.0f, 0xb8b0a0ff, 0);
+}
+
+int overlay_map_click(float x, float y) {
+    int count = map_floor_count();
+    for (int i = 0; i < count && i < 3; i++) {
+        if (x >= floor_rect[i][0] && x <= floor_rect[i][2] &&
+            y >= floor_rect[i][1] && y <= floor_rect[i][3]) {
+            plan_set_floor(i);
+            return 1;
+        }
+    }
+    return 0;
 }
 
 void overlay_build(const float *matrix, int width, int height, int ortho, float fps) {
@@ -357,7 +399,6 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
     view_h = height > 1 ? height : 1;
     memcpy(vp, matrix, sizeof(vp));
     vcount = 0;
-    draw_map();
     stat_hover_item = ortho ? plan_hover_item() : -1;
     stat_labels = 0;
     stat_blocked = 0;
@@ -367,6 +408,7 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
         sdtx_canvas((float)view_w / DTX_SCALE, (float)view_h / DTX_SCALE);
         sdtx_origin(0.0f, 0.0f);
     }
+    draw_map();
 
     int level = plan_active_floor();
     float fy = plan_level();

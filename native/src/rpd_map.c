@@ -110,6 +110,8 @@ int map_load(const uint8_t *data, int size) {
 
 int map_loaded(void) { return loaded; }
 
+int map_floor_count(void) { return floor_count; }
+
 const map_floor_t *map_get(int floor) {
     if (!loaded || floor < 0 || floor >= floor_count) return 0;
     return &floors[floor];

@@ -223,7 +223,9 @@ void rpd_app_event(const sapp_event *e) {
             else plan_pointer_move(mx, my);
         } else if (e->type == SAPP_EVENTTYPE_MOUSE_DOWN) {
             if (e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) map_panning = true;
-            else if (e->mouse_button == SAPP_MOUSEBUTTON_LEFT) plan_pointer_down(mx, my);
+            else if (e->mouse_button == SAPP_MOUSEBUTTON_LEFT) {
+                if (!overlay_map_click(mx, my)) plan_pointer_down(mx, my);
+            }
             else if (e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) {
                 right_click = true;
                 right_dragging = false;

@@ -34,6 +34,7 @@ typedef struct {
 
 int map_load(const uint8_t *data, int size);
 int map_loaded(void);
+int map_floor_count(void);
 const map_floor_t *map_get(int floor);
 void map_update(int floor, float x, float z);
 int map_room_state(int floor, int room);

@@ -150,6 +150,7 @@ export function usePlanSession(
         }
         if (client.loadScene(asset) !== 0) throw new Error("the RPD scene could not be loaded");
         client.mapLoad(new Uint8Array(mapData));
+        client.setFpsVisible(false);
         if (disposed) return;
         const graph = buildNavGraph(navResponse);
         graphRef.current = graph;
