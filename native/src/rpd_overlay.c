@@ -327,6 +327,15 @@ static void draw_map(void) {
         int state = map_door_state(plan_active_floor(), d);
         uint32_t colour = state == 1 ? 0xd23c3cff : state == 2 ? 0x3c78c8ff : 0xf0ead8ff;
         line(ax, ay, bx, by, 2.4f, colour);
+        if (door->key == 544555) {
+            float icon_x = (ax + bx) * 0.5f;
+            float icon_y = (ay + by) * 0.5f - 14.0f;
+            uint32_t icon = 0xf0ead8ff;
+            tri(icon_x, icon_y - 6.0f, icon_x - 4.5f, icon_y + 1.0f, icon_x + 4.5f, icon_y + 1.0f, icon);
+            tri(icon_x - 4.5f, icon_y + 1.0f, icon_x - 5.5f, icon_y + 3.5f, icon_x - 1.0f, icon_y + 3.5f, icon);
+            tri(icon_x + 4.5f, icon_y + 1.0f, icon_x + 5.5f, icon_y + 3.5f, icon_x + 1.0f, icon_y + 3.5f, icon);
+            quad(icon_x - 1.3f, icon_y + 3.5f, icon_x + 1.3f, icon_y + 7.0f, icon);
+        }
     }
     for (int i = 0; i < f->item_count; i++) {
         const map_item *item = &f->items[i];

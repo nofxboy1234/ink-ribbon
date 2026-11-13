@@ -185,7 +185,7 @@ void camera_pan_ortho(camera_t *cam, float dx, float dy, float viewport_height) 
 
 void camera_zoom(camera_t *cam, float amount) {
     float frame = cam->frame * powf(0.9f, amount);
-    if (frame < 4.0f) frame = 4.0f;
-    if (frame > 700.0f) frame = 700.0f;
+    if (frame < 30.0f) frame = 30.0f;
+    if (frame > 260.0f) frame = 260.0f;
     cam->frame = frame;
 }
