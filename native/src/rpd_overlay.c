@@ -427,6 +427,7 @@ static void draw_map(void) {
     static const char *floor_labels[3] = { "1F", "2F", "3F" };
     int floor_count_ui = map_floor_count();
     for (int i = 0; i < floor_count_ui && i < 3; i++) {
+        if (i == 2 && !map_floor_revealed(2)) continue;
         float bx = (float)view_w - 148.0f;
         float by = (float)view_h * 0.22f + (float)i * 38.0f;
         floor_rect[i][0] = bx; floor_rect[i][1] = by;
@@ -471,6 +472,7 @@ int overlay_map_click(float x, float y) {
     }
     int count = map_floor_count();
     for (int i = 0; i < count && i < 3; i++) {
+        if (i == 2 && !map_floor_revealed(2)) continue;
         if (x >= floor_rect[i][0] && x <= floor_rect[i][2] &&
             y >= floor_rect[i][1] && y <= floor_rect[i][3]) {
             plan_set_floor_keep(i);

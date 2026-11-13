@@ -91,6 +91,13 @@ try {
   const targetBefore = await evaluate("window.__quest.cameraModel()");
   await check(1, "floor-2f");
   const targetAfter = await evaluate("window.__quest.cameraModel()");
+  await evaluate("window.__quest.setFloor(1)");
+  const upper = await evaluate("window.__rpd.itemIndexForId(544498)");
+  const upperItem = await evaluate(`window.__quest.items()[${upper}]`);
+  await evaluate(`window.__quest.setPlayer(${upperItem.x}, ${upperItem.y}, ${upperItem.z})`);
+  await sleep(900);
+  await evaluate("window.__quest.setFloor(0)");
+  await sleep(300);
   await check(2, "floor-3f");
   await check(0, "floor-1f-again");
   const targetOk = Math.abs(targetBefore[0] - targetAfter[0]) < 0.01 && Math.abs(targetBefore[2] - targetAfter[2]) < 0.01;
