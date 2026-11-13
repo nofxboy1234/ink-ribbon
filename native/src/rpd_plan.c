@@ -347,6 +347,7 @@ void plan_focus_player(void) {
     g_rpd.camera.target[0] = player[0];
     g_rpd.camera.target[1] = plan_level();
     g_rpd.camera.target[2] = player[2];
+    if (view_h > 1) g_rpd.camera.frame = fminf(95.0f, (float)view_h / 4.0f);
 }
 
 void plan_clear_route(void) {
