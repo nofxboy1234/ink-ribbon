@@ -233,6 +233,10 @@ EMSCRIPTEN_KEEPALIVE int rpd_map_floor_revealed(int floor) {
     return map_floor_revealed(floor);
 }
 
+EMSCRIPTEN_KEEPALIVE int rpd_map_room_state_at(int floor, float x, float z) {
+    return map_room_state_at(floor, x, z);
+}
+
 EMSCRIPTEN_KEEPALIVE int rpd_map_door_info(int floor, float *out, int cap) {
     const map_floor_t *f = map_get(floor);
     if (!f || !out || cap < 4) return 0;

@@ -379,6 +379,7 @@ return {
   hoverRoute: () => client.planHoverRoute(),
   mapDoors: (floor: number) => client.mapDoors(floor),
   mapRevealed: (floor: number) => client.mapRevealed(floor),
+  mapRoomStateAt: (floor: number, x: number, z: number) => client.mapRoomStateAt(floor, x, z),
   waypointRun: (index: number) => client.planWaypointRun(index),
   moveRun: () => client.planMoveRun(),
   heading: () => client.planHeading(),
