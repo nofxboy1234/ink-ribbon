@@ -10,6 +10,7 @@ void plan_set_rooms(int count, const float *x, const float *y, const float *z,
                     const uint8_t *floor, const char *names, int names_len, const int *offsets);
 void plan_set_spawn(float x, float y, float z);
 void plan_set_floor(int index);
+void plan_set_floor_keep(int index);
 void plan_clear_route(void);
 void plan_refresh_blocks(void);
 int plan_item_blocked_count(int index);

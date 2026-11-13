@@ -423,7 +423,7 @@ int overlay_map_click(float x, float y) {
     for (int i = 0; i < count && i < 3; i++) {
         if (x >= floor_rect[i][0] && x <= floor_rect[i][2] &&
             y >= floor_rect[i][1] && y <= floor_rect[i][3]) {
-            plan_set_floor(i);
+            plan_set_floor_keep(i);
             return 1;
         }
     }

@@ -54,6 +54,7 @@ static int moving;
 static int move_index;
 static float move_t;
 static float heading;
+static int last_player_floor = -1;
 static int hover = -1;
 static int hover_item = -1;
 static float view_proj[16];
@@ -333,6 +334,14 @@ void plan_set_floor(int index) {
     }
 }
 
+void plan_set_floor_keep(int index) {
+    if (index < 0) index = 0;
+    if (floor_count > 0 && index >= floor_count) index = floor_count - 1;
+    active_floor = index; hover = -1; hover_item = -1;
+    popup_close();
+    if (index < floor_count) g_rpd.camera.target[1] = floor_levels[index];
+}
+
 void plan_clear_route(void) {
     moving = 0; waypoint_count = 0; route_count = 0;
     move_count = 0; move_index = 0; move_t = 0;
@@ -348,6 +357,16 @@ void plan_update(float dt, const float *vp, int width, int height) {
     view_w = width;
     view_h = height;
     popup_set_viewport(view_w, view_h);
+    int player_floor_now = plan_player_floor();
+    if (player_floor_now >= 0 && player_floor_now != last_player_floor) {
+        last_player_floor = player_floor_now;
+        if (player_floor_now != active_floor && floor_count > 0 && player_floor_now < floor_count) {
+            active_floor = player_floor_now;
+            hover = -1;
+            hover_item = -1;
+            g_rpd.camera.target[1] = floor_levels[player_floor_now];
+        }
+    }
     if (!moving) {
         return;
     }

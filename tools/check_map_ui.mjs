@@ -88,11 +88,14 @@ try {
   };
   const initial = await evaluate("window.__rpd.planActiveFloor()");
   await shot("floor-1f");
+  const targetBefore = await evaluate("window.__quest.cameraModel()");
   await check(1, "floor-2f");
+  const targetAfter = await evaluate("window.__quest.cameraModel()");
   await check(2, "floor-3f");
   await check(0, "floor-1f-again");
-  console.log(JSON.stringify({ initial, results }, null, 2));
-  const ok = initial === 0 && results[0].floor === 1 && results[1].floor === 2 && results[2].floor === 0;
+  const targetOk = Math.abs(targetBefore[0] - targetAfter[0]) < 0.01 && Math.abs(targetBefore[2] - targetAfter[2]) < 0.01;
+  console.log(JSON.stringify({ initial, targetBefore, targetAfter, targetOk, results }, null, 2));
+  const ok = initial === 0 && results[0].floor === 1 && results[1].floor === 2 && results[2].floor === 0 && targetOk;
   if (!ok) console.log("FAIL: the floor selector did not switch the native floor");
   if (ok) console.log("PASS: clicking 2F, 3F and 1F switches the map floor");
   socket.close();
