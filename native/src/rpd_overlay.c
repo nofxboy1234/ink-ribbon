@@ -363,8 +363,15 @@ static void draw_map(void) {
                 line(px + cosf(a0) * radius, py + sinf(a0) * radius,
                      px + cosf(a1) * radius, py + sinf(a1) * radius, 1.5f, pulse);
             }
-            tri(px, py - 8.0f, px + 5.0f, py + 5.0f, px - 5.0f, py + 5.0f, 0xffd54aff);
-            tri(px, py - 5.0f, px + 3.0f, py + 4.0f, px - 3.0f, py + 4.0f, 0x1a1710ff);
+            float h = plan_heading();
+            float fx = sinf(h), fy = -cosf(h);
+            float rx = cosf(h), ry = sinf(h);
+            tri(px + fx * 8.0f, py + fy * 8.0f,
+                px - fx * 5.0f + rx * 5.0f, py - fy * 5.0f + ry * 5.0f,
+                px - fx * 5.0f - rx * 5.0f, py - fy * 5.0f - ry * 5.0f, 0xffd54aff);
+            tri(px + fx * 5.5f, py + fy * 5.5f,
+                px - fx * 3.5f + rx * 3.0f, py - fy * 3.5f + ry * 3.0f,
+                px - fx * 3.5f - rx * 3.0f, py - fy * 3.5f - ry * 3.0f, 0x1a1710ff);
         }
     }
     }

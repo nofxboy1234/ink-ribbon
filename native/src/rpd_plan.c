@@ -53,6 +53,7 @@ static int move_count;
 static int moving;
 static int move_index;
 static float move_t;
+static float heading;
 static int hover = -1;
 static int hover_item = -1;
 static float view_proj[16];
@@ -351,6 +352,11 @@ void plan_update(float dt, const float *vp, int width, int height) {
         return;
     }
     float remaining = 3.5f * dt;
+    if (move_index + 1 < move_count) {
+        float dx = route[(move_index + 1) * 3] - route[move_index * 3];
+        float dz = route[(move_index + 1) * 3 + 2] - route[move_index * 3 + 2];
+        if (dx * dx + dz * dz > 1e-6f) heading = atan2f(dx, -dz);
+    }
     while (remaining > 0.0001f && move_index + 1 < move_count) {
         int a = move_index * 3;
         int b = (move_index + 1) * 3;
@@ -499,6 +505,7 @@ float plan_map_scale(void) {
 int plan_count(void) { return waypoint_count; }
 int plan_moving(void) { return moving; }
 int plan_move_run(void) { return move_index >= 0 && move_index < route_count ? route_run[move_index] : 0; }
+float plan_heading(void) { return heading; }
 int plan_waypoint_run(int index) { return index >= 0 && index < waypoint_count ? waypoint_run[index] : 0; }
 int plan_hover(void) { return hover; }
 int plan_pick_node(float x, float y) {

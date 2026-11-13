@@ -68,6 +68,7 @@ export type RpdClient = {
   planWaypoint(index: number): number;
   planWaypointRun(index: number): boolean;
   planMoveRun(): boolean;
+  planHeading(): number;
   planAddTargetNodeRun(node: number, run: boolean): void;
   planHoverItem(): number;
   planHover(): number;

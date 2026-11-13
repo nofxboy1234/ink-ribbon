@@ -40,6 +40,7 @@ float plan_map_scale(void);
 int plan_count(void);
 int plan_moving(void);
 int plan_move_run(void);
+float plan_heading(void);
 int plan_waypoint_run(int index);
 int plan_hover(void);
 int plan_node_blocked(int node);

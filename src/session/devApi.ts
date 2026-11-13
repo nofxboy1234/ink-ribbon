@@ -381,6 +381,7 @@ return {
   mapRevealed: (floor: number) => client.mapRevealed(floor),
   waypointRun: (index: number) => client.planWaypointRun(index),
   moveRun: () => client.planMoveRun(),
+  heading: () => client.planHeading(),
   project: (x: number, y: number, z: number) => {
     const rect = canvas.current?.getBoundingClientRect();
     if (!rect) return null;

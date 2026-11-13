@@ -306,6 +306,7 @@ EMSCRIPTEN_KEEPALIVE int rpd_plan_move_state(float *out) {
 EMSCRIPTEN_KEEPALIVE int rpd_plan_count(void) { return plan_count(); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_active_floor(void) { return plan_active_floor(); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_move_run(void) { return plan_move_run(); }
+EMSCRIPTEN_KEEPALIVE float rpd_plan_heading(void) { return plan_heading(); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_waypoint_run(int index) { return plan_waypoint_run(index); }
 EMSCRIPTEN_KEEPALIVE int rpd_game_run(void) { return game_run(); }
 EMSCRIPTEN_KEEPALIVE void rpd_game_set_run(int on) { game_set_run(on); }

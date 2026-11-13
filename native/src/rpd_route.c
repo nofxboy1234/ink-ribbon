@@ -405,7 +405,14 @@ int route_smooth(int count, const int *nodes,
         }
         bool flat = floor[a] == floor[c] && floor[c] == floor[b] &&
                     kind[a] == 0 && kind[c] == 0 && kind[b] == 0;
-        float radius = fminf(ROUTE_CURVE_RADIUS, fminf(al, bl) * 0.45f);
+        float dot = (ax * bx + az * bz) / (al * bl);
+        float turn = 1.0f + dot;
+        if (turn < 0.0f) turn = 0.0f;
+        float radius = fminf(ROUTE_CURVE_RADIUS * fminf(turn, 1.0f), fminf(al, bl) * 0.45f);
+        if (radius < 0.25f) {
+            push_point(out, cap, &written, x[c], y[c] + lift, z[c]);
+            continue;
+        }
         float p0x = x[c] + ax / al * radius;
         float p0z = z[c] + az / al * radius;
         float p2x = x[c] + bx / bl * radius;

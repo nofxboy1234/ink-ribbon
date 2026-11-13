@@ -155,6 +155,9 @@ export async function createRpdClient(options: {
     planWaypointRun(index) {
       return (module as unknown as { _rpd_plan_waypoint_run: (i: number) => number })._rpd_plan_waypoint_run(index) !== 0;
     },
+    planHeading() {
+      return (module as unknown as { _rpd_plan_heading: () => number })._rpd_plan_heading();
+    },
     planMoveRun() {
       return (module as unknown as { _rpd_plan_move_run: () => number })._rpd_plan_move_run() !== 0;
     },
