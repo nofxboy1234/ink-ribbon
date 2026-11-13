@@ -162,6 +162,7 @@ void overlay_stats(float *out) {
 }
 
 static void draw_item_hover(void) {
+    if (!map_floor_revealed(plan_active_floor())) return;
     int index = plan_hover_item();
     if (index < 0) return;
     const item_t *item = items_get(index);
