@@ -52,6 +52,16 @@ def to_world(px: float, py: float, cal: dict) -> tuple[float, float]:
     return (px - cal["ox"]) / cal["s"], (py - cal["oy"]) / cal["s"]
 
 
+def in_poly(x: float, y: float, poly: list) -> bool:
+    inside = False
+    for i in range(len(poly)):
+        x0, y0 = poly[i]
+        x1, y1 = poly[(i + 1) % len(poly)]
+        if (y0 > y) != (y1 > y) and x < (x1 - x0) * (y - y0) / (y1 - y0) + x0:
+            inside = not inside
+    return inside
+
+
 
 def signed_area(poly):
     return 0.5 * sum(poly[i][0] * poly[(i + 1) % len(poly)][1] - poly[(i + 1) % len(poly)][0] * poly[i][1] for i in range(len(poly)))
@@ -94,7 +104,7 @@ def pack_map(model, floor_info, path):
     out = bytearray()
     def u32(v): out.extend(struct.pack('<I', v))
     def f32(v): out.extend(struct.pack('<f', v))
-    out.extend(b'R2M1'); u32(1); u32(len(floor_info))
+    out.extend(b'R2M1'); u32(2); u32(len(floor_info))
     for name, info in floor_info.items():
         meta = model['floors'][info['index']]
         cal = meta['calibration']
@@ -127,7 +137,7 @@ def pack_map(model, floor_info, path):
             px, py = d['plan']
             x = (px - cal['ox']) / cal['s']
             z = (py - cal['oy']) / cal['s']
-            f32(x); f32(z); f32(float(d['yaw'])); u32(0); u32(1 if d.get('locked') else 0)
+            f32(x); f32(z); f32(float(d['yaw'])); u32(int(d.get('key', 0))); u32(int(d.get('flags', 0)))
         items = [i for i in model['items'] if i['floor'] == info['index']]
         u32(len(items))
         for it in items:
@@ -135,7 +145,7 @@ def pack_map(model, floor_info, path):
             x = (px - cal['ox']) / cal['s']
             z = (py - cal['oy']) / cal['s']
             colour = it['colour']
-            f32(x); f32(z); u32((colour[0] << 16) | (colour[1] << 8) | colour[2]); u32(1 if it.get('progression') else 0)
+            f32(x); f32(z); u32(int(it['id'])); u32(int(it.get('room', -1)) & 0xFFFFFFFF); u32((colour[0] << 16) | (colour[1] << 8) | colour[2]); u32(1 if it.get('progression') else 0)
         stairs = [s for s in model['stairs'] if s['floor'] == info['index']]
         u32(len(stairs))
         for s in stairs:
@@ -218,17 +228,53 @@ def main() -> None:
                        [round((w - cal["ox"]) / cal["s"], 1), round((0 - cal["oy"]) / cal["s"], 1)]],
         })
 
+    door_titles = ("door", "gate", "taped box")
+    quest_doors = []
     for door in quest["doors"]:
         floor_name = floor_of(float(door.get("y", 0.0)))
         cal = mapgenie["floors"][floor_name]["calibration"]
         px = to_plan(door["x"], door["z"], cal)
-        if not (0 <= px[0] <= mapgenie["floors"][floor_name]["plan_size"][0] and 0 <= px[1] <= mapgenie["floors"][floor_name]["plan_size"][1]):
-            continue
-        model["doors"].append({
+        entry = {
             "id": door["id"], "floor": FLOORS[floor_name]["index"], "name": door.get("label", ""),
             "x": door["x"], "z": door["z"], "plan": [round(px[0], 1), round(px[1], 1)],
-            "yaw": door.get("yaw", 0.0), "state": door.get("state", "unknown"),
-            "requires": door.get("requires", []), "locked": door.get("state") == "locked",
+            "yaw": door.get("yaw", 0.0), "key": 0, "flags": 0, "source": "quest",
+        }
+        quest_doors.append(entry)
+        model["doors"].append(entry)
+    for item in registry:
+        if item["category"] != "Lock" or not any(t in item["title"].lower() for t in door_titles):
+            continue
+        floor_name = next((n for n, m in FLOORS.items() if m["index"] == item["floor"]), None)
+        if floor_name is None:
+            continue
+        key = item["requires"][0] if item.get("requires") else 0
+        near = None
+        near_d = 4.0
+        for door in quest_doors:
+            if door["floor"] != item["floor"]:
+                continue
+            d = (door["x"] - item["x"]) ** 2 + (door["z"] - item["z"]) ** 2
+            if d < near_d:
+                near_d, near = d, door
+        if near is not None:
+            near["key"] = key
+            near["flags"] = 1 if key else 0
+            near["name"] = item["title"]
+            continue
+        cal = mapgenie["floors"][floor_name]["calibration"]
+        px = to_plan(item["x"], item["z"], cal)
+        yaw = 0.0
+        best = 36.0
+        for door in quest_doors:
+            if door["floor"] != item["floor"]:
+                continue
+            d = (door["x"] - item["x"]) ** 2 + (door["z"] - item["z"]) ** 2
+            if d < best:
+                best, yaw = d, door["yaw"]
+        model["doors"].append({
+            "id": f"lock-{item['id']}", "floor": item["floor"], "name": item["title"],
+            "x": item["x"], "z": item["z"], "plan": [round(px[0], 1), round(px[1], 1)],
+            "yaw": yaw, "key": key, "flags": 1 if key else 0, "source": "lock",
         })
 
     for item in registry:
@@ -238,11 +284,17 @@ def main() -> None:
         cal = mapgenie["floors"][floor_name]["calibration"]
         px = to_plan(item["x"], item["z"], cal)
         colour = CATEGORY_COLOURS.get(item["category"], (255, 255, 255))
+        floor_rooms = [r for r in model["rooms"] if r["floor"] == item["floor"]]
+        room_index = -1
+        for index, room in enumerate(floor_rooms):
+            if in_poly(px[0], px[1], room["polygon"]):
+                room_index = index
+                break
         model["items"].append({
             "id": item["id"], "name": item["title"], "floor": item["floor"],
             "x": item["x"], "z": item["z"], "plan": [round(px[0], 1), round(px[1], 1)],
             "category": item["category"], "colour": list(colour), "action": item["action"],
-            "progression": item["title"] in PROGRESSION,
+            "progression": item["title"] in PROGRESSION, "room": room_index,
         })
 
     nodes = nav["nodes"]

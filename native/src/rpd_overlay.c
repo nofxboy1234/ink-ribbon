@@ -259,6 +259,9 @@ static void draw_map(void) {
     if (!map_loaded()) return;
     const map_floor_t *f = map_get(plan_active_floor());
     if (!f) return;
+    float current[3];
+    plan_player(current);
+    map_update(plan_player_floor(), current[0], current[2]);
     quad(0.0f, 0.0f, (float)view_w, (float)view_h, 0x080706ff);
     float sy0 = f->level;
     for (int t = 0; t < f->tri_count; t++) {
@@ -268,11 +271,11 @@ static void draw_map(void) {
         project(f->verts[tr->b].x, sy0, f->verts[tr->b].z, &bx, &by);
         project(f->verts[tr->c].x, sy0, f->verts[tr->c].z, &cx, &cy);
         if (ax < -1e8f || bx < -1e8f || cx < -1e8f) continue;
-        tri(ax, ay, bx, by, cx, cy, room_fill(f->rooms[tr->room].state));
+        tri(ax, ay, bx, by, cx, cy, room_fill(map_room_state(plan_active_floor(), tr->room)));
     }
     for (int r = 0; r < f->room_count; r++) {
         const map_room *room = &f->rooms[r];
-        uint32_t edge = room_edge(room->state);
+        uint32_t edge = room_edge(map_room_state(plan_active_floor(), r));
         for (int i = 0; i < room->count; i++) {
             const map_vec2 *a = &f->verts[room->start + i];
             const map_vec2 *b = &f->verts[room->start + (i + 1) % room->count];
@@ -292,7 +295,8 @@ static void draw_map(void) {
         project(door->x - dx, sy0, door->z - dz, &ax, &ay);
         project(door->x + dx, sy0, door->z + dz, &bx, &by);
         if (ax < -1e8f || bx < -1e8f) continue;
-        uint32_t colour = door->state == 1 ? 0xd23c3cff : door->state == 2 ? 0x3c78c8ff : 0xf0ead8ff;
+        int state = map_door_state(plan_active_floor(), d);
+        uint32_t colour = state == 1 ? 0xd23c3cff : state == 2 ? 0x3c78c8ff : 0xf0ead8ff;
         line(ax, ay, bx, by, 2.4f, colour);
     }
     for (int i = 0; i < f->item_count; i++) {

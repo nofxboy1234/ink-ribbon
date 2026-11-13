@@ -6855,9 +6855,9 @@
     133.9
    ],
    "yaw": 1.5708,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-01",
@@ -6870,9 +6870,9 @@
     180.3
    ],
    "yaw": 0.0,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-02",
@@ -6885,9 +6885,9 @@
     226.7
    ],
    "yaw": 1.5708,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-03",
@@ -6900,9 +6900,9 @@
     253.3
    ],
    "yaw": 0.0,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-04",
@@ -6915,9 +6915,9 @@
     319.6
    ],
    "yaw": 1.5708,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-05",
@@ -6930,9 +6930,9 @@
     213.5
    ],
    "yaw": 0.0,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-06",
@@ -6945,9 +6945,9 @@
     94.1
    ],
    "yaw": 0.0,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-07",
@@ -6960,9 +6960,9 @@
     140.6
    ],
    "yaw": 0.0,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-08",
@@ -6975,9 +6975,9 @@
     133.9
    ],
    "yaw": 1.5708,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-09",
@@ -6990,9 +6990,9 @@
     167.1
    ],
    "yaw": 0.0,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-10",
@@ -7005,9 +7005,9 @@
     133.9
    ],
    "yaw": 0.0,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-11",
@@ -7020,9 +7020,9 @@
     187.0
    ],
    "yaw": 0.0,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-12",
@@ -7035,9 +7035,9 @@
     213.5
    ],
    "yaw": 1.5708,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-13",
@@ -7050,14 +7050,14 @@
     147.2
    ],
    "yaw": 1.5708,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-14",
    "floor": 1,
-   "name": "STARS Office Hallway <-> STARS Office",
+   "name": "Electronically-locked Door",
    "x": -27.0,
    "z": -14.0,
    "plan": [
@@ -7065,9 +7065,9 @@
     78.7
    ],
    "yaw": 0.0,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-15",
@@ -7080,9 +7080,9 @@
     175.4
    ],
    "yaw": 0.0,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-16",
@@ -7095,9 +7095,9 @@
     169.0
    ],
    "yaw": 0.0,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-17",
@@ -7110,9 +7110,9 @@
     175.4
    ],
    "yaw": 1.5708,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-18",
@@ -7125,9 +7125,9 @@
     143.2
    ],
    "yaw": 0.0,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-19",
@@ -7140,9 +7140,9 @@
     104.5
    ],
    "yaw": 1.5708,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-20",
@@ -7155,9 +7155,9 @@
     135.3
    ],
    "yaw": 1.5708,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-21",
@@ -7170,9 +7170,9 @@
     67.5
    ],
    "yaw": 1.5708,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-22",
@@ -7185,9 +7185,9 @@
     72.2
    ],
    "yaw": 0.0,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-23",
@@ -7200,9 +7200,9 @@
     140.6
    ],
    "yaw": 0.0,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
   },
   {
    "id": "door-24",
@@ -7215,9 +7215,279 @@
     52.9
    ],
    "yaw": 1.5708,
-   "state": "unlocked",
-   "requires": [],
-   "locked": false
+   "key": 0,
+   "flags": 0,
+   "source": "quest"
+  },
+  {
+   "id": "lock-544404",
+   "floor": 0,
+   "name": "Taped Box",
+   "x": -7.728,
+   "z": 3.345,
+   "plan": [
+    239.8,
+    262.2
+   ],
+   "yaw": 0.0,
+   "key": 544445,
+   "flags": 1,
+   "source": "lock"
+  },
+  {
+   "id": "lock-544406",
+   "floor": 0,
+   "name": "Blocked Door",
+   "x": 12.703,
+   "z": 1.213,
+   "plan": [
+    375.2,
+    248.0
+   ],
+   "yaw": 0.0,
+   "key": 0,
+   "flags": 0,
+   "source": "lock"
+  },
+  {
+   "id": "lock-544407",
+   "floor": 0,
+   "name": "Chained Door",
+   "x": 30.014,
+   "z": 1.375,
+   "plan": [
+    490.0,
+    249.1
+   ],
+   "yaw": 1.5708,
+   "key": 544408,
+   "flags": 1,
+   "source": "lock"
+  },
+  {
+   "id": "lock-544409",
+   "floor": 0,
+   "name": "Chained Door",
+   "x": -35.655,
+   "z": -14.811,
+   "plan": [
+    54.6,
+    141.8
+   ],
+   "yaw": 0.0,
+   "key": 544408,
+   "flags": 1,
+   "source": "lock"
+  },
+  {
+   "id": "lock-544439",
+   "floor": 0,
+   "name": "Chained Door",
+   "x": 37.44,
+   "z": 6.624,
+   "plan": [
+    539.2,
+    283.9
+   ],
+   "yaw": 0.0,
+   "key": 544408,
+   "flags": 1,
+   "source": "lock"
+  },
+  {
+   "id": "lock-544453",
+   "floor": 0,
+   "name": "Club Door",
+   "x": -35.426,
+   "z": 1.304,
+   "plan": [
+    56.1,
+    248.6
+   ],
+   "yaw": 0.0,
+   "key": 0,
+   "flags": 0,
+   "source": "lock"
+  },
+  {
+   "id": "lock-544454",
+   "floor": 0,
+   "name": "Heart Door",
+   "x": -29.725,
+   "z": -7.955,
+   "plan": [
+    93.9,
+    187.3
+   ],
+   "yaw": 0.0,
+   "key": 544664,
+   "flags": 1,
+   "source": "lock"
+  },
+  {
+   "id": "lock-544496",
+   "floor": 1,
+   "name": "Diamond Door",
+   "x": -31.41,
+   "z": 7.997,
+   "plan": [
+    59.4,
+    220.6
+   ],
+   "yaw": 0.0,
+   "key": 544648,
+   "flags": 1,
+   "source": "lock"
+  },
+  {
+   "id": "lock-544497",
+   "floor": 1,
+   "name": "One-Way Door",
+   "x": -26.011,
+   "z": 9.776,
+   "plan": [
+    94.2,
+    232.1
+   ],
+   "yaw": 0.0,
+   "key": 544564,
+   "flags": 1,
+   "source": "lock"
+  },
+  {
+   "id": "lock-544506",
+   "floor": 1,
+   "name": "Spade Door",
+   "x": -11.081,
+   "z": -3.591,
+   "plan": [
+    190.5,
+    145.8
+   ],
+   "yaw": 0.0,
+   "key": 544555,
+   "flags": 1,
+   "source": "lock"
+  },
+  {
+   "id": "lock-544523",
+   "floor": 1,
+   "name": "Heart Door",
+   "x": 26.62,
+   "z": -19.759,
+   "plan": [
+    433.7,
+    41.6
+   ],
+   "yaw": 0.0,
+   "key": 544664,
+   "flags": 1,
+   "source": "lock"
+  },
+  {
+   "id": "lock-544529",
+   "floor": 2,
+   "name": "Heart Door",
+   "x": 23.109,
+   "z": -8.081,
+   "plan": [
+    409.7,
+    121.2
+   ],
+   "yaw": 0.0,
+   "key": 544664,
+   "flags": 1,
+   "source": "lock"
+  },
+  {
+   "id": "lock-544532",
+   "floor": 2,
+   "name": "One-Way Door",
+   "x": 11.712,
+   "z": -18.432,
+   "plan": [
+    332.4,
+    51.0
+   ],
+   "yaw": 1.5708,
+   "key": 0,
+   "flags": 0,
+   "source": "lock"
+  },
+  {
+   "id": "lock-544562",
+   "floor": 0,
+   "name": "Spade Door",
+   "x": -8.066,
+   "z": -6.264,
+   "plan": [
+    237.5,
+    198.5
+   ],
+   "yaw": 1.5708,
+   "key": 544555,
+   "flags": 1,
+   "source": "lock"
+  },
+  {
+   "id": "lock-544570",
+   "floor": 0,
+   "name": "Club Door",
+   "x": 14.85,
+   "z": -14.275,
+   "plan": [
+    389.5,
+    145.4
+   ],
+   "yaw": 0.0,
+   "key": 0,
+   "flags": 0,
+   "source": "lock"
+  },
+  {
+   "id": "lock-544571",
+   "floor": 0,
+   "name": "Heart Door",
+   "x": 14.819,
+   "z": -22.475,
+   "plan": [
+    389.2,
+    91.0
+   ],
+   "yaw": 0.0,
+   "key": 544664,
+   "flags": 1,
+   "source": "lock"
+  },
+  {
+   "id": "lock-544582",
+   "floor": 1,
+   "name": "Spade Door",
+   "x": 20.052,
+   "z": 3.111,
+   "plan": [
+    391.3,
+    189.1
+   ],
+   "yaw": 1.5708,
+   "key": 544555,
+   "flags": 1,
+   "source": "lock"
+  },
+  {
+   "id": "lock-544592",
+   "floor": 0,
+   "name": "One-Way Door",
+   "x": -27.749,
+   "z": -10.766,
+   "plan": [
+    107.0,
+    168.6
+   ],
+   "yaw": 0.0,
+   "key": 0,
+   "flags": 0,
+   "source": "lock"
   }
  ],
  "items": [
@@ -7238,7 +7508,8 @@
     255
    ],
    "action": "open",
-   "progression": false
+   "progression": false,
+   "room": 19
   },
   {
    "id": 544420,
@@ -7257,7 +7528,8 @@
     255
    ],
    "action": "open",
-   "progression": false
+   "progression": false,
+   "room": 15
   },
   {
    "id": 544658,
@@ -7276,7 +7548,8 @@
     255
    ],
    "action": "open",
-   "progression": false
+   "progression": false,
+   "room": 2
   },
   {
    "id": 544404,
@@ -7295,7 +7568,8 @@
     255
    ],
    "action": "unlock",
-   "progression": false
+   "progression": false,
+   "room": 19
   },
   {
    "id": 544405,
@@ -7314,7 +7588,8 @@
     255
    ],
    "action": "unlock",
-   "progression": false
+   "progression": false,
+   "room": 19
   },
   {
    "id": 544406,
@@ -7333,7 +7608,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544407,
@@ -7352,7 +7628,8 @@
     255
    ],
    "action": "unlock",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544409,
@@ -7371,7 +7648,8 @@
     255
    ],
    "action": "unlock",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544439,
@@ -7390,7 +7668,8 @@
     255
    ],
    "action": "unlock",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544447,
@@ -7409,7 +7688,8 @@
     255
    ],
    "action": "unlock",
-   "progression": false
+   "progression": false,
+   "room": 19
   },
   {
    "id": 544453,
@@ -7428,7 +7708,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544454,
@@ -7447,7 +7728,8 @@
     255
    ],
    "action": "unlock",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544479,
@@ -7466,7 +7748,8 @@
     255
    ],
    "action": "open",
-   "progression": false
+   "progression": false,
+   "room": 3
   },
   {
    "id": 544481,
@@ -7485,7 +7768,8 @@
     255
    ],
    "action": "unlock",
-   "progression": false
+   "progression": false,
+   "room": 3
   },
   {
    "id": 544491,
@@ -7504,7 +7788,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": 14
   },
   {
    "id": 544496,
@@ -7523,7 +7808,8 @@
     255
    ],
    "action": "unlock",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544497,
@@ -7542,7 +7828,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544506,
@@ -7561,7 +7848,8 @@
     255
    ],
    "action": "unlock",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544521,
@@ -7580,7 +7868,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": 10
   },
   {
    "id": 544523,
@@ -7599,7 +7888,8 @@
     255
    ],
    "action": "unlock",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544529,
@@ -7618,7 +7908,8 @@
     255
    ],
    "action": "unlock",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544532,
@@ -7637,7 +7928,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544544,
@@ -7656,7 +7948,8 @@
     255
    ],
    "action": "unlock",
-   "progression": false
+   "progression": false,
+   "room": 12
   },
   {
    "id": 544556,
@@ -7675,7 +7968,8 @@
     255
    ],
    "action": "open",
-   "progression": false
+   "progression": false,
+   "room": 2
   },
   {
    "id": 544562,
@@ -7694,7 +7988,8 @@
     255
    ],
    "action": "unlock",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544570,
@@ -7713,7 +8008,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544571,
@@ -7732,7 +8028,8 @@
     255
    ],
    "action": "unlock",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544581,
@@ -7751,7 +8048,8 @@
     255
    ],
    "action": "unlock",
-   "progression": false
+   "progression": false,
+   "room": 16
   },
   {
    "id": 544582,
@@ -7770,7 +8068,8 @@
     255
    ],
    "action": "unlock",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544592,
@@ -7789,7 +8088,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544597,
@@ -7808,7 +8108,8 @@
     255
    ],
    "action": "open",
-   "progression": false
+   "progression": false,
+   "room": 6
   },
   {
    "id": 544685,
@@ -7827,7 +8128,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": 26
   },
   {
    "id": 544686,
@@ -7846,7 +8148,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": 26
   },
   {
    "id": 544431,
@@ -7865,7 +8168,8 @@
     217
    ],
    "action": "solve",
-   "progression": false
+   "progression": false,
+   "room": 12
   },
   {
    "id": 544490,
@@ -7884,7 +8188,8 @@
     217
    ],
    "action": "solve",
-   "progression": false
+   "progression": false,
+   "room": 14
   },
   {
    "id": 544500,
@@ -7903,7 +8208,8 @@
     217
    ],
    "action": "solve",
-   "progression": false
+   "progression": false,
+   "room": 32
   },
   {
    "id": 544508,
@@ -7922,7 +8228,8 @@
     217
    ],
    "action": "solve",
-   "progression": false
+   "progression": false,
+   "room": 11
   },
   {
    "id": 544517,
@@ -7941,7 +8248,8 @@
     217
    ],
    "action": "solve",
-   "progression": false
+   "progression": false,
+   "room": 25
   },
   {
    "id": 544604,
@@ -7960,7 +8268,8 @@
     217
    ],
    "action": "solve",
-   "progression": false
+   "progression": false,
+   "room": 6
   },
   {
    "id": 544665,
@@ -7979,7 +8288,8 @@
     217
    ],
    "action": "solve",
-   "progression": false
+   "progression": false,
+   "room": 24
   },
   {
    "id": 545830,
@@ -7998,7 +8308,8 @@
     217
    ],
    "action": "solve",
-   "progression": false
+   "progression": false,
+   "room": 23
   },
   {
    "id": 544448,
@@ -8017,7 +8328,8 @@
     255
    ],
    "action": "use",
-   "progression": false
+   "progression": false,
+   "room": 19
   },
   {
    "id": 544779,
@@ -8036,7 +8348,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": 35
   },
   {
    "id": 544780,
@@ -8055,7 +8368,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544781,
@@ -8074,7 +8388,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544782,
@@ -8093,7 +8408,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544783,
@@ -8112,7 +8428,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544784,
@@ -8131,7 +8448,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544785,
@@ -8150,7 +8468,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": 15
   },
   {
    "id": 544786,
@@ -8169,7 +8488,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544787,
@@ -8188,7 +8508,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544788,
@@ -8207,7 +8528,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": 17
   },
   {
    "id": 544789,
@@ -8226,7 +8548,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": 14
   },
   {
    "id": 544790,
@@ -8245,7 +8568,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544791,
@@ -8264,7 +8588,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544792,
@@ -8283,7 +8608,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544793,
@@ -8302,7 +8628,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544794,
@@ -8321,7 +8648,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544795,
@@ -8340,7 +8668,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544796,
@@ -8359,7 +8688,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544798,
@@ -8378,7 +8708,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544799,
@@ -8397,7 +8728,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": 16
   },
   {
    "id": 544800,
@@ -8416,7 +8748,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544801,
@@ -8435,7 +8768,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544802,
@@ -8454,7 +8788,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544803,
@@ -8473,7 +8808,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": 16
   },
   {
    "id": 544804,
@@ -8492,7 +8828,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": 6
   },
   {
    "id": 544808,
@@ -8511,7 +8848,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": 2
   },
   {
    "id": 545835,
@@ -8530,7 +8868,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": 19
   },
   {
    "id": 544401,
@@ -8549,7 +8888,8 @@
     255
    ],
    "action": "use",
-   "progression": false
+   "progression": false,
+   "room": 19
   },
   {
    "id": 544464,
@@ -8568,7 +8908,8 @@
     255
    ],
    "action": "use",
-   "progression": false
+   "progression": false,
+   "room": 15
   },
   {
    "id": 544659,
@@ -8587,7 +8928,8 @@
     255
    ],
    "action": "use",
-   "progression": false
+   "progression": false,
+   "room": 2
   },
   {
    "id": 544458,
@@ -8606,7 +8948,8 @@
     255
    ],
    "action": "read",
-   "progression": true
+   "progression": true,
+   "room": 8
   },
   {
    "id": 544498,
@@ -8625,7 +8968,8 @@
     255
    ],
    "action": "read",
-   "progression": true
+   "progression": true,
+   "room": 32
   },
   {
    "id": 544393,
@@ -8644,7 +8988,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": 19
   },
   {
    "id": 544441,
@@ -8663,7 +9008,8 @@
     255
    ],
    "action": "read",
-   "progression": true
+   "progression": true,
+   "room": 11
   },
   {
    "id": 544457,
@@ -8682,7 +9028,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": 8
   },
   {
    "id": 544463,
@@ -8701,7 +9048,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": 15
   },
   {
    "id": 544469,
@@ -8720,7 +9068,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": 15
   },
   {
    "id": 544470,
@@ -8739,7 +9088,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544471,
@@ -8758,7 +9108,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": 15
   },
   {
    "id": 544472,
@@ -8777,7 +9128,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544475,
@@ -8796,7 +9148,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": 3
   },
   {
    "id": 544486,
@@ -8815,7 +9168,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": 14
   },
   {
    "id": 544512,
@@ -8834,7 +9188,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": 29
   },
   {
    "id": 544519,
@@ -8853,7 +9208,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": 25
   },
   {
    "id": 544538,
@@ -8872,7 +9228,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": 23
   },
   {
    "id": 544551,
@@ -8891,7 +9248,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": 1
   },
   {
    "id": 544553,
@@ -8910,7 +9268,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": 12
   },
   {
    "id": 544560,
@@ -8929,7 +9288,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": 14
   },
   {
    "id": 544594,
@@ -8948,7 +9308,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544657,
@@ -8967,7 +9328,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": 2
   },
   {
    "id": 544661,
@@ -8986,7 +9348,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": 2
   },
   {
    "id": 544663,
@@ -9005,7 +9368,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": 24
   },
   {
    "id": 544668,
@@ -9024,7 +9388,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": 17
   },
   {
    "id": 544683,
@@ -9043,7 +9408,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": 26
   },
   {
    "id": 544684,
@@ -9062,7 +9428,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": 26
   },
   {
    "id": 544687,
@@ -9081,7 +9448,8 @@
     255
    ],
    "action": "read",
-   "progression": false
+   "progression": false,
+   "room": 26
   },
   {
    "id": 544487,
@@ -9100,7 +9468,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 14
   },
   {
    "id": 544601,
@@ -9119,7 +9488,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 6
   },
   {
    "id": 544595,
@@ -9138,7 +9508,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 6
   },
   {
    "id": 544680,
@@ -9157,7 +9528,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 26
   },
   {
    "id": 544408,
@@ -9176,7 +9548,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 31
   },
   {
    "id": 544477,
@@ -9195,7 +9568,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 3
   },
   {
    "id": 544485,
@@ -9214,7 +9588,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 14
   },
   {
    "id": 544493,
@@ -9233,7 +9608,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 30
   },
   {
    "id": 544501,
@@ -9252,7 +9628,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 32
   },
   {
    "id": 544504,
@@ -9271,7 +9648,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 16
   },
   {
    "id": 544509,
@@ -9290,7 +9668,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 11
   },
   {
    "id": 544516,
@@ -9309,7 +9688,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 25
   },
   {
    "id": 544518,
@@ -9328,7 +9708,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 25
   },
   {
    "id": 544520,
@@ -9347,7 +9728,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 25
   },
   {
    "id": 544530,
@@ -9366,7 +9748,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 11
   },
   {
    "id": 544539,
@@ -9385,7 +9768,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 23
   },
   {
    "id": 544543,
@@ -9404,7 +9788,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 12
   },
   {
    "id": 544555,
@@ -9423,7 +9808,8 @@
     255
    ],
    "action": "take",
-   "progression": true
+   "progression": true,
+   "room": 2
   },
   {
    "id": 544564,
@@ -9442,7 +9828,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 30
   },
   {
    "id": 544565,
@@ -9461,7 +9848,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 30
   },
   {
    "id": 544572,
@@ -9480,7 +9868,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 14
   },
   {
    "id": 544586,
@@ -9499,7 +9888,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 21
   },
   {
    "id": 544664,
@@ -9518,7 +9908,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 24
   },
   {
    "id": 544672,
@@ -9537,7 +9928,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 18
   },
   {
    "id": 544677,
@@ -9556,7 +9948,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 25
   },
   {
    "id": 545877,
@@ -9575,7 +9968,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 19
   },
   {
    "id": 544522,
@@ -9594,7 +9988,8 @@
     255
    ],
    "action": "inspect",
-   "progression": false
+   "progression": false,
+   "room": 10
   },
   {
    "id": 544545,
@@ -9613,7 +10008,8 @@
     255
    ],
    "action": "inspect",
-   "progression": false
+   "progression": false,
+   "room": 19
   },
   {
    "id": 544673,
@@ -9632,7 +10028,8 @@
     255
    ],
    "action": "inspect",
-   "progression": false
+   "progression": false,
+   "room": 18
   },
   {
    "id": 544689,
@@ -9651,7 +10048,8 @@
     255
    ],
    "action": "inspect",
-   "progression": false
+   "progression": false,
+   "room": 26
   },
   {
    "id": 546138,
@@ -9670,7 +10068,8 @@
     255
    ],
    "action": "inspect",
-   "progression": false
+   "progression": false,
+   "room": 14
   },
   {
    "id": 544476,
@@ -9689,7 +10088,8 @@
     255
    ],
    "action": "open",
-   "progression": false
+   "progression": false,
+   "room": 3
   },
   {
    "id": 544494,
@@ -9708,7 +10108,8 @@
     255
    ],
    "action": "open",
-   "progression": false
+   "progression": false,
+   "room": 30
   },
   {
    "id": 544513,
@@ -9727,7 +10128,8 @@
     255
    ],
    "action": "open",
-   "progression": false
+   "progression": false,
+   "room": 29
   },
   {
    "id": 544679,
@@ -9746,7 +10148,8 @@
     255
    ],
    "action": "open",
-   "progression": false
+   "progression": false,
+   "room": 26
   },
   {
    "id": 544561,
@@ -9765,7 +10168,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 14
   },
   {
    "id": 544599,
@@ -9784,7 +10188,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 6
   },
   {
    "id": 544674,
@@ -9803,7 +10208,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 29
   },
   {
    "id": 544691,
@@ -9822,7 +10228,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 26
   },
   {
    "id": 553287,
@@ -9841,7 +10248,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 14
   },
   {
    "id": 544489,
@@ -9860,7 +10268,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 14
   },
   {
    "id": 544534,
@@ -9879,7 +10288,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 8
   },
   {
    "id": 544567,
@@ -9898,7 +10308,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 30
   },
   {
    "id": 544590,
@@ -9917,7 +10328,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 21
   },
   {
    "id": 544478,
@@ -9936,7 +10348,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 3
   },
   {
    "id": 544480,
@@ -9955,7 +10368,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544483,
@@ -9974,7 +10388,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 13
   },
   {
    "id": 544488,
@@ -9993,7 +10408,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 14
   },
   {
    "id": 544536,
@@ -10012,7 +10428,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 11
   },
   {
    "id": 544596,
@@ -10031,7 +10448,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 6
   },
   {
    "id": 544598,
@@ -10050,7 +10468,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 6
   },
   {
    "id": 544676,
@@ -10069,7 +10488,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 25
   },
   {
    "id": 544410,
@@ -10088,7 +10508,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 31
   },
   {
    "id": 544436,
@@ -10107,7 +10528,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 16
   },
   {
    "id": 544443,
@@ -10126,7 +10548,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 19
   },
   {
    "id": 544451,
@@ -10145,7 +10568,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 19
   },
   {
    "id": 544456,
@@ -10164,7 +10588,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 8
   },
   {
    "id": 544460,
@@ -10183,7 +10608,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 5
   },
   {
    "id": 544473,
@@ -10202,7 +10628,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 12
   },
   {
    "id": 544503,
@@ -10221,7 +10648,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 11
   },
   {
    "id": 544507,
@@ -10240,7 +10668,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 16
   },
   {
    "id": 544526,
@@ -10259,7 +10688,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 6
   },
   {
    "id": 544533,
@@ -10278,7 +10708,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 8
   },
   {
    "id": 544547,
@@ -10297,7 +10728,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 12
   },
   {
    "id": 544557,
@@ -10316,7 +10748,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544569,
@@ -10335,7 +10768,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 30
   },
   {
    "id": 544573,
@@ -10354,7 +10788,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 12
   },
   {
    "id": 544600,
@@ -10373,7 +10808,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 6
   },
   {
    "id": 544681,
@@ -10392,7 +10828,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 26
   },
   {
    "id": 544403,
@@ -10411,7 +10848,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 19
   },
   {
    "id": 544466,
@@ -10430,7 +10868,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 15
   },
   {
    "id": 544568,
@@ -10449,7 +10888,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 30
   },
   {
    "id": 544662,
@@ -10468,7 +10908,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 24
   },
   {
    "id": 544667,
@@ -10487,7 +10928,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 14
   },
   {
    "id": 544678,
@@ -10506,7 +10948,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 25
   },
   {
    "id": 544445,
@@ -10525,7 +10968,8 @@
     255
    ],
    "action": "take",
-   "progression": true
+   "progression": true,
+   "room": 19
   },
   {
    "id": 544502,
@@ -10544,7 +10988,8 @@
     255
    ],
    "action": "take",
-   "progression": true
+   "progression": true,
+   "room": 16
   },
   {
    "id": 544602,
@@ -10563,7 +11008,8 @@
     255
    ],
    "action": "take",
-   "progression": true
+   "progression": true,
+   "room": 6
   },
   {
    "id": 544671,
@@ -10582,7 +11028,8 @@
     255
    ],
    "action": "take",
-   "progression": true
+   "progression": true,
+   "room": 18
   },
   {
    "id": 553486,
@@ -10601,7 +11048,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 16
   },
   {
    "id": 544554,
@@ -10620,7 +11068,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 2
   },
   {
    "id": 544660,
@@ -10639,7 +11088,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 2
   },
   {
    "id": 544411,
@@ -10658,7 +11108,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": 31
   },
   {
    "id": 544442,
@@ -10677,7 +11128,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": 19
   },
   {
    "id": 544461,
@@ -10696,7 +11148,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": 5
   },
   {
    "id": 544515,
@@ -10715,7 +11168,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": 10
   },
   {
    "id": 544535,
@@ -10734,7 +11188,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": 8
   },
   {
    "id": 544549,
@@ -10753,7 +11208,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": 12
   },
   {
    "id": 544593,
@@ -10772,7 +11228,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": 21
   },
   {
    "id": 544528,
@@ -10791,7 +11248,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 15
   },
   {
    "id": 544531,
@@ -10810,7 +11268,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 11
   },
   {
    "id": 544400,
@@ -10829,7 +11288,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 19
   },
   {
    "id": 544438,
@@ -10848,7 +11308,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 24
   },
   {
    "id": 544492,
@@ -10867,7 +11328,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 14
   },
   {
    "id": 544450,
@@ -10886,7 +11348,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 19
   },
   {
    "id": 544462,
@@ -10905,7 +11368,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 5
   },
   {
    "id": 544511,
@@ -10924,7 +11388,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 29
   },
   {
    "id": 544524,
@@ -10943,7 +11408,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544537,
@@ -10962,7 +11428,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 9
   },
   {
    "id": 544574,
@@ -10981,7 +11448,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 2
   },
   {
    "id": 544575,
@@ -11000,7 +11468,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 2
   },
   {
    "id": 544589,
@@ -11019,7 +11488,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 21
   },
   {
    "id": 544656,
@@ -11038,7 +11508,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 2
   },
   {
    "id": 544465,
@@ -11057,7 +11528,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 15
   },
   {
    "id": 544482,
@@ -11076,7 +11548,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 3
   },
   {
    "id": 544495,
@@ -11095,7 +11568,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 30
   },
   {
    "id": 544499,
@@ -11114,7 +11588,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 32
   },
   {
    "id": 544546,
@@ -11133,7 +11608,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 19
   },
   {
    "id": 544550,
@@ -11152,7 +11628,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 12
   },
   {
    "id": 544566,
@@ -11171,7 +11648,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 30
   },
   {
    "id": 544603,
@@ -11190,7 +11668,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 6
   },
   {
    "id": 544670,
@@ -11209,7 +11688,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 17
   },
   {
    "id": 544682,
@@ -11228,7 +11708,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 26
   },
   {
    "id": 544584,
@@ -11247,7 +11728,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 30
   },
   {
    "id": 544605,
@@ -11266,7 +11748,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 14
   },
   {
    "id": 544666,
@@ -11285,7 +11768,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 13
   },
   {
    "id": 544467,
@@ -11304,7 +11788,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 15
   },
   {
    "id": 544474,
@@ -11323,7 +11808,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 12
   },
   {
    "id": 544484,
@@ -11342,7 +11828,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 14
   },
   {
    "id": 544525,
@@ -11361,7 +11848,8 @@
     255
    ],
    "action": "take",
-   "progression": false
+   "progression": false,
+   "room": 10
   },
   {
    "id": 544688,
@@ -11380,7 +11868,8 @@
     255
    ],
    "action": "inspect",
-   "progression": false
+   "progression": false,
+   "room": 26
   },
   {
    "id": 544398,
@@ -11399,7 +11888,8 @@
     255
    ],
    "action": "use",
-   "progression": false
+   "progression": false,
+   "room": 19
   },
   {
    "id": 544437,
@@ -11418,7 +11908,8 @@
     255
    ],
    "action": "use",
-   "progression": false
+   "progression": false,
+   "room": 19
   },
   {
    "id": 544459,
@@ -11437,7 +11928,8 @@
     255
    ],
    "action": "use",
-   "progression": false
+   "progression": false,
+   "room": 5
   },
   {
    "id": 544468,
@@ -11456,7 +11948,8 @@
     255
    ],
    "action": "use",
-   "progression": false
+   "progression": false,
+   "room": 15
   },
   {
    "id": 544527,
@@ -11475,7 +11968,8 @@
     255
    ],
    "action": "use",
-   "progression": false
+   "progression": false,
+   "room": 6
   },
   {
    "id": 544541,
@@ -11494,7 +11988,8 @@
     255
    ],
    "action": "use",
-   "progression": false
+   "progression": false,
+   "room": 23
   },
   {
    "id": 544542,
@@ -11513,7 +12008,8 @@
     255
    ],
    "action": "use",
-   "progression": false
+   "progression": false,
+   "room": 23
   },
   {
    "id": 544548,
@@ -11532,7 +12028,8 @@
     255
    ],
    "action": "use",
-   "progression": false
+   "progression": false,
+   "room": 12
   },
   {
    "id": 544576,
@@ -11551,7 +12048,8 @@
     255
    ],
    "action": "use",
-   "progression": false
+   "progression": false,
+   "room": 2
   },
   {
    "id": 544588,
@@ -11570,7 +12068,8 @@
     255
    ],
    "action": "use",
-   "progression": false
+   "progression": false,
+   "room": 21
   },
   {
    "id": 544412,
@@ -11589,7 +12088,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544413,
@@ -11608,7 +12108,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544414,
@@ -11627,7 +12128,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544415,
@@ -11646,7 +12148,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544416,
@@ -11665,7 +12168,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544417,
@@ -11684,7 +12188,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544418,
@@ -11703,7 +12208,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   },
   {
    "id": 544419,
@@ -11722,7 +12228,8 @@
     255
    ],
    "action": "none",
-   "progression": false
+   "progression": false,
+   "room": -1
   }
  ],
  "stairs": [

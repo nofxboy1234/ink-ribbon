@@ -13,8 +13,8 @@
 typedef struct { float x, z; } map_vec2;
 typedef struct { int start, count, state; } map_room;
 typedef struct { int a, b, c, room; } map_tri;
-typedef struct { float x, z, yaw; int state, flags; } map_door;
-typedef struct { float x, z; uint32_t colour; int flags; } map_item;
+typedef struct { float x, z, yaw; uint32_t key; int flags; } map_door;
+typedef struct { float x, z; uint32_t id; int room; uint32_t colour; int flags; } map_item;
 typedef struct { float x, z; int to; } map_stair;
 
 typedef struct {
@@ -35,3 +35,6 @@ typedef struct {
 int map_load(const uint8_t *data, int size);
 int map_loaded(void);
 const map_floor_t *map_get(int floor);
+void map_update(int floor, float x, float z);
+int map_room_state(int floor, int room);
+int map_door_state(int floor, int door);
