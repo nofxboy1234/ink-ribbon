@@ -20,6 +20,7 @@
 #include "rpd_state.h"
 
 rpd_state_t g_rpd;
+static double app_time;
 
 #define RECENTER_DURATION 0.45f
 #define CLAIRE_CAPSULE_TOP RPD_PLAYER_HEIGHT
@@ -117,6 +118,7 @@ static void ensure_sdtx(void) {
 
 void rpd_app_frame(void) {
     float raw_dt = (float)sapp_frame_duration();
+    app_time += raw_dt;
     if (raw_dt < 0.0f) raw_dt = 0.0f;
     static float fps_accum;
     static int fps_frames;
@@ -187,9 +189,8 @@ void rpd_app_cleanup(void) {
 }
 
 static bool map_panning;
-static bool right_click;
-static bool right_dragging;
-static float right_click_x, right_click_y;
+static double last_click_time;
+static float last_click_x, last_click_y;
 EMSCRIPTEN_KEEPALIVE void rpd_reset_view(void);
 EMSCRIPTEN_KEEPALIVE void rpd_recenter(void);
 
@@ -216,28 +217,37 @@ void rpd_app_event(const sapp_event *e) {
         float mx = e->mouse_x * s;
         float my = e->mouse_y * s;
         if (e->type == SAPP_EVENTTYPE_MOUSE_MOVE) {
-            if (right_click && hypotf(mx - right_click_x, my - right_click_y) > 4.0f * s) {
-                right_dragging = true;
-            }
             if (map_panning) plan_pan(e->mouse_dx * s, e->mouse_dy * s);
             else plan_pointer_move(mx, my);
         } else if (e->type == SAPP_EVENTTYPE_MOUSE_DOWN) {
             if (e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) map_panning = true;
             else if (e->mouse_button == SAPP_MOUSEBUTTON_LEFT) {
-                if (!overlay_map_click(mx, my)) plan_pointer_down(mx, my);
-            }
-            else if (e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) {
-                right_click = true;
-                right_dragging = false;
-                right_click_x = mx;
-                right_click_y = my;
+                if (overlay_map_click(mx, my)) return;
+                double now = app_time;
+                if (now - last_click_time < 0.32 && hypotf(mx - last_click_x, my - last_click_y) < 14.0f) {
+                    plan_clear_route();
+                    last_click_time = 0.0;
+                    return;
+                }
+                last_click_time = now;
+                last_click_x = mx;
+                last_click_y = my;
+                int node = plan_pick_node(mx, my);
+                if (node >= 0) {
+                    game_set_run(0);
+                    plan_add_target_node(node);
+                    plan_start_move();
+                }
+            } else if (e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) {
+                int node = plan_pick_node(mx, my);
+                if (node >= 0) {
+                    game_set_run(1);
+                    plan_add_target_node(node);
+                    plan_start_move();
+                }
             }
         } else if (e->type == SAPP_EVENTTYPE_MOUSE_UP) {
             if (e->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) map_panning = false;
-            else if (e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) {
-                if (right_click && !right_dragging) menu_open(mx, my);
-                right_click = false;
-            }
         } else if (e->type == SAPP_EVENTTYPE_MOUSE_SCROLL) {
             plan_zoom(mx, my, e->scroll_y);
         }
@@ -295,6 +305,8 @@ EMSCRIPTEN_KEEPALIVE int rpd_plan_move_state(float *out) {
 }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_count(void) { return plan_count(); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_active_floor(void) { return plan_active_floor(); }
+EMSCRIPTEN_KEEPALIVE int rpd_game_run(void) { return game_run(); }
+EMSCRIPTEN_KEEPALIVE void rpd_game_set_run(int on) { game_set_run(on); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_moving(void) { return plan_moving(); }
 EMSCRIPTEN_KEEPALIVE const char *rpd_plan_room(void) { return plan_room_name(); }
 EMSCRIPTEN_KEEPALIVE void rpd_plan_reset(void) { plan_reset(); }

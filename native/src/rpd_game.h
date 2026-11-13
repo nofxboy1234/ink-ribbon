@@ -12,6 +12,7 @@ int game_debug(void);
 void game_set_debug_allowed(int value);
 void game_toggle_pause(void);
 void game_toggle_run(void);
+void game_set_run(int on);
 int game_run(void);
 void game_set_ending(int value);
 int game_ending(void);

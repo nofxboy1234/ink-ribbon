@@ -154,6 +154,8 @@ return {
     client.planSetPlayer(item.x + 0.9, item.y, item.z);
     return true;
   },
+  run: () => client.gameRun() !== 0,
+  setRun: (on: boolean) => client.gameSetRun(on),
   walkableCell: () => {
     const blocked = new Set<number>();
     for (let i = 0; i < graph.count; i += 1) {

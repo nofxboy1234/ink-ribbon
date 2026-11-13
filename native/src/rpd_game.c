@@ -61,6 +61,8 @@ void game_toggle_pause(void) { paused = !paused; }
 
 void game_toggle_run(void) { running = !running; }
 
+void game_set_run(int on) { running = on ? 1 : 0; }
+
 int game_run(void) { return running; }
 
 void game_set_ending(int value) { ending = value ? 1 : 0; }

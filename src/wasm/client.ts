@@ -481,6 +481,12 @@ export async function createRpdClient(options: {
       module._free(ptr);
       return out;
     },
+    gameRun() {
+      return (module as unknown as { _rpd_game_run: () => number })._rpd_game_run();
+    },
+    gameSetRun(on) {
+      (module as unknown as { _rpd_game_set_run: (v: number) => void })._rpd_game_set_run(on ? 1 : 0);
+    },
     debugFloors() {
       const ptr = module._malloc(10 * 4);
       (module as unknown as { _rpd_debug_floors: (p: number) => number })._rpd_debug_floors(ptr);
