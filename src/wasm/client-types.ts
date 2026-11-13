@@ -31,6 +31,7 @@ export type RpdClient = {
   setPlayerPosition(x: number, y: number, z: number): void;
   playerRadius(): number;
   routeRadius(): number;
+  mapLoad(data: Uint8Array): number;
   planSetFloors(levels: Float32Array, bounds: Float32Array): void;
   planSetGraph(
     count: number,

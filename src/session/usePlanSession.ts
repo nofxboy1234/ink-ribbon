@@ -112,7 +112,7 @@ export function usePlanSession(
             if (parsed.version) version = parsed.version;
           }
         } catch {}
-        const [asset, questResponse, navResponse, client] = await Promise.all([
+        const [asset, questResponse, navResponse, mapData, client] = await Promise.all([
           fetchScene(`${assetUrl}?v=${version}`, controller.signal, (fraction) => {
             if (!disposed) setProgress(fraction);
           }),
@@ -126,6 +126,12 @@ export function usePlanSession(
             (response) => {
               if (!response.ok) throw new Error("could not load the navigation graph");
               return response.json() as Promise<NavFile>;
+            },
+          ),
+          fetch(`/re2map/map.bin?v=${version}`, { signal: controller.signal, cache: "no-store" }).then(
+            (response) => {
+              if (!response.ok) throw new Error("could not load the map data");
+              return response.arrayBuffer();
             },
           ),
           createRpdClient({
@@ -143,6 +149,7 @@ export function usePlanSession(
           (window as unknown as { __rpd?: RpdClient }).__rpd = client;
         }
         if (client.loadScene(asset) !== 0) throw new Error("the RPD scene could not be loaded");
+        client.mapLoad(new Uint8Array(mapData));
         if (disposed) return;
         const graph = buildNavGraph(navResponse);
         graphRef.current = graph;

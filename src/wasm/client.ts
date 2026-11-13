@@ -75,6 +75,13 @@ export async function createRpdClient(options: {
     setPlayerPosition(x, y, z) {
       module._rpd_set_player_position(x, y, z);
     },
+    mapLoad(data) {
+      const ptr = module._malloc(data.length);
+      heap.HEAPU8.set(data, ptr);
+      const result = (module as unknown as { _rpd_map_load: (p: number, n: number) => number })._rpd_map_load(ptr, data.length);
+      module._free(ptr);
+      return result;
+    },
     planSetFloors(levels, bounds) {
       const lp = module._malloc(levels.byteLength);
       const bp = module._malloc(bounds.byteLength);

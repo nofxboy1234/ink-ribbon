@@ -1,5 +1,4 @@
 import type { PlanSession } from "../session/usePlanSession";
-import SaveOverlay from "./SaveOverlay";
 
 type RpdStageProps = {
   session: PlanSession;
@@ -16,7 +15,6 @@ export default function RpdStage({ session, label }: RpdStageProps) {
         aria-label={label}
         onContextMenu={(event) => event.preventDefault()}
       />
-      <SaveOverlay session={session} />
     </div>
   );
 }

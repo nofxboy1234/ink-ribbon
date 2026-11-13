@@ -1,4 +1,5 @@
 #include "rpd_overlay.h"
+#include "rpd_map.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -54,6 +55,10 @@ static void push(float x, float y, uint32_t c) {
 static void quad(float x0, float y0, float x1, float y1, uint32_t c) {
     push(x0, y0, c); push(x1, y0, c); push(x1, y1, c);
     push(x0, y0, c); push(x1, y1, c); push(x0, y1, c);
+}
+
+static void tri(float x0, float y0, float x1, float y1, float x2, float y2, uint32_t c) {
+    push(x0, y0, c); push(x1, y1, c); push(x2, y2, c);
 }
 
 static void line(float x0, float y0, float x1, float y1, float width, uint32_t c) {
@@ -238,12 +243,117 @@ static void draw_player_ring(int ortho) {
     }
 }
 
+static uint32_t room_fill(int state) {
+    if (state == 1) return 0x4f1416ff;
+    if (state == 2) return 0x1b2c3aff;
+    return 0x0d0b09ff;
+}
+
+static uint32_t room_edge(int state) {
+    if (state == 1) return 0xd8b4a6ff;
+    if (state == 2) return 0xb8d0e0ff;
+    return 0xd0cabcff;
+}
+
+static void draw_map(void) {
+    if (!map_loaded()) return;
+    const map_floor_t *f = map_get(plan_active_floor());
+    if (!f) return;
+    quad(0.0f, 0.0f, (float)view_w, (float)view_h, 0x080706ff);
+    float sy0 = f->level;
+    for (int t = 0; t < f->tri_count; t++) {
+        const map_tri *tr = &f->tris[t];
+        float ax, ay, bx, by, cx, cy;
+        project(f->verts[tr->a].x, sy0, f->verts[tr->a].z, &ax, &ay);
+        project(f->verts[tr->b].x, sy0, f->verts[tr->b].z, &bx, &by);
+        project(f->verts[tr->c].x, sy0, f->verts[tr->c].z, &cx, &cy);
+        if (ax < -1e8f || bx < -1e8f || cx < -1e8f) continue;
+        tri(ax, ay, bx, by, cx, cy, room_fill(f->rooms[tr->room].state));
+    }
+    for (int r = 0; r < f->room_count; r++) {
+        const map_room *room = &f->rooms[r];
+        uint32_t edge = room_edge(room->state);
+        for (int i = 0; i < room->count; i++) {
+            const map_vec2 *a = &f->verts[room->start + i];
+            const map_vec2 *b = &f->verts[room->start + (i + 1) % room->count];
+            float ax, ay, bx, by;
+            project(a->x, sy0, a->z, &ax, &ay);
+            project(b->x, sy0, b->z, &bx, &by);
+            if (ax < -1e8f || bx < -1e8f) continue;
+            line(ax, ay, bx, by, 1.1f, edge);
+        }
+    }
+    for (int d = 0; d < f->door_count; d++) {
+        const map_door *door = &f->doors[d];
+        float half = 0.55f;
+        float dx = cosf(door->yaw) * half;
+        float dz = sinf(door->yaw) * half;
+        float ax, ay, bx, by;
+        project(door->x - dx, sy0, door->z - dz, &ax, &ay);
+        project(door->x + dx, sy0, door->z + dz, &bx, &by);
+        if (ax < -1e8f || bx < -1e8f) continue;
+        uint32_t colour = door->state == 1 ? 0xd23c3cff : door->state == 2 ? 0x3c78c8ff : 0xf0ead8ff;
+        line(ax, ay, bx, by, 2.4f, colour);
+    }
+    for (int i = 0; i < f->item_count; i++) {
+        const map_item *item = &f->items[i];
+        float sx, sy;
+        project(item->x, sy0, item->z, &sx, &sy);
+        if (sx < -1e8f) continue;
+        uint32_t colour = 0xff000000u | (item->colour & 0xffffffu);
+        float size = (item->flags & 1) ? 3.5f : 2.0f;
+        quad(sx - size, sy - size, sx + size, sy + size, colour);
+    }
+    for (int i = 0; i < f->stair_count; i++) {
+        const map_stair *stair = &f->stairs[i];
+        float sx, sy;
+        project(stair->x, sy0, stair->z, &sx, &sy);
+        if (sx < -1e8f) continue;
+        line(sx - 3.0f, sy, sx + 3.0f, sy, 2.0f, 0xbfb8a8ff);
+        line(sx, sy - 3.0f, sx, sy + 3.0f, 2.0f, 0xbfb8a8ff);
+    }
+    float player[3];
+    plan_player(player);
+    if (plan_player_floor() == plan_active_floor()) {
+        float px, py;
+        project(player[0], sy0, player[2], &px, &py);
+        if (px > -1e8f) {
+            const float phase = fmodf(ring_time, 1.4f) / 1.4f;
+            uint32_t alpha = (uint32_t)((1.0f - phase) * 170.0f);
+            uint32_t pulse = 0xffd54a00u | alpha;
+            float radius = 8.0f + phase * 20.0f;
+            for (int i = 0; i < 24; i++) {
+                float a0 = (float)i * 6.2831853f / 24.0f;
+                float a1 = (float)(i + 1) * 6.2831853f / 24.0f;
+                line(px + cosf(a0) * radius, py + sinf(a0) * radius,
+                     px + cosf(a1) * radius, py + sinf(a1) * radius, 1.5f, pulse);
+            }
+            tri(px, py - 8.0f, px + 5.0f, py + 5.0f, px - 5.0f, py + 5.0f, 0xffd54aff);
+            tri(px, py - 5.0f, px + 3.0f, py + 4.0f, px - 3.0f, py + 4.0f, 0x1a1710ff);
+        }
+    }
+    float cx = (float)view_w * 0.5f - 190.0f;
+    float cy = (float)view_h * 0.5f;
+    for (int i = 0; i < 32; i++) {
+        float a0 = (float)i * 6.2831853f / 32.0f;
+        float a1 = (float)(i + 1) * 6.2831853f / 32.0f;
+        line(cx + cosf(a0) * 9.0f, cy + sinf(a0) * 9.0f,
+             cx + cosf(a1) * 9.0f, cy + sinf(a1) * 9.0f, 1.2f, 0xe8e2d4cc);
+    }
+    for (int i = 0; i < 4; i++) {
+        float a = (float)i * 6.2831853f / 4.0f + 0.785398f;
+        line(cx + cosf(a) * 15.0f, cy + sinf(a) * 15.0f,
+             cx + cosf(a) * 23.0f, cy + sinf(a) * 23.0f, 1.1f, 0xe8e2d466);
+    }
+}
+
 void overlay_build(const float *matrix, int width, int height, int ortho, float fps) {
     ring_time += (float)sapp_frame_duration();
     view_w = width > 1 ? width : 1;
     view_h = height > 1 ? height : 1;
     memcpy(vp, matrix, sizeof(vp));
     vcount = 0;
+    draw_map();
     stat_hover_item = ortho ? plan_hover_item() : -1;
     stat_labels = 0;
     stat_blocked = 0;
@@ -334,7 +444,6 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
         draw_item_hover();
     }
 
-    draw_player_ring(ortho);
     draw_popup();
 
     if (fps_visible) {

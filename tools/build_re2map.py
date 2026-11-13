@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import struct
 
 import cv2
 import numpy as np
@@ -49,6 +50,100 @@ def to_plan(x: float, z: float, cal: dict) -> list[float]:
 
 def to_world(px: float, py: float, cal: dict) -> tuple[float, float]:
     return (px - cal["ox"]) / cal["s"], (py - cal["oy"]) / cal["s"]
+
+
+
+def signed_area(poly):
+    return 0.5 * sum(poly[i][0] * poly[(i + 1) % len(poly)][1] - poly[(i + 1) % len(poly)][0] * poly[i][1] for i in range(len(poly)))
+
+
+def point_in_tri(p, a, b, c):
+    def cross(u, v, w):
+        return (v[0] - u[0]) * (w[1] - u[1]) - (v[1] - u[1]) * (w[0] - u[0])
+    return cross(a, b, p) >= 0 and cross(b, c, p) >= 0 and cross(c, a, p) >= 0
+
+
+def earclip(poly):
+    idx = list(range(len(poly)))
+    if signed_area(poly) < 0:
+        idx.reverse()
+    tris = []
+    guard = 0
+    while len(idx) > 3 and guard < 2000:
+        guard += 1
+        ear = False
+        for k in range(len(idx)):
+            i0, i1, i2 = idx[k - 1], idx[k], idx[(k + 1) % len(idx)]
+            a, b, c = poly[i0], poly[i1], poly[i2]
+            if (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]) <= 0:
+                continue
+            if any(point_in_tri(poly[j], a, b, c) for j in idx if j not in (i0, i1, i2)):
+                continue
+            tris.append((i0, i1, i2))
+            idx.pop(k)
+            ear = True
+            break
+        if not ear:
+            break
+    if len(idx) == 3:
+        tris.append(tuple(idx))
+    return tris
+
+
+def pack_map(model, floor_info, path):
+    out = bytearray()
+    def u32(v): out.extend(struct.pack('<I', v))
+    def f32(v): out.extend(struct.pack('<f', v))
+    out.extend(b'R2M1'); u32(1); u32(len(floor_info))
+    for name, info in floor_info.items():
+        meta = model['floors'][info['index']]
+        cal = meta['calibration']
+        level = struct.unpack('<f', struct.pack('<f', meta['level']))[0]
+        f32(level)
+        rooms = [r for r in model['rooms'] if r['floor'] == info['index']]
+        vertices = []
+        room_records = []
+        triangles = []
+        for room in rooms:
+            poly = [(float(x), float(y)) for x, y in room['polygon']]
+            start = len(vertices)
+            for px, py in poly:
+                x = (px - cal['ox']) / cal['s']
+                z = (py - cal['oy']) / cal['s']
+                vertices.append((x, z))
+            for a, b, c in earclip(poly):
+                triangles.append((start + a, start + b, start + c, len(room_records)))
+            room_records.append((start, len(poly), 0))
+        u32(len(room_records)); u32(len(vertices)); u32(len(triangles))
+        for start, count, state in room_records:
+            u32(start); u32(count); u32(state)
+        for x, z in vertices:
+            f32(x); f32(z)
+        for a, b, c, r in triangles:
+            u32(a); u32(b); u32(c); u32(r)
+        doors = [d for d in model['doors'] if d['floor'] == info['index']]
+        u32(len(doors))
+        for d in doors:
+            px, py = d['plan']
+            x = (px - cal['ox']) / cal['s']
+            z = (py - cal['oy']) / cal['s']
+            f32(x); f32(z); f32(float(d['yaw'])); u32(0); u32(1 if d.get('locked') else 0)
+        items = [i for i in model['items'] if i['floor'] == info['index']]
+        u32(len(items))
+        for it in items:
+            px, py = it['plan']
+            x = (px - cal['ox']) / cal['s']
+            z = (py - cal['oy']) / cal['s']
+            colour = it['colour']
+            f32(x); f32(z); u32((colour[0] << 16) | (colour[1] << 8) | colour[2]); u32(1 if it.get('progression') else 0)
+        stairs = [s for s in model['stairs'] if s['floor'] == info['index']]
+        u32(len(stairs))
+        for s in stairs:
+            px, py = s['plan']
+            x = (px - cal['ox']) / cal['s']
+            z = (py - cal['oy']) / cal['s']
+            f32(x); f32(z); u32(int(s['to']))
+    pathlib.Path(path).write_bytes(bytes(out))
 
 
 def main() -> None:
@@ -167,6 +262,7 @@ def main() -> None:
             })
 
     (OUT / "map.json").write_text(json.dumps(model, indent=1))
+    pack_map(model, FLOORS, OUT / "map.bin")
     print(f"floors {len(model['floors'])} rooms {len(model['rooms'])} doors {len(model['doors'])} "
           f"items {len(model['items'])} stairs {len(model['stairs'])}")
 

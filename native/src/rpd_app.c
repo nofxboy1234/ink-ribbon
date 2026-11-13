@@ -152,11 +152,6 @@ void rpd_app_frame(void) {
         plan_player(player);
         enemies_update(plan_moving(), player[0], player[1], player[2], plan_active_floor());
     }
-    if (g_rpd.scene.loaded && g_rpd.scene.gpu_ready) {
-        scene_render_floors(&g_rpd.scene, vp, eye, camera_distance(&g_rpd.camera),
-                            g_rpd.scene_radius, paper_floor(), 1, fy - 0.55f, fy + 4.2f,
-                            fy, 1, (float)sapp_height() / g_rpd.camera.frame);
-    }
     sg_end_pass();
 
     overlay_build(vp.m, sapp_width(), sapp_height(), 1, fps_value);
