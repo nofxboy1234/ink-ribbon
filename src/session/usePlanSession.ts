@@ -215,6 +215,11 @@ export function usePlanSession(
         if (startMap >= 0) client.itemAct(startMap);
         client.mapMarkVisited(0, -20, 16);
         client.mapMarkVisited(0, 12, -2);
+        for (let i = 0; i < client.itemCount(); i += 1) {
+          const item = client.item(i);
+          if (!item || item.floor !== 0) continue;
+          if (item.x >= 8 && item.x <= 26 && item.z >= -8 && item.z <= 2) client.itemAct(i);
+        }
         setFloors(
           graph.floors
             .map((floor) => ({ index: floor.index, level: floor.level, label: floor.label }))
