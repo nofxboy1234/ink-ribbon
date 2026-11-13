@@ -211,6 +211,10 @@ export function usePlanSession(
             : questResponse.spawn;
         client.planSetSpawn(spawn[0], spawn[1], spawn[2]);
         client.planSetFloor(0);
+        const startMap = client.itemIndexForId(544458);
+        if (startMap >= 0) client.itemAct(startMap);
+        client.mapMarkVisited(0, -20, 16);
+        client.mapMarkVisited(0, 12, -2);
         setFloors(
           graph.floors
             .map((floor) => ({ index: floor.index, level: floor.level, label: floor.label }))

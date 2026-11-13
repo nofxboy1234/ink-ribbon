@@ -42,3 +42,4 @@ int map_door_state(int floor, int door);
 int map_floor_revealed(int floor);
 int map_room_state_at(int floor, float x, float z);
 int map_room_index_at(int floor, float x, float z);
+void map_mark_visited(int floor, float x, float z);

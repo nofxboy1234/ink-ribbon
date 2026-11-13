@@ -199,6 +199,14 @@ int map_room_state(int floor, int room) {
     return 2;
 }
 
+void map_mark_visited(int floor, float x, float z) {
+    const map_floor_t *f = map_get(floor);
+    if (!f) return;
+    for (int r = 0; r < f->room_count; r++) {
+        if (point_in_room(f, r, x, z)) { visited[floor][r] = 1; return; }
+    }
+}
+
 int map_room_index_at(int floor, float x, float z) {
     const map_floor_t *f = map_get(floor);
     if (!f) return -1;
@@ -244,6 +252,10 @@ EMSCRIPTEN_KEEPALIVE int rpd_map_floor_revealed(int floor) {
 
 EMSCRIPTEN_KEEPALIVE int rpd_map_room_state_at(int floor, float x, float z) {
     return map_room_state_at(floor, x, z);
+}
+
+EMSCRIPTEN_KEEPALIVE void rpd_map_mark_visited(int floor, float x, float z) {
+    map_mark_visited(floor, x, z);
 }
 
 EMSCRIPTEN_KEEPALIVE int rpd_map_door_info(int floor, float *out, int cap) {

@@ -501,6 +501,9 @@ export async function createRpdClient(options: {
       module._free(ptr);
       return out;
     },
+    mapMarkVisited(floor, x, z) {
+      (module as unknown as { _rpd_map_mark_visited: (f: number, x: number, z: number) => void })._rpd_map_mark_visited(floor, x, z);
+    },
     mapRoomStateAt(floor, x, z) {
       return (module as unknown as { _rpd_map_room_state_at: (f: number, x: number, z: number) => number })._rpd_map_room_state_at(floor, x, z);
     },

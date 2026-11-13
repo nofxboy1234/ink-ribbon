@@ -35,12 +35,17 @@ try {
   const player = await evaluate("window.__quest.debug().player");
   const pose = await evaluate("window.__quest.cameraModel()");
   const scale = (await evaluate("window.__rpd.planCamera()"))[2];
+  const revealed = await evaluate("window.__quest.mapRevealed(0)");
+  const mainHall = await evaluate("window.__quest.mapRoomStateAt(0, 0, 4)");
+  const entrance = await evaluate("window.__quest.mapRoomStateAt(0, -20, 16)");
+  const eastHall = await evaluate("window.__quest.mapRoomStateAt(0, 12, -2)");
   const floor = await evaluate("window.__rpd.planActiveFloor()");
   const playerFloor = await evaluate("window.__quest.debug().playerFloor");
   await shot("initial-camera");
   const distance = Math.hypot(pose[0] - player[0], pose[2] - player[2]);
-  console.log(JSON.stringify({ player, target: [pose[0], pose[2]], distance: Math.round(distance * 100) / 100, scale: Math.round(scale * 100) / 100, floor, playerFloor }, null, 2));
-  const ok = distance < 0.5 && scale > 7.2 && scale < 8.8 && floor === playerFloor;
+  console.log(JSON.stringify({ player, target: [pose[0], pose[2]], distance: Math.round(distance * 100) / 100, scale: Math.round(scale * 100) / 100, revealed, mainHall, entrance, eastHall, floor, playerFloor }, null, 2));
+  const ok = distance < 0.5 && scale > 7.2 && scale < 8.8 && floor === playerFloor &&
+    revealed === true && mainHall === 1 && entrance === 2 && eastHall === 1;
   if (!ok) console.log("FAIL: the map did not open centred on Claire");
   if (ok) console.log("PASS: the map opens centred on Claire");
   socket.close(); process.exitCode = ok ? 0 : 1;
