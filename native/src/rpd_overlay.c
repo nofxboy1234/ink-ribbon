@@ -325,6 +325,11 @@ static void draw_map(void) {
     }
     for (int i = 0; i < f->item_count; i++) {
         const map_item *item = &f->items[i];
+        int index = items_index_for_id((int)item->id);
+        const item_t *entry = index >= 0 ? items_get(index) : 0;
+        if (!entry || entry->state != ITEM_PRESENT) continue;
+        int action = items_action_kind(index);
+        if (action != RPD_ACTION_TAKE && action != RPD_ACTION_READ) continue;
         float sx, sy;
         project(item->x, sy0, item->z, &sx, &sy);
         if (sx < -1e8f) continue;

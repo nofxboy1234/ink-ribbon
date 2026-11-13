@@ -377,6 +377,7 @@ return {
     return best < 0 ? null : { index: best, x: graph.x[best], y: graph.y[best], z: graph.z[best] };
   },
   hoverRoute: () => client.planHoverRoute(),
+  mapDoors: (floor: number) => client.mapDoors(floor),
   project: (x: number, y: number, z: number) => {
     const rect = canvas.current?.getBoundingClientRect();
     if (!rect) return null;

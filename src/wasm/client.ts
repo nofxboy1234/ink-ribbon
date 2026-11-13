@@ -489,6 +489,16 @@ export async function createRpdClient(options: {
       module._free(ptr);
       return out;
     },
+    mapDoors(floor) {
+      const cap = 128;
+      const ptr = module._malloc(cap * 4 * 4);
+      const count = (module as unknown as { _rpd_map_door_info: (f: number, p: number, c: number) => number })._rpd_map_door_info(floor, ptr, cap);
+      const values = new Float32Array(heap.HEAPU8.buffer, ptr, Math.max(0, count) * 4);
+      const out = [];
+      for (let i = 0; i < count; i += 1) out.push({ x: values[i * 4], z: values[i * 4 + 1], key: values[i * 4 + 2], state: values[i * 4 + 3] });
+      module._free(ptr);
+      return out;
+    },
     gameRun() {
       return (module as unknown as { _rpd_game_run: () => number })._rpd_game_run();
     },

@@ -145,6 +145,35 @@ void map_update(int floor, float x, float z) {
     for (int r = 0; r < f->room_count; r++) {
         if (!visited[floor][r] && point_in_room(f, r, x, z)) visited[floor][r] = 1;
     }
+    for (int i = 0; i < f->item_count; i++) {
+        const map_item *item = &f->items[i];
+        if (item->id == 0) continue;
+        int index = items_index_for_id((int)item->id);
+        if (index < 0) continue;
+        const item_t *entry = items_get(index);
+        if (!entry || entry->state != ITEM_PRESENT) continue;
+        int action = items_action_kind(index);
+        if (action != RPD_ACTION_TAKE && action != RPD_ACTION_READ) continue;
+        float dx = item->x - x;
+        float dz = item->z - z;
+        if (dx * dx + dz * dz <= 0.64f) items_act(index);
+    }
+    {
+        int notebook = items_index_for_id(544441);
+        int box = items_index_for_id(544404);
+        int knife = items_index_for_id(544445);
+        if (notebook >= 0 && box >= 0 && knife >= 0) {
+            const item_t *nb = items_get(notebook);
+            const item_t *kn = items_get(knife);
+            const rpd_item_def_t *bd = items_def(box);
+            if (nb && kn && bd && nb->state >= ITEM_TAKEN &&
+                (kn->state == ITEM_HIDDEN || kn->state == ITEM_PRESENT)) {
+                float dx = x - bd->x;
+                float dz = z - bd->z;
+                if (dx * dx + dz * dz <= 2.25f) items_debug_take(knife);
+            }
+        }
+    }
     for (int d = 0; d < f->door_count; d++) {
         const map_door *door = &f->doors[d];
         float dx = door->x - x;
@@ -181,5 +210,19 @@ int map_door_state(int floor, int door) {
 #include <emscripten/emscripten.h>
 EMSCRIPTEN_KEEPALIVE int rpd_map_load(const unsigned char *data, int size) {
     return map_load((const uint8_t *)data, size);
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_map_door_info(int floor, float *out, int cap) {
+    const map_floor_t *f = map_get(floor);
+    if (!f || !out || cap < 4) return 0;
+    int count = 0;
+    for (int d = 0; d < f->door_count && (count + 1) * 4 <= cap; d++) {
+        out[count * 4 + 0] = f->doors[d].x;
+        out[count * 4 + 1] = f->doors[d].z;
+        out[count * 4 + 2] = (float)f->doors[d].key;
+        out[count * 4 + 3] = (float)map_door_state(floor, d);
+        count++;
+    }
+    return count;
 }
 #endif
