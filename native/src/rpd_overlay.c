@@ -1,5 +1,6 @@
 #include "rpd_overlay.h"
 #include "rpd_map.h"
+#include "rpd_app.h"
 
 #define MAP_HOVER_POINTS 256
 
@@ -259,6 +260,7 @@ static uint32_t room_edge(int state) {
 }
 
 static float floor_rect[3][4];
+static float reset_rect[4];
 
 static void draw_map(void) {
     if (!map_loaded()) return;
@@ -417,9 +419,25 @@ static void draw_map(void) {
     legend_x += 16.0f + dtx_width(searching) + 28.0f;
     quad(legend_x, legend_y, legend_x + 10.0f, legend_y + 10.0f, 0x2a4050ff);
     dtx_text(completed, legend_x + 16.0f, legend_y - 2.0f, 0xb8b0a0ff, 0);
+    const char *reset = "Reset";
+    float reset_w = dtx_width(reset);
+    float rx = (float)view_w - 196.0f;
+    float ry = (float)view_h - 48.0f;
+    reset_rect[0] = rx - 10.0f; reset_rect[1] = ry - 6.0f;
+    reset_rect[2] = rx + reset_w + 10.0f; reset_rect[3] = ry + 16.0f;
+    line(rx - 10.0f, ry - 6.0f, rx + reset_w + 10.0f, ry - 6.0f, 1.0f, 0x6a6458ff);
+    line(rx - 10.0f, ry + 16.0f, rx + reset_w + 10.0f, ry + 16.0f, 1.0f, 0x6a6458ff);
+    line(rx - 10.0f, ry - 6.0f, rx - 10.0f, ry + 16.0f, 1.0f, 0x6a6458ff);
+    line(rx + reset_w + 10.0f, ry - 6.0f, rx + reset_w + 10.0f, ry + 16.0f, 1.0f, 0x6a6458ff);
+    dtx_text(reset, rx, ry, 0xd8d2c4ff, 0);
+    dtx_text("wheel zoom - middle drag pan", 42.0f, (float)view_h - 48.0f, 0x7a7468ff, 0);
 }
 
 int overlay_map_click(float x, float y) {
+    if (x >= reset_rect[0] && x <= reset_rect[2] && y >= reset_rect[1] && y <= reset_rect[3]) {
+        rpd_recenter();
+        return 1;
+    }
     int count = map_floor_count();
     for (int i = 0; i < count && i < 3; i++) {
         if (x >= floor_rect[i][0] && x <= floor_rect[i][2] &&
@@ -475,7 +493,7 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
         }
     }
 
-    if (ortho) {
+    if (ortho && map_floor_revealed(level)) {
         float placed[MAX_LABELS][4];
         int placed_count = 0;
         float popup_rect[4] = { 0, 0, 0, 0 };
@@ -491,15 +509,32 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
             placed[placed_count][3] = popup_rect[3];
             placed_count++;
         }
-        int rooms = plan_room_count();
+        const map_floor_t *room_map = map_get(level);
+        int rooms = room_map ? room_map->room_count : 0;
         for (int i = 0; i < rooms; i++) {
-            if (plan_room_floor(i) != level) continue;
+            if (map_room_state(level, i) == 0) continue;
+            int count = room_map->rooms[i].count;
+            if (count <= 0) continue;
+            float cx = 0.0f, cz = 0.0f;
+            for (int v = 0; v < count; v++) {
+                cx += room_map->verts[room_map->rooms[i].start + v].x;
+                cz += room_map->verts[room_map->rooms[i].start + v].z;
+            }
+            cx /= (float)count;
+            cz /= (float)count;
+            const char *name = 0;
+            float best = 1e30f;
+            for (int p = 0; p < plan_room_count(); p++) {
+                if (plan_room_floor(p) != level) continue;
+                float dx = plan_room_x(p) - cx, dz = plan_room_z(p) - cz;
+                float d = dx * dx + dz * dz;
+                if (d < best) { best = d; name = plan_room_name_at(p); }
+            }
+            if (!name || !*name) continue;
             float sx, sy;
-            project(plan_room_x(i), plan_room_y(i) + 1.3f, plan_room_z(i), &sx, &sy);
+            project(cx, room_map->level + 1.3f, cz, &sx, &sy);
             if (sx < -1e8f) continue;
             if (sx < 18 || sy < 18 || sx > view_w - 18 || sy > view_h - 18) continue;
-            const char *name = plan_room_name_at(i);
-            if (!name || !*name) continue;
             float w = dtx_width(name);
             float x0 = sx - w * 0.5f - 4;
             float y0 = sy - 4;
@@ -521,7 +556,8 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
                 memcpy(placed[placed_count], label_rect, sizeof(label_rect));
                 placed_count++;
             }
-            dtx_text(name, sx - w * 0.5f, sy, 0x4a4842f0, 1);
+            dtx_text(name, sx - w * 0.5f + 1.0f, sy + 1.0f, 0x0a0806b0, 0);
+            dtx_text(name, sx - w * 0.5f, sy, 0xd8d2c4ff, 0);
             stat_labels++;
             if (popup_open && rects_overlap(label_rect, popup_rect)) stat_clashes++;
         }

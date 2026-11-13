@@ -199,6 +199,15 @@ int map_room_state(int floor, int room) {
     return 2;
 }
 
+int map_room_state_at(int floor, float x, float z) {
+    const map_floor_t *f = map_get(floor);
+    if (!f) return 0;
+    for (int r = 0; r < f->room_count; r++) {
+        if (point_in_room(f, r, x, z)) return map_room_state(floor, r);
+    }
+    return 0;
+}
+
 int map_floor_revealed(int floor) {
     if (floor < 0) return 0;
     int id = floor == 0 ? 544458 : 544498;
