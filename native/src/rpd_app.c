@@ -148,6 +148,11 @@ void rpd_app_frame(void) {
     mat4 vp = camera_view_proj(eye);
     float fy = plan_level();
     game_update(raw_dt > 0.5f ? 0.5f : raw_dt, vp.m, sapp_width(), sapp_height());
+    static int focus_once = 1;
+    if (focus_once && plan_player_floor() >= 0) {
+        plan_focus_player();
+        focus_once = 0;
+    }
     doors_sync();
     if (!game_paused()) {
         float player[3];

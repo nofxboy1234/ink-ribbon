@@ -11,6 +11,7 @@ void plan_set_rooms(int count, const float *x, const float *y, const float *z,
 void plan_set_spawn(float x, float y, float z);
 void plan_set_floor(int index);
 void plan_set_floor_keep(int index);
+void plan_focus_player(void);
 void plan_clear_route(void);
 void plan_refresh_blocks(void);
 int plan_item_blocked_count(int index);

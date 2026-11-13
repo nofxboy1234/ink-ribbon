@@ -342,6 +342,13 @@ void plan_set_floor_keep(int index) {
     if (index < floor_count) g_rpd.camera.target[1] = floor_levels[index];
 }
 
+void plan_focus_player(void) {
+    g_rpd.orbit.active = false;
+    g_rpd.camera.target[0] = player[0];
+    g_rpd.camera.target[1] = plan_level();
+    g_rpd.camera.target[2] = player[2];
+}
+
 void plan_clear_route(void) {
     moving = 0; waypoint_count = 0; route_count = 0;
     move_count = 0; move_index = 0; move_t = 0;
