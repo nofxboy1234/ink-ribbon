@@ -152,6 +152,15 @@ export async function createRpdClient(options: {
       return (module as unknown as { _rpd_plan_remove_target_node: (n: number) => number })
         ._rpd_plan_remove_target_node(node);
     },
+    planWaypointRun(index) {
+      return (module as unknown as { _rpd_plan_waypoint_run: (i: number) => number })._rpd_plan_waypoint_run(index) !== 0;
+    },
+    planMoveRun() {
+      return (module as unknown as { _rpd_plan_move_run: () => number })._rpd_plan_move_run() !== 0;
+    },
+    planAddTargetNodeRun(node, run) {
+      (module as unknown as { _rpd_plan_add_target_node_run: (n: number, r: number) => void })._rpd_plan_add_target_node_run(node, run ? 1 : 0);
+    },
     planWaypoint(index) {
       return (module as unknown as { _rpd_plan_waypoint: (i: number) => number })
         ._rpd_plan_waypoint(index);

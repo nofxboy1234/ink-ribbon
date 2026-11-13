@@ -234,15 +234,13 @@ void rpd_app_event(const sapp_event *e) {
                 last_click_y = my;
                 int node = plan_pick_node(mx, my);
                 if (node >= 0) {
-                    game_set_run(0);
-                    plan_add_target_node(node);
+                    plan_add_target_node_run(node, 0);
                     plan_start_move();
                 }
             } else if (e->mouse_button == SAPP_MOUSEBUTTON_RIGHT) {
                 int node = plan_pick_node(mx, my);
                 if (node >= 0) {
-                    game_set_run(1);
-                    plan_add_target_node(node);
+                    plan_add_target_node_run(node, 1);
                     plan_start_move();
                 }
             }
@@ -278,6 +276,7 @@ EMSCRIPTEN_KEEPALIVE void rpd_plan_set_floor(int index) { plan_set_floor(index);
 EMSCRIPTEN_KEEPALIVE void rpd_plan_start_move(void) { plan_start_move(); }
 EMSCRIPTEN_KEEPALIVE void rpd_plan_add_target(float x, float y, float z) { plan_add_target(x, y, z); }
 EMSCRIPTEN_KEEPALIVE void rpd_plan_add_target_node(int node) { plan_add_target_node(node); }
+EMSCRIPTEN_KEEPALIVE void rpd_plan_add_target_node_run(int node, int run) { plan_add_target_node_run(node, run); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_remove_target_node(int node) { return plan_remove_target_node(node); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_waypoint(int index) { return plan_waypoint_at(index); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_hover(void) { return plan_hover(); }
@@ -306,6 +305,8 @@ EMSCRIPTEN_KEEPALIVE int rpd_plan_move_state(float *out) {
 }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_count(void) { return plan_count(); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_active_floor(void) { return plan_active_floor(); }
+EMSCRIPTEN_KEEPALIVE int rpd_plan_move_run(void) { return plan_move_run(); }
+EMSCRIPTEN_KEEPALIVE int rpd_plan_waypoint_run(int index) { return plan_waypoint_run(index); }
 EMSCRIPTEN_KEEPALIVE int rpd_game_run(void) { return game_run(); }
 EMSCRIPTEN_KEEPALIVE void rpd_game_set_run(int on) { game_set_run(on); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_moving(void) { return plan_moving(); }

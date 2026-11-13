@@ -28,6 +28,7 @@ void plan_teleport_node(int node);
 void plan_teleport_item(int index);
 void plan_add_target(float x, float y, float z);
 void plan_add_target_node(int node);
+void plan_add_target_node_run(int node, int run);
 int plan_remove_target_node(int node);
 
 int plan_active_floor(void);
@@ -38,6 +39,8 @@ float plan_map_scale(void);
 
 int plan_count(void);
 int plan_moving(void);
+int plan_move_run(void);
+int plan_waypoint_run(int index);
 int plan_hover(void);
 int plan_node_blocked(int node);
 int plan_pick_node(float x, float y);

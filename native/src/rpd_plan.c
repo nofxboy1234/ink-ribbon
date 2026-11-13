@@ -43,9 +43,11 @@ static float player[3];
 static float spawn[3];
 static int player_node = -1;
 static int waypoints[MAX_WAYPOINTS];
+static int waypoint_run[MAX_WAYPOINTS];
 static int waypoint_count;
 static float route[MAX_ROUTE * 3];
 static int route_count;
+static unsigned char route_run[MAX_ROUTE];
 static float move_pts[MAX_ROUTE * 3];
 static int move_count;
 static int moving;
@@ -199,6 +201,7 @@ static void recompute_route(void) {
                                     nav_floor, nav_kind, 0.08f, route_segment, MAX_ROUTE);
         for (int i = route_count > 0 ? 1 : 0; i < smoothed && route_count < MAX_ROUTE; i++) {
             memcpy(route + route_count * 3, route_segment + i * 3, sizeof(float) * 3);
+            route_run[route_count] = (unsigned char)waypoint_run[w];
             route_count++;
         }
         start = waypoints[w];
@@ -430,19 +433,24 @@ int plan_has_waypoint(int node) {
     return 0;
 }
 
-static void add_waypoint_node(int node) {
+static void add_waypoint_node_run(int node, int run) {
     if (node < 0 || node >= nav_count) return;
     if (plan_has_waypoint(node)) return;
     if (waypoint_count >= MAX_WAYPOINTS) return;
-    waypoints[waypoint_count++] = node;
+    waypoints[waypoint_count] = node;
+    waypoint_run[waypoint_count] = run ? 1 : 0;
+    waypoint_count++;
     recompute_route();
 }
+
+static void add_waypoint_node(int node) { add_waypoint_node_run(node, 0); }
 
 void plan_add_target(float x, float y, float z) {
     add_waypoint_node(nearest_node_on(active_floor, x, y, z, 4.0f));
 }
 
 void plan_add_target_node(int node) { add_waypoint_node(node); }
+void plan_add_target_node_run(int node, int run) { add_waypoint_node_run(node, run); }
 
 int plan_remove_target_node(int node) {
     if (moving || node < 0) return 0;
@@ -490,6 +498,8 @@ float plan_map_scale(void) {
 }
 int plan_count(void) { return waypoint_count; }
 int plan_moving(void) { return moving; }
+int plan_move_run(void) { return move_index >= 0 && move_index < route_count ? route_run[move_index] : 0; }
+int plan_waypoint_run(int index) { return index >= 0 && index < waypoint_count ? waypoint_run[index] : 0; }
 int plan_hover(void) { return hover; }
 int plan_pick_node(float x, float y) {
     int node = pick_cell(x, y);

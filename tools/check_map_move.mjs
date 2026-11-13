@@ -74,7 +74,7 @@ try {
   const rect = await evaluate("(() => { const r = document.querySelector('canvas').getBoundingClientRect(); return { left: r.left, top: r.top, width: r.width, height: r.height }; })()");
   const player = async () => evaluate("window.__quest.debug().player");
   const planCount = async () => evaluate("window.__rpd.planCount()");
-  const run = async () => evaluate("window.__quest.run()");
+  const waypointRun = async (index) => evaluate(`window.__quest.waypointRun(${index})`);
   const targetScreen = async (x, y, z) => {
     const point = await evaluate(`window.__quest.project(${x}, ${y}, ${z})`);
     return point ? { x: rect.left + point.x, y: rect.top + point.y } : null;
@@ -87,7 +87,7 @@ try {
   const afterWalk = await player();
   const walked = Math.hypot(afterWalk[0] - start[0], afterWalk[2] - start[2]);
   const walkPlan = await planCount();
-  const walkRun = await run();
+  const walkRun = await waypointRun(0);
   await shot("move-walk");
 
   await click(walk.x, walk.y);
@@ -101,14 +101,23 @@ try {
   const runTarget = await evaluate(`window.__quest.nearestNavNode(0, ${startRun[0] - 3}, ${startRun[1]}, ${startRun[2]})`);
   const runPoint = await targetScreen(runTarget.x, runTarget.y, runTarget.z);
   await click(runPoint.x, runPoint.y, "right");
-  await sleep(900);
-  const runMode = await run();
+  await sleep(120);
+  const runMode = await waypointRun(0);
+  const queueStart = await player();
+  const queueTarget = await evaluate(`window.__quest.nearestNavNode(0, ${queueStart[0] + 4}, ${queueStart[1]}, ${queueStart[2] + 2})`);
+  const queuePoint = await targetScreen(queueTarget.x, queueTarget.y, queueTarget.z);
+  await click(queuePoint.x, queuePoint.y);
+  await sleep(400);
+  const queuePlan = await planCount();
+  const queueRuns = [await waypointRun(0), await waypointRun(1)];
+  await sleep(500);
   const afterRun = await player();
   const ran = Math.hypot(afterRun[0] - startRun[0], afterRun[2] - startRun[2]);
   await shot("move-run");
 
-  console.log(JSON.stringify({ walked, walkPlan, walkRun, afterDouble, stopped, runMode, ran }, null, 2));
-  const ok = walked > 0.3 && walkPlan > 0 && walkRun === false && afterDouble === 0 && stopped === 0 && runMode === true && ran > 0.3;
+  console.log(JSON.stringify({ walked, walkPlan, walkRun, afterDouble, stopped, runMode, queuePlan, queueRuns, ran }, null, 2));
+  const ok = walked > 0.3 && walkPlan > 0 && walkRun === false && afterDouble === 0 && stopped === 0 &&
+    runMode === true && queuePlan === 2 && queueRuns[0] === true && queueRuns[1] === false && ran > 0.3;
   if (!ok) console.log("FAIL: the map click movement did not walk, run or clear as expected");
   if (ok) console.log("PASS: left click walks, double click clears, right click runs");
   socket.close();

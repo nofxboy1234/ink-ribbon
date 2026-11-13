@@ -379,6 +379,8 @@ return {
   hoverRoute: () => client.planHoverRoute(),
   mapDoors: (floor: number) => client.mapDoors(floor),
   mapRevealed: (floor: number) => client.mapRevealed(floor),
+  waypointRun: (index: number) => client.planWaypointRun(index),
+  moveRun: () => client.planMoveRun(),
   project: (x: number, y: number, z: number) => {
     const rect = canvas.current?.getBoundingClientRect();
     if (!rect) return null;
