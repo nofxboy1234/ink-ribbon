@@ -70,6 +70,7 @@ export type RpdClient = {
   planNodeBlocked(node: number): number;
   planCamera(): Float32Array;
   planRouteCount(): number;
+  planHoverRoute(): number[];
   planRoute(): Float32Array;
   popupState(): Float32Array;
   popupChoice(index: number): {

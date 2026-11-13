@@ -51,6 +51,7 @@ int plan_move_index(void);
 int plan_move_count(void);
 float plan_move_t(void);
 const float *plan_route(void);
+int plan_hover_route(float *out, int cap);
 const char *plan_room_name(void);
 void plan_player(float out[3]);
 int plan_player_floor(void);

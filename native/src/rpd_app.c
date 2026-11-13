@@ -291,6 +291,7 @@ EMSCRIPTEN_KEEPALIVE int rpd_plan_camera(float *out) {
     return 0;
 }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_route_count(void) { return plan_route_count(); }
+EMSCRIPTEN_KEEPALIVE int rpd_plan_hover_route(float *out, int cap) { return plan_hover_route(out, cap); }
 EMSCRIPTEN_KEEPALIVE int rpd_plan_route(float *out, int cap) {
     int n = plan_route_count();
     if (n > cap) n = cap;

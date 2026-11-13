@@ -178,6 +178,14 @@ export async function createRpdClient(options: {
     planRouteCount() {
       return (module as unknown as { _rpd_plan_route_count: () => number })._rpd_plan_route_count();
     },
+    planHoverRoute() {
+      const cap = 256;
+      const ptr = module._malloc(cap * 3 * 4);
+      const count = (module as unknown as { _rpd_plan_hover_route: (p: number, c: number) => number })._rpd_plan_hover_route(ptr, cap);
+      const out = Array.from(new Float32Array(heap.HEAPU8.buffer, ptr, Math.max(0, count) * 3));
+      module._free(ptr);
+      return out;
+    },
     planRoute() {
       const count = (module as unknown as { _rpd_plan_route_count: () => number })._rpd_plan_route_count();
       if (count <= 0) return new Float32Array(0);

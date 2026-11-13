@@ -204,6 +204,26 @@ static void recompute_route(void) {
         start = waypoints[w];
     }
 }
+int plan_hover_route(float *out, int cap) {
+    if (!out || cap <= 0 || active_floor < 0 || hover < 0) return 0;
+    int start = nearest_node_on(active_floor, player[0], player[1], player[2], 4.0f);
+    if (start < 0) start = player_node;
+    if (start < 0 || start == hover) return 0;
+    int path_count = route_find_path(nav_count, nav_x, nav_y, nav_z, nav_first, nav_adj, nav_cost,
+                                     nav_blocked, start, hover, route_path_nodes, MAX_ROUTE);
+    if (path_count <= 0) return 0;
+    static int pull[MAX_ROUTE];
+    static float smooth[MAX_ROUTE * 3];
+    int pulled = route_pull(path_count, route_path_nodes, nav_x, nav_y, nav_z,
+                            nav_floor, nav_kind, pull, MAX_ROUTE);
+    if (pulled <= 0) return 0;
+    int count = route_smooth(pulled, pull, nav_x, nav_y, nav_z, nav_floor, nav_kind, 0.08f,
+                             smooth, MAX_ROUTE);
+    if (count > cap) count = cap;
+    memcpy(out, smooth, sizeof(float) * 3 * (size_t)count);
+    return count;
+}
+
 void plan_refresh_blocks(void) {
     if (!nav_blocked || nav_count <= 0) return;
     item_gate_refresh(nav_count, nav_x, nav_z, nav_floor, nav_blocked);

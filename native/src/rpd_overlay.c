@@ -1,6 +1,8 @@
 #include "rpd_overlay.h"
 #include "rpd_map.h"
 
+#define MAP_HOVER_POINTS 256
+
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -286,6 +288,26 @@ static void draw_map(void) {
             project(b->x, sy0, b->z, &bx, &by);
             if (ax < -1e8f || bx < -1e8f) continue;
             line(ax, ay, bx, by, 1.1f, edge);
+        }
+    }
+    int hover_node = plan_hover();
+    if (hover_node >= 0) {
+        static int cached_hover = -1;
+        static float cached_time = -1.0f;
+        static float hover_pts[MAP_HOVER_POINTS * 3];
+        static int hover_count;
+        if (hover_node != cached_hover || ring_time - cached_time > 0.15f) {
+            hover_count = plan_hover_route(hover_pts, MAP_HOVER_POINTS);
+            cached_hover = hover_node;
+            cached_time = ring_time;
+        }
+        for (int i = 0; i + 1 < hover_count; i++) {
+            float ax, ay, bx, by;
+            project(hover_pts[i * 3], hover_pts[i * 3 + 1], hover_pts[i * 3 + 2], &ax, &ay);
+            project(hover_pts[(i + 1) * 3], hover_pts[(i + 1) * 3 + 1], hover_pts[(i + 1) * 3 + 2], &bx, &by);
+            if (ax < -1e8f || bx < -1e8f) continue;
+            line(ax, ay, bx, by, 4.0f, 0x39ff1444);
+            line(ax, ay, bx, by, 1.6f, 0x39ff14ee);
         }
     }
     for (int d = 0; d < f->door_count; d++) {
