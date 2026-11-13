@@ -378,8 +378,11 @@ static void draw_map(void) {
         float sx, sy;
         project(stair->x, sy0, stair->z, &sx, &sy);
         if (sx < -1e8f) continue;
-        line(sx - 3.0f, sy, sx + 3.0f, sy, 2.0f, 0xbfb8a8ff);
-        line(sx, sy - 3.0f, sx, sy + 3.0f, 2.0f, 0xbfb8a8ff);
+        for (int step = 0; step < 5; step++) {
+            float ly = sy - 6.0f + (float)step * 3.0f;
+            uint32_t tone = (step == 0 || step == 4) ? 0xbfb8a8dd : 0x8a8478aa;
+            line(sx - 9.0f, ly, sx + 9.0f, ly, 1.2f, tone);
+        }
     }
     float player[3];
     plan_player(player);
