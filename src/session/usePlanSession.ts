@@ -70,6 +70,16 @@ export type PlanSession = {
   };
 };
 
+const inPoly = (x: number, y: number, poly: [number, number][]) => {
+  let inside = false;
+  for (let i = 0; i < poly.length; i += 1) {
+    const [x0, y0] = poly[i];
+    const [x1, y1] = poly[(i + 1) % poly.length];
+    if ((y0 > y) !== (y1 > y) && x < ((x1 - x0) * (y - y0)) / (y1 - y0) + x0) inside = !inside;
+  }
+  return inside;
+};
+
 export function usePlanSession(
   assetUrl = "/rpd/rpd.bin",
   onLoaded?: (client: RpdClient, graph: ReturnType<typeof buildNavGraph>) => void,
@@ -112,7 +122,7 @@ export function usePlanSession(
             if (parsed.version) version = parsed.version;
           }
         } catch {}
-        const [asset, questResponse, navResponse, mapData, client] = await Promise.all([
+        const [asset, questResponse, navResponse, mapData, mapModel, client] = await Promise.all([
           fetchScene(`${assetUrl}?v=${version}`, controller.signal, (fraction) => {
             if (!disposed) setProgress(fraction);
           }),
@@ -133,6 +143,9 @@ export function usePlanSession(
               if (!response.ok) throw new Error("could not load the map data");
               return response.arrayBuffer();
             },
+          ),
+          fetch(`/re2map/map.json?v=${version}`, { signal: controller.signal, cache: "no-store" }).then(
+            (response) => (response.ok ? response.json() : null),
           ),
           createRpdClient({
             canvas: canvas.current as HTMLCanvasElement,
@@ -215,10 +228,25 @@ export function usePlanSession(
         if (startMap >= 0) client.itemAct(startMap);
         client.mapMarkVisited(0, -20, 16);
         client.mapMarkVisited(0, 12, -2);
-        for (let i = 0; i < client.itemCount(); i += 1) {
-          const item = client.item(i);
-          if (!item || item.floor !== 0) continue;
-          if (item.x >= 8 && item.x <= 26 && item.z >= -8 && item.z <= 2) client.itemAct(i);
+        const model = mapModel as {
+          floors?: { index: number; calibration: { s: number; ox: number; oy: number } }[];
+          rooms?: { id: number; floor: number; polygon: [number, number][] }[];
+          items?: { id: number; floor: number; room: number }[];
+        } | null;
+        if (model?.floors && model.rooms && model.items) {
+          const floor = model.floors.find((entry) => entry.index === 0);
+          if (floor) {
+            const px = floor.calibration.ox + 12 * floor.calibration.s;
+            const py = floor.calibration.oy + -2 * floor.calibration.s;
+            const east = model.rooms.find((room) => room.floor === 0 && inPoly(px, py, room.polygon));
+            if (east) {
+              for (const item of model.items) {
+                if (item.floor !== 0 || item.room !== east.id) continue;
+                const index = client.itemIndexForId(item.id);
+                if (index >= 0) client.itemAct(index);
+              }
+            }
+          }
         }
         setFloors(
           graph.floors
