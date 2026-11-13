@@ -2,6 +2,9 @@
 #include "rpd_map.h"
 #include "rpd_app.h"
 
+#include <string.h>
+#include <stdio.h>
+
 #define MAP_HOVER_POINTS 256
 
 #include <math.h>
@@ -160,6 +163,25 @@ void overlay_stats(float *out) {
     out[3] = (float)stat_clashes;
     out[4] = 0.0f;
     out[5] = (float)stat_popup;
+}
+
+static const char *video_room_name(const char *name) {
+    if (!name) return name;
+    if (strcmp(name, "Reception - RPD") == 0) return "Entrance";
+    if (strstr(name, "Closet")) return "Closet";
+    static char buffer[64];
+    snprintf(buffer, sizeof(buffer), "%s", name);
+    char *suffix = strstr(buffer, " - RPD");
+    if (suffix) *suffix = '\0';
+    size_t length = strlen(buffer);
+    if (length > 3 && buffer[length - 3] == ' ' && buffer[length - 2] >= '1' && buffer[length - 2] <= '3' && buffer[length - 1] == 'F') {
+        buffer[length - 3] = '\0';
+    }
+    length = strlen(buffer);
+    if (length > 2 && buffer[length - 2] == ' ' && buffer[length - 1] >= '1' && buffer[length - 1] <= '3') {
+        buffer[length - 2] = '\0';
+    }
+    return buffer;
 }
 
 static void draw_item_hover(void) {
@@ -531,17 +553,25 @@ void overlay_build(const float *matrix, int width, int height, int ortho, float 
             }
             cx /= (float)count;
             cz /= (float)count;
+            float ppos[3] = { 0, 0, 0 };
+            plan_player(ppos);
+            int player_region = plan_player_floor() == level ? map_room_index_at(level, ppos[0], ppos[2]) : -1;
+            float tx = i == player_region ? ppos[0] : cx;
+            float tz = i == player_region ? ppos[2] : cz;
             const char *name = 0;
+            int chosen = -1;
             float best = 1e30f;
             for (int p = 0; p < plan_room_count(); p++) {
                 if (plan_room_floor(p) != level) continue;
-                float dx = plan_room_x(p) - cx, dz = plan_room_z(p) - cz;
+                float dx = plan_room_x(p) - tx, dz = plan_room_z(p) - tz;
                 float d = dx * dx + dz * dz;
-                if (d < best) { best = d; name = plan_room_name_at(p); }
+                if (d < best) { best = d; chosen = p; }
             }
+            if (chosen < 0) continue;
+            name = video_room_name(plan_room_name_at(chosen));
             if (!name || !*name) continue;
             float sx, sy;
-            project(cx, room_map->level + 1.3f, cz, &sx, &sy);
+            project(plan_room_x(chosen), plan_room_y(chosen) + 1.3f, plan_room_z(chosen), &sx, &sy);
             if (sx < -1e8f) continue;
             if (sx < 18 || sy < 18 || sx > view_w - 18 || sy > view_h - 18) continue;
             float w = dtx_width(name);

@@ -199,6 +199,15 @@ int map_room_state(int floor, int room) {
     return 2;
 }
 
+int map_room_index_at(int floor, float x, float z) {
+    const map_floor_t *f = map_get(floor);
+    if (!f) return -1;
+    for (int r = 0; r < f->room_count; r++) {
+        if (point_in_room(f, r, x, z)) return r;
+    }
+    return -1;
+}
+
 int map_room_state_at(int floor, float x, float z) {
     const map_floor_t *f = map_get(floor);
     if (!f) return 0;
