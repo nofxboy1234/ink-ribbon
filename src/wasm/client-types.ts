@@ -56,6 +56,7 @@ export type RpdClient = {
   planSetSpawn(x: number, y: number, z: number): void;
   planSetPlayer(x: number, y: number, z: number): void;
   planSetFloor(index: number): void;
+  mapRevealed(floor: number): boolean;
   mapDoors(floor: number): { x: number; z: number; key: number; state: number }[];
   gameRun(): number;
   gameSetRun(on: boolean): void;

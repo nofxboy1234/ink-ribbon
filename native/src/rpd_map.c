@@ -199,6 +199,14 @@ int map_room_state(int floor, int room) {
     return 2;
 }
 
+int map_floor_revealed(int floor) {
+    if (floor < 0) return 0;
+    int id = floor == 0 ? 544458 : 544498;
+    int index = items_index_for_id(id);
+    const item_t *item = index >= 0 ? items_get(index) : 0;
+    return item && item->state >= ITEM_TAKEN;
+}
+
 int map_door_state(int floor, int door) {
     const map_floor_t *f = map_get(floor);
     if (!f || door < 0 || door >= f->door_count) return 0;
@@ -210,6 +218,10 @@ int map_door_state(int floor, int door) {
 #include <emscripten/emscripten.h>
 EMSCRIPTEN_KEEPALIVE int rpd_map_load(const unsigned char *data, int size) {
     return map_load((const uint8_t *)data, size);
+}
+
+EMSCRIPTEN_KEEPALIVE int rpd_map_floor_revealed(int floor) {
+    return map_floor_revealed(floor);
 }
 
 EMSCRIPTEN_KEEPALIVE int rpd_map_door_info(int floor, float *out, int cap) {

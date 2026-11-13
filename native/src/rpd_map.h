@@ -39,3 +39,4 @@ const map_floor_t *map_get(int floor);
 void map_update(int floor, float x, float z);
 int map_room_state(int floor, int room);
 int map_door_state(int floor, int door);
+int map_floor_revealed(int floor);

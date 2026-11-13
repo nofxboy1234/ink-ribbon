@@ -267,7 +267,9 @@ static void draw_map(void) {
     plan_player(current);
     map_update(plan_player_floor(), current[0], current[2]);
     quad(0.0f, 0.0f, (float)view_w, (float)view_h, 0x080706ff);
+    int revealed = map_floor_revealed(plan_active_floor());
     float sy0 = f->level;
+    if (revealed) {
     for (int t = 0; t < f->tri_count; t++) {
         const map_tri *tr = &f->tris[t];
         float ax, ay, bx, by, cx, cy;
@@ -364,6 +366,7 @@ static void draw_map(void) {
             tri(px, py - 8.0f, px + 5.0f, py + 5.0f, px - 5.0f, py + 5.0f, 0xffd54aff);
             tri(px, py - 5.0f, px + 3.0f, py + 4.0f, px - 3.0f, py + 4.0f, 0x1a1710ff);
         }
+    }
     }
     float cx = (float)view_w * 0.5f - 190.0f;
     float cy = (float)view_h * 0.5f;

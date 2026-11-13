@@ -489,6 +489,9 @@ export async function createRpdClient(options: {
       module._free(ptr);
       return out;
     },
+    mapRevealed(floor) {
+      return (module as unknown as { _rpd_map_floor_revealed: (f: number) => number })._rpd_map_floor_revealed(floor) !== 0;
+    },
     mapDoors(floor) {
       const cap = 128;
       const ptr = module._malloc(cap * 4 * 4);
