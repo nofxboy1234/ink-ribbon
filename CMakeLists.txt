@@ -9,11 +9,13 @@ add_executable(entrance_map
     src/main.c
     src/map.c
     src/draw.c
+    src/assets.c
 )
 
 target_include_directories(entrance_map PRIVATE
     vendor/sokol
     vendor/fontstash
+    vendor/stb
 )
 
 target_compile_definitions(entrance_map PRIVATE

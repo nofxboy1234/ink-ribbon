@@ -50,4 +50,4 @@ The project code is MIT licensed. See `LICENSE`.
 
 ## Third-party code and fonts
 
-See `THIRD_PARTY_NOTICES.md`. Sokol and fontstash are vendored under `vendor/`. Noto Sans is under the SIL Open Font License in `assets/fonts/OFL.txt`.
+See `THIRD_PARTY_NOTICES.md`. Sokol, fontstash, and stb are vendored under `vendor/`. Roboto and Roboto Condensed are under the Apache License 2.0 in `assets/fonts/LICENSE-RobotoCondensed.txt`.

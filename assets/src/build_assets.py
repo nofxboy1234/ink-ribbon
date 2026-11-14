@@ -22,7 +22,7 @@ from PyQt6.QtGui import (
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-FONT_PATH = os.path.normpath(os.path.join(HERE, "..", "fonts", "NotoSans-Regular.ttf"))
+FONT_PATH = os.path.normpath(os.path.join(HERE, "..", "fonts", "RobotoCondensed-Bold.ttf"))
 LOG_PATH = os.path.join(HERE, "build.log")
 
 MAP_MIN_X = -388.0
@@ -163,8 +163,8 @@ def build_map():
     font_id = QFontDatabase.addApplicationFont(FONT_PATH)
     family = QFontDatabase.applicationFontFamilies(font_id)[0] if font_id >= 0 else "Sans Serif"
     font = QFont(family)
-    font.setPixelSize(52)
-    font.setWeight(QFont.Weight.Normal)
+    font.setPixelSize(56)
+    font.setWeight(QFont.Weight.Bold)
     p.setFont(font)
     fm = QFontMetricsF(font)
     text = "Entrance"
@@ -320,8 +320,8 @@ def build_tooltip():
     p.setPen(Qt.PenStyle.NoPen)
     p.setBrush(QColor(0, 0, 0, 80))
     p.drawRoundedRect(rect.translated(0, 4), 10, 10)
-    p.setBrush(QColor(4, 7, 10, 210))
-    p.setPen(QPen(QColor(190, 184, 166, 90), 4.0))
+    p.setBrush(QColor(4, 7, 10, 225))
+    p.setPen(QPen(QColor(190, 184, 166, 155), 4.0))
     p.drawRoundedRect(rect, 8, 8)
     p.end()
     save_doc("tooltip", img)
@@ -344,10 +344,10 @@ def __main__(*args):
         build_map()
         build_door("door_service", QColor(186, 183, 176), QColor(151, 148, 141),
                    QColor(84, 82, 76), QColor(224, 221, 212, 130))
-        build_door("door_locked", QColor(143, 34, 34), QColor(99, 19, 19),
-                   QColor(55, 12, 12), QColor(190, 74, 74, 110))
-        build_door("door_locked_hover", QColor(178, 52, 52), QColor(132, 28, 28),
-                   QColor(70, 14, 14), QColor(235, 110, 110, 150))
+        build_door("door_locked", QColor(106, 23, 23), QColor(78, 14, 14),
+                   QColor(46, 9, 9), QColor(142, 42, 42, 90))
+        build_door("door_locked_hover", QColor(128, 32, 32), QColor(94, 20, 20),
+                   QColor(58, 10, 10), QColor(166, 58, 58, 110))
         build_arrow()
         build_glow()
         build_pulse()

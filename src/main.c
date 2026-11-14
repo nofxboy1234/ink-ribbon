@@ -15,6 +15,7 @@
 #undef FONTSTASH_IMPLEMENTATION
 
 #include "app.h"
+#include "assets.h"
 #include "map.h"
 #include "draw.h"
 
@@ -25,6 +26,7 @@
 
 static app_state app;
 static sg_pass_action pass_action;
+static assets *g_assets = NULL;
 static FONScontext *g_fons = NULL;
 static sgl_pipeline alpha_pipeline;
 static bool debug_enabled = false;
@@ -32,6 +34,11 @@ static int debug_last_hover = -1;
 
 static FILE *frame_log_file = NULL;
 static int frame_log_rows = 0;
+
+#define MAP_TEXTURE_MIN_X (-388.0f)
+#define MAP_TEXTURE_MAX_X (388.0f)
+#define MAP_TEXTURE_MIN_Y (-118.0f)
+#define MAP_TEXTURE_MAX_Y (278.0f)
 
 static unsigned char *read_file(const char *path, int *out_size) {
     FILE *f = fopen(path, "rb");
@@ -228,71 +235,33 @@ static void on_event(const sapp_event *ev) {
     }
 }
 
-static void draw_map_geometry(void) {
-    vec2 spts[MAP_POLY_MAX];
-    vec2 wpts[MAP_POLY_MAX];
-    color rim_colors[MAP_POLY_MAX];
-    int n = app.map.poly_count;
+static void draw_map(void) {
+    vec2 center = map_world_to_screen(&app.cam, app.width, app.vp_h,
+                                      vec2_make((MAP_TEXTURE_MIN_X + MAP_TEXTURE_MAX_X) * 0.5f,
+                                                (MAP_TEXTURE_MIN_Y + MAP_TEXTURE_MAX_Y) * 0.5f));
+    draw_sprite(&g_assets->map, center,
+                (MAP_TEXTURE_MAX_X - MAP_TEXTURE_MIN_X) * app.cam.zoom,
+                (MAP_TEXTURE_MAX_Y - MAP_TEXTURE_MIN_Y) * app.cam.zoom,
+                0.0f, color_make(1.0f, 1.0f, 1.0f, 1.0f));
+}
+
+static void draw_doors(void) {
+    const float door_w = 80.0f;
+    const float door_h = 22.0f;
     float zoom = app.cam.zoom;
-
-    color fill_top = color_hex(0x1b3341, 0.94f);
-    color fill_bottom = color_hex(0x13232d, 0.94f);
-    color outline = color_hex(0xb5ad97, 0.75f);
-
-    for (int i = 0; i < n; i++) {
-        wpts[i] = app.map.poly[i];
-        spts[i] = map_world_to_screen(&app.cam, app.width, app.vp_h, wpts[i]);
-        float t = (wpts[i].y - MAP_WORLD_MIN_Y) / MAP_WORLD_H;
-        rim_colors[i] = color_lerp(fill_bottom, fill_top, clampf(t, 0.0f, 1.0f));
-    }
-
-    vec2 pivot = map_world_to_screen(&app.cam, app.width, app.vp_h, vec2_make(0.0f, 0.0f));
-    float pivot_t = (0.0f - MAP_WORLD_MIN_Y) / MAP_WORLD_H;
-    color pivot_color = color_lerp(fill_bottom, fill_top, pivot_t);
-
-    vec2 shadow_pts[MAP_POLY_MAX];
-    color shadow_colors[MAP_POLY_MAX];
-    for (int i = 0; i < n; i++) {
-        shadow_pts[i] = vec2_add(spts[i], vec2_make(0.0f, 10.0f));
-        shadow_colors[i] = color_make(0.0f, 0.0f, 0.0f, 0.16f);
-    }
-    draw_triangle_fan(vec2_add(pivot, vec2_make(0.0f, 10.0f)), shadow_colors[0], shadow_pts, shadow_colors, n);
-
-    for (int i = 0; i < n; i++) {
-        shadow_pts[i] = vec2_add(spts[i], vec2_make(0.0f, 5.0f));
-        shadow_colors[i] = color_make(0.0f, 0.0f, 0.0f, 0.10f);
-    }
-    draw_triangle_fan(vec2_add(pivot, vec2_make(0.0f, 5.0f)), shadow_colors[0], shadow_pts, shadow_colors, n);
-
-    draw_polyline(spts, n, true, 14.0f, color_alpha(outline, 0.035f));
-    draw_polyline(spts, n, true, 6.0f, color_alpha(outline, 0.055f));
-    draw_triangle_fan(pivot, pivot_color, spts, rim_colors, n);
-    draw_polyline(spts, n, true, 1.35f, outline);
-
     for (int i = 0; i < MAP_DOOR_COUNT; i++) {
-        const map_door *door = &app.map.doors[i];
-        vec2 c = map_world_to_screen(&app.cam, app.width, app.vp_h, door->center);
-        float dw = door->width * zoom;
-        float dh = door->height * zoom;
-        float hover = app.door_hover[i];
-        if (hover > 0.01f) {
-            draw_radial_glow(c, 12.0f, color_hex(0x9c2323, 0.10f * hover),
-                             color_hex(0x9c2323, 0.0f), 32);
+        vec2 c = map_world_to_screen(&app.cam, app.width, app.vp_h, app.map.doors[i].center);
+        if (i == DOOR_LOCKED) {
+            float hover = clampf(app.door_hover[i], 0.0f, 1.0f);
+            draw_sprite(&g_assets->door_locked, c, door_w * zoom, door_h * zoom, 0.0f,
+                        color_make(1.0f, 1.0f, 1.0f, 1.0f - hover));
+            draw_sprite(&g_assets->door_locked_hover, c, door_w * zoom, door_h * zoom, 0.0f,
+                        color_make(1.0f, 1.0f, 1.0f, hover));
+        } else {
+            draw_sprite(&g_assets->door_service, c, door_w * zoom, door_h * zoom, 0.0f,
+                        color_make(1.0f, 1.0f, 1.0f, 1.0f));
         }
-        color fill = door->fill;
-        if (hover > 0.0f) {
-            fill = color_lerp(fill, color_hex(0xb22e2e, 1.0f), hover * 0.75f);
-        }
-        draw_rect_fill((rect){c.x - dw * 0.5f, c.y - dh * 0.5f, dw, dh}, fill);
     }
-
-    float label_size = roundf(clampf(17.0f * zoom, 10.0f, 30.0f) * 0.5f) * 2.0f;
-    vec2 label = map_world_to_screen(&app.cam, app.width, app.vp_h, app.map.label_pos);
-    draw_text(DRAW_FONT_MEDIUM, label_size, color_make(0.0f, 0.0f, 0.0f, 0.45f),
-              FONS_ALIGN_CENTER | FONS_ALIGN_MIDDLE,
-              vec2_add(label, vec2_make(1.0f, 1.5f)), "Entrance");
-    draw_text(DRAW_FONT_MEDIUM, label_size, color_hex(0xe2ddcc, 0.93f),
-              FONS_ALIGN_CENTER | FONS_ALIGN_MIDDLE, label, "Entrance");
 }
 
 static void draw_player_pulse(void) {
@@ -304,29 +273,24 @@ static void draw_player_pulse(void) {
     for (int i = 0; i < 2; i++) {
         float phase = fmodf(p->pulse_time + (float)i * (period * 0.5f), period) / period;
         float eased = 1.0f - (1.0f - phase) * (1.0f - phase);
-        float radius = (10.0f + 38.0f * eased) * cam->zoom;
-        float alpha = (1.0f - phase) * (1.0f - phase) * 0.26f;
-        draw_ring(ps, radius, 1.1f, color_hex(0xedbf4f, alpha), 48);
+        float size = (34.0f + 66.0f * eased) * cam->zoom;
+        float alpha = 0.55f * (1.0f - phase) * (1.0f - phase);
+        draw_sprite(&g_assets->pulse_ring, ps, size, size, 0.0f,
+                    color_make(1.0f, 1.0f, 1.0f, alpha));
     }
 
-    float breathe = 0.16f + 0.04f * sinf(app.time * 2.4f) + p->reset_flash * 0.18f;
-    draw_radial_glow(ps, 38.0f * cam->zoom, color_hex(0xedbf4f, breathe),
-                     color_hex(0xedbf4f, 0.0f), 40);
-
-    if (p->reset_flash > 0.0f) {
-        float t = 1.0f - p->reset_flash;
-        float radius = (10.0f + 70.0f * t) * cam->zoom;
-        draw_ring(ps, radius, 1.4f, color_hex(0xf4d472, 0.45f * p->reset_flash), 48);
-    }
+    float breathe = 0.20f + 0.05f * sinf(app.time * 2.4f) + p->reset_flash * 0.18f;
+    float glow = 64.0f * cam->zoom;
+    draw_sprite(&g_assets->player_glow, ps, glow, glow, 0.0f,
+                color_make(1.0f, 1.0f, 1.0f, breathe));
 }
 
 static void draw_player_arrow(void) {
     const player *p = &app.player;
     const camera *cam = &app.cam;
     vec2 ps = map_world_to_screen(cam, app.width, app.vp_h, p->pos);
-    draw_chevron(ps, 26.0f * cam->zoom, 20.0f * cam->zoom, p->heading,
-                 color_hex(0xf9dd87, 1.0f), color_hex(0xd9a63a, 1.0f),
-                 color_hex(0x6d541b, 0.95f));
+    draw_sprite(&g_assets->player_arrow, ps, 49.0f * cam->zoom, 40.0f * cam->zoom,
+                p->heading, color_make(1.0f, 1.0f, 1.0f, 1.0f));
 }
 
 static void draw_cursor(void) {
@@ -334,7 +298,6 @@ static void draw_cursor(void) {
         return;
     }
     vec2 m = app.mouse;
-    float hover = app.door_hover[DOOR_LOCKED];
     color guide = color_hex(0xbebbad, 0.10f);
 
     draw_line(vec2_make(0.0f, m.y), vec2_make(app.width, m.y), 1.0f, guide);
@@ -344,10 +307,8 @@ static void draw_cursor(void) {
     float near = 1.0f - smoothstepf(clampf((vec2_len(vec2_sub(m, ps)) - 14.0f) / 26.0f, 0.0f, 1.0f));
     float cursor_alpha = 1.0f - 0.85f * near;
 
-    float radius = 10.0f + hover * 1.6f;
-    draw_circle_fill(m, radius + 2.5f, color_make(0.0f, 0.0f, 0.0f, 0.16f * cursor_alpha), 40);
-    draw_circle_fill(m, radius - 1.4f, color_hex(0x04070a, 0.55f * cursor_alpha), 36);
-    draw_ring(m, radius, 1.35f, color_hex(0xc8c3b2, 0.92f * cursor_alpha), 44);
+    draw_sprite(&g_assets->cursor_ring, m, 24.0f, 24.0f, 0.0f,
+                color_make(1.0f, 1.0f, 1.0f, cursor_alpha));
 }
 
 static void draw_tooltip(void) {
@@ -366,12 +327,11 @@ static void draw_tooltip(void) {
     px = clampf(px, 8.0f, app.width - pw - 8.0f);
     float py = clampf(m.y - ph * 0.5f, 8.0f, app.vp_h - ph - 8.0f);
 
-    draw_rounded_rect((rect){px, py, pw, ph}, 2.0f,
-                      color_hex(0x04070a, 0.78f * t),
-                      color_hex(0xbeb8a6, 0.35f * t), 1.2f);
-    draw_text(DRAW_FONT_REGULAR, 16.0f, color_hex(0xded9c8, 0.95f * t),
+    draw_sprite(&g_assets->tooltip, vec2_make(px + pw * 0.5f, py + ph * 0.5f),
+                pw, ph, 0.0f, color_make(1.0f, 1.0f, 1.0f, t));
+    draw_text(DRAW_FONT_REGULAR, 18.0f, color_hex(0xe2ddd0, 0.98f * t),
               FONS_ALIGN_LEFT | FONS_ALIGN_MIDDLE,
-              vec2_make(px + 12.0f, py + ph * 0.5f), "Locked Door");
+              vec2_make(px + 12.0f, py + 15.0f), "Locked Door");
 }
 
 static void draw_fps(void) {
@@ -397,12 +357,14 @@ static void draw_status(void) {
     float total = square + gap + wa + group_gap + square + gap + wb;
     float x = (app.width - total) * 0.5f;
 
-    draw_rect_fill((rect){x, y - square * 0.5f, square, square}, color_hex(0x7a1f1f, 0.95f));
+    draw_sprite(&g_assets->legend_searching, vec2_make(x + square * 0.5f, y),
+                square, square, 0.0f, color_make(1.0f, 1.0f, 1.0f, 1.0f));
     draw_text(DRAW_FONT_REGULAR, 16.0f, color_hex(0xcfc9ba, 0.86f),
               FONS_ALIGN_LEFT | FONS_ALIGN_MIDDLE,
               vec2_make(x + square + gap, y), label_a);
     x += square + gap + wa + group_gap;
-    draw_rect_fill((rect){x, y - square * 0.5f, square, square}, color_hex(0x284b5c, 0.95f));
+    draw_sprite(&g_assets->legend_complete, vec2_make(x + square * 0.5f, y),
+                square, square, 0.0f, color_make(1.0f, 1.0f, 1.0f, 1.0f));
     draw_text(DRAW_FONT_REGULAR, 16.0f, color_hex(0xcfc9ba, 0.86f),
               FONS_ALIGN_LEFT | FONS_ALIGN_MIDDLE,
               vec2_make(x + square + gap, y), label_b);
@@ -468,14 +430,9 @@ static void render(void) {
 
     fonsClearState(g_fons);
 
-    vec2 map_center = map_world_to_screen(&app.cam, w, vh, vec2_make(0.0f, 80.0f));
-    draw_radial_glow(map_center, fminf(w, vh) * 0.72f,
-                     color_make(0.090f, 0.170f, 0.210f, 0.30f),
-                     color_make(0.090f, 0.170f, 0.210f, 0.0f), 64);
-
     draw_dot_grid();
-
-    draw_map_geometry();
+    draw_map();
+    draw_doors();
     draw_player_pulse();
     draw_cursor();
     draw_player_arrow();
@@ -534,6 +491,12 @@ static void init(void) {
         },
     });
 
+    g_assets = assets_load();
+    if (!g_assets) {
+        fprintf(stderr, "could not load image assets\n");
+        exit(1);
+    }
+
     g_fons = sfons_create(&(sfons_desc_t){
         .width = 1024,
         .height = 1024,
@@ -545,9 +508,9 @@ static void init(void) {
     }
 
     int regular_size = 0;
-    unsigned char *regular_data = load_font("NotoSans-Regular.ttf", &regular_size);
+    unsigned char *regular_data = load_font("Roboto-Regular.ttf", &regular_size);
     if (!regular_data) {
-        fprintf(stderr, "could not load NotoSans-Regular.ttf\n");
+        fprintf(stderr, "could not load Roboto-Regular.ttf\n");
         sapp_quit();
         return;
     }
@@ -557,14 +520,7 @@ static void init(void) {
         sapp_quit();
         return;
     }
-
-    int medium_size = 0;
-    unsigned char *medium_data = load_font("NotoSans-Medium.ttf", &medium_size);
-    int font_medium = FONS_INVALID;
-    if (medium_data) {
-        font_medium = fonsAddFontMem(g_fons, "medium", medium_data, medium_size, 1);
-    }
-    draw_fonts_init(g_fons, font_regular, font_medium);
+    draw_fonts_init(g_fons, font_regular, FONS_INVALID);
 
     map_init(&app.map);
     player_init(&app.player);
@@ -584,7 +540,7 @@ static void init(void) {
     pass_action = (sg_pass_action){
         .colors[0] = {
             .load_action = SG_LOADACTION_CLEAR,
-            .clear_value = {0.0196f, 0.0235f, 0.0275f, 1.0f},
+            .clear_value = {0.012f, 0.014f, 0.016f, 1.0f},
         },
     };
 
@@ -635,6 +591,8 @@ static void cleanup(void) {
         sfons_destroy(g_fons);
         g_fons = NULL;
     }
+    assets_destroy(g_assets);
+    g_assets = NULL;
     sgl_destroy_pipeline(alpha_pipeline);
     sgl_shutdown();
     sg_shutdown();
