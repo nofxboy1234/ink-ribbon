@@ -110,9 +110,44 @@ static void update_layout(void) {
               app.width, app.vp_h, app.cam.fit_zoom, app.cam.zoom, app.cam.target_zoom);
 }
 
+static void joystick_update(void) {
+    joystick *j = &app.stick;
+    j->center = vec2_make(app.width * 0.5f, app.vp_h * 0.5f);
+    vec2 offset = vec2_sub(app.mouse, j->center);
+    float len = vec2_len(offset);
+    if (!app.mouse_inside) {
+        app.stick_engaged = false;
+    }
+    if (!app.stick_engaged) {
+        if (app.mouse_inside && len <= JOYSTICK_RADIUS) {
+            app.stick_engaged = true;
+        } else {
+            j->length = 0.0f;
+            j->turn_rate = 0.0f;
+            j->active = false;
+            j->running = false;
+            j->face = false;
+            j->dir = vec2_make(0.0f, 0.0f);
+            j->knob = j->center;
+            return;
+        }
+    }
+    j->length = fminf(len, JOYSTICK_RADIUS);
+    j->active = app.mouse_inside && len > JOYSTICK_DEADZONE;
+    j->dir = j->active ? vec2_norm(offset) : vec2_make(0.0f, 0.0f);
+    j->knob = j->active ? vec2_add(j->center, vec2_scale(j->dir, j->length)) : j->center;
+    j->running = j->active && j->length > JOYSTICK_RADIUS * JOYSTICK_RUN_RATIO;
+    j->face = app.left_down;
+
+    float level = clampf(j->length / JOYSTICK_RADIUS, 0.0f, 1.0f);
+    float steer = atan2f(j->dir.x, -j->dir.y);
+    float max_turn = j->running ? PLAYER_RUN_TURN_RATE : PLAYER_WALK_TURN_RATE;
+    j->turn_rate = clampf(steer / (MAP_PI * 0.5f), -1.0f, 1.0f) * level * max_turn;
+}
+
 static void update_hover(float dt) {
-    vec2 world = map_screen_to_world(&app.cam, app.width, app.vp_h, app.mouse);
-    bool can_hover = mouse_in_viewport() && app.pan != PAN_ACTIVE;
+    vec2 world = map_screen_to_world(&app.cam, app.width, app.vp_h, app.stick.knob);
+    bool can_hover = app.mouse_inside;
     float pad = 5.0f / app.cam.zoom;
 
     for (int i = 0; i < MAP_DOOR_COUNT; i++) {
@@ -129,123 +164,48 @@ static void update_hover(float dt) {
     if (debug_enabled) {
         int hovering = over ? 1 : 0;
         if (hovering != debug_last_hover) {
-            debug_log("[dbg] hover locked=%d mouse=(%.1f,%.1f)\n", hovering, app.mouse.x, app.mouse.y);
+            debug_log("[dbg] hover locked=%d knob=(%.1f,%.1f)\n",
+                      hovering, app.stick.knob.x, app.stick.knob.y);
             debug_last_hover = hovering;
         }
     }
 }
 
-static void handle_click(int button, float speed) {
-    if (!mouse_in_viewport()) {
-        return;
-    }
-
-    bool double_click = app.last_click_button == button &&
-                        (app.time - app.last_click_time) < 0.35f &&
-                        vec2_len(vec2_sub(app.mouse, app.last_click_pos)) < 8.0f;
-    app.last_click_time = app.time;
-    app.last_click_pos = app.mouse;
-    app.last_click_button = button;
-    if (double_click) {
-        player_cancel_movement(&app.player);
-        app.show_rope = !app.show_rope;
-        app.last_click_time = -10.0f;
-        debug_log("[dbg] double click cancel rope=%d\n", app.show_rope ? 1 : 0);
-        return;
-    }
-
-    vec2 world = map_screen_to_world(&app.cam, app.width, app.vp_h, app.mouse);
-    bool inside = map_contains(&app.map, world);
-    float pad = 3.0f / app.cam.zoom;
-    bool on_door = map_door_hit(&app.map, DOOR_LOCKED, world, pad) ||
-                   map_door_hit(&app.map, DOOR_SERVICE, world, pad);
-
-    debug_log("[dbg] click screen=(%.1f,%.1f) world=(%.1f,%.1f) inside=%d on_door=%d speed=%.0f\n",
-              app.mouse.x, app.mouse.y, world.x, world.y, inside ? 1 : 0, on_door ? 1 : 0, speed);
-
-    if (inside && !on_door) {
-        player_push_target(&app.player, &app.map, world, speed);
-        debug_log("[dbg] move target=(%.1f,%.1f) targets=%d route=%d speed=%.0f\n",
-                  world.x, world.y, app.player.target_count, app.player.route_count, speed);
-    }
-}
-
 static void on_event(const sapp_event *ev) {
     switch (ev->type) {
-    case SAPP_EVENTTYPE_MOUSE_MOVE: {
+    case SAPP_EVENTTYPE_MOUSE_MOVE:
         app.mouse = vec2_make(ev->mouse_x, ev->mouse_y);
         app.mouse_inside = ev->mouse_x >= 0.0f && ev->mouse_x < app.width &&
                            ev->mouse_y >= 0.0f && ev->mouse_y < app.height;
-        if (app.pan == PAN_ACTIVE) {
-            vec2 delta = vec2_sub(app.mouse, app.pan_start);
-            app.cam.target_center.x = app.pan_center.x - delta.x / app.cam.zoom;
-            app.cam.target_center.y = app.pan_center.y + delta.y / app.cam.zoom;
-            camera_clamp(&app.cam);
-            app.cam.center = app.cam.target_center;
-        }
-        if (app.left_down && vec2_len(vec2_sub(app.mouse, app.left_start)) > 4.0f) {
-            app.left_moved = true;
-        }
-        if (app.right_down && vec2_len(vec2_sub(app.mouse, app.right_start)) > 4.0f) {
-            app.right_moved = true;
-        }
         break;
-    }
     case SAPP_EVENTTYPE_MOUSE_DOWN:
-        if (mouse_in_viewport() && ev->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) {
-            app.mouse = vec2_make(ev->mouse_x, ev->mouse_y);
-            app.pan = PAN_ACTIVE;
-            app.pan_start = app.mouse;
-            app.pan_center = app.cam.center;
-            app.cam.target_center = app.cam.center;
-        } else if (mouse_in_viewport() && ev->mouse_button == SAPP_MOUSEBUTTON_LEFT) {
+        if (ev->mouse_button == SAPP_MOUSEBUTTON_LEFT) {
             app.mouse = vec2_make(ev->mouse_x, ev->mouse_y);
             app.left_down = true;
-            app.left_moved = false;
-            app.left_start = app.mouse;
-        } else if (mouse_in_viewport() && ev->mouse_button == SAPP_MOUSEBUTTON_RIGHT) {
-            app.mouse = vec2_make(ev->mouse_x, ev->mouse_y);
-            app.right_down = true;
-            app.right_moved = false;
-            app.right_start = app.mouse;
         }
         break;
     case SAPP_EVENTTYPE_MOUSE_UP:
-        if (ev->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) {
-            if (app.pan == PAN_ACTIVE) {
-                debug_log("[dbg] pan end cam_target=(%.1f,%.1f)\n",
-                          app.cam.target_center.x, app.cam.target_center.y);
-            }
-            app.pan = PAN_IDLE;
-        } else if (ev->mouse_button == SAPP_MOUSEBUTTON_LEFT) {
+        if (ev->mouse_button == SAPP_MOUSEBUTTON_LEFT) {
             app.mouse = vec2_make(ev->mouse_x, ev->mouse_y);
-            if (app.left_down && !app.left_moved) {
-                handle_click(0, PLAYER_WALK_SPEED);
-            }
             app.left_down = false;
-        } else if (ev->mouse_button == SAPP_MOUSEBUTTON_RIGHT) {
-            app.mouse = vec2_make(ev->mouse_x, ev->mouse_y);
-            if (app.right_down && !app.right_moved) {
-                handle_click(1, PLAYER_RUN_SPEED);
-            }
-            app.right_down = false;
         }
         break;
     case SAPP_EVENTTYPE_MOUSE_SCROLL:
         if (mouse_in_viewport() && ev->scroll_y != 0.0f) {
             app.mouse = vec2_make(ev->mouse_x, ev->mouse_y);
             float factor = expf(ev->scroll_y * 0.12f);
-            camera_zoom_at(&app.cam, app.width, app.vp_h, app.mouse, factor);
-            debug_log("[dbg] zoom=%.3f target_zoom=%.3f target_center=(%.1f,%.1f) anchor=(%.1f,%.1f)\n",
-                      app.cam.zoom, app.cam.target_zoom, app.cam.target_center.x,
-                      app.cam.target_center.y, app.mouse.x, app.mouse.y);
+            camera_zoom(&app.cam, factor);
+            debug_log("[dbg] zoom=%.3f center=(%.1f,%.1f)\n",
+                      app.cam.zoom, app.cam.center.x, app.cam.center.y);
         }
         break;
     case SAPP_EVENTTYPE_KEY_DOWN:
         if (ev->key_code == SAPP_KEYCODE_R && !ev->key_repeat) {
             camera_reset(&app.cam, app.player.pos);
+            app.cam.target_center = app.player.pos;
+            app.cam.center = app.player.pos;
             app.player.reset_flash = 1.0f;
-            debug_log("[dbg] reset fit=%.3f target_zoom=%.3f target_center=(%.1f,%.1f)\n",
+            debug_log("[dbg] reset fit=%.3f target_zoom=%.3f center=(%.1f,%.1f)\n",
                       app.cam.fit_zoom, app.cam.target_zoom,
                       app.cam.target_center.x, app.cam.target_center.y);
         }
@@ -256,11 +216,8 @@ static void on_event(const sapp_event *ev) {
         break;
     case SAPP_EVENTTYPE_MOUSE_LEAVE:
         app.mouse_inside = false;
-        app.pan = PAN_IDLE;
         app.left_down = false;
-        app.left_moved = false;
-        app.right_down = false;
-        app.right_moved = false;
+        app.stick_engaged = false;
         break;
     case SAPP_EVENTTYPE_RESIZED:
         break;
@@ -298,76 +255,16 @@ static void draw_doors(void) {
     }
 }
 
-#define ROPE_SIM_STEPS 720
-
-static void draw_waypoint_rope(void) {
-    const player *p = &app.player;
-    bool preview = mouse_in_viewport() && app.pan != PAN_ACTIVE;
-    vec2 cursor_world = map_screen_to_world(&app.cam, app.width, app.vp_h, app.mouse);
-    if (preview) {
-        preview = map_contains(&app.map, cursor_world);
-        if (preview) {
-            float pad = 3.0f / app.cam.zoom;
-            preview = !map_door_hit(&app.map, DOOR_LOCKED, cursor_world, pad) &&
-                      !map_door_hit(&app.map, DOOR_SERVICE, cursor_world, pad);
-        }
-    }
-
-    color green = color_hex(0x3dff74, 0.92f);
-    color green_dim = color_hex(0x3dff74, 0.45f);
-    color green_glow = color_hex(0x3dff74, 0.06f);
-    color preview_glow = color_hex(0x59ff8c, 0.13f);
-
-    if (app.show_rope) {
-        float body_radius = 20.0f / app.cam.zoom + 1.0f;
-        player sim = *p;
-        int original_count = sim.target_count;
-        if (preview) {
-            float speed = original_count > 0
-                              ? p->targets[original_count - 1].max_speed
-                              : PLAYER_WALK_SPEED;
-            player_push_target(&sim, &app.map, cursor_world, speed);
-        }
-
-        if (sim.target_count > 0) {
-            vec2 points[ROPE_SIM_STEPS + 2];
-            int count = 0;
-            int split = (preview && original_count == 0) ? 0 : -1;
-            points[count++] = map_world_to_screen(&app.cam, app.width, app.vp_h, sim.pos);
-            for (int i = 0; i < ROPE_SIM_STEPS; i++) {
-                player_step(&sim, &app.map, body_radius, 1.0f / 60.0f);
-                if (preview && original_count > 0 && split < 0 && sim.target_count == 1) {
-                    split = count;
-                }
-                points[count++] = map_world_to_screen(&app.cam, app.width, app.vp_h, sim.pos);
-                if (!sim.moving || sim.target_count == 0) {
-                    break;
-                }
-            }
-            if (split < 0) {
-                split = count;
-            }
-            for (int i = 1; i < count; i++) {
-                bool is_preview = preview && i >= split;
-                draw_line(points[i - 1], points[i], is_preview ? 7.0f : 5.0f,
-                          is_preview ? preview_glow : green_glow);
-                draw_line(points[i - 1], points[i], is_preview ? 2.4f : 1.7f,
-                          is_preview ? green : green_dim);
-            }
-        }
-    }
-
-    float cell = WAYPOINT_CELL_SIZE * app.cam.zoom;
-    color cyan = color_hex(0x3fe6e6, 0.95f);
-    for (int i = 0; i < p->target_count; i++) {
-        vec2 c = map_world_to_screen(&app.cam, app.width, app.vp_h, p->targets[i].pos);
-        float x = c.x - cell * 0.5f;
-        float y = c.y - cell * 0.5f;
-        draw_rect_fill((rect){x, y, cell, cell}, color_hex(0x3fe6e6, 0.30f));
-        draw_line(vec2_make(x, y), vec2_make(x + cell, y), 1.5f, cyan);
-        draw_line(vec2_make(x + cell, y), vec2_make(x + cell, y + cell), 1.5f, cyan);
-        draw_line(vec2_make(x + cell, y + cell), vec2_make(x, y + cell), 1.5f, cyan);
-        draw_line(vec2_make(x, y + cell), vec2_make(x, y), 1.5f, cyan);
+static void draw_joystick(void) {
+    const joystick *j = &app.stick;
+    color ring = color_make(1.0f, 1.0f, 1.0f, 0.78f);
+    color inner = color_make(1.0f, 1.0f, 1.0f, 0.38f);
+    draw_circle_outline(j->center, JOYSTICK_RADIUS, 1.5f, ring);
+    draw_circle_outline(j->center, JOYSTICK_RADIUS * 0.5f, 1.0f, inner);
+    if (j->active) {
+        vec2 edge = vec2_add(j->center, vec2_scale(j->dir, JOYSTICK_RADIUS));
+        draw_line(j->center, edge, 2.0f, color_make(1.0f, 1.0f, 1.0f, 0.88f));
+        draw_line(j->center, j->knob, 3.0f, color_hex(0x3dff74, 0.95f));
     }
 }
 
@@ -395,19 +292,10 @@ static void draw_player_arrow(void) {
 }
 
 static void draw_cursor(void) {
-    if (!mouse_in_viewport()) {
+    if (!app.mouse_inside) {
         return;
     }
-    vec2 m = app.mouse;
-    color guide_start = color_hex(0xbebbad, 0.34f);
-    color guide_end = color_hex(0xbebbad, 0.02f);
-
-    draw_tapered_line(m, vec2_make(0.0f, m.y), 2.0f, 0.35f, guide_start, guide_end);
-    draw_tapered_line(m, vec2_make(app.width, m.y), 2.0f, 0.35f, guide_start, guide_end);
-    draw_tapered_line(m, vec2_make(m.x, 0.0f), 2.0f, 0.35f, guide_start, guide_end);
-    draw_tapered_line(m, vec2_make(m.x, app.vp_h), 2.0f, 0.35f, guide_start, guide_end);
-
-    draw_sprite(&g_assets->cursor_ring, m, 30.0f, 30.0f, 0.0f,
+    draw_sprite(&g_assets->cursor_ring, app.stick.knob, 30.0f, 30.0f, 0.0f,
                 color_make(1.0f, 1.0f, 1.0f, 1.0f));
 }
 
@@ -416,7 +304,7 @@ static void draw_tooltip(void) {
     if (t <= 0.001f) {
         return;
     }
-    vec2 m = app.mouse;
+    vec2 m = app.stick.knob;
     float pw = 250.0f;
     float ph = 30.0f;
     float slide = (1.0f - t) * 6.0f;
@@ -472,7 +360,7 @@ static void draw_status(void) {
     draw_text(DRAW_FONT_REGULAR, 11.0f, color_hex(0xcfc9ba, 0.42f),
               FONS_ALIGN_CENTER | FONS_ALIGN_MIDDLE,
               vec2_make(app.width * 0.5f, app.vp_h + 100.0f),
-              "MIDDLE DRAG PAN    SCROLL ZOOM    LMB WALK    RMB RUN    DOUBLE CLICK CANCEL/ROPE    R RESET");
+              "MOVE MOUSE STICK    INNER WALK / OUTER RUN    HOLD LMB TURN    SCROLL ZOOM    R RESET");
 }
 
 static void draw_vignette(void) {
@@ -533,7 +421,7 @@ static void render(void) {
     draw_dot_grid();
     draw_map();
     draw_doors();
-    draw_waypoint_rope();
+    draw_joystick();
     draw_player_pulse();
     draw_cursor();
     draw_player_arrow();
@@ -560,7 +448,17 @@ static void update(float dt) {
     app.time += dt;
     camera_update(&app.cam, dt);
     float body_radius = 20.0f / app.cam.zoom + 1.0f;
-    player_update(&app.player, &app.map, body_radius, dt);
+    joystick_update();
+    move_input input = {
+        .dir = vec2_make(app.stick.dir.x, -app.stick.dir.y),
+        .turn_rate = app.stick.turn_rate,
+        .active = app.stick.active,
+        .running = app.stick.running,
+        .face = app.left_down,
+    };
+    player_update(&app.player, &app.map, input, body_radius, dt);
+    app.cam.target_center = app.player.pos;
+    app.cam.center = app.player.pos;
     update_hover(dt);
 }
 
@@ -570,7 +468,7 @@ static void init(void) {
     if (frame_log_path) {
         frame_log_file = fopen(frame_log_path, "w");
         if (frame_log_file) {
-            fprintf(frame_log_file, "dt,x,y,heading,speed\n");
+            fprintf(frame_log_file, "dt,x,y,heading,speed,stick_len,stick_active,stick_running,stick_face\n");
         }
     }
 
@@ -630,12 +528,14 @@ static void init(void) {
     app.height = (float)sapp_height();
     app.vp_h = fmaxf(140.0f, app.height - 156.0f);
     camera_init(&app.cam, app.width, app.vp_h);
-    app.mouse = vec2_make(app.width * 0.58f, app.vp_h * 0.62f);
-    app.mouse_inside = true;
-    app.last_click_time = -10.0f;
-    app.last_click_button = -1;
-    app.show_rope = true;
-    app.pan = PAN_IDLE;
+    app.mouse = vec2_make(app.width * 0.5f, app.vp_h * 0.5f);
+    app.mouse_inside = false;
+    app.left_down = false;
+    app.stick_engaged = false;
+    app.cam.center = app.player.pos;
+    app.cam.target_center = app.player.pos;
+    app.stick.center = app.mouse;
+    app.stick.knob = app.mouse;
     app.time = 0.0f;
     app.tooltip = 0.0f;
     app.fps = 60.0f;
@@ -677,9 +577,11 @@ static void frame(void) {
     float dt = clampf(raw_dt, 0.0f, 0.05f);
     update(dt);
     if (frame_log_file) {
-        fprintf(frame_log_file, "%.6f,%.3f,%.3f,%.5f,%.3f\n",
+        fprintf(frame_log_file, "%.6f,%.3f,%.3f,%.5f,%.3f,%.2f,%d,%d,%d\n",
                 raw_dt, app.player.pos.x, app.player.pos.y,
-                app.player.heading, app.player.speed);
+                app.player.heading, app.player.speed, app.stick.length,
+                app.stick.active ? 1 : 0, app.stick.running ? 1 : 0,
+                app.left_down ? 1 : 0);
         if ((++frame_log_rows % 10) == 0) {
             fflush(frame_log_file);
         }

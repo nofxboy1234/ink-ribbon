@@ -19,17 +19,13 @@ typedef struct {
 } rect;
 
 #define MAP_POLY_MAX 80
-#define MAP_MAX_WAYPOINTS 3
-#define PLAYER_MAX_TARGETS 12
-#define WAYPOINT_CELL_SIZE 18.0f
 #define PLAYER_WALK_SPEED 125.0f
 #define PLAYER_RUN_SPEED 250.0f
-
-typedef struct {
-    vec2 pos;
-    float max_speed;
-    bool running;
-} move_target;
+#define PLAYER_WALK_TURN_RATE 3.2f
+#define PLAYER_RUN_TURN_RATE 5.5f
+#define JOYSTICK_RADIUS 120.0f
+#define JOYSTICK_DEADZONE 8.0f
+#define JOYSTICK_RUN_RATIO 0.5f
 #define MAP_DOOR_COUNT 2
 #define MAP_WORLD_MIN_X (-360.0f)
 #define MAP_WORLD_MAX_X (360.0f)
@@ -66,27 +62,31 @@ typedef struct {
 } camera;
 
 typedef struct {
+    vec2 center;
+    vec2 knob;
+    vec2 dir;
+    float length;
+    float turn_rate;
+    bool active;
+    bool running;
+    bool face;
+} joystick;
+
+typedef struct {
+    vec2 dir;
+    float turn_rate;
+    bool active;
+    bool running;
+    bool face;
+} move_input;
+
+typedef struct {
     vec2 pos;
     float heading;
-    float target_heading;
-    vec2 route[MAP_MAX_WAYPOINTS];
-    int route_count;
-    int route_index;
-    move_target targets[PLAYER_MAX_TARGETS];
-    int target_count;
     float speed;
-    float max_speed;
-    bool moving;
-    bool running;
-    bool use_arc;
     float pulse_time;
     float reset_flash;
 } player;
-
-typedef enum {
-    PAN_IDLE = 0,
-    PAN_ACTIVE,
-} pan_state;
 
 typedef struct {
     map_geometry map;
@@ -97,19 +97,9 @@ typedef struct {
     float vp_h;
     vec2 mouse;
     bool mouse_inside;
-    float last_click_time;
-    vec2 last_click_pos;
-    int last_click_button;
-    bool show_rope;
     bool left_down;
-    bool left_moved;
-    vec2 left_start;
-    bool right_down;
-    bool right_moved;
-    vec2 right_start;
-    pan_state pan;
-    vec2 pan_start;
-    vec2 pan_center;
+    bool stick_engaged;
+    joystick stick;
     float door_hover[MAP_DOOR_COUNT];
     float tooltip;
     float time;

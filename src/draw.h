@@ -16,8 +16,7 @@ void draw_rect_fill(rect r, color c);
 void draw_rect_gradient(rect r, color top, color bottom);
 void draw_rect_gradient_h(rect r, color left, color right);
 void draw_line(vec2 a, vec2 b, float width, color c);
-void draw_tapered_line(vec2 from, vec2 to, float start_width, float end_width,
-                       color start, color end);
+void draw_circle_outline(vec2 center, float radius, float width, color c);
 void draw_sprite(const texture *tex, vec2 center, float width, float height,
                  float rotation, color tint);
 
