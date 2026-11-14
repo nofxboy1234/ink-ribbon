@@ -63,7 +63,14 @@ import -window "$wid" "$SHOTS/10-min-zoom.png"
 xdotool click --repeat 30 4
 sleep 0.6
 import -window "$wid" "$SHOTS/11-max-zoom.png"
-kill $app_pid 2>/dev/null || true
+xdotool key --window "$wid" Escape
+if wait $app_pid; then
+    echo "close_exit=0"
+else
+    close_code=$?
+    echo "close_exit=$close_code" >&2
+    exit 1
+fi
 '
 
 if grep -Eq '\[sg\]\[(error|panic)\]|\[sapp\]\[error\]' "$LOG"; then

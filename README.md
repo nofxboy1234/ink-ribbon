@@ -51,7 +51,7 @@ The map and sprite textures upload a CPU mip chain with `num_mipmaps` and linear
 
 ## Verification
 
-`tools/verify.sh` builds the app, runs it under Xvfb, drives WASD and the right-click latch, and saves screenshots to `verification/shots`. It checks the walking strafe and backpedal, the run latch, the running turn, camera follow, the free cursor, the absence of the old analog ring, the zoom range, and the frame log movement states. It needs `xvfb-run`, `xdotool`, ImageMagick, and Python 3.
+`tools/verify.sh` builds the app, runs it under Xvfb, drives WASD and the right-click latch, and saves screenshots to `verification/shots`. It checks the walking strafe and backpedal, the run latch, the running turn, camera follow, the free cursor, the absence of the old analog ring, the zoom range, the frame log movement states, and a clean close through the Escape quit path. It needs `xvfb-run`, `xdotool`, ImageMagick, and Python 3.
 
 ## License
 

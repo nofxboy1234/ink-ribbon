@@ -165,6 +165,9 @@ static void on_event(const sapp_event *ev) {
         case SAPP_KEYCODE_A: app.key_a = true; break;
         case SAPP_KEYCODE_S: app.key_s = true; break;
         case SAPP_KEYCODE_D: app.key_d = true; break;
+        case SAPP_KEYCODE_ESCAPE:
+            sapp_quit();
+            break;
         case SAPP_KEYCODE_R:
             if (!ev->key_repeat) {
                 camera_reset(&app.cam, app.player.pos);
@@ -569,6 +572,8 @@ static void frame(void) {
 }
 
 static void cleanup(void) {
+    sapp_set_mouse_cursor(SAPP_MOUSECURSOR_DEFAULT);
+    sapp_unbind_mouse_cursor_image(SAPP_MOUSECURSOR_CUSTOM_0);
     if (frame_log_file) {
         fclose(frame_log_file);
         frame_log_file = NULL;
