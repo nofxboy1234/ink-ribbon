@@ -163,7 +163,8 @@ static void on_event(const sapp_event *ev) {
                            ev->mouse_y >= 0.0f && ev->mouse_y < app.height;
         if (app.pan == PAN_ACTIVE) {
             vec2 delta = vec2_sub(app.mouse, app.pan_start);
-            app.cam.target_center = vec2_sub(app.pan_center, vec2_scale(delta, 1.0f / app.cam.zoom));
+            app.cam.target_center.x = app.pan_center.x - delta.x / app.cam.zoom;
+            app.cam.target_center.y = app.pan_center.y + delta.y / app.cam.zoom;
             camera_clamp(&app.cam);
         }
         if (app.left_down && vec2_len(vec2_sub(app.mouse, app.left_start)) > 4.0f) {
@@ -211,7 +212,7 @@ static void on_event(const sapp_event *ev) {
         break;
     case SAPP_EVENTTYPE_KEY_DOWN:
         if (ev->key_code == SAPP_KEYCODE_R && !ev->key_repeat) {
-            camera_reset(&app.cam, app.width, app.player.pos);
+            camera_reset(&app.cam, app.player.pos);
             app.player.reset_flash = 1.0f;
             debug_log("[dbg] reset fit=%.3f target_zoom=%.3f target_center=(%.1f,%.1f)\n",
                       app.cam.fit_zoom, app.cam.target_zoom,
@@ -268,21 +269,11 @@ static void draw_player_pulse(void) {
     const player *p = &app.player;
     const camera *cam = &app.cam;
     vec2 ps = map_world_to_screen(cam, app.width, app.vp_h, p->pos);
-    float period = 2.4f;
-
-    for (int i = 0; i < 2; i++) {
-        float phase = fmodf(p->pulse_time + (float)i * (period * 0.5f), period) / period;
-        float eased = 1.0f - (1.0f - phase) * (1.0f - phase);
-        float size = (34.0f + 66.0f * eased) * cam->zoom;
-        float alpha = 0.55f * (1.0f - phase) * (1.0f - phase);
-        draw_sprite(&g_assets->pulse_ring, ps, size, size, 0.0f,
-                    color_make(1.0f, 1.0f, 1.0f, alpha));
-    }
-
-    float breathe = 0.20f + 0.05f * sinf(app.time * 2.4f) + p->reset_flash * 0.18f;
-    float glow = 64.0f * cam->zoom;
-    draw_sprite(&g_assets->player_glow, ps, glow, glow, 0.0f,
-                color_make(1.0f, 1.0f, 1.0f, breathe));
+    float pulse = 0.5f + 0.5f * sinf(app.time * (2.0f * MAP_PI / 1.7f));
+    float size = (58.0f + 12.0f * pulse + p->reset_flash * 18.0f) * cam->zoom;
+    float alpha = 0.26f + 0.12f * pulse + p->reset_flash * 0.20f;
+    draw_sprite(&g_assets->player_glow, ps, size, size, 0.0f,
+                color_make(1.0f, 1.0f, 1.0f, alpha));
 }
 
 static void draw_player_arrow(void) {
@@ -303,12 +294,8 @@ static void draw_cursor(void) {
     draw_line(vec2_make(0.0f, m.y), vec2_make(app.width, m.y), 1.0f, guide);
     draw_line(vec2_make(m.x, 0.0f), vec2_make(m.x, app.vp_h), 1.0f, guide);
 
-    vec2 ps = map_world_to_screen(&app.cam, app.width, app.vp_h, app.player.pos);
-    float near = 1.0f - smoothstepf(clampf((vec2_len(vec2_sub(m, ps)) - 14.0f) / 26.0f, 0.0f, 1.0f));
-    float cursor_alpha = 1.0f - 0.85f * near;
-
     draw_sprite(&g_assets->cursor_ring, m, 24.0f, 24.0f, 0.0f,
-                color_make(1.0f, 1.0f, 1.0f, cursor_alpha));
+                color_make(1.0f, 1.0f, 1.0f, 1.0f));
 }
 
 static void draw_tooltip(void) {

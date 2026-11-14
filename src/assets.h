@@ -20,7 +20,6 @@ typedef struct {
     texture door_locked_hover;
     texture player_arrow;
     texture player_glow;
-    texture pulse_ring;
     texture cursor_ring;
     texture tooltip;
     texture legend_searching;

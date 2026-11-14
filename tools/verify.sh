@@ -25,10 +25,10 @@ done
 if [ -z "$wid" ]; then echo "window not found" >&2; exit 1; fi
 sleep 0.6
 import -window "$wid" "$SHOTS/01-default.png"
-xdotool mousemove --window "$wid" 720 617
+xdotool mousemove --window "$wid" 720 495
 sleep 0.5
 import -window "$wid" "$SHOTS/02-locked-door.png"
-xdotool mousemove --window "$wid" 900 520 click 1
+xdotool mousemove --window "$wid" 850 430 click 1
 sleep 0.3
 import -window "$wid" "$SHOTS/03-moving.png"
 sleep 1.2
@@ -45,6 +45,13 @@ import -window "$wid" "$SHOTS/07-panned.png"
 xdotool key --window "$wid" r
 sleep 1.2
 import -window "$wid" "$SHOTS/08-reset.png"
+xdotool mousemove --window "$wid" 720 450
+xdotool click --repeat 20 5
+sleep 1.0
+import -window "$wid" "$SHOTS/09-min-zoom.png"
+xdotool click --repeat 30 4
+sleep 1.0
+import -window "$wid" "$SHOTS/10-max-zoom.png"
 '
 
 if grep -Eq '\[sg\]\[(error|panic)\]|\[sapp\]\[error\]' "$LOG"; then
@@ -70,6 +77,10 @@ map_bbox() {
     convert "$1" -fill white -opaque '#162731' -fill black +opaque white -trim -format '%wx%h%O' info:
 }
 
+map_width() {
+    map_bbox "$1" | sed 's/x.*//'
+}
+
 zoom_bbox=$(map_bbox "$SHOTS/05-zoomed.png")
 left_bbox=$(map_bbox "$SHOTS/06-left-drag.png")
 pan_bbox=$(map_bbox "$SHOTS/07-panned.png")
@@ -79,6 +90,14 @@ if [ "$zoom_bbox" != "$left_bbox" ]; then
 fi
 if [ "$zoom_bbox" = "$pan_bbox" ]; then
     echo "middle drag did not pan the map: $zoom_bbox" >&2
+    exit 1
+fi
+
+default_w=$(map_width "$SHOTS/01-default.png")
+min_w=$(map_width "$SHOTS/09-min-zoom.png")
+max_w=$(map_width "$SHOTS/10-max-zoom.png")
+if [ "$min_w" -ge "$default_w" ] || [ "$max_w" -le "$default_w" ]; then
+    echo "zoom range does not bracket the default: min=$min_w default=$default_w max=$max_w" >&2
     exit 1
 fi
 

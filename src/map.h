@@ -16,7 +16,7 @@ void player_update(player *p, float dt);
 void camera_init(camera *cam, float vp_w, float vp_h);
 void camera_resize(camera *cam, float vp_w, float vp_h);
 void camera_update(camera *cam, float dt);
-void camera_reset(camera *cam, float vp_w, vec2 player_pos);
+void camera_reset(camera *cam, vec2 player_pos);
 void camera_zoom_at(camera *cam, float vp_w, float vp_h, vec2 anchor, float factor);
 void camera_clamp(camera *cam);
 

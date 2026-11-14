@@ -35,9 +35,9 @@ FILL = QColor(22, 39, 49, 255)
 EDGE_DARK = QColor(43, 43, 40, 235)
 EDGE_LIGHT = QColor(91, 90, 84, 245)
 LABEL = QColor(217, 214, 200, 242)
-GOLD_TOP = QColor(249, 221, 135, 255)
-GOLD_BOTTOM = QColor(201, 149, 50, 255)
-GOLD_DARK = QColor(109, 84, 27, 255)
+GOLD_TOP = QColor(240, 210, 144, 255)
+GOLD_BOTTOM = QColor(200, 169, 108, 255)
+GOLD_DARK = QColor(104, 88, 57, 255)
 
 _log = []
 
@@ -182,10 +182,9 @@ def build_map():
     save_doc("map", img)
 
 
-def build_door(name, top, bottom, border, highlight):
+def build_door(name, top, bottom, border, highlight, art_w, art_h):
     scale = 4
     w_world, h_world = 80.0, 22.0
-    art_w, art_h = 62.0, 8.0
     w = int(w_world * scale)
     h = int(h_world * scale)
     img = image(w, h)
@@ -254,7 +253,7 @@ def build_arrow():
     x, y = arrow_canvas(13.0, -10.0)
     highlight.lineTo(x, y)
     p.setBrush(Qt.BrushStyle.NoBrush)
-    p.setPen(QPen(QColor(255, 244, 190, 130), 2.4, Qt.PenStyle.SolidLine,
+    p.setPen(QPen(QColor(247, 239, 210, 110), 2.4, Qt.PenStyle.SolidLine,
                   Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.MiterJoin))
     p.drawPath(highlight)
     p.restore()
@@ -266,33 +265,15 @@ def build_glow():
     img = image(256, 256)
     p = painter(img)
     grad = QRadialGradient(128, 128, 128)
-    grad.setColorAt(0.0, QColor(255, 210, 105, 165))
-    grad.setColorAt(0.22, QColor(245, 190, 75, 105))
-    grad.setColorAt(0.52, QColor(230, 170, 50, 38))
-    grad.setColorAt(1.0, QColor(220, 160, 40, 0))
+    grad.setColorAt(0.0, QColor(240, 205, 130, 210))
+    grad.setColorAt(0.22, QColor(230, 195, 120, 140))
+    grad.setColorAt(0.52, QColor(218, 180, 105, 55))
+    grad.setColorAt(1.0, QColor(210, 170, 100, 0))
     p.setPen(Qt.PenStyle.NoPen)
     p.setBrush(QBrush(grad))
     p.drawEllipse(QRectF(0, 0, 256, 256))
     p.end()
     save_doc("player_glow", img)
-
-
-def build_pulse():
-    img = image(256, 256)
-    p = painter(img)
-    grad = QRadialGradient(128, 128, 128)
-    grad.setColorAt(0.0, QColor(255, 210, 105, 0))
-    grad.setColorAt(0.54, QColor(255, 210, 105, 0))
-    grad.setColorAt(0.64, QColor(255, 210, 105, 35))
-    grad.setColorAt(0.72, QColor(255, 214, 112, 120))
-    grad.setColorAt(0.80, QColor(255, 214, 112, 55))
-    grad.setColorAt(0.90, QColor(255, 214, 112, 8))
-    grad.setColorAt(1.0, QColor(255, 214, 112, 0))
-    p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(QBrush(grad))
-    p.drawEllipse(QRectF(0, 0, 256, 256))
-    p.end()
-    save_doc("pulse_ring", img)
 
 
 def build_cursor():
@@ -343,14 +324,13 @@ def __main__(*args):
     try:
         build_map()
         build_door("door_service", QColor(186, 183, 176), QColor(151, 148, 141),
-                   QColor(84, 82, 76), QColor(224, 221, 212, 130))
-        build_door("door_locked", QColor(106, 23, 23), QColor(78, 14, 14),
-                   QColor(46, 9, 9), QColor(142, 42, 42, 90))
-        build_door("door_locked_hover", QColor(128, 32, 32), QColor(94, 20, 20),
-                   QColor(58, 10, 10), QColor(166, 58, 58, 110))
+                   QColor(84, 82, 76), QColor(224, 221, 212, 130), 58.0, 10.0)
+        build_door("door_locked", QColor(122, 30, 30), QColor(88, 16, 16),
+                   QColor(50, 9, 9), QColor(162, 52, 52, 90), 58.0, 12.0)
+        build_door("door_locked_hover", QColor(142, 38, 38), QColor(104, 22, 22),
+                   QColor(62, 12, 12), QColor(184, 68, 68, 110), 58.0, 12.0)
         build_arrow()
         build_glow()
-        build_pulse()
         build_cursor()
         build_tooltip()
         build_legend()

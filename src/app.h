@@ -37,7 +37,6 @@ typedef struct {
     vec2 center;
     float width;
     float height;
-    color fill;
     bool hoverable;
 } map_door;
 
@@ -45,7 +44,6 @@ typedef struct {
     vec2 poly[MAP_POLY_MAX];
     int poly_count;
     map_door doors[MAP_DOOR_COUNT];
-    vec2 label_pos;
 } map_geometry;
 
 typedef struct {

@@ -22,9 +22,9 @@ The build copies `assets/fonts` next to the executable. To run from another dire
 - Scroll inside the map to zoom around the pointer.
 - Click inside the Entrance room to move the player chevron. It turns toward the click and eases to a stop.
 - Hover the red door to see the Locked Door tooltip.
-- Press `R` to reset the view and flash the player.
+- Press `R` to recenter on the player at the default zoom and flash the player.
 
-The FPS counter sits in the top right in green.
+The FPS counter sits in the top right in green. The map opens at the zoomed-out overview, and the wheel range extends below and above that default.
 
 ## Layout
 
@@ -32,13 +32,15 @@ The map viewport has no panel or top chrome. The legend and control hint sit und
 
 ## Assets
 
-The map, doors, player chevron, glow, pulse, cursor, tooltip panel, and legend squares are authored in Krita. The `.kra` sources are in `assets/src`, the exported PNGs are in `assets`, and `assets/src/build_assets.py` redraws them. Regenerate everything with:
+The map, doors, player chevron, breathing glow, cursor, tooltip panel, and legend squares are authored in Krita. The `.kra` sources are in `assets/src`, the exported PNGs are in `assets`, and `assets/src/build_assets.py` redraws them. Regenerate everything with:
 
 ```sh
 ./tools/build-assets.sh
 ```
 
 The script needs Krita, `kritarunner`, and `xvfb-run`.
+
+The map and sprite textures upload a CPU mip chain with `num_mipmaps` and linear mip filtering. This keeps the baked room label smooth at the minimum zoom. The vendored sokol headers match the current `floooh/sokol` default branch, commit `93aa187` from 2026-11-10.
 
 ## Verification
 

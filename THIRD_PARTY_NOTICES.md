@@ -4,7 +4,7 @@ This project vendors the following code and fonts.
 
 ## sokol
 
-`sokol_app.h`, `sokol_gfx.h`, `sokol_gl.h`, `sokol_glue.h`, `sokol_log.h`, and `sokol_fontstash.h` are from [floooh/sokol](https://github.com/floooh/sokol), copyright Andre Weissflog, licensed under the zlib/libpng license. The license text is in each header.
+`sokol_app.h`, `sokol_gfx.h`, `sokol_gl.h`, `sokol_glue.h`, `sokol_log.h`, and `sokol_fontstash.h` are from [floooh/sokol](https://github.com/floooh/sokol), copyright Andre Weissflog, licensed under the zlib/libpng license. The license text is in each header. The vendored headers match `floooh/sokol` commit `93aa187` from 2026-11-10, the current default branch head checked for this build.
 
 ## fontstash, stb_truetype, and stb_image
 

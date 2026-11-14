@@ -5,6 +5,10 @@
 #define ARC_SEGMENTS 12
 #define CORNER_RADIUS 32.0f
 
+#define DEFAULT_ZOOM_FACTOR 0.5f
+#define MIN_ZOOM_FACTOR 0.28f
+#define MAX_ZOOM_FACTOR 1.09f
+
 #define PLAYER_MAX_SPEED 250.0f
 #define PLAYER_ACCEL 1400.0f
 #define PLAYER_DECEL 1200.0f
@@ -61,19 +65,16 @@ void map_init(map_geometry *map) {
 
     map->doors[DOOR_SERVICE] = (map_door){
         .center = {0.0f, 250.0f},
-        .width = 62.0f,
-        .height = 6.0f,
-        .fill = color_hex(0xb0ada8, 0.9f),
+        .width = 58.0f,
+        .height = 10.0f,
         .hoverable = false,
     };
     map->doors[DOOR_LOCKED] = (map_door){
         .center = {0.0f, -90.0f},
-        .width = 62.0f,
-        .height = 7.0f,
-        .fill = color_hex(0x7c1b1b, 1.0f),
+        .width = 58.0f,
+        .height = 12.0f,
         .hoverable = true,
     };
-    map->label_pos = vec2_make(0.0f, 64.0f);
 }
 
 bool map_contains(const map_geometry *map, vec2 p) {
@@ -190,8 +191,8 @@ void camera_init(camera *cam, float vp_w, float vp_h) {
     cam->fit_zoom = camera_fit_zoom(vp_w, vp_h);
     cam->center = vec2_make(0.0f, 80.0f);
     cam->target_center = cam->center;
-    cam->zoom = cam->fit_zoom;
-    cam->target_zoom = cam->fit_zoom;
+    cam->zoom = cam->fit_zoom * DEFAULT_ZOOM_FACTOR;
+    cam->target_zoom = cam->zoom;
     cam->user_modified = false;
 }
 
@@ -199,9 +200,11 @@ void camera_resize(camera *cam, float vp_w, float vp_h) {
     cam->fit_zoom = camera_fit_zoom(vp_w, vp_h);
     if (!cam->user_modified) {
         cam->target_center = vec2_make(0.0f, 80.0f);
-        cam->target_zoom = cam->fit_zoom;
+        cam->target_zoom = cam->fit_zoom * DEFAULT_ZOOM_FACTOR;
     }
-    cam->target_zoom = clampf(cam->target_zoom, cam->fit_zoom * 0.5f, cam->fit_zoom * 4.0f);
+    cam->target_zoom = clampf(cam->target_zoom,
+                              cam->fit_zoom * MIN_ZOOM_FACTOR,
+                              cam->fit_zoom * MAX_ZOOM_FACTOR);
     camera_clamp(cam);
 }
 
@@ -213,17 +216,16 @@ void camera_update(camera *cam, float dt) {
     cam->zoom += (cam->target_zoom - cam->zoom) * k_zoom;
 }
 
-void camera_reset(camera *cam, float vp_w, vec2 player_pos) {
-    float margin = 48.0f / cam->fit_zoom;
-    float limit = fmaxf(0.0f, vp_w / (2.0f * cam->fit_zoom) - MAP_WORLD_W * 0.5f - margin);
-    cam->target_center.x = clampf(player_pos.x, -limit, limit);
-    cam->target_center.y = 80.0f;
-    cam->target_zoom = cam->fit_zoom;
+void camera_reset(camera *cam, vec2 player_pos) {
+    cam->target_center = player_pos;
+    cam->target_zoom = cam->fit_zoom * DEFAULT_ZOOM_FACTOR;
     cam->user_modified = false;
 }
 
 void camera_zoom_at(camera *cam, float vp_w, float vp_h, vec2 anchor, float factor) {
-    float new_zoom = clampf(cam->target_zoom * factor, cam->fit_zoom * 0.5f, cam->fit_zoom * 4.0f);
+    float new_zoom = clampf(cam->target_zoom * factor,
+                            cam->fit_zoom * MIN_ZOOM_FACTOR,
+                            cam->fit_zoom * MAX_ZOOM_FACTOR);
     float wx = cam->target_center.x + (anchor.x - vp_w * 0.5f) / cam->target_zoom;
     float wy = cam->target_center.y - (anchor.y - vp_h * 0.5f) / cam->target_zoom;
 
