@@ -37,7 +37,7 @@ The map viewport has no panel or top chrome. The legend and control hint sit und
 
 The map, doors, player chevron, expanding glow, cursor, tooltip panel, and legend squares are authored in Krita. The chevron is 70 percent larger than the previous marker and keeps a fixed screen size as the map zooms. The glow expands and fades like a soft puddle rather than breathing. Clicked waypoints render as semi-transparent cyan squares with solid cyan outlines at an 18-unit navigation-cell size, because there is no separate navigation grid.
 
-The green rope is a fixed-step simulation of the same movement step the player uses. It includes the tightened turning arcs, target popping, wall collision and wall sliding, so the line shows the actual route rather than a smoothed approximation. The player body radius is 24 world units, so the larger marker stops inside the floor outline.
+The green rope is a fixed-step simulation of the same movement step the player uses. It includes the tightened turning arcs, target popping, wall collision and wall sliding, so the line shows the actual route rather than a smoothed approximation. The collision body follows the marker screen footprint, so it is about 29 world units at the default zoom and grows as the map zooms out. The larger marker stays inside the floor outline.
 
 The `.kra` sources are in `assets/src`, the exported PNGs are in `assets`, and `assets/src/build_assets.py` redraws them. Regenerate everything with:
 

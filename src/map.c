@@ -16,7 +16,6 @@
 #define PLAYER_ARC_MIN_DIST 36.0f
 #define PLAYER_ARC_MIN_SPEED 12.0f
 #define PLAYER_TARGET_ACCEPT 14.0f
-#define PLAYER_BODY_RADIUS 24.0f
 #define PLAYER_REVERSE_EPS 0.06f
 #define PLAYER_ARRIVE_DIST 0.8f
 #define ROUTE_SAMPLES 96
@@ -190,14 +189,14 @@ static void player_advance_target(player *p, const map_geometry *map) {
     }
 }
 
-static bool player_can_stand(const map_geometry *map, vec2 pos) {
+static bool player_can_stand(const map_geometry *map, vec2 pos, float body_radius) {
     if (!map_contains(map, pos)) {
         return false;
     }
     for (int i = 0; i < 8; i++) {
         float a = (float)i * (2.0f * MAP_PI / 8.0f);
-        vec2 sample = vec2_make(pos.x + cosf(a) * PLAYER_BODY_RADIUS,
-                                pos.y + sinf(a) * PLAYER_BODY_RADIUS);
+        vec2 sample = vec2_make(pos.x + cosf(a) * body_radius,
+                                pos.y + sinf(a) * body_radius);
         if (!map_contains(map, sample)) {
             return false;
         }
@@ -205,7 +204,7 @@ static bool player_can_stand(const map_geometry *map, vec2 pos) {
     return true;
 }
 
-static float player_move(player *p, const map_geometry *map, vec2 delta) {
+static float player_move(player *p, const map_geometry *map, vec2 delta, float body_radius) {
     float len = vec2_len(delta);
     if (len < 1e-5f) {
         return 0.0f;
@@ -218,17 +217,17 @@ static float player_move(player *p, const map_geometry *map, vec2 delta) {
     float moved = 0.0f;
     for (int i = 0; i < steps; i++) {
         vec2 next = vec2_add(p->pos, inc);
-        if (player_can_stand(map, next)) {
+        if (player_can_stand(map, next, body_radius)) {
             p->pos = next;
             moved += vec2_len(inc);
             continue;
         }
         vec2 slide_x = vec2_make(inc.x, 0.0f);
         vec2 slide_y = vec2_make(0.0f, inc.y);
-        if (fabsf(inc.x) > 1e-5f && player_can_stand(map, vec2_add(p->pos, slide_x))) {
+        if (fabsf(inc.x) > 1e-5f && player_can_stand(map, vec2_add(p->pos, slide_x), body_radius)) {
             p->pos = vec2_add(p->pos, slide_x);
             moved += fabsf(inc.x);
-        } else if (fabsf(inc.y) > 1e-5f && player_can_stand(map, vec2_add(p->pos, slide_y))) {
+        } else if (fabsf(inc.y) > 1e-5f && player_can_stand(map, vec2_add(p->pos, slide_y), body_radius)) {
             p->pos = vec2_add(p->pos, slide_y);
             moved += fabsf(inc.y);
         } else {
@@ -238,7 +237,7 @@ static float player_move(player *p, const map_geometry *map, vec2 delta) {
     return moved;
 }
 
-void player_step(player *p, const map_geometry *map, float dt) {
+void player_step(player *p, const map_geometry *map, float body_radius, float dt) {
     if (!p->moving || p->target_count == 0) {
         p->speed = approachf(p->speed, 0.0f, PLAYER_DECEL * dt);
         return;
@@ -252,10 +251,10 @@ void player_step(player *p, const map_geometry *map, float dt) {
     if (last_route && last_target && dist < 16.0f) {
         float ease_rate = clampf(p->speed / fmaxf(dist, 0.001f), 4.0f, 20.0f);
         float k = 1.0f - expf(-ease_rate * dt);
-        float moved = player_move(p, map, vec2_scale(to, k));
+        float moved = player_move(p, map, vec2_scale(to, k), body_radius);
         p->speed = moved / fmaxf(dt, 1e-5f);
         float remaining = vec2_len(vec2_sub(p->targets[0].pos, p->pos));
-        if (remaining < 0.12f || remaining < PLAYER_BODY_RADIUS + 0.8f || moved < 0.005f) {
+        if (remaining < 0.12f || remaining < body_radius + 0.8f || moved < 0.005f) {
             p->speed = 0.0f;
             p->moving = false;
             p->target_count = 0;
@@ -302,9 +301,9 @@ void player_step(player *p, const map_geometry *map, float dt) {
         p->heading = wrap_angle(p->heading + clampf(turn, -max_turn, max_turn));
         float step = fminf(p->speed * dt, dist);
         float moved = player_move(p, map,
-                                  vec2_scale(vec2_make(sinf(p->heading), cosf(p->heading)), step));
+                                  vec2_scale(vec2_make(sinf(p->heading), cosf(p->heading)), step), body_radius);
         if (moved < 0.005f) {
-            if (last_route && dist < PLAYER_BODY_RADIUS + 10.0f) {
+            if (last_route && dist < body_radius + 10.0f) {
                 if (last_target) {
                     p->target_count = 0;
                     p->moving = false;
@@ -321,9 +320,9 @@ void player_step(player *p, const map_geometry *map, float dt) {
 
     if (!p->running) {
         float step = fminf(p->speed * dt, dist);
-        float moved = player_move(p, map, vec2_scale(vec2_norm(to), step));
+        float moved = player_move(p, map, vec2_scale(vec2_norm(to), step), body_radius);
         if (moved < 0.005f) {
-            if (last_route && dist < PLAYER_BODY_RADIUS + 10.0f) {
+            if (last_route && dist < body_radius + 10.0f) {
                 if (last_target) {
                     p->target_count = 0;
                     p->moving = false;
@@ -341,9 +340,9 @@ void player_step(player *p, const map_geometry *map, float dt) {
     float turn = wrap_angle(p->target_heading - p->heading);
     p->heading = wrap_angle(p->heading + turn * (1.0f - expf(-PLAYER_TURN_RATE * dt)));
     float step = fminf(p->speed * dt, dist);
-    float moved = player_move(p, map, vec2_scale(vec2_norm(to), step));
+    float moved = player_move(p, map, vec2_scale(vec2_norm(to), step), body_radius);
     if (moved < 0.005f) {
-        if (last_route && dist < PLAYER_BODY_RADIUS + 10.0f) {
+        if (last_route && dist < body_radius + 10.0f) {
             if (last_target) {
                 p->target_count = 0;
                 p->moving = false;
@@ -357,12 +356,12 @@ void player_step(player *p, const map_geometry *map, float dt) {
     }
 }
 
-void player_update(player *p, const map_geometry *map, float dt) {
+void player_update(player *p, const map_geometry *map, float body_radius, float dt) {
     p->pulse_time = fmodf(p->pulse_time + dt, 1000.0f);
     if (p->reset_flash > 0.0f) {
         p->reset_flash = fmaxf(0.0f, p->reset_flash - dt / 1.4f);
     }
-    player_step(p, map, dt);
+    player_step(p, map, body_radius, dt);
 }
 
 void camera_init(camera *cam, float vp_w, float vp_h) {

@@ -319,6 +319,7 @@ static void draw_waypoint_rope(void) {
     color preview_glow = color_hex(0x59ff8c, 0.13f);
 
     if (app.show_rope) {
+        float body_radius = 20.0f / app.cam.zoom + 1.0f;
         player sim = *p;
         int original_count = sim.target_count;
         if (preview) {
@@ -334,7 +335,7 @@ static void draw_waypoint_rope(void) {
             int split = (preview && original_count == 0) ? 0 : -1;
             points[count++] = map_world_to_screen(&app.cam, app.width, app.vp_h, sim.pos);
             for (int i = 0; i < ROPE_SIM_STEPS; i++) {
-                player_step(&sim, &app.map, 1.0f / 60.0f);
+                player_step(&sim, &app.map, body_radius, 1.0f / 60.0f);
                 if (preview && original_count > 0 && split < 0 && sim.target_count == 1) {
                     split = count;
                 }
@@ -558,7 +559,8 @@ static void update(float dt) {
     update_layout();
     app.time += dt;
     camera_update(&app.cam, dt);
-    player_update(&app.player, &app.map, dt);
+    float body_radius = 20.0f / app.cam.zoom + 1.0f;
+    player_update(&app.player, &app.map, body_radius, dt);
     update_hover(dt);
 }
 
