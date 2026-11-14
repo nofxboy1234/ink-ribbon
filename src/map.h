@@ -11,6 +11,7 @@ void map_build_route(const map_geometry *map, vec2 from, vec2 to, vec2 out[MAP_M
 
 void player_init(player *p);
 void player_push_target(player *p, const map_geometry *map, vec2 target, float max_speed);
+void player_step(player *p, const map_geometry *map, float dt);
 void player_cancel_movement(player *p);
 void player_update(player *p, const map_geometry *map, float dt);
 

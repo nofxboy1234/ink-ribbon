@@ -1,6 +1,6 @@
 # Entrance map
 
-A C11 + sokol recreation of the R.P.D. Entrance map overlay from the reference clip. It draws a T-shaped floor plan with a bone outline, a fixed-size player chevron with a soft expanding glow, cyan waypoint cells, a bright green route rope, a custom ring cursor, the Locked Door tooltip, smooth zoom and pan, reset, and the search status legend. The background is black. The 3D game scene, the top header, the icon row, and the objective text are not rendered.
+A C11 + sokol recreation of the R.P.D. Entrance map overlay from the reference clip. It draws a T-shaped floor plan with a bone outline, a fixed-size player chevron with a soft expanding glow, semi-transparent cyan waypoint cells with solid outlines, an exact simulated green route rope, a custom ring cursor, the Locked Door tooltip, direct zoom and pan, a smooth reset, and the search status legend. The background is black. The 3D game scene, the top header, the icon row, and the objective text are not rendered.
 
 ![Entrance map](docs/preview.png)
 
@@ -20,9 +20,10 @@ The build copies `assets/fonts` next to the executable. To run from another dire
 
 - Middle-drag inside the map to pan. The map tracks the pointer directly, with no camera catch-up.
 - Scroll inside the map to zoom around the pointer.
-- Left-click inside the Entrance to walk to the point. Right-click to run. Each click appends a waypoint, and the chevron curves through the queue with preserved momentum.
-- Double-click inside the map to cancel all movement.
-- Moving the pointer extends a live green preview from the last waypoint to the pointer.
+- Left-click inside the Entrance to walk to the point. Right-click to run. Walking strafes sideways and backpedals relative to the chevron facing. Running turns through a tightened turning circle.
+- Each click appends a waypoint. The chevron moves through the queue with preserved momentum, and the body collides with the map walls and slides along them.
+- Double-click inside the map to cancel all movement and toggle the green rope.
+- Moving the pointer extends the exact simulated green route from the last waypoint to the pointer.
 - Hover the red door to see the Locked Door tooltip.
 - Press `R` to recenter on the player at the default zoom and flash the player.
 
@@ -34,7 +35,11 @@ The map viewport has no panel or top chrome. The legend and control hint sit und
 
 ## Assets
 
-The map, doors, player chevron, expanding glow, cursor, tooltip panel, and legend squares are authored in Krita. The chevron keeps a fixed screen size as the map zooms. The glow expands and fades like a soft puddle rather than breathing. Clicked waypoints render as cyan squares at an 18-unit navigation-cell size, because there is no separate navigation grid. The `.kra` sources are in `assets/src`, the exported PNGs are in `assets`, and `assets/src/build_assets.py` redraws them. Regenerate everything with:
+The map, doors, player chevron, expanding glow, cursor, tooltip panel, and legend squares are authored in Krita. The chevron is 70 percent larger than the previous marker and keeps a fixed screen size as the map zooms. The glow expands and fades like a soft puddle rather than breathing. Clicked waypoints render as semi-transparent cyan squares with solid cyan outlines at an 18-unit navigation-cell size, because there is no separate navigation grid.
+
+The green rope is a fixed-step simulation of the same movement step the player uses. It includes the tightened turning arcs, target popping, wall collision and wall sliding, so the line shows the actual route rather than a smoothed approximation. The player body radius is 24 world units, so the larger marker stops inside the floor outline.
+
+The `.kra` sources are in `assets/src`, the exported PNGs are in `assets`, and `assets/src/build_assets.py` redraws them. Regenerate everything with:
 
 ```sh
 ./tools/build-assets.sh

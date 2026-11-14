@@ -148,8 +148,9 @@ static void handle_click(int button, float speed) {
     app.last_click_button = button;
     if (double_click) {
         player_cancel_movement(&app.player);
+        app.show_rope = !app.show_rope;
         app.last_click_time = -10.0f;
-        debug_log("[dbg] double click cancel\n");
+        debug_log("[dbg] double click cancel rope=%d\n", app.show_rope ? 1 : 0);
         return;
     }
 
@@ -297,56 +298,10 @@ static void draw_doors(void) {
     }
 }
 
-static vec2 catmull_rom(vec2 p0, vec2 p1, vec2 p2, vec2 p3, float t) {
-    float t2 = t * t;
-    float t3 = t2 * t;
-    float b0 = 0.5f * (-t3 + 2.0f * t2 - t);
-    float b1 = 0.5f * (3.0f * t3 - 5.0f * t2 + 2.0f);
-    float b2 = 0.5f * (-3.0f * t3 + 4.0f * t2 + t);
-    float b3 = 0.5f * (t3 - t2);
-    return vec2_add(vec2_add(vec2_scale(p0, b0), vec2_scale(p1, b1)),
-                    vec2_add(vec2_scale(p2, b2), vec2_scale(p3, b3)));
-}
-
-static void draw_smooth_route(vec2 *world, int count, color glow, color line,
-                              float glow_width, float line_width) {
-    if (count < 2) {
-        return;
-    }
-    for (int i = 0; i < count - 1; i++) {
-        vec2 p0 = world[i > 0 ? i - 1 : 0];
-        vec2 p1 = world[i];
-        vec2 p2 = world[i + 1];
-        vec2 p3 = world[i + 2 < count ? i + 2 : count - 1];
-        vec2 prev = p1;
-        for (int step = 1; step <= 20; step++) {
-            vec2 q = catmull_rom(p0, p1, p2, p3, (float)step / 20.0f);
-            vec2 a = map_world_to_screen(&app.cam, app.width, app.vp_h, prev);
-            vec2 b = map_world_to_screen(&app.cam, app.width, app.vp_h, q);
-            draw_line(a, b, glow_width, glow);
-            draw_line(a, b, line_width, line);
-            prev = q;
-        }
-    }
-}
+#define ROPE_SIM_STEPS 720
 
 static void draw_waypoint_rope(void) {
     const player *p = &app.player;
-    color green = color_hex(0x3dff74, 0.92f);
-    color green_dim = color_hex(0x3dff74, 0.52f);
-    color green_glow = color_hex(0x3dff74, 0.08f);
-    color preview_glow = color_hex(0x59ff8c, 0.13f);
-
-    vec2 route[PLAYER_MAX_TARGETS + 1];
-    int route_count = 1;
-    route[0] = p->pos;
-    for (int i = 0; i < p->target_count; i++) {
-        route[route_count++] = p->targets[i].pos;
-    }
-    if (route_count > 1) {
-        draw_smooth_route(route, route_count, green_glow, green_dim, 6.0f, 1.8f);
-    }
-
     bool preview = mouse_in_viewport() && app.pan != PAN_ACTIVE;
     vec2 cursor_world = map_screen_to_world(&app.cam, app.width, app.vp_h, app.mouse);
     if (preview) {
@@ -357,22 +312,61 @@ static void draw_waypoint_rope(void) {
                       !map_door_hit(&app.map, DOOR_SERVICE, cursor_world, pad);
         }
     }
-    if (preview) {
-        vec2 last = p->target_count > 0 ? p->targets[p->target_count - 1].pos : p->pos;
-        vec2 previous = p->target_count > 1 ? p->targets[p->target_count - 2].pos : p->pos;
-        if (vec2_len(vec2_sub(cursor_world, last)) > 1.0f) {
-            vec2 preview_points[3] = {previous, last, cursor_world};
-            draw_smooth_route(preview_points, 3, preview_glow, green, 7.0f, 2.2f);
+
+    color green = color_hex(0x3dff74, 0.92f);
+    color green_dim = color_hex(0x3dff74, 0.45f);
+    color green_glow = color_hex(0x3dff74, 0.06f);
+    color preview_glow = color_hex(0x59ff8c, 0.13f);
+
+    if (app.show_rope) {
+        player sim = *p;
+        int original_count = sim.target_count;
+        if (preview) {
+            float speed = original_count > 0
+                              ? p->targets[original_count - 1].max_speed
+                              : PLAYER_WALK_SPEED;
+            player_push_target(&sim, &app.map, cursor_world, speed);
+        }
+
+        if (sim.target_count > 0) {
+            vec2 points[ROPE_SIM_STEPS + 2];
+            int count = 0;
+            int split = (preview && original_count == 0) ? 0 : -1;
+            points[count++] = map_world_to_screen(&app.cam, app.width, app.vp_h, sim.pos);
+            for (int i = 0; i < ROPE_SIM_STEPS; i++) {
+                player_step(&sim, &app.map, 1.0f / 60.0f);
+                if (preview && original_count > 0 && split < 0 && sim.target_count == 1) {
+                    split = count;
+                }
+                points[count++] = map_world_to_screen(&app.cam, app.width, app.vp_h, sim.pos);
+                if (!sim.moving || sim.target_count == 0) {
+                    break;
+                }
+            }
+            if (split < 0) {
+                split = count;
+            }
+            for (int i = 1; i < count; i++) {
+                bool is_preview = preview && i >= split;
+                draw_line(points[i - 1], points[i], is_preview ? 7.0f : 5.0f,
+                          is_preview ? preview_glow : green_glow);
+                draw_line(points[i - 1], points[i], is_preview ? 2.4f : 1.7f,
+                          is_preview ? green : green_dim);
+            }
         }
     }
 
     float cell = WAYPOINT_CELL_SIZE * app.cam.zoom;
+    color cyan = color_hex(0x3fe6e6, 0.95f);
     for (int i = 0; i < p->target_count; i++) {
         vec2 c = map_world_to_screen(&app.cam, app.width, app.vp_h, p->targets[i].pos);
-        draw_rect_fill((rect){c.x - cell * 0.5f - 1.0f, c.y - cell * 0.5f - 1.0f,
-                              cell + 2.0f, cell + 2.0f}, color_hex(0x031c1c, 0.8f));
-        draw_rect_fill((rect){c.x - cell * 0.5f, c.y - cell * 0.5f, cell, cell},
-                       color_hex(0x3fe6e6, 0.92f));
+        float x = c.x - cell * 0.5f;
+        float y = c.y - cell * 0.5f;
+        draw_rect_fill((rect){x, y, cell, cell}, color_hex(0x3fe6e6, 0.30f));
+        draw_line(vec2_make(x, y), vec2_make(x + cell, y), 1.5f, cyan);
+        draw_line(vec2_make(x + cell, y), vec2_make(x + cell, y + cell), 1.5f, cyan);
+        draw_line(vec2_make(x + cell, y + cell), vec2_make(x, y + cell), 1.5f, cyan);
+        draw_line(vec2_make(x, y + cell), vec2_make(x, y), 1.5f, cyan);
     }
 }
 
@@ -395,7 +389,7 @@ static void draw_player_pulse(void) {
 static void draw_player_arrow(void) {
     const player *p = &app.player;
     vec2 ps = map_world_to_screen(&app.cam, app.width, app.vp_h, p->pos);
-    draw_sprite(&g_assets->player_arrow, ps, 34.0f, 28.0f,
+    draw_sprite(&g_assets->player_arrow, ps, 58.0f, 48.0f,
                 p->heading, color_make(1.0f, 1.0f, 1.0f, 1.0f));
 }
 
@@ -477,7 +471,7 @@ static void draw_status(void) {
     draw_text(DRAW_FONT_REGULAR, 11.0f, color_hex(0xcfc9ba, 0.42f),
               FONS_ALIGN_CENTER | FONS_ALIGN_MIDDLE,
               vec2_make(app.width * 0.5f, app.vp_h + 100.0f),
-              "MIDDLE DRAG PAN    SCROLL ZOOM    LMB WALK    RMB RUN    DOUBLE CLICK CANCEL    R RESET");
+              "MIDDLE DRAG PAN    SCROLL ZOOM    LMB WALK    RMB RUN    DOUBLE CLICK CANCEL/ROPE    R RESET");
 }
 
 static void draw_vignette(void) {
@@ -638,6 +632,7 @@ static void init(void) {
     app.mouse_inside = true;
     app.last_click_time = -10.0f;
     app.last_click_button = -1;
+    app.show_rope = true;
     app.pan = PAN_IDLE;
     app.time = 0.0f;
     app.tooltip = 0.0f;

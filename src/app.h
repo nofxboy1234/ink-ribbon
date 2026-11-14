@@ -28,6 +28,7 @@ typedef struct {
 typedef struct {
     vec2 pos;
     float max_speed;
+    bool running;
 } move_target;
 #define MAP_DOOR_COUNT 2
 #define MAP_WORLD_MIN_X (-360.0f)
@@ -76,6 +77,7 @@ typedef struct {
     float speed;
     float max_speed;
     bool moving;
+    bool running;
     bool use_arc;
     float pulse_time;
     float reset_flash;
@@ -98,6 +100,7 @@ typedef struct {
     float last_click_time;
     vec2 last_click_pos;
     int last_click_button;
+    bool show_rope;
     bool left_down;
     bool left_moved;
     vec2 left_start;
