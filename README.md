@@ -18,15 +18,27 @@ The build copies `assets/fonts` next to the executable. To run from another dire
 
 ## Controls
 
-- Drag inside the map to pan.
+- Middle-drag inside the map to pan.
 - Scroll inside the map to zoom around the pointer.
-- Click inside the Entrance room to move the player chevron. It turns toward the click and moves with easing.
+- Click inside the Entrance room to move the player chevron. It turns toward the click and eases to a stop.
 - Hover the red door to see the Locked Door tooltip.
 - Press `R` to reset the view and flash the player.
+
+The FPS counter sits in the top right in green.
 
 ## Layout
 
 The map viewport has no panel or top chrome. The legend and control hint sit underneath the map on the black background. The legend shows Currently Searching in red and Search Completed in blue, matching the map overlay.
+
+## Assets
+
+The map, doors, player chevron, glow, pulse, cursor, tooltip panel, and legend squares are authored in Krita. The `.kra` sources are in `assets/src`, the exported PNGs are in `assets`, and `assets/src/build_assets.py` redraws them. Regenerate everything with:
+
+```sh
+./tools/build-assets.sh
+```
+
+The script needs Krita, `kritarunner`, and `xvfb-run`.
 
 ## Verification
 

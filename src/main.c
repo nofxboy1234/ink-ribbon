@@ -30,6 +30,9 @@ static sgl_pipeline alpha_pipeline;
 static bool debug_enabled = false;
 static int debug_last_hover = -1;
 
+static FILE *frame_log_file = NULL;
+static int frame_log_rows = 0;
+
 static unsigned char *read_file(const char *path, int *out_size) {
     FILE *f = fopen(path, "rb");
     if (!f) {
@@ -102,7 +105,7 @@ static void update_layout(void) {
 
 static void update_hover(float dt) {
     vec2 world = map_screen_to_world(&app.cam, app.width, app.vp_h, app.mouse);
-    bool can_hover = mouse_in_viewport() && app.drag != DRAG_ACTIVE;
+    bool can_hover = mouse_in_viewport() && app.pan != PAN_ACTIVE;
     float pad = 5.0f / app.cam.zoom;
 
     for (int i = 0; i < MAP_DOOR_COUNT; i++) {
@@ -151,37 +154,42 @@ static void on_event(const sapp_event *ev) {
         app.mouse = vec2_make(ev->mouse_x, ev->mouse_y);
         app.mouse_inside = ev->mouse_x >= 0.0f && ev->mouse_x < app.width &&
                            ev->mouse_y >= 0.0f && ev->mouse_y < app.height;
-        if (app.drag != DRAG_NONE) {
-            vec2 delta = vec2_sub(app.mouse, app.drag_start);
-            if (app.drag == DRAG_PENDING && vec2_len(delta) > 4.0f) {
-                app.drag = DRAG_ACTIVE;
-            }
-            if (app.drag == DRAG_ACTIVE) {
-                app.cam.target_center = vec2_sub(app.drag_center, vec2_scale(delta, 1.0f / app.cam.zoom));
-                camera_clamp(&app.cam);
-            }
+        if (app.pan == PAN_ACTIVE) {
+            vec2 delta = vec2_sub(app.mouse, app.pan_start);
+            app.cam.target_center = vec2_sub(app.pan_center, vec2_scale(delta, 1.0f / app.cam.zoom));
+            camera_clamp(&app.cam);
+        }
+        if (app.left_down && vec2_len(vec2_sub(app.mouse, app.left_start)) > 4.0f) {
+            app.left_moved = true;
         }
         break;
     }
     case SAPP_EVENTTYPE_MOUSE_DOWN:
-        if (ev->mouse_button == SAPP_MOUSEBUTTON_LEFT && mouse_in_viewport()) {
+        if (mouse_in_viewport() && ev->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) {
             app.mouse = vec2_make(ev->mouse_x, ev->mouse_y);
-            app.drag = DRAG_PENDING;
-            app.drag_start = app.mouse;
-            app.drag_center = app.cam.target_center;
+            app.pan = PAN_ACTIVE;
+            app.pan_start = app.mouse;
+            app.pan_center = app.cam.target_center;
+        } else if (mouse_in_viewport() && ev->mouse_button == SAPP_MOUSEBUTTON_LEFT) {
+            app.mouse = vec2_make(ev->mouse_x, ev->mouse_y);
+            app.left_down = true;
+            app.left_moved = false;
+            app.left_start = app.mouse;
         }
         break;
     case SAPP_EVENTTYPE_MOUSE_UP:
-        if (ev->mouse_button == SAPP_MOUSEBUTTON_LEFT) {
-            app.mouse = vec2_make(ev->mouse_x, ev->mouse_y);
-            if (app.drag == DRAG_PENDING) {
-                handle_click();
-            } else if (app.drag == DRAG_ACTIVE) {
-                debug_log("[dbg] drag end player=(%.1f,%.1f) cam_target=(%.1f,%.1f)\n",
-                          app.player.pos.x, app.player.pos.y,
+        if (ev->mouse_button == SAPP_MOUSEBUTTON_MIDDLE) {
+            if (app.pan == PAN_ACTIVE) {
+                debug_log("[dbg] pan end cam_target=(%.1f,%.1f)\n",
                           app.cam.target_center.x, app.cam.target_center.y);
             }
-            app.drag = DRAG_NONE;
+            app.pan = PAN_IDLE;
+        } else if (ev->mouse_button == SAPP_MOUSEBUTTON_LEFT) {
+            app.mouse = vec2_make(ev->mouse_x, ev->mouse_y);
+            if (app.left_down && !app.left_moved) {
+                handle_click();
+            }
+            app.left_down = false;
         }
         break;
     case SAPP_EVENTTYPE_MOUSE_SCROLL:
@@ -209,7 +217,9 @@ static void on_event(const sapp_event *ev) {
         break;
     case SAPP_EVENTTYPE_MOUSE_LEAVE:
         app.mouse_inside = false;
-        app.drag = DRAG_NONE;
+        app.pan = PAN_IDLE;
+        app.left_down = false;
+        app.left_moved = false;
         break;
     case SAPP_EVENTTYPE_RESIZED:
         break;
@@ -364,6 +374,17 @@ static void draw_tooltip(void) {
               vec2_make(px + 12.0f, py + ph * 0.5f), "Locked Door");
 }
 
+static void draw_fps(void) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%d FPS", (int)lroundf(app.fps_display));
+    vec2 p = vec2_make(app.width - 18.0f, 14.0f);
+    draw_text(DRAW_FONT_REGULAR, 14.0f, color_make(0.0f, 0.0f, 0.0f, 0.55f),
+              FONS_ALIGN_RIGHT | FONS_ALIGN_TOP,
+              vec2_add(p, vec2_make(1.0f, 1.0f)), buf);
+    draw_text(DRAW_FONT_REGULAR, 14.0f, color_hex(0x4ce16f, 0.95f),
+              FONS_ALIGN_RIGHT | FONS_ALIGN_TOP, p, buf);
+}
+
 static void draw_status(void) {
     float y = app.vp_h + 48.0f;
     const char *label_a = "Currently Searching";
@@ -389,7 +410,7 @@ static void draw_status(void) {
     draw_text(DRAW_FONT_REGULAR, 11.0f, color_hex(0xcfc9ba, 0.42f),
               FONS_ALIGN_CENTER | FONS_ALIGN_MIDDLE,
               vec2_make(app.width * 0.5f, app.vp_h + 100.0f),
-              "DRAG TO PAN    SCROLL TO ZOOM    CLICK ENTRANCE TO MOVE    R RESET");
+              "MIDDLE-DRAG TO PAN    SCROLL TO ZOOM    CLICK ENTRANCE TO MOVE    R RESET");
 }
 
 static void draw_vignette(void) {
@@ -464,6 +485,7 @@ static void render(void) {
 
     draw_vignette();
     draw_status();
+    draw_fps();
     draw_text_flush();
 
     sg_begin_pass(&(sg_pass){
@@ -485,6 +507,13 @@ static void update(float dt) {
 
 static void init(void) {
     debug_enabled = getenv("MAP_DEBUG") != NULL;
+    const char *frame_log_path = getenv("MAP_FRAMELOG");
+    if (frame_log_path) {
+        frame_log_file = fopen(frame_log_path, "w");
+        if (frame_log_file) {
+            fprintf(frame_log_file, "dt,x,y,heading,speed\n");
+        }
+    }
 
     sg_setup(&(sg_desc){
         .environment = sglue_environment(),
@@ -545,9 +574,12 @@ static void init(void) {
     camera_init(&app.cam, app.width, app.vp_h);
     app.mouse = vec2_make(app.width * 0.58f, app.vp_h * 0.62f);
     app.mouse_inside = true;
-    app.drag = DRAG_NONE;
+    app.pan = PAN_IDLE;
     app.time = 0.0f;
     app.tooltip = 0.0f;
+    app.fps = 60.0f;
+    app.fps_display = 60.0f;
+    app.fps_timer = 0.0f;
 
     pass_action = (sg_pass_action){
         .colors[0] = {
@@ -571,12 +603,34 @@ static void init(void) {
 }
 
 static void frame(void) {
-    float dt = clampf((float)sapp_frame_duration(), 0.0f, 0.05f);
+    float raw_dt = (float)sapp_frame_duration();
+    if (raw_dt > 0.0f && raw_dt < 0.5f) {
+        float sample = 1.0f / raw_dt;
+        app.fps += (sample - app.fps) * (1.0f - expf(-5.0f * raw_dt));
+        app.fps_timer += raw_dt;
+        if (app.fps_timer >= 0.2f) {
+            app.fps_display = app.fps;
+            app.fps_timer = 0.0f;
+        }
+    }
+    float dt = clampf(raw_dt, 0.0f, 0.05f);
     update(dt);
+    if (frame_log_file) {
+        fprintf(frame_log_file, "%.6f,%.3f,%.3f,%.5f,%.3f\n",
+                raw_dt, app.player.pos.x, app.player.pos.y,
+                app.player.heading, app.player.speed);
+        if ((++frame_log_rows % 10) == 0) {
+            fflush(frame_log_file);
+        }
+    }
     render();
 }
 
 static void cleanup(void) {
+    if (frame_log_file) {
+        fclose(frame_log_file);
+        frame_log_file = NULL;
+    }
     if (g_fons) {
         sfons_destroy(g_fons);
         g_fons = NULL;

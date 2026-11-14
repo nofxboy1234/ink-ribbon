@@ -3,3 +3,7 @@ compile_commands.json
 *.o
 .DS_Store
 verification/shots/
+
+assets/src/__pycache__/
+assets/src/build.log
+*.kra~

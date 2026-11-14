@@ -71,10 +71,9 @@ typedef struct {
 } player;
 
 typedef enum {
-    DRAG_NONE = 0,
-    DRAG_PENDING,
-    DRAG_ACTIVE,
-} drag_state;
+    PAN_IDLE = 0,
+    PAN_ACTIVE,
+} pan_state;
 
 typedef struct {
     map_geometry map;
@@ -85,12 +84,18 @@ typedef struct {
     float vp_h;
     vec2 mouse;
     bool mouse_inside;
-    drag_state drag;
-    vec2 drag_start;
-    vec2 drag_center;
+    bool left_down;
+    bool left_moved;
+    vec2 left_start;
+    pan_state pan;
+    vec2 pan_start;
+    vec2 pan_center;
     float door_hover[MAP_DOOR_COUNT];
     float tooltip;
     float time;
+    float fps;
+    float fps_display;
+    float fps_timer;
 } app_state;
 
 static inline vec2 vec2_make(float x, float y) {

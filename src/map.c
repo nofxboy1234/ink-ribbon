@@ -3,7 +3,7 @@
 #include <math.h>
 
 #define ARC_SEGMENTS 12
-#define CORNER_RADIUS 42.0f
+#define CORNER_RADIUS 32.0f
 
 #define PLAYER_MAX_SPEED 250.0f
 #define PLAYER_ACCEL 1400.0f
@@ -46,14 +46,14 @@ void map_init(map_geometry *map) {
 
     for (int i = 1; i <= ARC_SEGMENTS; i++) {
         float a = -(float)i * (MAP_PI * 0.5f) / (float)ARC_SEGMENTS;
-        add_point(map, 318.0f + CORNER_RADIUS * cosf(a), -48.0f + CORNER_RADIUS * sinf(a));
+        add_point(map, (360.0f - CORNER_RADIUS) + CORNER_RADIUS * cosf(a), (-90.0f + CORNER_RADIUS) + CORNER_RADIUS * sinf(a));
     }
 
     add_point(map, -360.0f + CORNER_RADIUS, -90.0f);
 
     for (int i = 1; i <= ARC_SEGMENTS; i++) {
         float a = -MAP_PI * 0.5f - (float)i * (MAP_PI * 0.5f) / (float)ARC_SEGMENTS;
-        add_point(map, -318.0f + CORNER_RADIUS * cosf(a), -48.0f + CORNER_RADIUS * sinf(a));
+        add_point(map, (-360.0f + CORNER_RADIUS) + CORNER_RADIUS * cosf(a), (-90.0f + CORNER_RADIUS) + CORNER_RADIUS * sinf(a));
     }
 
     add_point(map, -360.0f, 90.0f);
@@ -145,6 +145,19 @@ void player_update(player *p, float dt) {
 
     vec2 to = vec2_sub(p->route[p->route_index], p->pos);
     float dist = vec2_len(to);
+
+    if (p->route_index == p->route_count - 1 && dist < 16.0f) {
+        float k = 1.0f - expf(-12.0f * dt);
+        float step = dist * k;
+        p->pos = vec2_add(p->pos, vec2_scale(to, k));
+        p->speed = step / fmaxf(dt, 1e-5f);
+        if (dist < 0.12f) {
+            p->pos = p->route[p->route_count - 1];
+            p->speed = 0.0f;
+            p->moving = false;
+        }
+        return;
+    }
 
     if (dist < PLAYER_ARRIVE_DIST) {
         p->route_index++;
