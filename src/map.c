@@ -166,8 +166,11 @@ void player_update(player *p, const map_geometry *map, move_input input,
         return;
     }
 
-    if (input.face) {
-        p->heading = wrap_angle(p->heading + input.turn_rate * dt);
+    if (input.running) {
+        float wanted = atan2f(input.dir.x, input.dir.y);
+        float turn = wrap_angle(wanted - p->heading);
+        float max_turn = PLAYER_RUN_TURN_RATE * dt;
+        p->heading = wrap_angle(p->heading + clampf(turn, -max_turn, max_turn));
         player_move(p, map,
                     vec2_scale(vec2_make(sinf(p->heading), cosf(p->heading)),
                                p->speed * dt),

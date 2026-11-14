@@ -21,11 +21,7 @@ typedef struct {
 #define MAP_POLY_MAX 80
 #define PLAYER_WALK_SPEED 125.0f
 #define PLAYER_RUN_SPEED 250.0f
-#define PLAYER_WALK_TURN_RATE 3.2f
 #define PLAYER_RUN_TURN_RATE 5.5f
-#define JOYSTICK_RADIUS 120.0f
-#define JOYSTICK_DEADZONE 8.0f
-#define JOYSTICK_RUN_RATIO 0.5f
 #define MAP_DOOR_COUNT 2
 #define MAP_WORLD_MIN_X (-360.0f)
 #define MAP_WORLD_MAX_X (360.0f)
@@ -62,22 +58,9 @@ typedef struct {
 } camera;
 
 typedef struct {
-    vec2 center;
-    vec2 knob;
     vec2 dir;
-    float length;
-    float turn_rate;
     bool active;
     bool running;
-    bool face;
-} joystick;
-
-typedef struct {
-    vec2 dir;
-    float turn_rate;
-    bool active;
-    bool running;
-    bool face;
 } move_input;
 
 typedef struct {
@@ -97,9 +80,11 @@ typedef struct {
     float vp_h;
     vec2 mouse;
     bool mouse_inside;
-    bool left_down;
-    bool stick_engaged;
-    joystick stick;
+    bool key_w;
+    bool key_a;
+    bool key_s;
+    bool key_d;
+    bool run_latched;
     float door_hover[MAP_DOOR_COUNT];
     float tooltip;
     float time;

@@ -110,43 +110,8 @@ static void update_layout(void) {
               app.width, app.vp_h, app.cam.fit_zoom, app.cam.zoom, app.cam.target_zoom);
 }
 
-static void joystick_update(void) {
-    joystick *j = &app.stick;
-    j->center = vec2_make(app.width * 0.5f, app.vp_h * 0.5f);
-    vec2 offset = vec2_sub(app.mouse, j->center);
-    float len = vec2_len(offset);
-    if (!app.mouse_inside) {
-        app.stick_engaged = false;
-    }
-    if (!app.stick_engaged) {
-        if (app.mouse_inside && len <= JOYSTICK_RADIUS) {
-            app.stick_engaged = true;
-        } else {
-            j->length = 0.0f;
-            j->turn_rate = 0.0f;
-            j->active = false;
-            j->running = false;
-            j->face = false;
-            j->dir = vec2_make(0.0f, 0.0f);
-            j->knob = j->center;
-            return;
-        }
-    }
-    j->length = fminf(len, JOYSTICK_RADIUS);
-    j->active = app.mouse_inside && len > JOYSTICK_DEADZONE;
-    j->dir = j->active ? vec2_norm(offset) : vec2_make(0.0f, 0.0f);
-    j->knob = j->active ? vec2_add(j->center, vec2_scale(j->dir, j->length)) : j->center;
-    j->running = j->active && j->length > JOYSTICK_RADIUS * JOYSTICK_RUN_RATIO;
-    j->face = app.left_down;
-
-    float level = clampf(j->length / JOYSTICK_RADIUS, 0.0f, 1.0f);
-    float steer = atan2f(j->dir.x, -j->dir.y);
-    float max_turn = j->running ? PLAYER_RUN_TURN_RATE : PLAYER_WALK_TURN_RATE;
-    j->turn_rate = clampf(steer / (MAP_PI * 0.5f), -1.0f, 1.0f) * level * max_turn;
-}
-
 static void update_hover(float dt) {
-    vec2 world = map_screen_to_world(&app.cam, app.width, app.vp_h, app.stick.knob);
+    vec2 world = map_screen_to_world(&app.cam, app.width, app.vp_h, app.mouse);
     bool can_hover = app.mouse_inside;
     float pad = 5.0f / app.cam.zoom;
 
@@ -164,8 +129,8 @@ static void update_hover(float dt) {
     if (debug_enabled) {
         int hovering = over ? 1 : 0;
         if (hovering != debug_last_hover) {
-            debug_log("[dbg] hover locked=%d knob=(%.1f,%.1f)\n",
-                      hovering, app.stick.knob.x, app.stick.knob.y);
+            debug_log("[dbg] hover locked=%d mouse=(%.1f,%.1f)\n",
+                      hovering, app.mouse.x, app.mouse.y);
             debug_last_hover = hovering;
         }
     }
@@ -179,15 +144,10 @@ static void on_event(const sapp_event *ev) {
                            ev->mouse_y >= 0.0f && ev->mouse_y < app.height;
         break;
     case SAPP_EVENTTYPE_MOUSE_DOWN:
-        if (ev->mouse_button == SAPP_MOUSEBUTTON_LEFT) {
+        if (ev->mouse_button == SAPP_MOUSEBUTTON_RIGHT) {
             app.mouse = vec2_make(ev->mouse_x, ev->mouse_y);
-            app.left_down = true;
-        }
-        break;
-    case SAPP_EVENTTYPE_MOUSE_UP:
-        if (ev->mouse_button == SAPP_MOUSEBUTTON_LEFT) {
-            app.mouse = vec2_make(ev->mouse_x, ev->mouse_y);
-            app.left_down = false;
+            app.run_latched = !app.run_latched;
+            debug_log("[dbg] run latch=%d\n", app.run_latched ? 1 : 0);
         }
         break;
     case SAPP_EVENTTYPE_MOUSE_SCROLL:
@@ -200,14 +160,34 @@ static void on_event(const sapp_event *ev) {
         }
         break;
     case SAPP_EVENTTYPE_KEY_DOWN:
-        if (ev->key_code == SAPP_KEYCODE_R && !ev->key_repeat) {
-            camera_reset(&app.cam, app.player.pos);
-            app.cam.target_center = app.player.pos;
-            app.cam.center = app.player.pos;
-            app.player.reset_flash = 1.0f;
-            debug_log("[dbg] reset fit=%.3f target_zoom=%.3f center=(%.1f,%.1f)\n",
-                      app.cam.fit_zoom, app.cam.target_zoom,
-                      app.cam.target_center.x, app.cam.target_center.y);
+        switch (ev->key_code) {
+        case SAPP_KEYCODE_W: app.key_w = true; break;
+        case SAPP_KEYCODE_A: app.key_a = true; break;
+        case SAPP_KEYCODE_S: app.key_s = true; break;
+        case SAPP_KEYCODE_D: app.key_d = true; break;
+        case SAPP_KEYCODE_R:
+            if (!ev->key_repeat) {
+                camera_reset(&app.cam, app.player.pos);
+                app.cam.target_center = app.player.pos;
+                app.cam.center = app.player.pos;
+                app.player.reset_flash = 1.0f;
+                debug_log("[dbg] reset fit=%.3f target_zoom=%.3f center=(%.1f,%.1f)\n",
+                          app.cam.fit_zoom, app.cam.target_zoom,
+                          app.cam.target_center.x, app.cam.target_center.y);
+            }
+            break;
+        default:
+            break;
+        }
+        break;
+    case SAPP_EVENTTYPE_KEY_UP:
+        switch (ev->key_code) {
+        case SAPP_KEYCODE_W: app.key_w = false; break;
+        case SAPP_KEYCODE_A: app.key_a = false; break;
+        case SAPP_KEYCODE_S: app.key_s = false; break;
+        case SAPP_KEYCODE_D: app.key_d = false; break;
+        default:
+            break;
         }
         break;
     case SAPP_EVENTTYPE_MOUSE_ENTER:
@@ -216,8 +196,12 @@ static void on_event(const sapp_event *ev) {
         break;
     case SAPP_EVENTTYPE_MOUSE_LEAVE:
         app.mouse_inside = false;
-        app.left_down = false;
-        app.stick_engaged = false;
+        break;
+    case SAPP_EVENTTYPE_UNFOCUSED:
+        app.key_w = false;
+        app.key_a = false;
+        app.key_s = false;
+        app.key_d = false;
         break;
     case SAPP_EVENTTYPE_RESIZED:
         break;
@@ -255,19 +239,6 @@ static void draw_doors(void) {
     }
 }
 
-static void draw_joystick(void) {
-    const joystick *j = &app.stick;
-    color ring = color_make(1.0f, 1.0f, 1.0f, 0.78f);
-    color inner = color_make(1.0f, 1.0f, 1.0f, 0.38f);
-    draw_circle_outline(j->center, JOYSTICK_RADIUS, 1.5f, ring);
-    draw_circle_outline(j->center, JOYSTICK_RADIUS * 0.5f, 1.0f, inner);
-    if (j->active) {
-        vec2 edge = vec2_add(j->center, vec2_scale(j->dir, JOYSTICK_RADIUS));
-        draw_line(j->center, edge, 2.0f, color_make(1.0f, 1.0f, 1.0f, 0.88f));
-        draw_line(j->center, j->knob, 3.0f, color_hex(0x3dff74, 0.95f));
-    }
-}
-
 static void draw_player_pulse(void) {
     const player *p = &app.player;
     vec2 ps = map_world_to_screen(&app.cam, app.width, app.vp_h, p->pos);
@@ -292,10 +263,19 @@ static void draw_player_arrow(void) {
 }
 
 static void draw_cursor(void) {
-    if (!app.mouse_inside) {
+    if (!mouse_in_viewport()) {
         return;
     }
-    draw_sprite(&g_assets->cursor_ring, app.stick.knob, 30.0f, 30.0f, 0.0f,
+    vec2 m = app.mouse;
+    color guide_start = color_hex(0xbebbad, 0.34f);
+    color guide_end = color_hex(0xbebbad, 0.02f);
+
+    draw_tapered_line(m, vec2_make(0.0f, m.y), 2.0f, 0.35f, guide_start, guide_end);
+    draw_tapered_line(m, vec2_make(app.width, m.y), 2.0f, 0.35f, guide_start, guide_end);
+    draw_tapered_line(m, vec2_make(m.x, 0.0f), 2.0f, 0.35f, guide_start, guide_end);
+    draw_tapered_line(m, vec2_make(m.x, app.vp_h), 2.0f, 0.35f, guide_start, guide_end);
+
+    draw_sprite(&g_assets->cursor_ring, m, 30.0f, 30.0f, 0.0f,
                 color_make(1.0f, 1.0f, 1.0f, 1.0f));
 }
 
@@ -304,7 +284,7 @@ static void draw_tooltip(void) {
     if (t <= 0.001f) {
         return;
     }
-    vec2 m = app.stick.knob;
+    vec2 m = app.mouse;
     float pw = 250.0f;
     float ph = 30.0f;
     float slide = (1.0f - t) * 6.0f;
@@ -360,7 +340,7 @@ static void draw_status(void) {
     draw_text(DRAW_FONT_REGULAR, 11.0f, color_hex(0xcfc9ba, 0.42f),
               FONS_ALIGN_CENTER | FONS_ALIGN_MIDDLE,
               vec2_make(app.width * 0.5f, app.vp_h + 100.0f),
-              "MOVE MOUSE STICK    INNER WALK / OUTER RUN    HOLD LMB TURN    SCROLL ZOOM    R RESET");
+              "WASD MOVE    RMB WALK/RUN    SCROLL ZOOM    R RESET");
 }
 
 static void draw_vignette(void) {
@@ -421,7 +401,6 @@ static void render(void) {
     draw_dot_grid();
     draw_map();
     draw_doors();
-    draw_joystick();
     draw_player_pulse();
     draw_cursor();
     draw_player_arrow();
@@ -448,13 +427,12 @@ static void update(float dt) {
     app.time += dt;
     camera_update(&app.cam, dt);
     float body_radius = 20.0f / app.cam.zoom + 1.0f;
-    joystick_update();
+    float dx = (app.key_d ? 1.0f : 0.0f) - (app.key_a ? 1.0f : 0.0f);
+    float dy = (app.key_w ? 1.0f : 0.0f) - (app.key_s ? 1.0f : 0.0f);
     move_input input = {
-        .dir = vec2_make(app.stick.dir.x, -app.stick.dir.y),
-        .turn_rate = app.stick.turn_rate,
-        .active = app.stick.active,
-        .running = app.stick.running,
-        .face = app.left_down,
+        .dir = vec2_norm(vec2_make(dx, dy)),
+        .active = dx != 0.0f || dy != 0.0f,
+        .running = app.run_latched,
     };
     player_update(&app.player, &app.map, input, body_radius, dt);
     app.cam.target_center = app.player.pos;
@@ -468,7 +446,7 @@ static void init(void) {
     if (frame_log_path) {
         frame_log_file = fopen(frame_log_path, "w");
         if (frame_log_file) {
-            fprintf(frame_log_file, "dt,x,y,heading,speed,stick_len,stick_active,stick_running,stick_face\n");
+            fprintf(frame_log_file, "dt,x,y,heading,speed,run,w,a,s,d\n");
         }
     }
 
@@ -530,12 +508,13 @@ static void init(void) {
     camera_init(&app.cam, app.width, app.vp_h);
     app.mouse = vec2_make(app.width * 0.5f, app.vp_h * 0.5f);
     app.mouse_inside = false;
-    app.left_down = false;
-    app.stick_engaged = false;
+    app.key_w = false;
+    app.key_a = false;
+    app.key_s = false;
+    app.key_d = false;
+    app.run_latched = false;
     app.cam.center = app.player.pos;
     app.cam.target_center = app.player.pos;
-    app.stick.center = app.mouse;
-    app.stick.knob = app.mouse;
     app.time = 0.0f;
     app.tooltip = 0.0f;
     app.fps = 60.0f;
@@ -577,11 +556,11 @@ static void frame(void) {
     float dt = clampf(raw_dt, 0.0f, 0.05f);
     update(dt);
     if (frame_log_file) {
-        fprintf(frame_log_file, "%.6f,%.3f,%.3f,%.5f,%.3f,%.2f,%d,%d,%d\n",
+        fprintf(frame_log_file, "%.6f,%.3f,%.3f,%.5f,%.3f,%d,%d,%d,%d,%d\n",
                 raw_dt, app.player.pos.x, app.player.pos.y,
-                app.player.heading, app.player.speed, app.stick.length,
-                app.stick.active ? 1 : 0, app.stick.running ? 1 : 0,
-                app.left_down ? 1 : 0);
+                app.player.heading, app.player.speed, app.run_latched ? 1 : 0,
+                app.key_w ? 1 : 0, app.key_a ? 1 : 0, app.key_s ? 1 : 0,
+                app.key_d ? 1 : 0);
         if ((++frame_log_rows % 10) == 0) {
             fflush(frame_log_file);
         }
