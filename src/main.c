@@ -572,8 +572,8 @@ static void frame(void) {
 }
 
 static void cleanup(void) {
+    // Restore the active cursor before sokol_app's automatic cursor cleanup.
     sapp_set_mouse_cursor(SAPP_MOUSECURSOR_DEFAULT);
-    sapp_unbind_mouse_cursor_image(SAPP_MOUSECURSOR_CUSTOM_0);
     if (frame_log_file) {
         fclose(frame_log_file);
         frame_log_file = NULL;
