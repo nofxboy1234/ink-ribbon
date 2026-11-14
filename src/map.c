@@ -9,10 +9,14 @@
 #define MIN_ZOOM_FACTOR 0.28f
 #define MAX_ZOOM_FACTOR 1.09f
 
-#define PLAYER_MAX_SPEED 250.0f
 #define PLAYER_ACCEL 1400.0f
 #define PLAYER_DECEL 1200.0f
 #define PLAYER_TURN_RATE 13.0f
+#define PLAYER_ARC_TURN_RATE 4.5f
+#define PLAYER_ARC_MIN_DIST 36.0f
+#define PLAYER_ARC_MIN_SPEED 12.0f
+#define PLAYER_TARGET_ACCEPT 14.0f
+#define PLAYER_REVERSE_EPS 0.06f
 #define PLAYER_ARRIVE_DIST 0.8f
 #define ROUTE_SAMPLES 96
 
@@ -125,63 +129,134 @@ void player_init(player *p) {
     p->pos = vec2_make(0.0f, -8.0f);
     p->heading = 0.0f;
     p->target_heading = 0.0f;
+    p->max_speed = PLAYER_RUN_SPEED;
 }
 
-void player_set_target(player *p, const map_geometry *map, vec2 target) {
-    map_build_route(map, p->pos, target, p->route, &p->route_count);
+static void player_set_current_target(player *p, const map_geometry *map) {
+    const move_target *target = &p->targets[0];
+    map_build_route(map, p->pos, target->pos, p->route, &p->route_count);
     p->route_index = 0;
-    p->moving = p->route_count > 0;
+    p->max_speed = target->max_speed;
+    p->moving = true;
+
+    vec2 delta = vec2_sub(target->pos, p->pos);
+    float wanted = atan2f(delta.x, delta.y);
+    float error = fabsf(wrap_angle(wanted - p->heading));
+    p->use_arc = p->speed > PLAYER_ARC_MIN_SPEED &&
+                 error > 0.08f &&
+                 (p->target_count > 1 || error < MAP_PI - PLAYER_REVERSE_EPS);
 }
 
-void player_update(player *p, float dt) {
+void player_push_target(player *p, const map_geometry *map, vec2 target, float max_speed) {
+    if (p->target_count == 0) {
+        p->targets[0] = (move_target){.pos = target, .max_speed = max_speed};
+        p->target_count = 1;
+        player_set_current_target(p, map);
+    } else if (p->target_count < PLAYER_MAX_TARGETS) {
+        p->targets[p->target_count++] = (move_target){.pos = target, .max_speed = max_speed};
+    } else {
+        p->targets[PLAYER_MAX_TARGETS - 1] = (move_target){.pos = target, .max_speed = max_speed};
+    }
+}
+
+void player_cancel_movement(player *p) {
+    p->target_count = 0;
+    p->route_count = 0;
+    p->route_index = 0;
+    p->moving = false;
+    p->speed = 0.0f;
+    p->use_arc = false;
+}
+
+static void player_advance_target(player *p, const map_geometry *map) {
+    if (p->target_count > 1) {
+        for (int i = 1; i < p->target_count; i++) {
+            p->targets[i - 1] = p->targets[i];
+        }
+        p->target_count--;
+        player_set_current_target(p, map);
+    } else {
+        p->target_count = 0;
+        p->moving = false;
+        p->speed = 0.0f;
+    }
+}
+
+void player_update(player *p, const map_geometry *map, float dt) {
     p->pulse_time = fmodf(p->pulse_time + dt, 1000.0f);
     if (p->reset_flash > 0.0f) {
         p->reset_flash = fmaxf(0.0f, p->reset_flash - dt / 1.4f);
     }
 
-    if (!p->moving) {
+    if (!p->moving || p->target_count == 0) {
         p->speed = approachf(p->speed, 0.0f, PLAYER_DECEL * dt);
         return;
     }
 
     vec2 to = vec2_sub(p->route[p->route_index], p->pos);
     float dist = vec2_len(to);
+    bool last_route = p->route_index == p->route_count - 1;
+    bool last_target = p->target_count == 1;
 
-    if (p->route_index == p->route_count - 1 && dist < 16.0f) {
-        float k = 1.0f - expf(-12.0f * dt);
+    if (last_route && last_target && dist < 16.0f) {
+        float ease_rate = clampf(p->speed / fmaxf(dist, 0.001f), 4.0f, 20.0f);
+        float k = 1.0f - expf(-ease_rate * dt);
         float step = dist * k;
         p->pos = vec2_add(p->pos, vec2_scale(to, k));
         p->speed = step / fmaxf(dt, 1e-5f);
         if (dist < 0.12f) {
-            p->pos = p->route[p->route_count - 1];
+            p->pos = p->targets[0].pos;
             p->speed = 0.0f;
             p->moving = false;
+            p->target_count = 0;
         }
         return;
     }
 
+    if (last_route && !last_target && dist < PLAYER_TARGET_ACCEPT) {
+        player_advance_target(p, map);
+        return;
+    }
+
     if (dist < PLAYER_ARRIVE_DIST) {
-        p->route_index++;
-        if (p->route_index >= p->route_count) {
+        if (!last_route) {
+            p->route_index++;
+            to = vec2_sub(p->route[p->route_index], p->pos);
+            dist = vec2_len(to);
+            last_route = p->route_index == p->route_count - 1;
+        } else {
+            p->target_count = 0;
             p->moving = false;
             p->speed = 0.0f;
-            p->pos = p->route[p->route_count - 1];
+            p->pos = p->targets[0].pos;
             return;
         }
-        to = vec2_sub(p->route[p->route_index], p->pos);
-        dist = vec2_len(to);
     }
 
     if (dist > 0.01f) {
         p->target_heading = atan2f(to.x, to.y);
     }
 
-    float turn = wrap_angle(p->target_heading - p->heading);
-    p->heading = wrap_angle(p->heading + turn * (1.0f - expf(-PLAYER_TURN_RATE * dt)));
-
-    float desired = fminf(PLAYER_MAX_SPEED, sqrtf(2.0f * PLAYER_DECEL * dist));
+    float desired;
+    if (last_route && last_target) {
+        desired = fminf(p->max_speed, sqrtf(2.0f * PLAYER_DECEL * dist));
+    } else {
+        desired = p->max_speed;
+    }
     float rate = desired > p->speed ? PLAYER_ACCEL : PLAYER_DECEL;
     p->speed = approachf(p->speed, desired, rate * dt);
+
+    if (p->use_arc && last_route && dist > PLAYER_ARC_MIN_DIST && p->speed > PLAYER_ARC_MIN_SPEED) {
+        float turn = wrap_angle(p->target_heading - p->heading);
+        float max_turn = PLAYER_ARC_TURN_RATE * dt;
+        p->heading = wrap_angle(p->heading + clampf(turn, -max_turn, max_turn));
+        float step = fminf(p->speed * dt, dist);
+        p->pos = vec2_add(p->pos, vec2_scale(vec2_make(sinf(p->heading), cosf(p->heading)), step));
+        return;
+    }
+
+    float turn = wrap_angle(p->target_heading - p->heading);
+    p->heading = wrap_angle(p->heading + turn * (1.0f - expf(-PLAYER_TURN_RATE * dt)));
 
     float step = fminf(p->speed * dt, dist);
     p->pos = vec2_add(p->pos, vec2_scale(vec2_norm(to), step));

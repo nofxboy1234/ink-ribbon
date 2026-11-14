@@ -1,6 +1,6 @@
 # Entrance map
 
-A C11 + sokol recreation of the R.P.D. Entrance map overlay from the reference clip. It draws a T-shaped floor plan with a bone outline, the glowing player chevron, a custom ring cursor, the Locked Door tooltip, smooth zoom and pan, reset, and the search status legend. The background is black. The 3D game scene, the top header, the icon row, and the objective text are not rendered.
+A C11 + sokol recreation of the R.P.D. Entrance map overlay from the reference clip. It draws a T-shaped floor plan with a bone outline, a fixed-size player chevron with a soft expanding glow, cyan waypoint cells, a bright green route rope, a custom ring cursor, the Locked Door tooltip, smooth zoom and pan, reset, and the search status legend. The background is black. The 3D game scene, the top header, the icon row, and the objective text are not rendered.
 
 ![Entrance map](docs/preview.png)
 
@@ -18,9 +18,11 @@ The build copies `assets/fonts` next to the executable. To run from another dire
 
 ## Controls
 
-- Middle-drag inside the map to pan.
+- Middle-drag inside the map to pan. The map tracks the pointer directly, with no camera catch-up.
 - Scroll inside the map to zoom around the pointer.
-- Click inside the Entrance room to move the player chevron. It turns toward the click and eases to a stop.
+- Left-click inside the Entrance to walk to the point. Right-click to run. Each click appends a waypoint, and the chevron curves through the queue with preserved momentum.
+- Double-click inside the map to cancel all movement.
+- Moving the pointer extends a live green preview from the last waypoint to the pointer.
 - Hover the red door to see the Locked Door tooltip.
 - Press `R` to recenter on the player at the default zoom and flash the player.
 
@@ -32,7 +34,7 @@ The map viewport has no panel or top chrome. The legend and control hint sit und
 
 ## Assets
 
-The map, doors, player chevron, breathing glow, cursor, tooltip panel, and legend squares are authored in Krita. The `.kra` sources are in `assets/src`, the exported PNGs are in `assets`, and `assets/src/build_assets.py` redraws them. Regenerate everything with:
+The map, doors, player chevron, expanding glow, cursor, tooltip panel, and legend squares are authored in Krita. The chevron keeps a fixed screen size as the map zooms. The glow expands and fades like a soft puddle rather than breathing. Clicked waypoints render as cyan squares at an 18-unit navigation-cell size, because there is no separate navigation grid. The `.kra` sources are in `assets/src`, the exported PNGs are in `assets`, and `assets/src/build_assets.py` redraws them. Regenerate everything with:
 
 ```sh
 ./tools/build-assets.sh

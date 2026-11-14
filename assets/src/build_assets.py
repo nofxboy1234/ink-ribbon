@@ -265,10 +265,12 @@ def build_glow():
     img = image(256, 256)
     p = painter(img)
     grad = QRadialGradient(128, 128, 128)
-    grad.setColorAt(0.0, QColor(240, 205, 130, 210))
-    grad.setColorAt(0.22, QColor(230, 195, 120, 140))
-    grad.setColorAt(0.52, QColor(218, 180, 105, 55))
-    grad.setColorAt(1.0, QColor(210, 170, 100, 0))
+    grad.setColorAt(0.0, QColor(240, 205, 130, 230))
+    grad.setColorAt(0.18, QColor(232, 198, 126, 190))
+    grad.setColorAt(0.42, QColor(222, 185, 112, 120))
+    grad.setColorAt(0.68, QColor(210, 172, 98, 48))
+    grad.setColorAt(0.88, QColor(205, 168, 94, 10))
+    grad.setColorAt(1.0, QColor(205, 168, 94, 0))
     p.setPen(Qt.PenStyle.NoPen)
     p.setBrush(QBrush(grad))
     p.drawEllipse(QRectF(0, 0, 256, 256))
@@ -323,8 +325,8 @@ def build_legend():
 def __main__(*args):
     try:
         build_map()
-        build_door("door_service", QColor(186, 183, 176), QColor(151, 148, 141),
-                   QColor(84, 82, 76), QColor(224, 221, 212, 130), 58.0, 10.0)
+        build_door("door_service", QColor(202, 199, 192), QColor(170, 167, 160),
+                   QColor(94, 92, 86), QColor(238, 235, 226, 150), 58.0, 10.0)
         build_door("door_locked", QColor(122, 30, 30), QColor(88, 16, 16),
                    QColor(50, 9, 9), QColor(162, 52, 52, 90), 58.0, 12.0)
         build_door("door_locked_hover", QColor(142, 38, 38), QColor(104, 22, 22),

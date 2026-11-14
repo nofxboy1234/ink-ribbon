@@ -20,6 +20,15 @@ typedef struct {
 
 #define MAP_POLY_MAX 80
 #define MAP_MAX_WAYPOINTS 3
+#define PLAYER_MAX_TARGETS 12
+#define WAYPOINT_CELL_SIZE 18.0f
+#define PLAYER_WALK_SPEED 125.0f
+#define PLAYER_RUN_SPEED 250.0f
+
+typedef struct {
+    vec2 pos;
+    float max_speed;
+} move_target;
 #define MAP_DOOR_COUNT 2
 #define MAP_WORLD_MIN_X (-360.0f)
 #define MAP_WORLD_MAX_X (360.0f)
@@ -62,8 +71,12 @@ typedef struct {
     vec2 route[MAP_MAX_WAYPOINTS];
     int route_count;
     int route_index;
+    move_target targets[PLAYER_MAX_TARGETS];
+    int target_count;
     float speed;
+    float max_speed;
     bool moving;
+    bool use_arc;
     float pulse_time;
     float reset_flash;
 } player;
@@ -82,9 +95,15 @@ typedef struct {
     float vp_h;
     vec2 mouse;
     bool mouse_inside;
+    float last_click_time;
+    vec2 last_click_pos;
+    int last_click_button;
     bool left_down;
     bool left_moved;
     vec2 left_start;
+    bool right_down;
+    bool right_moved;
+    vec2 right_start;
     pan_state pan;
     vec2 pan_start;
     vec2 pan_center;

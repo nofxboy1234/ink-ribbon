@@ -10,8 +10,9 @@ bool map_door_hit(const map_geometry *map, int door, vec2 p, float pad);
 void map_build_route(const map_geometry *map, vec2 from, vec2 to, vec2 out[MAP_MAX_WAYPOINTS], int *count);
 
 void player_init(player *p);
-void player_set_target(player *p, const map_geometry *map, vec2 target);
-void player_update(player *p, float dt);
+void player_push_target(player *p, const map_geometry *map, vec2 target, float max_speed);
+void player_cancel_movement(player *p);
+void player_update(player *p, const map_geometry *map, float dt);
 
 void camera_init(camera *cam, float vp_w, float vp_h);
 void camera_resize(camera *cam, float vp_w, float vp_h);

@@ -135,23 +135,37 @@ static void update_hover(float dt) {
     }
 }
 
-static void handle_click(void) {
+static void handle_click(int button, float speed) {
     if (!mouse_in_viewport()) {
         return;
     }
+
+    bool double_click = app.last_click_button == button &&
+                        (app.time - app.last_click_time) < 0.35f &&
+                        vec2_len(vec2_sub(app.mouse, app.last_click_pos)) < 8.0f;
+    app.last_click_time = app.time;
+    app.last_click_pos = app.mouse;
+    app.last_click_button = button;
+    if (double_click) {
+        player_cancel_movement(&app.player);
+        app.last_click_time = -10.0f;
+        debug_log("[dbg] double click cancel\n");
+        return;
+    }
+
     vec2 world = map_screen_to_world(&app.cam, app.width, app.vp_h, app.mouse);
     bool inside = map_contains(&app.map, world);
     float pad = 3.0f / app.cam.zoom;
     bool on_door = map_door_hit(&app.map, DOOR_LOCKED, world, pad) ||
                    map_door_hit(&app.map, DOOR_SERVICE, world, pad);
 
-    debug_log("[dbg] click screen=(%.1f,%.1f) world=(%.1f,%.1f) inside=%d on_door=%d\n",
-              app.mouse.x, app.mouse.y, world.x, world.y, inside ? 1 : 0, on_door ? 1 : 0);
+    debug_log("[dbg] click screen=(%.1f,%.1f) world=(%.1f,%.1f) inside=%d on_door=%d speed=%.0f\n",
+              app.mouse.x, app.mouse.y, world.x, world.y, inside ? 1 : 0, on_door ? 1 : 0, speed);
 
     if (inside && !on_door) {
-        player_set_target(&app.player, &app.map, world);
-        debug_log("[dbg] move target=(%.1f,%.1f) route=%d\n",
-                  world.x, world.y, app.player.route_count);
+        player_push_target(&app.player, &app.map, world, speed);
+        debug_log("[dbg] move target=(%.1f,%.1f) targets=%d route=%d speed=%.0f\n",
+                  world.x, world.y, app.player.target_count, app.player.route_count, speed);
     }
 }
 
@@ -166,9 +180,13 @@ static void on_event(const sapp_event *ev) {
             app.cam.target_center.x = app.pan_center.x - delta.x / app.cam.zoom;
             app.cam.target_center.y = app.pan_center.y + delta.y / app.cam.zoom;
             camera_clamp(&app.cam);
+            app.cam.center = app.cam.target_center;
         }
         if (app.left_down && vec2_len(vec2_sub(app.mouse, app.left_start)) > 4.0f) {
             app.left_moved = true;
+        }
+        if (app.right_down && vec2_len(vec2_sub(app.mouse, app.right_start)) > 4.0f) {
+            app.right_moved = true;
         }
         break;
     }
@@ -177,12 +195,18 @@ static void on_event(const sapp_event *ev) {
             app.mouse = vec2_make(ev->mouse_x, ev->mouse_y);
             app.pan = PAN_ACTIVE;
             app.pan_start = app.mouse;
-            app.pan_center = app.cam.target_center;
+            app.pan_center = app.cam.center;
+            app.cam.target_center = app.cam.center;
         } else if (mouse_in_viewport() && ev->mouse_button == SAPP_MOUSEBUTTON_LEFT) {
             app.mouse = vec2_make(ev->mouse_x, ev->mouse_y);
             app.left_down = true;
             app.left_moved = false;
             app.left_start = app.mouse;
+        } else if (mouse_in_viewport() && ev->mouse_button == SAPP_MOUSEBUTTON_RIGHT) {
+            app.mouse = vec2_make(ev->mouse_x, ev->mouse_y);
+            app.right_down = true;
+            app.right_moved = false;
+            app.right_start = app.mouse;
         }
         break;
     case SAPP_EVENTTYPE_MOUSE_UP:
@@ -195,9 +219,15 @@ static void on_event(const sapp_event *ev) {
         } else if (ev->mouse_button == SAPP_MOUSEBUTTON_LEFT) {
             app.mouse = vec2_make(ev->mouse_x, ev->mouse_y);
             if (app.left_down && !app.left_moved) {
-                handle_click();
+                handle_click(0, PLAYER_WALK_SPEED);
             }
             app.left_down = false;
+        } else if (ev->mouse_button == SAPP_MOUSEBUTTON_RIGHT) {
+            app.mouse = vec2_make(ev->mouse_x, ev->mouse_y);
+            if (app.right_down && !app.right_moved) {
+                handle_click(1, PLAYER_RUN_SPEED);
+            }
+            app.right_down = false;
         }
         break;
     case SAPP_EVENTTYPE_MOUSE_SCROLL:
@@ -228,6 +258,8 @@ static void on_event(const sapp_event *ev) {
         app.pan = PAN_IDLE;
         app.left_down = false;
         app.left_moved = false;
+        app.right_down = false;
+        app.right_moved = false;
         break;
     case SAPP_EVENTTYPE_RESIZED:
         break;
@@ -265,22 +297,105 @@ static void draw_doors(void) {
     }
 }
 
+static vec2 catmull_rom(vec2 p0, vec2 p1, vec2 p2, vec2 p3, float t) {
+    float t2 = t * t;
+    float t3 = t2 * t;
+    float b0 = 0.5f * (-t3 + 2.0f * t2 - t);
+    float b1 = 0.5f * (3.0f * t3 - 5.0f * t2 + 2.0f);
+    float b2 = 0.5f * (-3.0f * t3 + 4.0f * t2 + t);
+    float b3 = 0.5f * (t3 - t2);
+    return vec2_add(vec2_add(vec2_scale(p0, b0), vec2_scale(p1, b1)),
+                    vec2_add(vec2_scale(p2, b2), vec2_scale(p3, b3)));
+}
+
+static void draw_smooth_route(vec2 *world, int count, color glow, color line,
+                              float glow_width, float line_width) {
+    if (count < 2) {
+        return;
+    }
+    for (int i = 0; i < count - 1; i++) {
+        vec2 p0 = world[i > 0 ? i - 1 : 0];
+        vec2 p1 = world[i];
+        vec2 p2 = world[i + 1];
+        vec2 p3 = world[i + 2 < count ? i + 2 : count - 1];
+        vec2 prev = p1;
+        for (int step = 1; step <= 20; step++) {
+            vec2 q = catmull_rom(p0, p1, p2, p3, (float)step / 20.0f);
+            vec2 a = map_world_to_screen(&app.cam, app.width, app.vp_h, prev);
+            vec2 b = map_world_to_screen(&app.cam, app.width, app.vp_h, q);
+            draw_line(a, b, glow_width, glow);
+            draw_line(a, b, line_width, line);
+            prev = q;
+        }
+    }
+}
+
+static void draw_waypoint_rope(void) {
+    const player *p = &app.player;
+    color green = color_hex(0x3dff74, 0.92f);
+    color green_dim = color_hex(0x3dff74, 0.52f);
+    color green_glow = color_hex(0x3dff74, 0.08f);
+    color preview_glow = color_hex(0x59ff8c, 0.13f);
+
+    vec2 route[PLAYER_MAX_TARGETS + 1];
+    int route_count = 1;
+    route[0] = p->pos;
+    for (int i = 0; i < p->target_count; i++) {
+        route[route_count++] = p->targets[i].pos;
+    }
+    if (route_count > 1) {
+        draw_smooth_route(route, route_count, green_glow, green_dim, 6.0f, 1.8f);
+    }
+
+    bool preview = mouse_in_viewport() && app.pan != PAN_ACTIVE;
+    vec2 cursor_world = map_screen_to_world(&app.cam, app.width, app.vp_h, app.mouse);
+    if (preview) {
+        preview = map_contains(&app.map, cursor_world);
+        if (preview) {
+            float pad = 3.0f / app.cam.zoom;
+            preview = !map_door_hit(&app.map, DOOR_LOCKED, cursor_world, pad) &&
+                      !map_door_hit(&app.map, DOOR_SERVICE, cursor_world, pad);
+        }
+    }
+    if (preview) {
+        vec2 last = p->target_count > 0 ? p->targets[p->target_count - 1].pos : p->pos;
+        vec2 previous = p->target_count > 1 ? p->targets[p->target_count - 2].pos : p->pos;
+        if (vec2_len(vec2_sub(cursor_world, last)) > 1.0f) {
+            vec2 preview_points[3] = {previous, last, cursor_world};
+            draw_smooth_route(preview_points, 3, preview_glow, green, 7.0f, 2.2f);
+        }
+    }
+
+    float cell = WAYPOINT_CELL_SIZE * app.cam.zoom;
+    for (int i = 0; i < p->target_count; i++) {
+        vec2 c = map_world_to_screen(&app.cam, app.width, app.vp_h, p->targets[i].pos);
+        draw_rect_fill((rect){c.x - cell * 0.5f - 1.0f, c.y - cell * 0.5f - 1.0f,
+                              cell + 2.0f, cell + 2.0f}, color_hex(0x031c1c, 0.8f));
+        draw_rect_fill((rect){c.x - cell * 0.5f, c.y - cell * 0.5f, cell, cell},
+                       color_hex(0x3fe6e6, 0.92f));
+    }
+}
+
 static void draw_player_pulse(void) {
     const player *p = &app.player;
-    const camera *cam = &app.cam;
-    vec2 ps = map_world_to_screen(cam, app.width, app.vp_h, p->pos);
-    float pulse = 0.5f + 0.5f * sinf(app.time * (2.0f * MAP_PI / 1.7f));
-    float size = (58.0f + 12.0f * pulse + p->reset_flash * 18.0f) * cam->zoom;
-    float alpha = 0.26f + 0.12f * pulse + p->reset_flash * 0.20f;
-    draw_sprite(&g_assets->player_glow, ps, size, size, 0.0f,
-                color_make(1.0f, 1.0f, 1.0f, alpha));
+    vec2 ps = map_world_to_screen(&app.cam, app.width, app.vp_h, p->pos);
+    float phase = fmodf(app.time / 2.2f, 1.0f);
+    float expand = smoothstepf(phase);
+    float puddle_size = 36.0f + 30.0f * expand + p->reset_flash * 8.0f;
+    float puddle_alpha = clampf(0.42f * powf(1.0f - phase, 1.4f) + p->reset_flash * 0.22f,
+                                0.0f, 1.0f);
+    float base_alpha = clampf(0.16f + p->reset_flash * 0.12f, 0.0f, 1.0f);
+
+    draw_sprite(&g_assets->player_glow, ps, 32.0f, 32.0f, 0.0f,
+                color_make(1.0f, 1.0f, 1.0f, base_alpha));
+    draw_sprite(&g_assets->player_glow, ps, puddle_size, puddle_size, 0.0f,
+                color_make(1.0f, 1.0f, 1.0f, puddle_alpha));
 }
 
 static void draw_player_arrow(void) {
     const player *p = &app.player;
-    const camera *cam = &app.cam;
-    vec2 ps = map_world_to_screen(cam, app.width, app.vp_h, p->pos);
-    draw_sprite(&g_assets->player_arrow, ps, 49.0f * cam->zoom, 40.0f * cam->zoom,
+    vec2 ps = map_world_to_screen(&app.cam, app.width, app.vp_h, p->pos);
+    draw_sprite(&g_assets->player_arrow, ps, 34.0f, 28.0f,
                 p->heading, color_make(1.0f, 1.0f, 1.0f, 1.0f));
 }
 
@@ -289,12 +404,15 @@ static void draw_cursor(void) {
         return;
     }
     vec2 m = app.mouse;
-    color guide = color_hex(0xbebbad, 0.10f);
+    color guide_start = color_hex(0xbebbad, 0.34f);
+    color guide_end = color_hex(0xbebbad, 0.02f);
 
-    draw_line(vec2_make(0.0f, m.y), vec2_make(app.width, m.y), 1.0f, guide);
-    draw_line(vec2_make(m.x, 0.0f), vec2_make(m.x, app.vp_h), 1.0f, guide);
+    draw_tapered_line(m, vec2_make(0.0f, m.y), 2.0f, 0.35f, guide_start, guide_end);
+    draw_tapered_line(m, vec2_make(app.width, m.y), 2.0f, 0.35f, guide_start, guide_end);
+    draw_tapered_line(m, vec2_make(m.x, 0.0f), 2.0f, 0.35f, guide_start, guide_end);
+    draw_tapered_line(m, vec2_make(m.x, app.vp_h), 2.0f, 0.35f, guide_start, guide_end);
 
-    draw_sprite(&g_assets->cursor_ring, m, 24.0f, 24.0f, 0.0f,
+    draw_sprite(&g_assets->cursor_ring, m, 30.0f, 30.0f, 0.0f,
                 color_make(1.0f, 1.0f, 1.0f, 1.0f));
 }
 
@@ -359,7 +477,7 @@ static void draw_status(void) {
     draw_text(DRAW_FONT_REGULAR, 11.0f, color_hex(0xcfc9ba, 0.42f),
               FONS_ALIGN_CENTER | FONS_ALIGN_MIDDLE,
               vec2_make(app.width * 0.5f, app.vp_h + 100.0f),
-              "MIDDLE-DRAG TO PAN    SCROLL TO ZOOM    CLICK ENTRANCE TO MOVE    R RESET");
+              "MIDDLE DRAG PAN    SCROLL ZOOM    LMB WALK    RMB RUN    DOUBLE CLICK CANCEL    R RESET");
 }
 
 static void draw_vignette(void) {
@@ -420,6 +538,7 @@ static void render(void) {
     draw_dot_grid();
     draw_map();
     draw_doors();
+    draw_waypoint_rope();
     draw_player_pulse();
     draw_cursor();
     draw_player_arrow();
@@ -445,7 +564,7 @@ static void update(float dt) {
     update_layout();
     app.time += dt;
     camera_update(&app.cam, dt);
-    player_update(&app.player, dt);
+    player_update(&app.player, &app.map, dt);
     update_hover(dt);
 }
 
@@ -517,6 +636,8 @@ static void init(void) {
     camera_init(&app.cam, app.width, app.vp_h);
     app.mouse = vec2_make(app.width * 0.58f, app.vp_h * 0.62f);
     app.mouse_inside = true;
+    app.last_click_time = -10.0f;
+    app.last_click_button = -1;
     app.pan = PAN_IDLE;
     app.time = 0.0f;
     app.tooltip = 0.0f;

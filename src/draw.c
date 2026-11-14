@@ -52,6 +52,24 @@ void draw_rect_gradient_h(rect r, color left, color right) {
     sgl_end();
 }
 
+void draw_tapered_line(vec2 from, vec2 to, float start_width, float end_width,
+                       color start, color end) {
+    vec2 d = vec2_sub(to, from);
+    float len = vec2_len(d);
+    if (len < 1e-5f) {
+        return;
+    }
+    vec2 n = vec2_make(-d.y / len, d.x / len);
+    float hw0 = fmaxf(start_width, 0.2f) * 0.5f;
+    float hw1 = fmaxf(end_width, 0.2f) * 0.5f;
+    sgl_begin_quads();
+    emit_vertex(vec2_add(from, vec2_scale(n, hw0)), start);
+    emit_vertex(vec2_add(to, vec2_scale(n, hw1)), end);
+    emit_vertex(vec2_sub(to, vec2_scale(n, hw1)), end);
+    emit_vertex(vec2_sub(from, vec2_scale(n, hw0)), start);
+    sgl_end();
+}
+
 void draw_line(vec2 a, vec2 b, float width, color c) {
     vec2 d = vec2_sub(b, a);
     float len = vec2_len(d);
