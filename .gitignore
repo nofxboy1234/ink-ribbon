@@ -1,37 +1,5 @@
-node_modules
-dist
-.void
-.wrangler
-.void-wrangler.jsonc
-.env
-.env.*
-!.env.example
-*.tsbuildinfo
-.DS_Store
-
-# Game data extracted from the local RE2 install, and intermediate builds.
-data/raw/
-native/build/
 build/
-
-# Void writes the connected Cloudflare account into this file.
-void.lock.json
-
-# Python tooling
-__pycache__/
-*.pyc
-verification/rpd/current/
-
-# sokol-shdc generated shader headers.
-native/gen/
-
-# Playthrough frames are regenerated locally; only the GIF and reports are committed.
-verification/rpd/playthrough/*.png
-verification/rpd/playthrough/*-frames.txt
-verification/rpd/playthrough/run.log
-verification/rpd/playthrough/debug.log
-verification/rpd/teleport/
-verification/rpd/waypoints/
-verification/rpd/containers/
-verification/rpd/links/
-verification/rpd/locator/
+compile_commands.json
+*.o
+.DS_Store
+verification/shots/
